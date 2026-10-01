@@ -40,22 +40,22 @@ Eight categories, weighted:
 
 | # | Category | Weight | Measured in this build? |
 |---|---|---|---|
-| 1 | AI Visibility | 25% | ❌ not included — needs a paid, billed API |
-| 2 | OTAs & Travel Platforms | 15% | ❌ not included — needs a keyed search API |
-| 3 | Reviews & Reputation | 15% | ❌ not included — needs a keyed API |
-| 4 | Editorial & Blogs | 15% | ❌ not included — needs a keyed search API |
-| 5 | Website & Technical | 12.5% | ✅ |
+| 1 | AI Visibility | 25% | ❌ never — needs a paid, billed API |
+| 2 | OTAs & Travel Platforms | 15% | 🔑 if a free Tavily key is configured |
+| 3 | Reviews & Reputation | 15% | 🔑 partially, if a free Amadeus key is configured |
+| 4 | Editorial & Blogs | 15% | 🔑 if a free Tavily key is configured |
+| 5 | Website & Technical | 12.5% | ✅ always |
 | 6 | Social & UGC | 7.5% | ⚠️ presence yes, activity no |
-| 7 | Entity Consistency | 5% | ✅ |
-| 8 | Freshness | 5% | ✅ |
+| 7 | Entity Consistency | 5% | ✅ always |
+| 8 | Freshness | 5% | ✅ always |
 
-**This public build deliberately covers about 30% of the model, and nothing
-more.** That's not a bug to fix quietly — it's the actual design decision
-behind making this a free, public, no-account dashboard: every category that
-needs a paid or keyed API is left out entirely, so a stranger clicking "Run
-audit" never spends anyone's money. See **Why some categories aren't here**
-below for exactly what each one would need, and **Self-hosting with full
-coverage** for how to turn them back on if you're running your own copy.
+**Without any keys configured, this covers about 30% of the model.** That
+30% is never gated behind anything — no account, no key, free for every
+visitor, forever. The three 🔑 rows are genuinely free too (no card, ever)
+but need the *operator* to add a key once; see **Raising coverage on the
+public dashboard** below. AI Visibility is the one row that's permanently
+out of reach here, because it's the one that would cost real money per
+request — see **Why some categories aren't here**.
 
 ### Why the score is not out of 100
 
@@ -93,24 +93,53 @@ API. It can never score full marks on half the evidence.
 - **Editorial & Blogs** needs a web search index to find press/tourism-board
   mentions, which needs a key too.
 
-### Self-hosting with full coverage
+### Raising coverage on the public dashboard — free sources only
 
-The pipeline underneath this dashboard (`full_audit.py`) already supports
-every category — the public build just never passes it any keys. If you're
-running your own copy (locally, or your own private deployment) rather than
-using the shared public one, you can bring the other 70% of the model in:
+The dashboard (`app.py`) reads two **free, no-card** keys from Streamlit's
+secrets store, if configured — never from the visitor. Add either one and
+the matching category gets assessed for everyone, automatically:
 
 | Source | Unlocks | Cost |
 |---|---|---|
 | [Tavily](https://tavily.com) | Editorial (15%), OTA presence (15%) | Free, 1,000 searches/month, no card |
 | [Amadeus Hotel Ratings](https://developers.amadeus.com) | Part of Reviews (15%) | Free self-service test tier, no card |
+
+Both together take coverage from ~30% to ~67.5% at zero ongoing cost. A
+shared monthly counter (`store.py`) stops the app calling either once that
+month's free allowance is used up, so public traffic can't exhaust them
+unnoticed — see `app.py`'s module docstring for exactly how.
+
+**To add them, on Streamlit Community Cloud:** open the app → **Settings** →
+**Secrets**, and paste:
+
+```toml
+TAVILY_API_KEY = "tvly-..."
+AMADEUS_API_KEY = "..."
+AMADEUS_API_SECRET = "..."
+```
+
+Save, and the app restarts with them picked up — no code change, no redeploy
+needed. **Running locally:** create `.streamlit/secrets.toml` in the project
+folder with the same contents (that path is already in `.gitignore`, so it's
+never committed).
+
+Google Places and Gemini AI visibility are **not** wired into the public
+dashboard at all, deliberately — both can incur real, uncapped cost per
+request, which isn't something to expose on a page any stranger can click
+without that being its own explicit decision.
+
+### Self-hosting with full coverage (including the paid categories)
+
+The pipeline underneath this dashboard (`full_audit.py`) already supports
+every category, including the two left out of the public build above. If
+you're running your own private copy — not the shared public one — you can
+bring in Google Places and Gemini AI visibility too via CLI flags or
+environment variables; see `full_audit.py`'s `main()` for the exact flags:
+
+| Source | Unlocks | Cost |
+|---|---|---|
 | [Google Places API](https://developers.google.com/maps/documentation/places) | Reviews properly (rating, count, snippets) | Free monthly allowance, but needs a Google Cloud billing account on file |
 | Gemini (billing enabled) | AI Visibility (25%) | 5,000 searches/month included, then $14/1,000 |
-
-Pass these as environment variables or CLI flags to `full_audit.py` — see its
-`main()` for the exact flags. The public `app.py` deliberately never reads
-these env vars, so there's no risk of a public deployment accidentally
-picking up keys meant for a private one.
 
 ```powershell
 $env:TAVILY_API_KEY = "..."
@@ -120,6 +149,10 @@ $env:AMADEUS_API_SECRET = "..."
 $env:GEMINI_API_KEY = "..."
 python full_audit.py --website brooklandshotelsurrey.com --include-ai-visibility
 ```
+
+This CLI path is entirely separate from the public `app.py` and its
+Streamlit secrets — running it never affects, and is never affected by, the
+hosted dashboard's configuration.
 
 ---
 

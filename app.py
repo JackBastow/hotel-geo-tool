@@ -3,25 +3,35 @@ Hotel AI Discoverability Audit - public dashboard.
 
 Run with:  streamlit run app.py
 
-ONE ACTION, NO ACCOUNT, NO KEYS. Type a website, press "Run audit", get a
-report. This is meant to be hosted somewhere with a public URL (Streamlit
-Community Cloud to start) so anyone - no Claude access, no API keys of their
-own, nothing installed - can just use it.
+ONE ACTION, NO ACCOUNT. Type a website, press "Run audit", get a report.
+Meant to be hosted somewhere with a public URL (Streamlit Community Cloud to
+start) so anyone - no Claude access, no API keys of their own, nothing
+installed - can just use it.
 
-That public-and-free design shapes everything here:
+That public-and-free-to-the-VISITOR design shapes everything here:
 
-  - No API keys anywhere in this file, and none asked of the visitor. A
-    public page that collected strangers' API keys would be a bad idea on
-    its own; a public page that spent an OPERATOR's paid API keys every time
-    a stranger clicked a button would be worse. So this build only ever
-    calls full_audit.run_full_audit() with no optional integrations - the
-    free, keyless pipeline (Website & Technical, Entity Consistency,
-    Freshness, Social presence). AI visibility, OTA presence, Reviews and
-    Editorial coverage are real categories in the model but need a paid or
-    keyed data source each; they report "not assessed" here, honestly, with
-    an explanation rather than a wrong number. See full_audit.py and
-    scoring.py's module docstrings for what each would take to add back for
-    a private/self-hosted deployment.
+  - No visitor ever sees, types, or needs an API key. Where a category CAN be
+    backed by a genuinely free, no-card data source (Tavily for OTA presence
+    and editorial mentions; Amadeus Hotel Ratings for review sentiment), the
+    OPERATOR's own key - never the visitor's - is read from Streamlit's
+    secrets store (st.secrets, configured in the app's dashboard, never
+    committed to this repo) and used on the visitor's behalf. If no secret is
+    configured, that category just reports "not assessed" - the app works
+    identically either way, it only covers more of the model once keys exist.
+
+  - A SHARED MONTHLY QUOTA PROTECTS those free keys from being exhausted by
+    public traffic (see store.py's per-service quota tracking). Once a
+    service's free monthly allowance is used up, the app stops calling it
+    until the month rolls over, rather than erroring or (for a paid service)
+    spending real money. This is a soft, best-effort limit - the counter
+    lives on the host's own disk, which can be wiped on a restart - not a
+    hard guarantee, same as it always was for the Gemini-only version of this.
+
+  - Anything that costs real, uncapped money per request - Google Places,
+    Gemini grounding - is deliberately NOT wired in here. Those would need an
+    explicit decision to accept that risk on a page strangers can click, which
+    hasn't been made. See full_audit.py and scoring.py's module docstrings for
+    what each would take to add, if that decision changes.
 
   - No server-side history across visitors. store.py's run history writes to
     one shared folder on disk, which is fine for a single person running it
@@ -42,6 +52,34 @@ import store
 
 st.set_page_config(page_title="Hotel AI Discoverability Audit",
                    page_icon="H", layout="wide")
+
+
+def _operator_secret(name):
+    """
+    Read an operator-held key from Streamlit's secrets store, never from the
+    visitor. Returns None if it isn't configured - st.secrets raises if no
+    secrets.toml/dashboard config exists at all (the normal case for a fresh
+    local checkout), so that's treated the same as "not set" rather than an
+    error that would break the page for every visitor.
+    """
+    try:
+        return st.secrets.get(name) or None
+    except Exception:  # noqa: BLE001 - st.secrets raising means "none configured"
+        return None
+
+
+TAVILY_KEY = _operator_secret("TAVILY_API_KEY")
+AMADEUS_KEY = _operator_secret("AMADEUS_API_KEY")
+AMADEUS_SECRET = _operator_secret("AMADEUS_API_SECRET")
+
+
+def _within_quota(service):
+    """True if this service's shared monthly allowance has room for one more
+    audit. Checked before every run so public traffic can't silently exhaust
+    an operator's free-tier key."""
+    _, _, would_exceed = store.quota_status(planned_calls=1, service=service)
+    return not would_exceed
+
 
 st.title("Hotel AI Discoverability Audit")
 st.caption(
@@ -89,15 +127,34 @@ if fa_go:
         st.error("Enter a website.")
         st.stop()
     prog = st.empty()
+    # Only pass a key through if it's actually configured AND this month's
+    # shared allowance isn't already used up - otherwise the category falls
+    # back to "not assessed" for this run rather than erroring or (for a paid
+    # service, if one is ever added here) spending money past a free cap.
+    use_tavily = TAVILY_KEY if (TAVILY_KEY and _within_quota("tavily")) else None
+    use_amadeus_key = AMADEUS_KEY if (
+        AMADEUS_KEY and AMADEUS_SECRET and _within_quota("amadeus")) else None
+    use_amadeus_secret = AMADEUS_SECRET if use_amadeus_key else None
     try:
-        # No optional keys passed - this is the permanent free/keyless path.
         fa_res = full_audit.run_full_audit(
             fa_website, fa_hotel, fa_city, progress=lambda m: prog.caption(m),
+            tavily_api_key=use_tavily,
+            amadeus_api_key=use_amadeus_key,
+            amadeus_api_secret=use_amadeus_secret,
         )
     except Exception as e:  # noqa: BLE001 - surface the real error
         prog.empty()
         st.error(f"Audit failed: {e}")
         st.stop()
+
+    # Record actual usage against the shared monthly allowance. Counts are
+    # estimates - Tavily makes one search call per audit; Amadeus makes a
+    # hotel lookup plus a ratings call, so two - consistent with how the
+    # original Gemini-only quota was always labelled a floor, not an exact count.
+    if (fa_res.get("tavily_result") or {}).get("configured"):
+        store.record_usage(1, service="tavily")
+    if (fa_res.get("amadeus_result") or {}).get("configured"):
+        store.record_usage(2, service="amadeus")
     prog.empty()
     st.session_state["fa_res"] = fa_res
 

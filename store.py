@@ -27,6 +27,21 @@ APP_DIR = os.path.join(os.path.expanduser("~"), ".hotel_geo_tool")
 RUNS_DIR = os.path.join(APP_DIR, "runs")
 QUOTA_FILE = os.path.join(APP_DIR, "quota.json")
 
+# A hosted public app has no visitor-specific identity to rate-limit against,
+# so protection is a single shared monthly counter per external service - the
+# same shape of problem Gemini's quota tracking already solved below, just
+# generalised to more than one service. On Streamlit Community Cloud this file
+# lives on the container's own disk, which can be wiped on a sleep/restart -
+# so like the original Gemini counter, this is a best-effort floor, not a
+# guarantee. It is still far better than nothing: most abuse is someone
+# mashing the button in one sitting, which this stops within that sitting.
+SERVICE_CAPS = {
+    "gemini": 5000,     # searches/month, only relevant if AI visibility is enabled
+    "tavily": 1000,     # searches/month, Tavily's free tier
+    "amadeus": 2000,    # a conservative guess at the self-service test quota -
+                        # tighten this once real usage is observed
+}
+
 # Grounding with Google Search is NOT available on the Gemini free tier -
 # verified live in Sept 2026: ungrounded calls return 200, while every grounded
 # call on a project without billing returns 429, on every model and both API
@@ -55,38 +70,56 @@ def _month_key(when=None):
 
 # ----------------------------------------------------------------- quota
 
-def read_quota():
+def _read_all_quota():
     _ensure()
     if not os.path.exists(QUOTA_FILE):
-        return {"month": _month_key(), "grounded_calls": 0, "audits": 0}
+        return {}
     try:
         with open(QUOTA_FILE) as f:
-            q = json.load(f)
+            return json.load(f)
     except (json.JSONDecodeError, OSError):
-        return {"month": _month_key(), "grounded_calls": 0, "audits": 0}
+        return {}
+
+
+def _write_all_quota(data):
+    _ensure()
+    tmp = QUOTA_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, QUOTA_FILE)
+
+
+def read_quota(service="gemini"):
+    """Usage so far this month for one service. Resets silently on a new month."""
+    all_q = _read_all_quota()
+    q = all_q.get(service, {})
     if q.get("month") != _month_key():
-        return {"month": _month_key(), "grounded_calls": 0, "audits": 0}
-    return q
+        return {"month": _month_key(), "calls": 0, "audits": 0}
+    # tolerate the old Gemini-only shape ("grounded_calls") written before
+    # this was generalised to multiple services
+    return {"month": q["month"], "calls": q.get("calls", q.get("grounded_calls", 0)),
+           "audits": q.get("audits", 0)}
 
 
-def record_usage(grounded_calls, audits=1):
-    q = read_quota()
-    q["grounded_calls"] = q.get("grounded_calls", 0) + int(grounded_calls)
+def record_usage(calls, audits=1, service="gemini"):
+    all_q = _read_all_quota()
+    q = read_quota(service)
+    q["calls"] = q.get("calls", 0) + int(calls)
     q["audits"] = q.get("audits", 0) + int(audits)
     q["month"] = _month_key()
     q["updated"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
-    _ensure()
-    with open(QUOTA_FILE, "w") as f:
-        json.dump(q, f, indent=2)
+    all_q[service] = q
+    _write_all_quota(all_q)
     return q
 
 
-def quota_status(planned_calls=0):
-    """Returns (used, remaining, would_exceed)."""
-    q = read_quota()
-    used = q.get("grounded_calls", 0)
-    remaining = max(INCLUDED_MONTHLY_SEARCHES - used, 0)
-    return used, remaining, (used + planned_calls) > INCLUDED_MONTHLY_SEARCHES
+def quota_status(planned_calls=0, service="gemini", cap=None):
+    """Returns (used, remaining, would_exceed) for one service's monthly cap."""
+    cap = cap if cap is not None else SERVICE_CAPS.get(service, INCLUDED_MONTHLY_SEARCHES)
+    q = read_quota(service)
+    used = q.get("calls", 0)
+    remaining = max(cap - used, 0)
+    return used, remaining, (used + planned_calls) > cap
 
 
 # ----------------------------------------------------------------- cache
