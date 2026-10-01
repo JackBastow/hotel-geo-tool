@@ -440,22 +440,63 @@ def score_editorial(tavily_result):
                              "Check the API key.")
 
     hits = tavily_result.get("editorial_hits") or []
-    ev = [f"Editorial/credible mentions found: "
-         f"{', '.join(h['platform'] for h in hits)}" if hits else
-         "No editorial or tourism-board mention surfaced in the search checked"]
+    segments = tavily_result.get("segments_detected") or []
+    ev = []
+    if segments:
+        ev.append(f"Checked as: {', '.join(segments)} (detected from the "
+                 f"hotel's own topic pages) - search angles tailored accordingly")
+
+    # Weight a genuinely-read, substantial, confirmed piece far above a bare
+    # domain appearing in a search result - that distinction is the entire
+    # point of actually fetching and judging the article rather than just
+    # counting hits, so the score has to reflect it, not just count rows.
+    weight_by_substance = {"feature": 1.0, "substantial mention": 0.6,
+                          "passing mention": 0.3, "unknown": 0.4}
+    confirmed_hits = [h for h in hits if h.get("read", {}).get("confirmed") is True]
+    weighted = sum(weight_by_substance.get(h["read"].get("substance", "unknown"), 0.4)
+                  for h in confirmed_hits)
+
+    if hits:
+        for h in confirmed_hits[:8]:
+            r = h["read"]
+            tag = " (read by LLM)" if r.get("via") == "llm" else ""
+            ev.append(f"{h['platform']}: {r.get('substance', 'unknown')}, "
+                      f"{r.get('sentiment', 'unknown')}{tag}"
+                      + (f" - \"{r['excerpt']}\"" if r.get("excerpt") else ""))
+        unread = len(hits) - len(confirmed_hits)
+        if unread:
+            ev.append(f"{unread} further hit(s) could not be read or confirmed "
+                     f"as genuinely about this hotel - not counted toward the score")
+    else:
+        ev.append("No editorial or tourism-board mention surfaced in the "
+                 "searches checked")
+
     recs = []
-    if not hits:
+    negative = [h for h in confirmed_hits if h["read"].get("sentiment") == "negative"]
+    if negative:
+        recs.append({
+            "priority": "medium",
+            "action": f"Read the negative coverage at "
+                      f"{', '.join(h['platform'] for h in negative)}",
+            "why": "A genuine third-party source reads negatively about this "
+                  "hotel - worth knowing what it actually says, not just that "
+                  "it exists.",
+        })
+    if not confirmed_hits:
         recs.append({
             "priority": "low",
             "action": "Consider outreach to a relevant travel publication or "
-                      "the local tourism board",
-            "why": "No third-party editorial coverage surfaced. This is based "
-                  "on one search's results, not a full press-coverage audit.",
+                      "the local tourism board"
+                      + (f" covering {segments[0]}" if segments else ""),
+            "why": "No confirmed third-party editorial coverage surfaced. "
+                  "This is based on several targeted searches, not a full "
+                  "press-coverage audit.",
         })
-    score = min(len(hits), 3) / 3.0 * 100
+
+    score = min(weighted, 3) / 3.0 * 100
     return _cat("editorial", score,
-               f"{len(hits)} editorial/credible source(s) found via search "
-               "index.", ev, recs)
+               f"{len(confirmed_hits)} confirmed editorial/credible source(s), "
+               f"read and judged rather than just counted.", ev, recs)
 
 
 def score_ai_visibility(audit_payload):
@@ -517,7 +558,7 @@ def score_ai_visibility(audit_payload):
                "From a live Gemini grounded-search sample.", ev, recs)
 
 
-def score_social(discovery):
+def score_social(discovery, tavily_result=None):
     """
     Presence only - deliberately capped.
 
@@ -526,8 +567,13 @@ def score_social(discovery):
     Instagram and TikTok are restricted, and Reddit's public JSON endpoint now
     returns 403 without OAuth (verified). So what can be established for free
     is only whether the hotel HAS a linked presence, not whether anyone is
-    talking about it. The score is capped at 60 to reflect that the activity
-    half was never measured, and the category is marked partial.
+    talking about it. The score is capped at 60 to reflect that.
+
+    When Tavily is configured, independently-found social mentions (found via
+    search, not just linked from the hotel's own site) raise that cap to 75 -
+    a search engine independently surfacing a hotel's Instagram is slightly
+    stronger evidence than the hotel merely linking to it itself, though it
+    still is not the same as knowing anyone is actively posting or engaging.
     """
     profs = discovery.get("profiles") or []
     platforms = {p["platform"] for p in profs}
@@ -536,6 +582,14 @@ def score_social(discovery):
 
     ev = [f"Profiles linked from the site: {', '.join(sorted(platforms)) or 'none'}"]
     recs = []
+
+    tavily_social = (tavily_result or {}).get("social_hits") or []
+    independently_found = {h["platform"] for h in tavily_social}
+    cap = 60
+    if independently_found:
+        cap = 75
+        ev.append(f"Independently found via search (not just self-linked): "
+                 f"{', '.join(sorted(independently_found))}")
 
     count_score = min(len(social), 3) / 3.0
     sameas = 1.0 if discovery.get("declares_sameas") else 0.0
@@ -557,7 +611,7 @@ def score_social(discovery):
 
     raw = (count_score * 0.6 + sameas * 0.4)
     ev.append("Activity and recency NOT measured - needs platform API access")
-    return _cat("social", raw * 60, "Linked presence only; activity not measured.",
+    return _cat("social", raw * cap, "Linked presence only; activity not measured.",
                 ev, recs, partial=True)
 
 
@@ -577,7 +631,7 @@ def build_scorecard(site, entities, consistency, location, discovery,
         score_website(site),
         score_entity(entities, consistency, location),
         score_freshness(site),
-        score_social(discovery),
+        score_social(discovery, tavily_result),
         score_otas(tavily_result),
         score_reviews(places_result, amadeus_result),
         score_editorial(tavily_result),

@@ -95,27 +95,49 @@ API. It can never score full marks on half the evidence.
 
 ### Raising coverage on the public dashboard — free sources only
 
-The dashboard (`app.py`) reads a **free, no-card** key from Streamlit's
-secrets store, if configured — never from the visitor. Add it and the
+The dashboard (`app.py`) reads **free, no-card** keys from Streamlit's
+secrets store, if configured — never from the visitor. Add them and the
 matching categories get assessed for everyone, automatically:
 
 | Source | Unlocks | Cost |
 |---|---|---|
-| [Tavily](https://tavily.com) | Editorial (15%), OTA presence (15%) | Free, 1,000 searches/month, no card |
+| [Tavily](https://tavily.com) | Editorial (15%), OTA presence (15%), a Social & UGC boost | Free, 1,000 searches/month, no card |
+| Gemini, ungrounded only (`GEMINI_READER_API_KEY`) | Makes Tavily's Editorial coverage read and judged, not just counted | Free - genuinely different cost profile from AI Visibility, see below |
 
-That alone takes coverage from ~30% to ~60% at zero ongoing cost. A shared
-monthly counter (`store.py`) stops the app calling it once that month's free
-allowance is used up, so public traffic can't exhaust it unnoticed — see
-`app.py`'s module docstring for exactly how.
+Tavily alone takes coverage from ~30% to ~60% at zero ongoing cost. Shared
+monthly counters (`store.py`) stop the app calling either once that month's
+free allowance is used up, so public traffic can't exhaust them unnoticed —
+see `app.py`'s module docstring for exactly how.
 
-**To add it, on Streamlit Community Cloud:** open the app → **Settings** →
+**Tavily is no longer one shallow search.** It now runs a multi-angle,
+segment-aware set of queries per audit - detecting from the hotel's own
+topic pages whether it reads as a wedding venue, business hotel, family
+hotel, pet-friendly or spa/wellness destination (free, reusing signals
+`site_check.py` already extracts), and searching accordingly rather than
+running one generic query regardless of hotel type. See `tavily_check.py`'s
+module docstring for the full design and honest trade-offs (more searches
+per audit, so fewer free audits per month - still comfortable for
+occasional use, worth knowing for heavy use).
+
+**`GEMINI_READER_API_KEY` is a genuinely different thing from AI Visibility,
+not a relaxed version of it.** AI Visibility needs Gemini's paid, grounded
+Google Search - that's excluded here entirely. This key is used only to
+*read text Tavily has already fetched* and judge it (is this genuinely about
+the hotel, how substantial, what sentiment) via an ungrounded call, which
+works fine on the free tier - verified live. `gemini_reader.py`'s module
+docstring explains why these two are kept strictly separate in code, not
+just in naming. Without this key, the same reading happens via cruder
+keyword rules instead - the feature works either way, just less precisely.
+
+**To add these, on Streamlit Community Cloud:** open the app → **Settings** →
 **Secrets**, and paste:
 
 ```toml
 TAVILY_API_KEY = "tvly-..."
+GEMINI_READER_API_KEY = "..."
 ```
 
-Save, and the app restarts with it picked up — no code change, no redeploy
+Save, and the app restarts with them picked up — no code change, no redeploy
 needed. **Running locally:** create `.streamlit/secrets.toml` in the project
 folder with the same contents (that path is already in `.gitignore`, so it's
 never committed).
@@ -271,7 +293,8 @@ grounded result to others is not.
 | `scoring.py` | The eight-category weighted model, coverage and recommendations |
 | `site_check.py` | Website technical checks (robots.txt, sitemap, JSON-LD, schema) |
 | `external_check.py` | Entity presence (OpenStreetMap, Wikidata) and fact consistency |
-| `tavily_check.py` | Optional — OTA presence + editorial mentions via Tavily search |
+| `tavily_check.py` | Optional — multi-angle, segment-aware search: OTA presence, editorial mentions, social mentions |
+| `gemini_reader.py` | Optional — free, ungrounded Gemini call that reads and judges text `tavily_check.py` fetches. Not AI Visibility - see its module docstring |
 | `places_check.py` | Optional — Google Places rating/reviews |
 | `amadeus_check.py` | Optional — Amadeus Hotel Ratings sentiment |
 | `gemini_client.py` | Optional — Gemini grounded-search transport (AI visibility) |

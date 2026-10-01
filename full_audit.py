@@ -484,7 +484,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    tavily_api_key=None, places_api_key=None,
                    amadeus_api_key=None, amadeus_api_secret=None,
                    include_ai_visibility=False, gemini_api_key=None,
-                   gemini_model=None, ai_visibility_limit=6):
+                   gemini_model=None, ai_visibility_limit=6,
+                   gemini_reader_key=None, gemini_reader_model=None):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -496,6 +497,14 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     (Gemini grounding), so unlike the others it needs `include_ai_visibility`
     explicitly set True even when a key is present - it never runs by
     accident just because a key happens to be configured.
+
+    `gemini_reader_key` is a DIFFERENT, free use of a Gemini key: it only
+    reads text tavily_check.py has already fetched and judges it (sentiment,
+    substance, whether it's genuinely about this hotel) via an ungrounded
+    call - see gemini_reader.py's module docstring for why that is a
+    separate cost profile from AI visibility's grounded search, not a
+    relaxed version of the same setting. Configuring this does not enable
+    or require `include_ai_visibility`, and vice versa.
     """
     def say(msg):
         if progress:
@@ -548,12 +557,19 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     # separate tab the user has to remember to visit.
     tavily_result = None
     if tavily_check.has_key(tavily_api_key):
-        say("Checking editorial coverage and OTA presence (Tavily)...")
+        say("Checking editorial coverage, OTA presence and social mentions "
+            "(Tavily, multi-angle)...")
         try:
-            tavily_result = tavily_check.check_coverage(hotel, city, api_key=tavily_api_key)
+            tavily_result = tavily_check.check_coverage(
+                hotel, city, api_key=tavily_api_key,
+                topics_covered=site.get("topics_covered"), progress=say,
+                own_domain=site["meta"].get("base"),
+                gemini_reader_key=gemini_reader_key,
+                gemini_reader_model=gemini_reader_model,
+            )
         except Exception as e:  # noqa: BLE001 - a failed integration must not fail the audit
-            tavily_result = {"configured": True, "error": str(e),
-                             "ota_hits": [], "editorial_hits": [], "other_hits": []}
+            tavily_result = {"configured": True, "error": str(e), "ota_hits": [],
+                             "editorial_hits": [], "social_hits": [], "other_hits": []}
 
     places_result = None
     if places_check.has_key(places_api_key):

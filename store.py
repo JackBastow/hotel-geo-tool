@@ -40,6 +40,13 @@ SERVICE_CAPS = {
     "tavily": 1000,     # searches/month, Tavily's free tier
     "amadeus": 2000,    # a conservative guess at the self-service test quota -
                         # tighten this once real usage is observed
+    "gemini_reader": 500,   # calls/month, for gemini_reader.py's free ungrounded
+                            # judging calls. Google does not publish an exact
+                            # free-tier requests-per-day figure for this - public
+                            # sources this session disagreed by two orders of
+                            # magnitude (20 to 1,500 RPD). This is a deliberately
+                            # conservative monthly figure, not a verified limit -
+                            # tighten or loosen it once real usage is observed.
 }
 
 # Grounding with Google Search is NOT available on the Gemini free tier -

@@ -72,6 +72,12 @@ TAVILY_KEY = _operator_secret("TAVILY_API_KEY")
 AMADEUS_KEY = _operator_secret("AMADEUS_API_KEY")
 AMADEUS_SECRET = _operator_secret("AMADEUS_API_SECRET")
 
+# A FREE, UNGROUNDED Gemini key, used only to read and judge text Tavily has
+# already fetched (see gemini_reader.py). This is a different cost profile
+# from AI Visibility's paid grounding, and configuring it never enables or
+# implies AI Visibility, which remains entirely absent from this public app.
+GEMINI_READER_KEY = _operator_secret("GEMINI_READER_API_KEY")
+
 
 def _within_quota(service):
     """True if this service's shared monthly allowance has room for one more
@@ -135,26 +141,40 @@ if fa_go:
     use_amadeus_key = AMADEUS_KEY if (
         AMADEUS_KEY and AMADEUS_SECRET and _within_quota("amadeus")) else None
     use_amadeus_secret = AMADEUS_SECRET if use_amadeus_key else None
+    use_gemini_reader = GEMINI_READER_KEY if (
+        GEMINI_READER_KEY and _within_quota("gemini_reader")) else None
     try:
         fa_res = full_audit.run_full_audit(
             fa_website, fa_hotel, fa_city, progress=lambda m: prog.caption(m),
             tavily_api_key=use_tavily,
             amadeus_api_key=use_amadeus_key,
             amadeus_api_secret=use_amadeus_secret,
+            gemini_reader_key=use_gemini_reader,
         )
     except Exception as e:  # noqa: BLE001 - surface the real error
         prog.empty()
         st.error(f"Audit failed: {e}")
         st.stop()
 
-    # Record actual usage against the shared monthly allowance. Counts are
-    # estimates - Tavily makes one search call per audit; Amadeus makes a
-    # hotel lookup plus a ratings call, so two - consistent with how the
-    # original Gemini-only quota was always labelled a floor, not an exact count.
-    if (fa_res.get("tavily_result") or {}).get("configured"):
-        store.record_usage(1, service="tavily")
+    # Record actual usage against the shared monthly allowance. Tavily now
+    # runs a multi-angle search (generic + segment-specific queries), so the
+    # real count is however many queries actually ran, not a flat guess -
+    # exact, not an estimate, since tavily_check.py reports it directly.
+    # Amadeus still estimated at 2 calls (lookup + ratings) - consistent with
+    # the original Gemini-only quota always being labelled a floor.
+    tr = fa_res.get("tavily_result") or {}
+    if tr.get("configured"):
+        store.record_usage(len(tr.get("queries_run") or []) or 1, service="tavily")
     if (fa_res.get("amadeus_result") or {}).get("configured"):
         store.record_usage(2, service="amadeus")
+    # Exact count: only entries actually read via the LLM path count - a
+    # fetch that failed or fell back to rule-based judgment used no quota.
+    llm_reads = sum(
+        1 for e in tr.get("editorial_hits", []) + tr.get("other_hits", [])
+        if e.get("read", {}).get("via") == "llm"
+    )
+    if llm_reads:
+        store.record_usage(llm_reads, service="gemini_reader")
     prog.empty()
     st.session_state["fa_res"] = fa_res
 
@@ -263,6 +283,41 @@ if fa_res:
             else:
                 st.info("No profiles linked from the hotel's own pages.")
     with d2:
+        tr = fa_res.get("tavily_result") or {}
+        if tr.get("configured"):
+            with st.expander("Editorial, OTA & social search (Tavily)", expanded=True):
+                if tr.get("segments_detected"):
+                    st.caption(
+                        "Checked as: **" + ", ".join(tr["segments_detected"]) +
+                        "** — detected from the hotel's own topic pages, so "
+                        "the search angles were tailored to this hotel, not generic."
+                    )
+                ota = ", ".join(h["platform"] for h in tr.get("ota_hits", [])) or "none found"
+                social = ", ".join(h["platform"] for h in tr.get("social_hits", [])) or "none found"
+                st.write(f"**OTAs found:** {ota}")
+                st.write(f"**Independently-found social presence:** {social}")
+
+                confirmed = [h for h in tr.get("editorial_hits", [])
+                            if h.get("read", {}).get("confirmed") is True]
+                if confirmed:
+                    st.write("**Editorial coverage — read and judged, not just found:**")
+                    sentiment_icon = {"positive": "🟢", "neutral": "⚪", "negative": "🔴"}
+                    for h in confirmed:
+                        r = h["read"]
+                        icon = sentiment_icon.get(r.get("sentiment"), "⚪")
+                        via = " · read by LLM" if r.get("via") == "llm" else " · rule-based read"
+                        st.markdown(
+                            f"{icon} **[{h['platform']}]({h['url']})** — "
+                            f"{r.get('substance', 'unknown')}, {r.get('sentiment', 'unknown')}"
+                            f"*{via}*  \n{r.get('excerpt', '')}"
+                        )
+                else:
+                    st.caption("No confirmed editorial coverage found in the searches run.")
+
+                if tr.get("error"):
+                    st.caption(f"Note: one or more searches failed ({tr['error']}) — "
+                              f"results above are from whichever succeeded.")
+
         if fa_res["consistency"]:
             with st.expander("Fact consistency"):
                 st.dataframe(fa_res["consistency"], use_container_width=True,
