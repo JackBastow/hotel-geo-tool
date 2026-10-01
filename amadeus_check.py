@@ -2,6 +2,19 @@
 """
 Amadeus Hotel Ratings integration - covers part of Reviews & Reputation.
 
+STATUS (verified 2026-10-01): Amadeus decommissioned their free self-service
+developer portal on 2026-07-17. developers.amadeus.com now serves only the
+"Amadeus Enterprise API Portal" - access is a sales/request-access process,
+not a free signup. It is NOT currently a realistic free option to point a
+new user at. See scoring.py's score_reviews() for the user-facing wording.
+
+Whether the test.api.amadeus.com endpoints below still respond at all for
+credentials issued before the shutdown is UNVERIFIED - only the signup page
+has been confirmed dead, not the API itself. This module is left in place,
+unchanged and untested against a live call, for anyone who already holds
+valid credentials to try; treat its behaviour as unconfirmed until it's
+actually been run against a live key again.
+
 Amadeus aggregates guest-review sentiment into per-category scores (sleep
 quality, service, facilities, room comfort, value for money, location) rather
 than exposing raw review text - a structured, legitimately-licensed signal

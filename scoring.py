@@ -362,9 +362,12 @@ def score_reviews(places_result, amadeus_result):
             "neither is configured.",
             "A Google Places API key (official rating, review count, up to 5 "
             "review snippets - free monthly allowance, but needs Google Cloud "
-            "billing enabled) and/or an Amadeus Hotel Ratings key (free, no "
-            "card, category sentiment breakdown) would enable this - see "
-            "full_audit.py's options if self-hosting.")
+            "billing enabled) would enable part of this - see full_audit.py's "
+            "options if self-hosting. Amadeus Hotel Ratings used to offer a "
+            "free self-service tier for this too, but Amadeus decommissioned "
+            "that portal on 2026-07-17 - it's Enterprise-sales-only now, so "
+            "amadeus_check.py is kept for anyone with that access but is not "
+            "a realistic free option any more.")
 
     pts, ev, recs = [], [], []
 

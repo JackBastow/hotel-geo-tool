@@ -42,7 +42,7 @@ Eight categories, weighted:
 |---|---|---|---|
 | 1 | AI Visibility | 25% | ❌ never — needs a paid, billed API |
 | 2 | OTAs & Travel Platforms | 15% | 🔑 if a free Tavily key is configured |
-| 3 | Reviews & Reputation | 15% | 🔑 partially, if a free Amadeus key is configured |
+| 3 | Reviews & Reputation | 15% | ❌ not currently — needs Google Places (paid) or Amadeus (Enterprise sales, no longer free — see below) |
 | 4 | Editorial & Blogs | 15% | 🔑 if a free Tavily key is configured |
 | 5 | Website & Technical | 12.5% | ✅ always |
 | 6 | Social & UGC | 7.5% | ⚠️ presence yes, activity no |
@@ -51,11 +51,11 @@ Eight categories, weighted:
 
 **Without any keys configured, this covers about 30% of the model.** That
 30% is never gated behind anything — no account, no key, free for every
-visitor, forever. The three 🔑 rows are genuinely free too (no card, ever)
-but need the *operator* to add a key once; see **Raising coverage on the
-public dashboard** below. AI Visibility is the one row that's permanently
-out of reach here, because it's the one that would cost real money per
-request — see **Why some categories aren't here**.
+visitor, forever. The two 🔑 rows are genuinely free too (no card, ever) but
+need the *operator* to add a key once; see **Raising coverage on the public
+dashboard** below. AI Visibility and (currently) Reviews & Reputation are
+permanently out of reach without a paid/Enterprise decision — see **Why some
+categories aren't here**.
 
 ### Why the score is not out of 100
 
@@ -95,33 +95,38 @@ API. It can never score full marks on half the evidence.
 
 ### Raising coverage on the public dashboard — free sources only
 
-The dashboard (`app.py`) reads two **free, no-card** keys from Streamlit's
-secrets store, if configured — never from the visitor. Add either one and
-the matching category gets assessed for everyone, automatically:
+The dashboard (`app.py`) reads a **free, no-card** key from Streamlit's
+secrets store, if configured — never from the visitor. Add it and the
+matching categories get assessed for everyone, automatically:
 
 | Source | Unlocks | Cost |
 |---|---|---|
 | [Tavily](https://tavily.com) | Editorial (15%), OTA presence (15%) | Free, 1,000 searches/month, no card |
-| [Amadeus Hotel Ratings](https://developers.amadeus.com) | Part of Reviews (15%) | Free self-service test tier, no card |
 
-Both together take coverage from ~30% to ~67.5% at zero ongoing cost. A
-shared monthly counter (`store.py`) stops the app calling either once that
-month's free allowance is used up, so public traffic can't exhaust them
-unnoticed — see `app.py`'s module docstring for exactly how.
+That alone takes coverage from ~30% to ~60% at zero ongoing cost. A shared
+monthly counter (`store.py`) stops the app calling it once that month's free
+allowance is used up, so public traffic can't exhaust it unnoticed — see
+`app.py`'s module docstring for exactly how.
 
-**To add them, on Streamlit Community Cloud:** open the app → **Settings** →
+**To add it, on Streamlit Community Cloud:** open the app → **Settings** →
 **Secrets**, and paste:
 
 ```toml
 TAVILY_API_KEY = "tvly-..."
-AMADEUS_API_KEY = "..."
-AMADEUS_API_SECRET = "..."
 ```
 
-Save, and the app restarts with them picked up — no code change, no redeploy
+Save, and the app restarts with it picked up — no code change, no redeploy
 needed. **Running locally:** create `.streamlit/secrets.toml` in the project
 folder with the same contents (that path is already in `.gitignore`, so it's
 never committed).
+
+**Amadeus Hotel Ratings is no longer a free option.** It used to offer a
+self-service test tier covering part of Reviews & Reputation, but Amadeus
+decommissioned that portal on 2026-07-17 — `developers.amadeus.com` now
+serves only an Enterprise sales process. `amadeus_check.py` and the
+`AMADEUS_API_KEY`/`AMADEUS_API_SECRET` secrets are still supported for
+anyone who already holds (or later gets, via that sales process) valid
+credentials, but this is no longer something to point a new user at.
 
 Google Places and Gemini AI visibility are **not** wired into the public
 dashboard at all, deliberately — both can incur real, uncapped cost per
