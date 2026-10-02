@@ -61,13 +61,17 @@ import re
 import os
 import sys
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 
 import amadeus_check
 import audit
+import collect
 import external_check
 import fixes
 import guest_questions
+import intel
 import places_check
+import sources
 import scoring
 import site_check
 import tavily_check
@@ -504,6 +508,17 @@ def score(findings, site):
     return max(0, 100 - min(total, 100))
 
 
+def _page_links(html, base):
+    """[{url, anchor}] for every link on a page - used to spot booking engines."""
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html or "", "html.parser")
+        return [{"url": urllib.parse.urljoin(base, a["href"]), "anchor": a.get_text(" ", strip=True)}
+                for a in soup.find_all("a", href=True)][:300]
+    except Exception:  # noqa: BLE001
+        return []
+
+
 # --------------------------------------------------------------- orchestrator
 
 def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
@@ -511,7 +526,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    amadeus_api_key=None, amadeus_api_secret=None,
                    include_ai_visibility=False, gemini_api_key=None,
                    gemini_model=None, ai_visibility_limit=6,
-                   gemini_reader_key=None, gemini_reader_model=None):
+                   gemini_reader_key=None, gemini_reader_model=None,
+                   youtube_api_key=None, wider=True):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -549,10 +565,10 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    if v.get("urls")]
     pages_to_read = [base] + topic_pages[:2]
     pages_html = []
-    for p in pages_to_read:
-        r = get(p)
-        if r is not None and r.status_code == 200:
-            pages_html.append(r.text)
+    with ThreadPoolExecutor(max_workers=3) as _ex:      # three independent fetches, kept in order
+        for r in _ex.map(get, pages_to_read):
+            if r is not None and r.status_code == 200:
+                pages_html.append(r.text)
 
     discovery = discover_profiles(base, extra_pages=topic_pages[:2], progress=progress,
                                   prefetched=pages_html)
@@ -565,6 +581,18 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         location["city"] = city
         location["source"] = "provided by you"
     city = location["city"]
+
+    # The wider discovery (other sources, media coverage, listings, awards) needs only
+    # the name, place and segments - not the guest-question results - so it runs in
+    # the background while the website itself is read.
+    segment_labels = [tavily_check.SEGMENTS[k][0]
+                      for k in tavily_check.detect_segments(site.get("topics_covered"))]
+    collect_ex = collect_future = None
+    if wider:
+        collect_ex = ThreadPoolExecutor(max_workers=1)
+        collect_future = collect_ex.submit(
+            collect.collect, hotel, city, base, location=location, segments=segment_labels,
+            tavily_key=tavily_api_key, youtube_key=youtube_api_key)
 
     # Any discovered profile that might carry structured data is worth reading.
     # Most will be blocked; that is reported, not inferred away.
@@ -583,6 +611,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                  "own_facts_node": {}, "pages_attempted": 0, "pages_ok": 0,
                  "pages_failed": [], "evidence_sufficient": False, "sitemap_total": 0}
 
+    own_pages = guest.pop("own_pages", [])     # used by the wider analysis, not stored
+
     # The consistency check needs the hotel's OWN facts to compare against.
     # Many sites publish no structured data, which used to mean "nothing to
     # compare". Facts read from the page text (phone, address, times) fill
@@ -598,6 +628,28 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         hotel=hotel, city=city, location=location,
     )
 
+    # ---- join the wider discovery that has been running in the background
+    if collect_future is None:
+        corpus = {"sources": {}, "queries": [], "candidates": [], "raw_results": [],
+                  "notes": ["The wider discovery (media coverage, listings, awards, local context) was "
+                            "switched off for this run, so those checks are not assessed."],
+                  "tavily_credits": 0, "reads": {}}
+    else:
+        say("Finishing the wider source checks (media, listings, awards, local context)...")
+        try:
+            corpus = collect_future.result(timeout=300)
+        except Exception as e:  # noqa: BLE001 - the audit must survive a failed wider pass
+            corpus = {"sources": {}, "queries": [], "candidates": [], "raw_results": [],
+                      "notes": [f"The wider discovery pass failed ({type(e).__name__}); the "
+                                "media, listing and local-context sections are therefore empty."],
+                      "tavily_credits": 0, "reads": {}}
+        finally:
+            collect_ex.shutdown(wait=False, cancel_futures=True)
+    wd_entity = next((e for e in ext["entities"]
+                      if e.get("source") == "Wikidata" and e.get("found") and e.get("match_confident")), None)
+    if wd_entity:
+        corpus["sources"]["wikidata_detail"] = sources.wikidata_detail(wd_entity["id"])
+
     # ---- optional integrations. Each is independently skippable, and each
     # is called from exactly here - the single pipeline - not from a
     # separate tab the user has to remember to visit.
@@ -612,6 +664,10 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 own_domain=site["meta"].get("base"),
                 gemini_reader_key=gemini_reader_key,
                 gemini_reader_model=gemini_reader_model,
+                prefetched=(corpus["raw_results"] if corpus.get("raw_results") else None),
+                read_cache={c["url"]: (" ".join(c["page"].get("windows") or []) or c["page"].get("text_head", ""))
+                            for c in corpus.get("candidates", [])
+                            if c["read"]["status"] == "read" and c.get("page")},
             )
         except Exception as e:  # noqa: BLE001 - a failed integration must not fail the audit
             tavily_result = {"configured": True, "error": str(e), "ota_hits": [],
@@ -675,6 +731,17 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     )
     top_fixes = fixes.top_fixes(recs_all)
 
+    say("Analysing coverage, traveller fit and recommendations...")
+    try:
+        intel_result = intel.build_intel(
+            hotel=hotel, city=city, base_url=base, location=location, site=site,
+            discovery=discovery, guest=guest, own_pages=own_pages, entities=ext["entities"],
+            tavily_result=tavily_result, corpus=corpus, own_facts=own_facts,
+            site_links=_page_links(pages_html[0], base) if pages_html else [],
+            scorecard_recs=recs_all)
+    except Exception as e:  # noqa: BLE001
+        intel_result = {"error": f"{type(e).__name__}: {e}"}
+
     return {
         "meta": {
             "hotel": hotel,
@@ -708,6 +775,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "reputation": ext["reputation"],
         "guest_questions": guest,
         "own_facts_source": own_facts_source,
+        "intel": intel_result,
         "tavily_result": tavily_result,
         "places_result": places_result,
         "amadeus_result": amadeus_result,

@@ -47,6 +47,7 @@ Usage:
 """
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
 import re
@@ -147,14 +148,15 @@ def _client_key(api_key=None):
     return api_key or os.environ.get("TAVILY_API_KEY")
 
 
-def _search(query, api_key=None, max_results=10, timeout=30):
+def _search(query, api_key=None, max_results=10, timeout=30, **extra):
+    """`extra` passes through Tavily options such as topic="news", time_range="year"."""
     key = _client_key(api_key)
     if not key:
         raise TavilyError("no Tavily API key configured")
     try:
         r = requests.post(API_URL, json={
             "api_key": key, "query": query, "search_depth": "basic",
-            "max_results": max_results, "include_answer": False,
+            "max_results": max_results, "include_answer": False, **extra,
         }, timeout=timeout)
     except requests.RequestException as e:
         raise TavilyError(f"request failed: {e}")
@@ -261,7 +263,8 @@ def _judge(text, hotel, gemini_reader_key=None, gemini_reader_model=None):
 
 def check_coverage(hotel, city="", api_key=None, topics_covered=None,
                    fetch_top_n=6, progress=None, own_domain=None,
-                   gemini_reader_key=None, gemini_reader_model=None):
+                   gemini_reader_key=None, gemini_reader_model=None, prefetched=None,
+                   read_cache=None):
     """
     Multi-angle search across generic + segment-specific queries, then real
     reading of the strongest non-OTA/non-directory hits.
@@ -295,6 +298,14 @@ def check_coverage(hotel, city="", api_key=None, topics_covered=None,
     out["queries_run"] = queries
 
     seen_urls = {}
+    if prefetched is not None:
+        # The wider discovery pass already searched; reuse its results instead of
+        # spending the monthly free Tavily credits on the same queries again.
+        out["queries_run"] = ["(reused the results of the wider discovery searches)"]
+        for r in prefetched:
+            if r.get("url") and r["url"] not in seen_urls:
+                seen_urls[r["url"]] = r
+        queries = []
     for q in queries:
         if progress:
             progress(f"Searching: {q}")
@@ -345,19 +356,39 @@ def check_coverage(hotel, city="", api_key=None, topics_covered=None,
     # free-tier model can otherwise stretch one audit to many minutes, and a
     # public visitor shouldn't wait on that. Anything not reached is simply
     # left unread - never treated as bad coverage.
-    read_start = time.time()
+    # Texts come from pages the wider discovery pass already read (no second
+    # fetch); only pages it didn't read are fetched here. Judging (which may call
+    # the free Gemini reader) runs in a few threads so six slow calls don't add up.
     to_read = editorial_candidates[:fetch_top_n]
-    for i, entry in enumerate(to_read):
-        if time.time() - read_start > READ_BUDGET_S:
-            out["read_budget_hit"] = True
-            break
-        if progress:
-            progress(f"Reading: {entry['url']}")
-        if i > 0 and gemini_reader.has_key(gemini_reader_key):
-            time.sleep(2)
-        text = _fetch_text(entry["url"])
-        entry["read"] = _judge(text, hotel, gemini_reader_key=gemini_reader_key,
-                               gemini_reader_model=gemini_reader_model)
+    texts = {}
+    for entry in to_read:
+        cached = (read_cache or {}).get(entry["url"])
+        if cached:
+            texts[entry["url"]] = cached
+        else:
+            if progress:
+                progress(f"Reading: {entry['url']}")
+            texts[entry["url"]] = _fetch_text(entry["url"])
+
+    def judge_one(entry):
+        return entry, _judge(texts[entry["url"]], hotel, gemini_reader_key=gemini_reader_key,
+                             gemini_reader_model=gemini_reader_model)
+
+    if progress:
+        progress(f"Judging {len(to_read)} articles...")
+    ex = ThreadPoolExecutor(max_workers=3)
+    futs = [ex.submit(judge_one, e) for e in to_read]
+    try:
+        for f in as_completed(futs, timeout=READ_BUDGET_S):
+            try:
+                entry, judged = f.result()
+                entry["read"] = judged
+            except Exception:  # noqa: BLE001 - one failed judgement never fails the audit
+                pass
+    except Exception:  # TimeoutError: budget used up
+        out["read_budget_hit"] = True
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
 
     # Only candidates we actually tried to read can be called coverage;
     # unread ones (past the cap or the time budget) are kept apart.

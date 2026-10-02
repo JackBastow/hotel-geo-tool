@@ -30,6 +30,9 @@ import urllib.parse
 
 import requests
 
+import polite
+import sourcetypes
+
 from site_check import _extract_jsonld, _types, get, UA  # reuse, don't duplicate
 
 # Fields worth comparing across sources. Same shape as site_check's
@@ -91,7 +94,7 @@ def _find_node_of_type(jsonld_blocks, type_names):
 def check_url(url):
     """Fetch one external URL and extract whatever structured data exists."""
     out = {"url": url, "ok": False, "status": None, "reachable": False}
-    r = get(url)
+    r = get(url, timeout=8)     # a third-party listing is not worth a long wait
     if r is None:
         out["error"] = "request failed (timeout, DNS, or connection refused)"
         return out
@@ -511,7 +514,19 @@ def run_external_check(urls, own_lodging_node, progress=None, hotel="", city="",
               "entities": [...], "blocked_sources": [...]}
     """
     sources = []
+    skipped = []
     for i, url in enumerate(urls, 1):
+        # A link on the hotel's own site is not permission to read the other site.
+        # TripAdvisor, Booking.com, Expedia and similar prohibit automated reading
+        # in their terms, and any site's robots.txt is respected.
+        if not sourcetypes.may_read(url):
+            skipped.append({"url": url, "domain": _domain(url), "status": None,
+                            "error": "platform terms prohibit automated reading - not fetched"})
+            continue
+        if not polite.allowed(url):
+            skipped.append({"url": url, "domain": _domain(url), "status": None,
+                            "error": "robots.txt asks automated tools not to read this page - not fetched"})
+            continue
         if progress:
             progress(f"Checking {i}/{len(urls)}: {url}")
         sources.append(check_url(url))
@@ -551,7 +566,7 @@ def run_external_check(urls, own_lodging_node, progress=None, hotel="", city="",
          "status": s.get("status"), "error": s.get("error")}
         for s in sources
         if not s.get("reachable")
-    ]
+    ] + skipped
 
     reputation = []
     for s in sources:

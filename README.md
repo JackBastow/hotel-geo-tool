@@ -9,13 +9,88 @@ Not an SEO audit. It's about whether a *machine* — an AI assistant, a map
 app, a knowledge graph — can find the hotel, describe it correctly, and agree
 with every other source about what it is.
 
+Since the discovery & reputation layer was added it is also a **hotel
+discovery and reputation report**: the website is one evidence source, not the
+centre of the product. It looks at where the hotel appears across public
+sources, how those sources describe it, which traveller needs it has evidence
+for, what could weaken its appeal, and which real publications and
+organisations are worth approaching — with a **full PDF report** to download.
+
 ---
 
 ## Using it
 
 If this has been deployed (see **Deploying your own copy** below), just open
 the link and use it. One form: a website, optionally a hotel name and city,
-one button. Nothing else to configure.
+one button. Nothing else to configure. When it finishes you get eight report
+sections as tabs, plus **Download full PDF report** and a `.json` you can keep
+and upload next time to compare. A full run takes roughly 4–5 minutes
+(mostly waiting on other people's servers); untick *Include the wider
+discovery* for the faster, website-only audit.
+
+## The discovery & reputation report
+
+Built around 30 checks. Each is reported as **assessed**, **partial** or **not
+assessed** — with the specific reason when it isn't fully assessed — rather
+than dressed up from thin data. Every finding points at an *evidence record*
+(source, URL, date collected, publication date where stated, an extract,
+hotel-match confidence, and whether it is observed, inferred or unassessed).
+
+| Section | Checks | What it gives you |
+|---|---|---|
+| Identity & distribution | 1–5 | Cross-source identity, namesakes and former names; listing footprint ("discovered" kept apart from "content assessed"); listing consistency; destination-body presence and the route to enquire; booking links and named partners |
+| Reviews & reputation | 6–14 | The review sample stated honestly (usually *0 guest reviews accessible*); aggregate ratings third parties display; editorial review articles; the official FSA food-hygiene record; claims vs. independent evidence |
+| Media & validation | 15–23 | Named coverage with links, dates, languages and inferred type; duplicates and syndication collapsed; independent-publisher count; awards (claimed vs. issuer-confirmed); narrative themes with extracts and disagreements; comparison hotels; evidenced media/organisation targets; pitch angles with the evidence still missing |
+| Traveller fit | 24–27 | Evidence per traveller type; realistic traveller questions the hotel could fit (opportunities, **not** measured rankings); distinctive vs. generic positioning; terminology |
+| Social, video & local | 28–29 | Official profiles; optional YouTube; mapped stations/attractions/venues with *straight-line* distances; stated partnerships |
+| Website support | 30 | What others say that the site doesn't; crawler access; the existing guest-question analysis |
+
+### What is deliberately NOT done, and why
+
+- **Guest review text (checks 7–13) is not assessed.** TripAdvisor, Booking.com, Expedia, Agoda, Trip.com and
+  Trustpilot prohibit automated collection; Google reviews need a
+  billing-enabled account; the hotel's own testimonials are marketing, not
+  independent evidence and are never used as a stand-in. That removes review
+  freshness, praise/complaint themes, reply coverage, reply speed, reply
+  language and review languages. Aggregate ratings that third parties
+  *display* are captured separately and labelled as such.
+- **Nothing here measures what an AI assistant recommends.** No assistant is asked.
+  "Opportunities" are traveller questions the hotel has evidence to fit.
+- **A media outlet is named only when a real page supports it.** If discovery
+  was insufficient the report gives *research directions*, labelled as such.
+  No journalist names or contact details are produced.
+- **Search results vary between runs.** The search index returns a different
+  slice of pages each time, so absence of a piece is never proof it doesn't exist.
+- **robots.txt is respected** for every third-party page read, and platforms
+  whose terms prohibit automated reading are never fetched (a link on the
+  hotel's own site is not permission to read the other site).
+
+### Sources used (all free, no billing account)
+
+| Source | Needs | Returns | Limits |
+|---|---|---|---|
+| Tavily | operator key (free plan, 1,000 credits/month) | search results; news mode adds dates | a full audit uses ~12 credits |
+| GDELT DOC 2.0 | nothing | monitored-news links, publishers, dates | ~3-month window; 1 request/5 s; **often refuses shared server IPs** (reported as *unavailable*) |
+| Wikipedia / Wikidata | nothing | articles naming the hotel; names, aliases, owner, website | only notable places |
+| OpenStreetMap (Overpass, Nominatim) | nothing | hotel record; nearby hotels, stations, attractions, venues | public servers are slow and may time out (reported as *partial*) |
+| Internet Archive | nothing | archived homepage titles (rebrand signal) | patchy |
+| UK FSA hygiene ratings | nothing | official inspection result | UK only; food hygiene only |
+| YouTube Data API | optional operator key (`YOUTUBE_API_KEY`, free quota, no billing) | public video titles, channels, dates | skipped without a key |
+
+Not used: TripAdvisor/Booking/Expedia pages (terms), Google Places and Gemini
+grounding (billing), Amadeus self-service (decommissioned 2026-07-17), Common
+Crawl (presence in a crawl is not evidence that any AI knows the hotel), and
+consumer search-result pages (terms). The report's methodology section lists
+each source's status for that run.
+
+### Recommendations
+
+Every recommendation states the problem, its evidence, why it matters, the
+exact action, the responsible team (operations, reputation management, PR,
+distribution, marketing, web), a priority *with its rationale*, and how to
+check success. Each is labelled **documented guidance**, **hypothesis** or
+**observation**. None promises an AI recommendation, and none advises fake or
+incentivised reviews, keyword-stuffed guest reviews or indiscriminate outreach.
 
 ## Running it yourself, locally
 
@@ -115,9 +190,11 @@ topic pages whether it reads as a wedding venue, business hotel, family
 hotel, pet-friendly or spa/wellness destination (free, reusing signals
 `site_check.py` already extracts), and searching accordingly rather than
 running one generic query regardless of hotel type. See `tavily_check.py`'s
-module docstring for the full design and honest trade-offs (more searches
-per audit, so fewer free audits per month - still comfortable for
-occasional use, worth knowing for heavy use).
+module docstring for the full design and honest trade-offs. With the wider
+discovery a full audit uses about **12 Tavily credits** (the older editorial
+scan reuses those results rather than searching again), so the free
+1,000-credit plan covers roughly **80 full audits a month**. `app.py` checks
+the shared counter against that before every run.
 
 **`GEMINI_READER_API_KEY` is a genuinely different thing from AI Visibility,
 not a relaxed version of it.** AI Visibility needs Gemini's paid, grounded
@@ -376,6 +453,16 @@ grounded result to others is not.
 | `external_check.py` | Entity presence (OpenStreetMap, Wikidata) and fact consistency |
 | `guest_questions.py` | Bounded crawl of the hotel's own pages; answers the guest questions with quoted evidence; builds the fact sheet |
 | `test_guest_questions.py` | Offline tests for the above. Run `python test_guest_questions.py` |
+| `evidence.py` | The evidence ledger and hotel-name matching (full name + location signal; look-alikes are rejected) |
+| `polite.py`, `langid.py` | robots.txt-respecting page reader (dates, publisher, language, sponsored cues); dependency-free language detection |
+| `sources.py` | Free-source adapters (GDELT, Wikipedia/Wikidata, Overpass, Wayback, FSA, YouTube) returning one envelope: ok / no_results / unavailable / not_configured |
+| `sourcetypes.py` | Domain and page-type classification, publisher groups, award issuers, theme lexicon |
+| `collect.py` | Runs the adapters and the search plan, reads the pages worth reading, decides which are about *this* hotel |
+| `media.py`, `targets.py`, `identity.py`, `reviews.py`, `travellers.py`, `localctx.py` | The analysis for the 30 checks |
+| `recommend.py`, `intel.py` | Evidence-backed recommendations; assembles the report and the 30-check status table |
+| `report_pdf.py` | The full PDF (reportlab): selectable text, links, page numbers, repeating table headers |
+| `ui_intel.py` | Streamlit rendering of the report sections |
+| `test_intel.py` | Offline tests: matching, source failures, duplicates, sample-size honesty, unsupported claims |
 | `fixes.py` | Turns recommendations into an action plan: owner, page, worked example, top three. Builds the pre-filled JSON-LD |
 | `dashboard.py` | Builds the report as fully-escaped HTML, shown with `st.iframe` (needs `streamlit>=1.50`). No Streamlit import, so it is testable |
 | `ai_check.py` | Prompt pack and summary for the manual AI answer check. Never scored |

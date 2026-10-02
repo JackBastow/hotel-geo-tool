@@ -21,6 +21,7 @@ Usage:
 """
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import re
 import sys
@@ -141,11 +142,13 @@ def check_sitemap(base, robots_sitemaps):
     # touched each page, which is what "is this information current?" turns
     # into in practice.
     seen, urls, found, lastmods = set(), [], [], []
-    for c in candidates:
+    uniq = list(dict.fromkeys(candidates))
+    with ThreadPoolExecutor(max_workers=3) as ex:       # candidates are independent requests
+        fetched = list(ex.map(get, uniq))
+    for c, r in zip(uniq, fetched):
         if c in seen:
             continue
         seen.add(c)
-        r = get(c)
         if r is None or r.status_code != 200:
             continue
         found.append(c)
@@ -154,12 +157,16 @@ def check_sitemap(base, robots_sitemaps):
         except ET.ParseError:
             continue
         ns = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
-        # index of sitemaps
+        # index of sitemaps: child sitemaps are fetched in parallel (a slow site
+        # made this step take over 30 s one request at a time); order is kept.
+        children = []
         for sm in root.findall(f"{ns}sitemap"):
             loc = sm.findtext(f"{ns}loc")
             if loc and loc not in seen and len(seen) < 25:
                 seen.add(loc)
-                rr = get(loc)
+                children.append(loc)
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            for rr in ex.map(get, children):
                 if rr is not None and rr.status_code == 200:
                     try:
                         sub = ET.fromstring(rr.content)
@@ -315,12 +322,10 @@ def run_site_check(website, max_pages=12, progress=None):
             to_check.append(v["urls"][0])
     to_check = list(dict.fromkeys(to_check))[:max_pages]
 
-    pages = []
-    for i, u in enumerate(to_check, 1):
-        if progress:
-            progress(f"Reading page {i}/{len(to_check)}")
-        pages.append(analyse_page(u))
-        time.sleep(0.4)
+    if progress:
+        progress(f"Reading {len(to_check)} pages")
+    with ThreadPoolExecutor(max_workers=4) as ex:      # ex.map keeps the page order
+        pages = list(ex.map(analyse_page, to_check))
 
     all_jsonld = [b for p_ in pages for b in (p_.get("jsonld") or [])]
     lodging = find_lodging_node(all_jsonld)

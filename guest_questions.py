@@ -840,6 +840,11 @@ def run(site, base, hotel="", location=None, progress=None,
         "fact_sheet": sheet,
         "conflicts": conflicts,
         "own_facts_node": node,
+        # Page text for the wider analysis (awards claims, partnerships,
+        # positioning). The caller uses it and removes it before saving the
+        # report, so it never bloats the downloaded JSON.
+        "own_pages": [{"url": p["url"], "title": p.get("title", ""),
+                       "text": (p.get("text") or "")[:9000]} for p in ok_pages],
     }
 
 
