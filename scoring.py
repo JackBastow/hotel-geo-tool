@@ -129,6 +129,7 @@ def _guest_recs(guest):
     for q in sorted((q for q in qs if q["state"] == "partial"),
                     key=lambda q: not q["high_value"])[:4]:
         recs.append({
+            "code": f"guest_partial:{q['id']}",
             "priority": "medium" if q["high_value"] else "low",
             "action": f"{q['short']}: add {', '.join(q['missing'])}",
             "why": f"Your site covers this ({q['source_url']}) but leaves out "
@@ -139,6 +140,7 @@ def _guest_recs(guest):
     nf = [q for q in qs if q["state"] == "not_found"]
     if nf:
         recs.append({
+            "code": "guest_not_found",
             "priority": "medium" if any(q["high_value"] for q in nf) else "low",
             "action": "No answer found on the pages checked for: "
                       + ", ".join(q["short"] for q in nf),
@@ -152,6 +154,7 @@ def _guest_recs(guest):
     chk = [q for q in qs if q["state"] == "needs_checking"]
     if chk:
         recs.append({
+            "code": "guest_needs_checking",
             "priority": "low",
             "action": "Passing mentions only - check: " + ", ".join(q["short"] for q in chk),
             "why": "These topics appear in the text but not on a page about them, "
@@ -161,6 +164,7 @@ def _guest_recs(guest):
     cc = [q for q in qs if q["state"] == "couldnt_check"]
     if cc and len(cc) == len(qs):
         recs.append({
+            "code": "guest_unreadable",
             "priority": "low",
             "action": "We couldn't read enough of the site to check guest questions",
             "why": "Pages were blocked, timed out, or returned no readable text "
@@ -179,6 +183,7 @@ def score_website(site, guest=None):
         pts.append(("AI crawlers blocked", 0.0, 0.30))
         ev.append(f"robots.txt blocks: {', '.join(blocked)}")
         recs.append({
+            "code": "crawler_block",
             "priority": "critical",
             "action": f"Unblock {', '.join(blocked)} in robots.txt",
             "why": "These crawlers are refused outright, so the hotel's own site "
@@ -200,6 +205,7 @@ def score_website(site, guest=None):
         missing = [k for k in HIGH_VALUE_SCHEMA if not props.get(k)]
         if missing:
             recs.append({
+                "code": "schema_incomplete",
                 "priority": "high",
                 "action": f"Fill the empty Hotel schema fields: {', '.join(missing)}",
                 "why": "These are the exact fields an assistant reads to answer "
@@ -211,6 +217,7 @@ def score_website(site, guest=None):
         types = ", ".join(site.get("schema_types_found") or []) or "none"
         ev.append(f"No Hotel/LodgingBusiness node. Types published: {types}")
         recs.append({
+            "code": "no_hotel_schema",
             "priority": "critical",
             "action": "Add a Hotel (or LodgingBusiness) JSON-LD block to the homepage",
             "why": "Without it the site's facts exist only as prose and every "
@@ -223,7 +230,7 @@ def score_website(site, guest=None):
         ev.append(f"Sitemap found, {site['sitemap'].get('url_count', 0)} URLs")
     else:
         pts.append(("Sitemap", 0.0, 0.10))
-        recs.append({"priority": "medium",
+        recs.append({"code": "no_sitemap", "priority": "medium",
                      "action": "Publish sitemap.xml and link it from robots.txt",
                      "why": "Without it crawlers must find pages by following links."})
 
@@ -245,6 +252,7 @@ def score_website(site, guest=None):
                   f"(a guess from URL wording - the pages themselves were not read)")
         if gaps:
             recs.append({
+                "code": "topic_guess",
                 "priority": "low",
                 "action": f"No page address matched: {', '.join(gaps)}",
                 "why": "This is a guess from page addresses, not from reading the "
@@ -273,6 +281,7 @@ def score_entity(entities, consistency, location):
             pts.append((f"{src} unverified", 0.5, weight))
             ev.append(f"{src}: entry found by name but could not be verified")
             recs.append({
+                "code": f"entity_unverified:{src}",
                 "priority": "low",
                 "action": f"Confirm the {src} entry is this hotel",
                 "why": "Matched on name only. Hotel names repeat across the "
@@ -282,6 +291,7 @@ def score_entity(entities, consistency, location):
             pts.append((f"{src} missing", 0.0, weight))
             ev.append(f"{src}: no entry found for this hotel")
             recs.append({
+                "code": f"entity_missing:{src}",
                 "priority": "high" if src == "OpenStreetMap" else "medium",
                 "action": f"Add the hotel to {src}",
                 "why": ("OpenStreetMap feeds Apple Maps and many apps and AI tools."
@@ -298,6 +308,7 @@ def score_entity(entities, consistency, location):
     else:
         pts.append(("Location readable", 0.0, 0.20))
         recs.append({
+            "code": "location_unreadable",
             "priority": "high",
             "action": "Publish a PostalAddress in JSON-LD, including the postcode",
             "why": "Nothing on the site states the address in a machine-readable "
@@ -316,6 +327,7 @@ def score_entity(entities, consistency, location):
         if sig:
             fields = sorted({c["field"] for c in sig})
             recs.append({
+                "code": "facts_conflict",
                 "priority": "high",
                 "action": f"Resolve conflicting {', '.join(fields)} between sources",
                 "why": "Another source states something materially different from "
@@ -377,12 +389,13 @@ def score_freshness(site):
     ]
     recs = []
     if newest > 90:
-        recs.append({"priority": "medium",
+        recs.append({"code": "stale_site", "priority": "medium",
                      "action": "Update the site - nothing has changed in months",
                      "why": "Stale content is a signal to ranking and retrieval "
                             "systems, and factual pages drift out of date."})
     if fresh_12m < 0.5:
         recs.append({
+            "code": "stale_pages",
             "priority": "medium",
             "action": f"Review the {round((1 - fresh_12m) * 100)}% of pages not "
                       "touched in over a year",
@@ -422,6 +435,7 @@ def score_otas(tavily_result):
     # even though absence-from-a-10-result-search is a weak negative signal.
     if not hits:
         recs.append({
+            "code": "otas_missing",
             "priority": "medium",
             "action": "Confirm the hotel is listed on major OTAs (Booking.com, "
                       "Expedia, TripAdvisor)",
@@ -473,6 +487,7 @@ def score_reviews(places_result, amadeus_result):
                          if places_result.get("place_name") else ""))
             if rating and rating < 4.0:
                 recs.append({
+                    "code": "rating_low",
                     "priority": "high",
                     "action": f"Google rating is {rating}/5 - review what guests are saying",
                     "why": f"Below 4.0 is a real visibility drag: it affects "
@@ -494,6 +509,7 @@ def score_reviews(places_result, amadeus_result):
             low = sorted(cats.items(), key=lambda kv: kv[1])[:2]
             if low and low[0][1] < 60:
                 recs.append({
+                    "code": "sentiment_weak",
                     "priority": "medium",
                     "action": f"Guest sentiment is weakest on: "
                               f"{', '.join(k for k, v in low)}",
@@ -567,6 +583,7 @@ def score_editorial(tavily_result):
     negative = [h for h in confirmed_hits if h["read"].get("sentiment") == "negative"]
     if negative:
         recs.append({
+            "code": "editorial_negative",
             "priority": "medium",
             "action": f"Read the negative coverage at "
                       f"{', '.join(h['platform'] for h in negative)}",
@@ -576,6 +593,7 @@ def score_editorial(tavily_result):
         })
     if not confirmed_hits:
         recs.append({
+            "code": "editorial_outreach",
             "priority": "low",
             "action": "Consider outreach to a relevant travel publication or "
                       "the local tourism board"
@@ -632,6 +650,7 @@ def score_ai_visibility(audit_payload):
     recs = []
     if mention < 0.5:
         recs.append({
+            "code": "ai_absent",
             "priority": "high",
             "action": "The hotel is absent from most unbranded AI recommendations",
             "why": f"Only named in {round(mention * 100)}% of 'best hotels in "
@@ -640,6 +659,7 @@ def score_ai_visibility(audit_payload):
         })
     if mention > 0 and fp < 0.3:
         recs.append({
+            "code": "ai_no_firstparty",
             "priority": "medium",
             "action": "The AI rarely cites the hotel's own site as a source",
             "why": f"Only {round(fp * 100)}% of citations point to the hotel's "
@@ -687,6 +707,7 @@ def score_social(discovery, tavily_result=None):
     sameas = 1.0 if discovery.get("declares_sameas") else 0.0
     if not sameas and profs:
         recs.append({
+            "code": "social_sameas",
             "priority": "medium",
             "action": "Declare the hotel's profiles in a JSON-LD `sameAs` array",
             "why": "They're currently ordinary links, which is a weaker, inferred "
@@ -695,6 +716,7 @@ def score_social(discovery, tavily_result=None):
         })
     if not social:
         recs.append({
+            "code": "social_link",
             "priority": "medium",
             "action": "Link the hotel's social profiles from its own site",
             "why": "Nothing connects the site to its presence elsewhere, so the "
@@ -777,6 +799,7 @@ def all_recommendations(scorecard):
     out = []
     for c in scorecard["categories"]:
         for r in c.get("recommendations", []):
-            out.append({**r, "category": c["label"]})
+            out.append({**r, "category": c["label"], "category_key": c["key"],
+                        "category_weight": c["weight"]})
     out.sort(key=lambda r: rank.get(r["priority"], 9))
     return out

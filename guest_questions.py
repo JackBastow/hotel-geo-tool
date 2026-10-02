@@ -253,6 +253,38 @@ QUESTIONS = [
     },
 ]
 
+# A fill-in-the-blanks model answer for each question, shown with the fix so
+# it says what to WRITE, not just what is missing. Square brackets are the
+# parts only the hotel knows.
+TEMPLATES = {
+    "parking": "Parking: we have [on-site / nearby] parking for guests. It costs "
+               "£[amount] per [night / 24 hours]. Spaces [can be reserved in advance "
+               "by …] / [are first come, first served].",
+    "breakfast": "Breakfast is served [Mon–Fri 7:00–10:00, weekends 7:30–10:30] in "
+                 "[location]. It is [included in the room rate / £[amount] per person].",
+    "checkin_out": "Check-in is from [15:00]. Check-out is by [11:00]. Early check-in "
+                   "and late check-out are [available on request / £[amount]].",
+    "pets": "Dogs [are / are not] welcome. [There is a charge of £[amount] per night / "
+            "There is no charge.] [Limit of [number] per room; allowed in [rooms/areas]].",
+    "accessibility": "We have [number] accessible bedrooms with [step-free access, a "
+                     "wet room, grab rails]. The hotel has [a lift to all floors / "
+                     "ground-floor rooms only]. Call [number] to discuss your needs.",
+    "family": "Our family rooms sleep up to [number] ([2 adults and 2 children]). "
+              "Connecting rooms are [available on request]. Cots and extra beds are "
+              "[free / £[amount]].",
+    "transport": "By train: [station] is [N] minutes away by [taxi / on foot]. By road: "
+                 "leave the [M25] at junction [N] and follow signs to [town]; use "
+                 "postcode [XX1 2YY]. Nearest airport: [name], [N] miles.",
+    "wifi": "Wi-Fi is [free / £[amount]] throughout the hotel, including guest rooms.",
+    "ev": "We have [number] [type, e.g. 7kW Type 2] EV charging points [in the car "
+          "park]. Charging [is free / costs £[amount] per kWh]; pay via [app/network].",
+    "cancellation": "You can cancel free of charge up to [48 hours] before arrival. "
+                    "After that [the first night / the full stay] is charged. "
+                    "[Non-refundable rates are marked as such.]",
+}
+for _q in QUESTIONS:
+    _q["template"] = TEMPLATES[_q["id"]]
+
 STATE_LABELS = {
     "answered": "Answered",
     "partial": "Partly answered",
@@ -527,7 +559,7 @@ def _eval_question(q, ok_pages):
     result = {"id": q["id"], "short": q["short"], "label": q["label"],
               "high_value": q["high_value"], "found": [], "missing": [],
               "nice_to_have": [], "snippet": "", "source_url": "",
-              "other_sources": [], "note": ""}
+              "other_sources": [], "note": "", "template": q.get("template", "")}
 
     if not per_page:
         result["state"] = "not_found"

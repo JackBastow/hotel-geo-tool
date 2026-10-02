@@ -55,6 +55,7 @@ Usage:
 
 import argparse
 import datetime as dt
+import html as html_lib
 import json
 import re
 import os
@@ -64,6 +65,7 @@ import urllib.parse
 import amadeus_check
 import audit
 import external_check
+import fixes
 import guest_questions
 import places_check
 import scoring
@@ -100,8 +102,28 @@ PROFILE_PATTERNS = {
 # profile. Counting these as "has an Instagram presence" would be wrong.
 _NOISE = re.compile(
     r"/(p|reel|share|posts|status|watch|embed|intent|sharer|dialog)/|"
-    r"[?&](u|url|text)=|/plugins/", re.I
+    r"/watch(?:\?|$)|[?&](u|url|text)=|/plugins/", re.I
 )
+
+# Profile URLs on these platforms are identified by their path alone; anything
+# after a "?" is tracking (TikTok's _r/_t, Instagram's igsh, utm_*, fbclid...).
+_PATH_ONLY = {"Facebook", "Instagram", "X / Twitter", "LinkedIn", "YouTube",
+              "TikTok", "Pinterest"}
+
+
+def _tidy_profile_url(platform, url):
+    """
+    Clean a discovered profile link before it is shown or suggested as a
+    `sameAs` value. Links scraped out of raw HTML still carry entities
+    (&#038; for &) and tracking parameters; pasting those into a hotel's
+    structured data would be bad advice. Seen live on a real site, where a
+    TikTok link came out as .../@brooklandshotel?_r=1&#038;_t=ZN-94DjKx4BLVb.
+    """
+    url = html_lib.unescape(str(url)).strip()
+    if platform in _PATH_ONLY:
+        p = urllib.parse.urlparse(url)
+        url = urllib.parse.urlunparse((p.scheme, p.netloc, p.path.rstrip("/") or "/", "", "", ""))
+    return url
 
 
 def _classify(url):
@@ -159,7 +181,8 @@ def discover_profiles(base, extra_pages=None, progress=None, prefetched=None):
                 continue
             plat = _classify(u)
             if plat:
-                found.setdefault(plat, {"url": u, "via": "JSON-LD sameAs"})
+                found.setdefault(plat, {"url": _tidy_profile_url(plat, u),
+                                        "via": "JSON-LD sameAs"})
 
         # 2. plain outbound links - lower confidence, filtered for noise
         for href in set(re.findall(r'href=["\']([^"\'\s]+)["\']', html, re.I)):
@@ -168,7 +191,8 @@ def discover_profiles(base, extra_pages=None, progress=None, prefetched=None):
                 continue
             plat = _classify(u)
             if plat:
-                found.setdefault(plat, {"url": u, "via": "page link"})
+                found.setdefault(plat, {"url": _tidy_profile_url(plat, u),
+                                        "via": "page link"})
 
     return {
         "profiles": [{"platform": k, **v} for k, v in sorted(found.items())],
@@ -636,6 +660,21 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         guest_result=guest,
     )
 
+    # Hotel types suggested by the site's own pages (free - no search needed);
+    # used to tailor the manual AI-check prompts.
+    segments = [tavily_check.SEGMENTS[s][0]
+                for s in tavily_check.detect_segments(site.get("topics_covered"))]
+
+    # Turn the ranked list into an action plan: who, where, an example - and
+    # the three to do first. Built from facts the audit actually read.
+    recs_all = fixes.enrich(
+        scoring.all_recommendations(scorecard),
+        {"base": base, "hotel": hotel, "location": location, "guest": guest,
+         "discovery": discovery, "entities": ext["entities"], "site": site,
+         "tavily": tavily_result},
+    )
+    top_fixes = fixes.top_fixes(recs_all)
+
     return {
         "meta": {
             "hotel": hotel,
@@ -656,7 +695,9 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "score": scorecard["overall"],
         "coverage_pct": scorecard["coverage_pct"],
         "scorecard": scorecard,
-        "recommendations": scoring.all_recommendations(scorecard),
+        "recommendations": recs_all,
+        "top_fixes": top_fixes,
+        "segments": segments,
         "legacy_score": score(findings, site),
         "findings": findings,
         "site": site,

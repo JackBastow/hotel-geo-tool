@@ -267,6 +267,37 @@ flagged as a conflict. The same facts are used to cross-check OpenStreetMap
 and Wikidata, so the consistency check now works on sites that publish no
 structured data.
 
+### The action plan
+
+Every recommendation carries a stable code, an owner (web developer,
+reception, marketing…), the page it applies to, and a worked example. The
+dashboard leads with the **top three fixes**, ordered by priority and then by
+the weight of the category they sit in, preferring to spread across
+categories. Where the audit could only say "check this", it never outranks
+something actionable. The JSON-LD example is pre-filled with the name, URL,
+phone, address and profile links the audit actually read; anything it did not
+find stays as a `[bracketed]` placeholder rather than a guess.
+
+### Checking what AI assistants say (manual, and not scored)
+
+The audit doesn't ask any AI assistant about the hotel. Instead it gives you
+a prompt pack: **accuracy** prompts (which name the hotel) and **discovery**
+prompts (which never do — that is the test). You paste them into the
+assistants yourself, record each answer in a short form, and the page
+summarises them. Each answer is one sample from a non-deterministic system,
+so the summary says plainly when you have too few (fewer than five) or have
+mixed web-search settings. These records are saved in the report you
+download but **never enter the score**. Bing Webmaster Tools' AI Performance
+report is worth checking too, but it covers Microsoft's AI only.
+
+### Save and compare
+
+Nothing is stored on the server. Download the dated `.json` report, and next
+time upload it to see what moved: score, each category, each guest question,
+which recommendations were resolved, and which facts changed. If the two runs
+had different coverage, the overall delta is flagged as not like-for-like.
+Reports from earlier versions still compare (matched by wording, not code).
+
 ---
 
 ## What this does not tell you
@@ -345,6 +376,11 @@ grounded result to others is not.
 | `external_check.py` | Entity presence (OpenStreetMap, Wikidata) and fact consistency |
 | `guest_questions.py` | Bounded crawl of the hotel's own pages; answers the guest questions with quoted evidence; builds the fact sheet |
 | `test_guest_questions.py` | Offline tests for the above. Run `python test_guest_questions.py` |
+| `fixes.py` | Turns recommendations into an action plan: owner, page, worked example, top three. Builds the pre-filled JSON-LD |
+| `dashboard.py` | Builds the report as fully-escaped HTML, shown with `st.iframe` (needs `streamlit>=1.50`). No Streamlit import, so it is testable |
+| `ai_check.py` | Prompt pack and summary for the manual AI answer check. Never scored |
+| `compare.py` | Compares two downloaded reports. Reports are held by the user, not stored |
+| `test_fixes.py`, `test_dashboard.py`, `test_phase3.py`, `test_discovery.py` | Offline tests, run each with `python <file>` |
 | `tavily_check.py` | Optional — multi-angle, segment-aware search: OTA presence, editorial mentions, social mentions |
 | `gemini_reader.py` | Optional — free, ungrounded Gemini call that reads and judges text `tavily_check.py` fetches. Not AI Visibility - see its module docstring |
 | `places_check.py` | Optional — Google Places rating/reviews |

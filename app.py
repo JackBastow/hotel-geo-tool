@@ -43,257 +43,21 @@ That public-and-free-to-the-VISITOR design shapes everything here:
     written to a shared file other visitors could read.
 """
 
-import html as html_lib
+import datetime as dt
 import json
 
 import streamlit as st
-import streamlit.components.v1 as components
 
+try:  # deprecated: scheduled for removal after 2026-06-01, kept only as a fallback
+    import streamlit.components.v1 as components
+except Exception:  # noqa: BLE001 - if it has been removed, st.iframe is used instead
+    components = None
+
+import ai_check
+import compare
+import dashboard
 import full_audit
 import store
-
-
-def _esc(s):
-    """
-    Escape dynamic text before it goes into raw HTML. Needed because some of
-    it - review excerpts, article judgments - originates from third-party web
-    pages Tavily found, not just our own code. Once a block is rendered with
-    unsafe_allow_html=True, Streamlit stops escaping for us, so a hostile or
-    just-messy page's content could otherwise inject markup into the
-    dashboard rather than just being displayed as text.
-    """
-    return html_lib.escape(str(s if s is not None else ""))
-
-
-CARD_COLOR = {
-    "good": "#16a34a", "warn": "#d97706", "bad": "#dc2626", "mute": "#9ca3af",
-}
-SEVERITY_DOT = {
-    "critical": CARD_COLOR["bad"], "high": "#f97316",
-    "medium": CARD_COLOR["warn"], "low": CARD_COLOR["mute"],
-}
-
-
-def _score_color(score):
-    if score is None:
-        return CARD_COLOR["mute"]
-    if score >= 70:
-        return CARD_COLOR["good"]
-    if score >= 40:
-        return CARD_COLOR["warn"]
-    return CARD_COLOR["bad"]
-
-
-# state -> (chip text, colour). Five different states on purpose: "not found on
-# the pages checked" and "couldn't check" are NOT the same as "missing".
-GUEST_STATE_STYLE = {
-    "answered": ("Answered", "#16a34a"),
-    "partial": ("Partly answered", "#d97706"),
-    "needs_checking": ("Needs checking", "#2563eb"),
-    "not_found": ("Not found on pages checked", "#475569"),
-    "couldnt_check": ("Couldn't check", "#9ca3af"),
-}
-
-
-def _safe_url(u):
-    """Only http(s) links go into the page; anything else is dropped."""
-    return u if str(u).lower().startswith(("http://", "https://")) else ""
-
-
-def _guest_html(guest):
-    """The guest-question section: each question, its state, what's missing,
-    and the exact text relied on with a link to the page it came from."""
-    if not guest or not guest.get("questions"):
-        return ""
-    n_ok, n_all = guest.get("pages_ok", 0), guest.get("pages_attempted", 0)
-    total = guest.get("sitemap_total") or 0
-    scope = f"We read {n_ok} of {n_all} pages"
-    if total > n_all:
-        scope += f" (the site lists about {total})"
-    rows = ""
-    for q in guest["questions"]:
-        chip, color = GUEST_STATE_STYLE.get(q["state"], ("", "#9ca3af"))
-        detail = ""
-        if q["state"] == "partial" and q["missing"]:
-            detail = f'<div class="gmiss">Missing: {_esc(", ".join(q["missing"]))}</div>'
-        if q.get("note"):
-            detail += f'<div class="gmiss">{_esc(q["note"])}</div>'
-        quote = ""
-        if q["snippet"]:
-            url = _safe_url(q["source_url"])
-            link = (f' <a href="{_esc(url)}" target="_blank" rel="noopener noreferrer">'
-                    f'view page ↗</a>') if url else ""
-            quote = f'<div class="gquote">“{_esc(q["snippet"])}”{link}</div>'
-        rows += f"""
-        <div class="grow">
-          <div class="gtop"><b>{_esc(q['label'])}</b>
-            <span class="chip" style="background:{color}1f;color:{color}">{_esc(chip)}</span></div>
-          {detail}{quote}
-        </div>"""
-    return f"""
-      <h2>What your website tells guests</h2>
-      <p class="gscope">{_esc(scope)}. “Not found” means not found on those pages —
-      it does not prove the information is missing. “Couldn't check” is never
-      counted against you.</p>
-      {rows}"""
-
-
-def render_dashboard(hotel_name, website, sc, recs, guest=None):
-    """
-    The real dashboard render, replacing the plain Streamlit default table -
-    a score ring, colour-coded category cards, and a clean recommendations
-    list, all built from the real scorecard data (nothing hardcoded - this
-    is the same design validated as a mockup earlier, now actually wired to
-    full_audit.py's real output instead of being a one-off demo).
-    """
-    overall = sc["overall"]
-    coverage = sc["coverage_pct"]
-    circumference = 213.6  # 2*pi*34, matching the SVG radius below
-    offset = circumference * (1 - min(max(overall, 0), 100) / 100)
-
-    cards_html = ""
-    for c in sc["categories"]:
-        assessed = c["assessed"]
-        score = c["score"] if assessed else None
-        color = _score_color(score) if assessed else CARD_COLOR["mute"]
-        tag = ""
-        if c.get("partial"):
-            tag = f'<span class="tag" style="background:{color}22;color:{color}">partial</span>'
-        elif not assessed:
-            tag = '<span class="tag mute">not assessed</span>'
-        cards_html += f"""
-        <div class="card {'na' if not assessed else ''}">
-          <div class="top">
-            <span class="cat">{_esc(c['label'])}</span>
-            <span class="wt">{c['weight']}%</span>
-            {tag}
-          </div>
-          <div class="scoreline">
-            <b style="color:{color}">{score if assessed else '—'}</b>
-            {'<small>/100</small>' if assessed else ''}
-          </div>
-          <div class="bar"><i style="width:{score or 0}%;background:{color}"></i></div>
-        </div>"""
-
-    recs_html = ""
-    for r in recs:
-        dot = SEVERITY_DOT.get(r["priority"], CARD_COLOR["mute"])
-        recs_html += f"""
-        <div class="rec">
-          <div class="dot" style="background:{dot}"></div>
-          <div><b>{_esc(r['action'])}</b>
-          <p><i>{_esc(r['category'])}</i> — {_esc(r['why'])}</p></div>
-        </div>"""
-    if not recs_html:
-        recs_html = '<p style="color:var(--sub);font-size:12.5px">No recommendations from the categories that were assessed.</p>'
-
-    # components.html (raw iframe render) rather than st.markdown: Streamlit's
-    # markdown path runs this HTML through a Markdown parser first even with
-    # unsafe_allow_html=True, and a blank line inside a multi-line HTML block
-    # was enough to break it mid-render (confirmed live: later <div>s leaked
-    # into the page as literal text instead of being parsed). components.html
-    # drops the string into an iframe with no reinterpretation.
-    guest_html = _guest_html(guest)
-    n_cards = len(sc["categories"])
-    card_rows = -(-n_cards // 4)  # ceil division, ~4 cards per row at this width
-    height = 160 + card_rows * 95 + 40 + len(recs) * 70 + 40
-    if guest_html:
-        height += 150 + len(guest["questions"]) * 108
-
-    html_doc = f"""
-    <div class="dash">
-      <style>
-        html, body {{ margin:0; padding:0; background:#f7f8fa; }}
-        @media (prefers-color-scheme: dark) {{ html, body {{ background:#15161c; }} }}
-        .dash {{
-          --bg: #f7f8fa; --card: #ffffff; --border: #e7e9ee;
-          --ink: #1a1d29; --sub: #6b7280; --accent: #2563eb;
-          font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
-          background: var(--bg); color: var(--ink); padding: 20px;
-          border-radius: 12px; margin: 0;
-          box-sizing: border-box;
-        }}
-        @media (prefers-color-scheme: dark) {{
-          .dash {{ --bg:#15161c; --card:#1d1f28; --border:#2a2d38; --ink:#eef0f4; --sub:#9aa0ad; }}
-        }}
-        .dash .head {{ display:flex; justify-content:space-between; align-items:flex-start;
-                      margin-bottom:18px; flex-wrap:wrap; gap:14px; }}
-        .dash h1 {{ font-size:19px; font-weight:700; margin:0 0 3px; }}
-        .dash .meta {{ font-size:12.5px; color:var(--sub); }}
-        .dash .scorewrap {{ display:flex; align-items:center; gap:14px; }}
-        .dash .ring {{ position:relative; width:76px; height:76px; flex:none; }}
-        .dash .ring svg {{ transform: rotate(-90deg); width:100%; height:100%; }}
-        .dash .ring .bgring {{ stroke:var(--border); }}
-        .dash .ring .fgring {{ stroke:var(--accent); stroke-linecap:round; }}
-        .dash .ring .num {{ position:absolute; inset:0; display:flex; align-items:center;
-                           justify-content:center; flex-direction:column; }}
-        .dash .ring .num b {{ font-size:22px; line-height:1; }}
-        .dash .ring .num span {{ font-size:9.5px; color:var(--sub); }}
-        .dash .covnote {{ font-size:11.5px; color:var(--sub); max-width:170px; }}
-        .dash .grid {{ display:grid; grid-template-columns: repeat(auto-fill, minmax(165px,1fr));
-                      gap:10px; margin-bottom:18px; }}
-        .dash .card {{ background:var(--card); border:1px solid var(--border);
-                      border-radius:10px; padding:11px 12px; }}
-        .dash .card .top {{ display:flex; justify-content:space-between; align-items:center;
-                            margin-bottom:6px; gap:4px; }}
-        .dash .card .cat {{ font-size:12px; font-weight:600; }}
-        .dash .card .wt {{ font-size:10.5px; color:var(--sub); }}
-        .dash .card .scoreline {{ display:flex; align-items:baseline; gap:5px; margin-bottom:6px; }}
-        .dash .card .scoreline b {{ font-size:19px; }}
-        .dash .card .scoreline small {{ font-size:10px; color:var(--sub); }}
-        .dash .bar {{ height:5px; border-radius:3px; background:var(--border); overflow:hidden; }}
-        .dash .bar i {{ display:block; height:100%; border-radius:3px; }}
-        .dash .card.na {{ opacity:.6; }}
-        .dash .tag {{ font-size:9.5px; padding:1px 6px; border-radius:20px; font-weight:600; }}
-        .dash .tag.mute {{ background:var(--border); color:var(--sub); }}
-        .dash h2 {{ font-size:13px; margin:18px 0 9px; color:var(--sub);
-                   text-transform:uppercase; letter-spacing:.04em; }}
-        .dash .rec {{ display:flex; gap:9px; padding:9px 0; border-top:1px solid var(--border); }}
-        .dash .rec:first-child {{ border-top:none; }}
-        .dash .dot {{ width:8px; height:8px; border-radius:50%; margin-top:5px; flex:none; }}
-        .dash .rec b {{ font-size:12.5px; display:block; }}
-        .dash .rec p {{ font-size:11.5px; color:var(--sub); margin:2px 0 0; }}
-        .dash .gscope {{ font-size:11.5px; color:var(--sub); margin:0 0 10px; }}
-        .dash .grow {{ padding:10px 0; border-top:1px solid var(--border); }}
-        .dash .grow:first-of-type {{ border-top:none; }}
-        .dash .gtop {{ display:flex; justify-content:space-between; align-items:center;
-                      gap:10px; flex-wrap:wrap; }}
-        .dash .gtop b {{ font-size:12.5px; }}
-        .dash .chip {{ font-size:10.5px; font-weight:600; padding:2px 8px;
-                      border-radius:20px; white-space:nowrap; }}
-        .dash .gmiss {{ font-size:11.5px; color:#d97706; margin-top:3px; }}
-        .dash .gquote {{ font-size:11.5px; color:var(--sub); margin-top:4px;
-                        font-style:italic; line-height:1.45; }}
-        .dash .gquote a {{ font-style:normal; color:var(--accent); text-decoration:none;
-                          white-space:nowrap; }}
-      </style>
-
-      <div class="head">
-        <div>
-          <h1>{_esc(hotel_name or website)}</h1>
-          <div class="meta">{_esc(website)}</div>
-        </div>
-        <div class="scorewrap">
-          <div class="ring">
-            <svg viewBox="0 0 80 80">
-              <circle class="bgring" cx="40" cy="40" r="34" fill="none" stroke-width="7"/>
-              <circle class="fgring" cx="40" cy="40" r="34" fill="none" stroke-width="7"
-                stroke-dasharray="{circumference}" stroke-dashoffset="{offset}" />
-            </svg>
-            <div class="num"><b>{overall}</b><span>SCORE</span></div>
-          </div>
-          <div class="covnote">Weighted across <b style="color:var(--ink)">{coverage}%</b> of the model.</div>
-        </div>
-      </div>
-
-      <div class="grid">{cards_html}</div>
-
-      <h2>What to fix, worst first</h2>
-      {recs_html}
-      {guest_html}
-    </div>
-    """
-    components.html(html_doc, height=height, scrolling=True)
 
 st.set_page_config(page_title="Hotel AI Discoverability Audit",
                    page_icon="H", layout="wide")
@@ -330,6 +94,54 @@ def _within_quota(service):
     an operator's free-tier key."""
     _, _, would_exceed = store.quota_status(planned_calls=1, service=service)
     return not would_exceed
+
+
+def _md_safe(s):
+    """Escape Markdown characters in third-party text shown via st.markdown, so
+    a review excerpt can't render as a link or an (tracking-pixel) image."""
+    import re
+    return re.sub(r"([\\`*_{}\[\]()#+!|<>~])", r"\\\1", str(s or ""))
+
+
+def render_comparison(cmp):
+    """Native Streamlit rendering (plain-text tables) of compare.compare_reports()."""
+    for w in cmp["warnings"]:
+        st.warning(w)
+    ov = cmp["overall"]
+    c1, c2, c3 = st.columns(3)
+    if ov.get("delta") is not None and ov["like_for_like"]:
+        c1.metric("Overall score", ov["new"], delta=ov["delta"])
+    else:
+        c1.metric("Overall score", ov["new"] if ov["new"] is not None else "—")
+    c2.metric("Things that improved", cmp["headline"]["improved"])
+    c3.metric("Things that got worse", cmp["headline"]["declined"])
+    st.caption(f"Earlier report: {cmp['old_date'] or 'unknown date'} · "
+               f"this report: {cmp['new_date'] or 'unknown date'}")
+
+    if cmp["categories"]:
+        st.markdown("**Categories**")
+        st.dataframe([{"Category": r["label"],
+                       "Before": "—" if r["old"] is None else r["old"],
+                       "Now": "—" if r["new"] is None else r["new"],
+                       "Change": "" if r["delta"] is None else f"{r['delta']:+d}",
+                       "Verdict": r["status"]} for r in cmp["categories"]],
+                     width="stretch", hide_index=True)
+    if cmp["guest"]:
+        st.markdown("**Guest questions**")
+        st.dataframe([{"Question": g["short"], "Before": g["old"], "Now": g["new"],
+                       "Verdict": g["status"]} for g in cmp["guest"]],
+                     width="stretch", hide_index=True)
+    rc = cmp["recs"]
+    if rc["resolved"] or rc["new"] or rc["still_open"]:
+        st.markdown("**Recommendations**")
+        st.dataframe(
+            [{"Status": "Fixed since the earlier report", "Recommendation": a} for a in rc["resolved"]]
+            + [{"Status": "New", "Recommendation": a} for a in rc["new"]]
+            + [{"Status": "Still open", "Recommendation": a} for a in rc["still_open"]],
+            width="stretch", hide_index=True)
+    if cmp["facts"]:
+        st.markdown("**Facts that changed**")
+        st.dataframe(cmp["facts"], width="stretch", hide_index=True)
 
 
 st.title("Hotel AI Discoverability Audit")
@@ -422,6 +234,12 @@ if fa_go:
     if llm_reads:
         store.record_usage(llm_reads, service="gemini_reader")
     prog.empty()
+    # Manual AI answers belong to one hotel: keep them if the same site is
+    # re-audited (the point of re-running after fixes), drop them otherwise.
+    prev = st.session_state.get("fa_res")
+    if prev and compare._domain(prev["meta"].get("website", "")) != \
+            compare._domain(fa_res["meta"].get("website", "")):
+        st.session_state["ai_records"] = []
     st.session_state["fa_res"] = fa_res
 
 fa_res = st.session_state.get("fa_res")
@@ -430,8 +248,23 @@ if fa_res:
     sc = fa_res["scorecard"]
     recs = fa_res["recommendations"]
 
-    render_dashboard(meta["hotel"], meta["website"], sc, recs,
-                     fa_res.get("guest_questions"))
+    top = fa_res.get("top_fixes") or []
+    top_codes = {r.get("code") for r in top}
+    rest = [r for r in recs if r.get("code") not in top_codes]
+    html_doc, est_height = dashboard.build(
+        meta["hotel"], meta["website"], sc, rest,
+        fa_res.get("guest_questions"), top)
+    # st.iframe replaces st.components.v1.html (removal date already passed) and
+    # sizes itself to the content. It embeds the string as-is with JavaScript
+    # and same-origin access, so the string must never contain untrusted
+    # markup - dashboard.build escapes everything and test_dashboard.py checks it.
+    if hasattr(st, "iframe"):
+        st.iframe(html_doc, height="content")
+    elif components is not None:
+        components.html(html_doc, height=est_height, scrolling=True)
+    else:
+        st.error("This version of Streamlit can't display the dashboard. "
+                 "Upgrade with: pip install -U streamlit")
 
     st.caption(
         f"run {meta['run_at']} · hotel name {meta['hotel_name_source']}"
@@ -491,13 +324,161 @@ if fa_res:
             [{"Fact": r["fact"], "What the site says": r["value"],
               "Where": r["source_url"], "How it was read": r["note"]} for r in sheet],
             column_config={"Where": st.column_config.LinkColumn("Page")},
-            use_container_width=True, hide_index=True,
+            width="stretch", hide_index=True,
         )
         if fa_res.get("own_facts_source") == "page text":
             st.caption(
                 "This site publishes no structured data, so these page-text "
                 "facts were also used to cross-check OpenStreetMap and Wikidata."
             )
+
+    # ---- the manual AI answer check. We don't call AI assistants (grounded
+    # AI search costs real money and every free route was closed), but we can
+    # make it easy for a person to run the test themselves and record it.
+    st.subheader("Check what AI assistants actually say about your hotel")
+    st.caption(
+        "This tool doesn't ask AI assistants for you, but you can in a few "
+        "minutes, free, in whichever assistant you use. Copy a prompt, paste it "
+        "in, then record what came back. Each answer is **one sample** — an "
+        "assistant can answer differently tomorrow, with web search on or off — "
+        "so look for patterns across several answers, not a verdict from one. "
+        "These records are not part of the score."
+    )
+    ai_prompts = ai_check.build_prompts(meta["hotel"], meta.get("city") or "",
+                                        fa_res.get("segments"))
+    ai_by_id = {p["id"]: p for p in ai_prompts}
+    t_acc, t_dis = st.tabs(["Accuracy — does it get the facts right?",
+                            "Discovery — does it suggest the hotel?"])
+    with t_acc:
+        st.caption("These name the hotel. Check each fact in the answer against your own site.")
+        for p in (p for p in ai_prompts if p["kind"] == "accuracy"):
+            st.markdown(f"**{p['label']}**")
+            st.code(p["prompt"], language=None)
+    with t_dis:
+        st.caption("These never name the hotel — that is the test. Would someone who has "
+                   "never heard of you be pointed to you?")
+        disc = [p for p in ai_prompts if p["kind"] == "discovery"]
+        if not disc:
+            st.info("Add a city above to get discovery prompts (they need a place).")
+        for p in disc:
+            st.markdown(f"**{p['label']}**")
+            st.code(p["prompt"], language=None)
+
+    records = st.session_state.setdefault("ai_records", [])
+    with st.expander("Record an answer you got", expanded=not records):
+        with st.form("ai_record_form", clear_on_submit=True):
+            f1, f2 = st.columns(2)
+            prompt_choice = f1.selectbox(
+                "Which prompt did you use?", [p["id"] for p in ai_prompts],
+                format_func=lambda i: f"{ai_by_id[i]['kind'].title()}: {ai_by_id[i]['label']}")
+            assistant = f2.selectbox("Which assistant?", ai_check.ASSISTANTS)
+            custom_prompt = st.text_input("…or your own prompt (optional, overrides the choice above)")
+            g1, g2, g3 = st.columns(3)
+            web = g1.selectbox("Was web search on?", ai_check.WEB_SEARCH,
+                               format_func={"yes": "Yes", "no": "No", "unknown": "Don't know"}.get)
+            when = g2.date_input("Date", value=dt.date.today())
+            mention = g3.radio("Did it mention the hotel?", ai_check.MENTION,
+                               format_func=ai_check.MENTION_LABEL.get)
+            facts = st.radio("Were the hotel's facts right?", ai_check.FACTS,
+                             format_func=ai_check.FACTS_LABEL.get, horizontal=True,
+                             help="For discovery prompts, choose \"Didn't state the facts\" "
+                                  "unless it said something factual about your hotel.")
+            wrong = st.text_area("If something was wrong, what?", height=70)
+            srcs = st.text_area("Sources it cited (paste the links, one per line)", height=80)
+            submitted = st.form_submit_button("Add this answer")
+        if submitted:
+            chosen = ai_by_id.get(prompt_choice)
+            text = custom_prompt.strip() or (chosen["prompt"] if chosen else "")
+            if not text:
+                st.error("Pick a prompt or type your own.")
+            else:
+                if custom_prompt.strip():
+                    named = bool(meta["hotel"]) and meta["hotel"].lower() in text.lower()
+                    kind, pid = ("accuracy" if named else "discovery"), "custom"
+                else:
+                    kind, pid = chosen["kind"], chosen["id"]
+                try:
+                    records.append(ai_check.clean_record({
+                        "assistant": assistant, "date": when.isoformat(), "kind": kind,
+                        "prompt_id": pid, "prompt": text, "web_search": web,
+                        "mention": mention, "facts": facts, "wrong_detail": wrong,
+                        "sources": srcs}))
+                    st.success("Added.")
+                except ValueError as e:
+                    st.error(f"Couldn't save that: {e}")
+
+    if records:
+        st.dataframe(
+            [{"Date": r["date"], "Assistant": r["assistant"], "Prompt": r["prompt"][:70],
+              "Web search": r["web_search"],
+              "Hotel": ai_check.MENTION_LABEL[r["mention"]],
+              "Facts": ai_check.FACTS_LABEL[r["facts"]],
+              "Sources": len(r["sources"])} for r in records],
+            width="stretch", hide_index=True)
+        summ = ai_check.summarise(records, meta["website"])
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Answers recorded", summ["n"])
+        m2.metric("Suggested your hotel (discovery)",
+                  f"{summ['discovery_mentioned']} of {summ['n_discovery']}"
+                  if summ["n_discovery"] else "—")
+        m3.metric("Got facts wrong (accuracy)",
+                  f"{len(summ['accuracy_wrong'])} of {summ['n_accuracy']}"
+                  if summ["n_accuracy"] else "—")
+        for cav in summ["caveats"]:
+            st.warning(cav)
+        if summ["accuracy_wrong"]:
+            with st.expander("What the assistants got wrong"):
+                for r in summ["accuracy_wrong"]:
+                    st.text(f"{r['assistant']} ({r['date']}): {r['wrong_detail'] or '(no detail given)'}")
+        if summ["cited_domains"]:
+            st.markdown("**Where the assistants got their information**")
+            st.dataframe([{"Source": d, "Answers citing it": n} for d, n in summ["cited_domains"]],
+                         width="stretch", hide_index=True)
+            st.caption(f"Your own site was cited in {summ['own_cited']} of "
+                       f"{summ['answers_with_sources']} answers that listed sources. If other "
+                       f"sites are doing the talking, those are the pages to make accurate.")
+        b1, b2, _ = st.columns([1, 1, 4])
+        if b1.button("Remove last"):
+            records.pop()
+            st.rerun()
+        if b2.button("Clear all"):
+            records.clear()
+            st.rerun()
+
+    st.info(
+        "**Real citation data, if you own the website:** Bing Webmaster Tools has an "
+        "*AI Performance* report showing how often your pages are cited in Microsoft "
+        "Copilot and Bing's AI summaries (public preview). It does **not** cover "
+        "ChatGPT, Gemini or Perplexity. "
+        "[How it works](https://blogs.bing.com/webmaster/February-2026/"
+        "Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)"
+    )
+
+    # ---- compare with an earlier report. Nothing is stored on the server: the
+    # visitor keeps their own dated file and brings it back.
+    st.subheader("Compare with an earlier report")
+    st.caption(
+        "Run the audit again after making changes, then upload the .json you "
+        "downloaded last time to see what moved. Your reports are never stored "
+        "here — you keep the file."
+    )
+    prev_file = st.file_uploader("Upload an earlier report (.json)", type=["json"],
+                                 key="prev_report")
+    if prev_file is not None:
+        if prev_file.size > compare.MAX_BYTES:
+            st.error("That file is too large to be one of this tool's reports.")
+        else:
+            try:
+                prev_report = json.load(prev_file)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                prev_report = None
+                st.error("That file isn't valid JSON, so it can't be one of this "
+                         "tool's reports.")
+            if prev_report is not None:
+                try:
+                    render_comparison(compare.compare_reports(prev_report, fa_res))
+                except ValueError as e:
+                    st.error(str(e))
 
     # ---- supporting detail, collapsed - evidence trail, not a second thing
     # to operate
@@ -521,7 +502,7 @@ if fa_res:
         with st.expander("Linked profiles"):
             profs = fa_res["discovery"]["profiles"]
             if profs:
-                st.dataframe(profs, use_container_width=True, hide_index=True)
+                st.dataframe(profs, width="stretch", hide_index=True)
                 st.caption("Declared in JSON-LD `sameAs`: "
                           + ("yes" if fa_res["discovery"]["declares_sameas"] else "no"))
             else:
@@ -550,10 +531,12 @@ if fa_res:
                         r = h["read"]
                         icon = sentiment_icon.get(r.get("sentiment"), "⚪")
                         via = " · read by LLM" if r.get("via") == "llm" else " · rule-based read"
+                        link = h["url"] if str(h["url"]).startswith(("http://", "https://")) else ""
                         st.markdown(
-                            f"{icon} **[{h['platform']}]({h['url']})** — "
-                            f"{r.get('substance', 'unknown')}, {r.get('sentiment', 'unknown')}"
-                            f"*{via}*  \n{r.get('excerpt', '')}"
+                            f"{icon} **[{_md_safe(h['platform'])}]({link})** — "
+                            f"{_md_safe(r.get('substance', 'unknown'))}, "
+                            f"{_md_safe(r.get('sentiment', 'unknown'))}"
+                            f"*{via}*  \n{_md_safe(r.get('excerpt', ''))}"
                         )
                 else:
                     st.caption("No confirmed editorial coverage found in the searches run.")
@@ -564,7 +547,7 @@ if fa_res:
 
         if fa_res["consistency"]:
             with st.expander("Fact consistency"):
-                st.dataframe(fa_res["consistency"], use_container_width=True,
+                st.dataframe(fa_res["consistency"], width="stretch",
                              hide_index=True)
         if fa_res["blocked_sources"]:
             with st.expander(
@@ -576,24 +559,32 @@ if fa_res:
                     "collection, so this tool doesn't attempt it. Check by "
                     "hand in a browser if you need what's on these pages."
                 )
-                st.dataframe(fa_res["blocked_sources"], use_container_width=True,
+                st.dataframe(fa_res["blocked_sources"], width="stretch",
                              hide_index=True)
 
     with st.expander("Website detail"):
         s = fa_res["site"]
-        st.write(f"**Topics with a page:** {', '.join(s['topics_covered']) or 'none'}")
-        st.write(f"**Topics with no obvious page:** "
+        st.caption("These two lists are a guess from page addresses - the pages "
+                   "were not read. The guest-question section above is the "
+                   "evidence-based check.")
+        st.write(f"**Topics with a matching page address:** {', '.join(s['topics_covered']) or 'none'}")
+        st.write(f"**Topics with no matching page address:** "
                  f"{', '.join(s['topics_no_page_found']) or 'none'}")
         st.write(f"**Schema types found:** {', '.join(s['schema_types_found']) or 'none'}")
         st.dataframe(
             [{"url": p["url"], "status": p.get("status"),
               "title": (p.get("title") or "")[:70]} for p in s["pages"]],
-            use_container_width=True, hide_index=True,
+            width="stretch", hide_index=True,
         )
 
+    # Dated file name so successive reports sort and can be told apart; the
+    # recorded manual AI answers travel with the report.
+    st.divider()
     st.download_button(
-        "Download full findings (.json)",
-        json.dumps(fa_res, indent=2),
-        file_name=f"{store.slug(meta['hotel'] or meta['website'])}-audit.json",
+        "Download this report (.json) — keep it to compare next time",
+        json.dumps({**fa_res, "manual_ai_checks": st.session_state.get("ai_records", [])},
+                   indent=2),
+        file_name=f"{store.slug(meta['hotel'] or meta['website'])}-audit-"
+                  f"{str(meta['run_at'])[:10]}.json",
         mime="application/json",
     )
