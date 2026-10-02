@@ -43,12 +43,186 @@ That public-and-free-to-the-VISITOR design shapes everything here:
     written to a shared file other visitors could read.
 """
 
+import html as html_lib
 import json
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 import full_audit
 import store
+
+
+def _esc(s):
+    """
+    Escape dynamic text before it goes into raw HTML. Needed because some of
+    it - review excerpts, article judgments - originates from third-party web
+    pages Tavily found, not just our own code. Once a block is rendered with
+    unsafe_allow_html=True, Streamlit stops escaping for us, so a hostile or
+    just-messy page's content could otherwise inject markup into the
+    dashboard rather than just being displayed as text.
+    """
+    return html_lib.escape(str(s if s is not None else ""))
+
+
+CARD_COLOR = {
+    "good": "#16a34a", "warn": "#d97706", "bad": "#dc2626", "mute": "#9ca3af",
+}
+SEVERITY_DOT = {
+    "critical": CARD_COLOR["bad"], "high": "#f97316",
+    "medium": CARD_COLOR["warn"], "low": CARD_COLOR["mute"],
+}
+
+
+def _score_color(score):
+    if score is None:
+        return CARD_COLOR["mute"]
+    if score >= 70:
+        return CARD_COLOR["good"]
+    if score >= 40:
+        return CARD_COLOR["warn"]
+    return CARD_COLOR["bad"]
+
+
+def render_dashboard(hotel_name, website, sc, recs):
+    """
+    The real dashboard render, replacing the plain Streamlit default table -
+    a score ring, colour-coded category cards, and a clean recommendations
+    list, all built from the real scorecard data (nothing hardcoded - this
+    is the same design validated as a mockup earlier, now actually wired to
+    full_audit.py's real output instead of being a one-off demo).
+    """
+    overall = sc["overall"]
+    coverage = sc["coverage_pct"]
+    circumference = 213.6  # 2*pi*34, matching the SVG radius below
+    offset = circumference * (1 - min(max(overall, 0), 100) / 100)
+
+    cards_html = ""
+    for c in sc["categories"]:
+        assessed = c["assessed"]
+        score = c["score"] if assessed else None
+        color = _score_color(score) if assessed else CARD_COLOR["mute"]
+        tag = ""
+        if c.get("partial"):
+            tag = f'<span class="tag" style="background:{color}22;color:{color}">partial</span>'
+        elif not assessed:
+            tag = '<span class="tag mute">not assessed</span>'
+        cards_html += f"""
+        <div class="card {'na' if not assessed else ''}">
+          <div class="top">
+            <span class="cat">{_esc(c['label'])}</span>
+            <span class="wt">{c['weight']}%</span>
+            {tag}
+          </div>
+          <div class="scoreline">
+            <b style="color:{color}">{score if assessed else '—'}</b>
+            {'<small>/100</small>' if assessed else ''}
+          </div>
+          <div class="bar"><i style="width:{score or 0}%;background:{color}"></i></div>
+        </div>"""
+
+    recs_html = ""
+    for r in recs:
+        dot = SEVERITY_DOT.get(r["priority"], CARD_COLOR["mute"])
+        recs_html += f"""
+        <div class="rec">
+          <div class="dot" style="background:{dot}"></div>
+          <div><b>{_esc(r['action'])}</b>
+          <p><i>{_esc(r['category'])}</i> — {_esc(r['why'])}</p></div>
+        </div>"""
+    if not recs_html:
+        recs_html = '<p style="color:var(--sub);font-size:12.5px">No recommendations from the categories that were assessed.</p>'
+
+    # components.html (raw iframe render) rather than st.markdown: Streamlit's
+    # markdown path runs this HTML through a Markdown parser first even with
+    # unsafe_allow_html=True, and a blank line inside a multi-line HTML block
+    # was enough to break it mid-render (confirmed live: later <div>s leaked
+    # into the page as literal text instead of being parsed). components.html
+    # drops the string into an iframe with no reinterpretation.
+    n_cards = len(sc["categories"])
+    card_rows = -(-n_cards // 4)  # ceil division, ~4 cards per row at this width
+    height = 160 + card_rows * 95 + 40 + len(recs) * 70 + 40
+
+    html_doc = f"""
+    <div class="dash">
+      <style>
+        html, body {{ margin:0; padding:0; background:#f7f8fa; }}
+        @media (prefers-color-scheme: dark) {{ html, body {{ background:#15161c; }} }}
+        .dash {{
+          --bg: #f7f8fa; --card: #ffffff; --border: #e7e9ee;
+          --ink: #1a1d29; --sub: #6b7280; --accent: #2563eb;
+          font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+          background: var(--bg); color: var(--ink); padding: 20px;
+          border-radius: 12px; margin: 0;
+          box-sizing: border-box;
+        }}
+        @media (prefers-color-scheme: dark) {{
+          .dash {{ --bg:#15161c; --card:#1d1f28; --border:#2a2d38; --ink:#eef0f4; --sub:#9aa0ad; }}
+        }}
+        .dash .head {{ display:flex; justify-content:space-between; align-items:flex-start;
+                      margin-bottom:18px; flex-wrap:wrap; gap:14px; }}
+        .dash h1 {{ font-size:19px; font-weight:700; margin:0 0 3px; }}
+        .dash .meta {{ font-size:12.5px; color:var(--sub); }}
+        .dash .scorewrap {{ display:flex; align-items:center; gap:14px; }}
+        .dash .ring {{ position:relative; width:76px; height:76px; flex:none; }}
+        .dash .ring svg {{ transform: rotate(-90deg); width:100%; height:100%; }}
+        .dash .ring .bgring {{ stroke:var(--border); }}
+        .dash .ring .fgring {{ stroke:var(--accent); stroke-linecap:round; }}
+        .dash .ring .num {{ position:absolute; inset:0; display:flex; align-items:center;
+                           justify-content:center; flex-direction:column; }}
+        .dash .ring .num b {{ font-size:22px; line-height:1; }}
+        .dash .ring .num span {{ font-size:9.5px; color:var(--sub); }}
+        .dash .covnote {{ font-size:11.5px; color:var(--sub); max-width:170px; }}
+        .dash .grid {{ display:grid; grid-template-columns: repeat(auto-fill, minmax(165px,1fr));
+                      gap:10px; margin-bottom:18px; }}
+        .dash .card {{ background:var(--card); border:1px solid var(--border);
+                      border-radius:10px; padding:11px 12px; }}
+        .dash .card .top {{ display:flex; justify-content:space-between; align-items:center;
+                            margin-bottom:6px; gap:4px; }}
+        .dash .card .cat {{ font-size:12px; font-weight:600; }}
+        .dash .card .wt {{ font-size:10.5px; color:var(--sub); }}
+        .dash .card .scoreline {{ display:flex; align-items:baseline; gap:5px; margin-bottom:6px; }}
+        .dash .card .scoreline b {{ font-size:19px; }}
+        .dash .card .scoreline small {{ font-size:10px; color:var(--sub); }}
+        .dash .bar {{ height:5px; border-radius:3px; background:var(--border); overflow:hidden; }}
+        .dash .bar i {{ display:block; height:100%; border-radius:3px; }}
+        .dash .card.na {{ opacity:.6; }}
+        .dash .tag {{ font-size:9.5px; padding:1px 6px; border-radius:20px; font-weight:600; }}
+        .dash .tag.mute {{ background:var(--border); color:var(--sub); }}
+        .dash h2 {{ font-size:13px; margin:18px 0 9px; color:var(--sub);
+                   text-transform:uppercase; letter-spacing:.04em; }}
+        .dash .rec {{ display:flex; gap:9px; padding:9px 0; border-top:1px solid var(--border); }}
+        .dash .rec:first-child {{ border-top:none; }}
+        .dash .dot {{ width:8px; height:8px; border-radius:50%; margin-top:5px; flex:none; }}
+        .dash .rec b {{ font-size:12.5px; display:block; }}
+        .dash .rec p {{ font-size:11.5px; color:var(--sub); margin:2px 0 0; }}
+      </style>
+
+      <div class="head">
+        <div>
+          <h1>{_esc(hotel_name or website)}</h1>
+          <div class="meta">{_esc(website)}</div>
+        </div>
+        <div class="scorewrap">
+          <div class="ring">
+            <svg viewBox="0 0 80 80">
+              <circle class="bgring" cx="40" cy="40" r="34" fill="none" stroke-width="7"/>
+              <circle class="fgring" cx="40" cy="40" r="34" fill="none" stroke-width="7"
+                stroke-dasharray="{circumference}" stroke-dashoffset="{offset}" />
+            </svg>
+            <div class="num"><b>{overall}</b><span>SCORE</span></div>
+          </div>
+          <div class="covnote">Weighted across <b style="color:var(--ink)">{coverage}%</b> of the model.</div>
+        </div>
+      </div>
+
+      <div class="grid">{cards_html}</div>
+
+      <h2>What to fix, worst first</h2>
+      {recs_html}
+    </div>
+    """
+    components.html(html_doc, height=height, scrolling=True)
 
 st.set_page_config(page_title="Hotel AI Discoverability Audit",
                    page_icon="H", layout="wide")
@@ -104,11 +278,6 @@ st.sidebar.caption(
     "collection, so this tool doesn't attempt it. Both of those show up as "
     "'not assessed' below, with an explanation, rather than a made-up score."
 )
-
-SEVERITY_UI = {
-    "critical": ("🔴", st.error), "high": ("🟠", st.warning),
-    "medium": ("🟡", st.warning), "low": ("⚪", st.info),
-}
 
 with st.form("full_audit_form"):
     fa_website = st.text_input(
@@ -181,48 +350,26 @@ if fa_go:
 fa_res = st.session_state.get("fa_res")
 if fa_res:
     meta, loc = fa_res["meta"], fa_res["meta"]["location"]
-    st.subheader(f"{meta['hotel'] or fa_res['meta']['website']}")
-    st.caption(
-        f"{meta['website']} · run {meta['run_at']} · "
-        f"hotel name {meta['hotel_name_source']}"
-        + (f" · location from {loc['source']}" if loc.get("source") else "")
-    )
-
     sc = fa_res["scorecard"]
     recs = fa_res["recommendations"]
 
-    m1, m2, m3 = st.columns([1, 1, 2])
-    m1.metric("Score", sc["overall"],
-              help="Weighted across the categories that could actually be "
-                   "measured. Not a score out of 100 for the whole model.")
-    m2.metric("Model covered", f"{sc['coverage_pct']}%",
-              help="Share of the weighted model that was assessed.")
-    m3.metric("Things to fix", len(recs),
-              help="Prioritised recommendations, worst first.")
+    render_dashboard(meta["hotel"], meta["website"], sc, recs)
 
-    st.progress(sc["coverage_pct"] / 100.0)
-    st.error(f"**Read the score with its coverage.** {sc['caveat']}")
-
-    # ---- category breakdown: the "why did it get that score" view
-    st.subheader("How the score breaks down")
-    st.dataframe(
-        [{
-            "Category": c["label"],
-            "Weight": f"{c['weight']}%",
-            "Score": c["score"] if c["assessed"] else "—",
-            "Status": ("partial" if c.get("partial")
-                       else ("assessed" if c["assessed"] else "not assessed")),
-        } for c in sc["categories"]],
-        use_container_width=True, hide_index=True,
+    st.caption(
+        f"run {meta['run_at']} · hotel name {meta['hotel_name_source']}"
+        + (f" · location from {loc['source']}" if loc.get("source") else "")
     )
+    st.info(f"**Read the score with its coverage.** {sc['caveat']}")
 
+    # ---- per-category evidence, and what's not assessed - detail, not the
+    # headline view the dashboard above already gives
     for c in sc["categories"]:
         if not c["assessed"]:
             continue
         label = f"{c['label']} — {c['score']}/100 (weight {c['weight']}%)"
         if c.get("partial"):
             label += "  ·  PARTIAL"
-        with st.expander(label, expanded=c["score"] < 60):
+        with st.expander(label):
             st.caption(c["detail"])
             for e in c["evidence"]:
                 st.write(f"- {e}")
@@ -232,7 +379,7 @@ if fa_res:
         missing_weight = round(sum(c["weight"] for c in not_assessed), 1)
         with st.expander(
             f"⚠️ Not assessed — {missing_weight}% of the model "
-            f"({len(not_assessed)} categories)", expanded=True
+            f"({len(not_assessed)} categories)"
         ):
             st.caption(
                 "Not measured at all. Neither helps nor hurts the score "
@@ -246,14 +393,6 @@ if fa_res:
                     f"*What this would take:* {c.get('how_to_enable', '')}"
                 )
                 st.divider()
-
-    # ---- recommendations
-    st.subheader("What to do, worst first")
-    if not recs:
-        st.success("No recommendations from the categories that were assessed.")
-    for r in recs:
-        icon, render = SEVERITY_UI.get(r["priority"], ("⚪", st.info))
-        render(f"{icon} **{r['action']}**  \n*{r['category']}* — {r['why']}")
 
     # ---- supporting detail, collapsed - evidence trail, not a second thing
     # to operate
