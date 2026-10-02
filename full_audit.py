@@ -64,6 +64,7 @@ import urllib.parse
 import amadeus_check
 import audit
 import external_check
+import guest_questions
 import places_check
 import scoring
 import site_check
@@ -457,11 +458,12 @@ def build_findings(site, entities, consistency, discovery, location=None):
     gaps = site.get("topics_no_page_found") or []
     if gaps:
         add("low", "Content coverage",
-            f"{len(gaps)} traveller topic(s) with no obvious page",
-            f"No page found for: {', '.join(gaps)}. Detection is by URL pattern, "
-            "so an unusual slug causes a false negative - check before acting.",
-            "Where the facility exists but has no page, give it one. A question "
-            "with no page answering it has no source to cite.")
+            f"No page address matched {len(gaps)} traveller topic(s)",
+            f"No page address matched: {', '.join(gaps)}. This is a guess from "
+            "URL wording, not from reading the pages - a page may exist under a "
+            "different name, so it is not evidence that the information is missing.",
+            "Check by hand. If the facility exists but nothing answers the "
+            "question, a guest or AI assistant has no source to quote.")
 
     order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     F.sort(key=lambda f: order[f["severity"]])
@@ -546,9 +548,29 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                     if p["platform"] in ("TripAdvisor", "Booking.com", "Expedia",
                                          "Hotels.com", "Yelp", "OpenTable")]
 
+    # Read a bounded set of the hotel's own pages to see what a guest (or an
+    # AI assistant) can actually learn from them. Failure here must not fail
+    # the audit - the rest of the report stands without it.
+    say("Checking whether the website answers guests' questions...")
+    try:
+        guest = guest_questions.run(site, base, hotel, location=location, progress=say)
+    except Exception as e:  # noqa: BLE001
+        guest = {"error": str(e), "questions": [], "fact_sheet": [], "conflicts": [],
+                 "own_facts_node": {}, "pages_attempted": 0, "pages_ok": 0,
+                 "pages_failed": [], "evidence_sufficient": False, "sitemap_total": 0}
+
+    # The consistency check needs the hotel's OWN facts to compare against.
+    # Many sites publish no structured data, which used to mean "nothing to
+    # compare". Facts read from the page text (phone, address, times) fill
+    # that gap; anything the site does publish as JSON-LD takes precedence.
+    own_facts = dict(guest.get("own_facts_node") or {})
+    own_facts.update({k: v for k, v in (site.get("lodging_node") or {}).items() if v})
+    own_facts_source = ("structured data plus page text" if site.get("lodging_node")
+                        else "page text" if own_facts else "none found")
+
     say("Checking open data sources...")
     ext = external_check.run_external_check(
-        listing_urls, site.get("lodging_node"), progress=progress,
+        listing_urls, own_facts or None, progress=progress,
         hotel=hotel, city=city, location=location,
     )
 
@@ -611,6 +633,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         site, ext["entities"], ext["consistency"], location, discovery,
         ai_visibility=ai_visibility_cat, tavily_result=tavily_result,
         places_result=places_result, amadeus_result=amadeus_result,
+        guest_result=guest,
     )
 
     return {
@@ -642,6 +665,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "consistency": ext["consistency"],
         "blocked_sources": ext["blocked_sources"],
         "reputation": ext["reputation"],
+        "guest_questions": guest,
+        "own_facts_source": own_facts_source,
         "tavily_result": tavily_result,
         "places_result": places_result,
         "amadeus_result": amadeus_result,

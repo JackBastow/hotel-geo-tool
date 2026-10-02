@@ -84,7 +84,61 @@ def _score_color(score):
     return CARD_COLOR["bad"]
 
 
-def render_dashboard(hotel_name, website, sc, recs):
+# state -> (chip text, colour). Five different states on purpose: "not found on
+# the pages checked" and "couldn't check" are NOT the same as "missing".
+GUEST_STATE_STYLE = {
+    "answered": ("Answered", "#16a34a"),
+    "partial": ("Partly answered", "#d97706"),
+    "needs_checking": ("Needs checking", "#2563eb"),
+    "not_found": ("Not found on pages checked", "#475569"),
+    "couldnt_check": ("Couldn't check", "#9ca3af"),
+}
+
+
+def _safe_url(u):
+    """Only http(s) links go into the page; anything else is dropped."""
+    return u if str(u).lower().startswith(("http://", "https://")) else ""
+
+
+def _guest_html(guest):
+    """The guest-question section: each question, its state, what's missing,
+    and the exact text relied on with a link to the page it came from."""
+    if not guest or not guest.get("questions"):
+        return ""
+    n_ok, n_all = guest.get("pages_ok", 0), guest.get("pages_attempted", 0)
+    total = guest.get("sitemap_total") or 0
+    scope = f"We read {n_ok} of {n_all} pages"
+    if total > n_all:
+        scope += f" (the site lists about {total})"
+    rows = ""
+    for q in guest["questions"]:
+        chip, color = GUEST_STATE_STYLE.get(q["state"], ("", "#9ca3af"))
+        detail = ""
+        if q["state"] == "partial" and q["missing"]:
+            detail = f'<div class="gmiss">Missing: {_esc(", ".join(q["missing"]))}</div>'
+        if q.get("note"):
+            detail += f'<div class="gmiss">{_esc(q["note"])}</div>'
+        quote = ""
+        if q["snippet"]:
+            url = _safe_url(q["source_url"])
+            link = (f' <a href="{_esc(url)}" target="_blank" rel="noopener noreferrer">'
+                    f'view page ↗</a>') if url else ""
+            quote = f'<div class="gquote">“{_esc(q["snippet"])}”{link}</div>'
+        rows += f"""
+        <div class="grow">
+          <div class="gtop"><b>{_esc(q['label'])}</b>
+            <span class="chip" style="background:{color}1f;color:{color}">{_esc(chip)}</span></div>
+          {detail}{quote}
+        </div>"""
+    return f"""
+      <h2>What your website tells guests</h2>
+      <p class="gscope">{_esc(scope)}. “Not found” means not found on those pages —
+      it does not prove the information is missing. “Couldn't check” is never
+      counted against you.</p>
+      {rows}"""
+
+
+def render_dashboard(hotel_name, website, sc, recs, guest=None):
     """
     The real dashboard render, replacing the plain Streamlit default table -
     a score ring, colour-coded category cards, and a clean recommendations
@@ -139,9 +193,12 @@ def render_dashboard(hotel_name, website, sc, recs):
     # was enough to break it mid-render (confirmed live: later <div>s leaked
     # into the page as literal text instead of being parsed). components.html
     # drops the string into an iframe with no reinterpretation.
+    guest_html = _guest_html(guest)
     n_cards = len(sc["categories"])
     card_rows = -(-n_cards // 4)  # ceil division, ~4 cards per row at this width
     height = 160 + card_rows * 95 + 40 + len(recs) * 70 + 40
+    if guest_html:
+        height += 150 + len(guest["questions"]) * 108
 
     html_doc = f"""
     <div class="dash">
@@ -196,6 +253,19 @@ def render_dashboard(hotel_name, website, sc, recs):
         .dash .dot {{ width:8px; height:8px; border-radius:50%; margin-top:5px; flex:none; }}
         .dash .rec b {{ font-size:12.5px; display:block; }}
         .dash .rec p {{ font-size:11.5px; color:var(--sub); margin:2px 0 0; }}
+        .dash .gscope {{ font-size:11.5px; color:var(--sub); margin:0 0 10px; }}
+        .dash .grow {{ padding:10px 0; border-top:1px solid var(--border); }}
+        .dash .grow:first-of-type {{ border-top:none; }}
+        .dash .gtop {{ display:flex; justify-content:space-between; align-items:center;
+                      gap:10px; flex-wrap:wrap; }}
+        .dash .gtop b {{ font-size:12.5px; }}
+        .dash .chip {{ font-size:10.5px; font-weight:600; padding:2px 8px;
+                      border-radius:20px; white-space:nowrap; }}
+        .dash .gmiss {{ font-size:11.5px; color:#d97706; margin-top:3px; }}
+        .dash .gquote {{ font-size:11.5px; color:var(--sub); margin-top:4px;
+                        font-style:italic; line-height:1.45; }}
+        .dash .gquote a {{ font-style:normal; color:var(--accent); text-decoration:none;
+                          white-space:nowrap; }}
       </style>
 
       <div class="head">
@@ -220,6 +290,7 @@ def render_dashboard(hotel_name, website, sc, recs):
 
       <h2>What to fix, worst first</h2>
       {recs_html}
+      {guest_html}
     </div>
     """
     components.html(html_doc, height=height, scrolling=True)
@@ -263,20 +334,26 @@ def _within_quota(service):
 
 st.title("Hotel AI Discoverability Audit")
 st.caption(
-    "How visible, and how correctly described, is a hotel to AI answer "
-    "engines? Free, no account, no API keys needed."
+    "Find the gaps in the information AI search can use about your hotel. "
+    "Free, no account, no API keys needed."
 )
 
 st.sidebar.title("About")
 st.sidebar.caption(
-    "This checks the free, public signals of how machine-readable a hotel "
-    "is: its own website, whether it's a verified entity in open map/data "
-    "sources, and how fresh its content is.\n\n"
-    "It does **not** automate asking an AI assistant about the hotel, and "
-    "does not read TripAdvisor, Booking.com or similar listing sites "
-    "directly - their Terms of Use explicitly prohibit automated "
-    "collection, so this tool doesn't attempt it. Both of those show up as "
-    "'not assessed' below, with an explanation, rather than a made-up score."
+    "This reads your hotel's own website and checks whether it answers the "
+    "questions guests (and AI assistants) ask - parking, breakfast, "
+    "check-in, pets, accessibility - showing the exact text it relied on. "
+    "It also checks whether the hotel is a verified entity in open map and "
+    "data sources, how fresh the content is, and how it appears in search "
+    "results.\n\n"
+    "It does **not** ask an AI assistant about your hotel, and does not read "
+    "TripAdvisor or Booking.com directly - their Terms of Use prohibit "
+    "automated collection. Anything it can't measure shows as 'not "
+    "assessed', never as a made-up score.\n\n"
+    "**Three different results you'll see:** *answered* (found it), *not "
+    "found on the pages checked* (we looked, nothing there - but we only "
+    "read some pages), and *couldn't check* (the page was blocked or "
+    "unreadable - never counted against you)."
 )
 
 with st.form("full_audit_form"):
@@ -353,7 +430,8 @@ if fa_res:
     sc = fa_res["scorecard"]
     recs = fa_res["recommendations"]
 
-    render_dashboard(meta["hotel"], meta["website"], sc, recs)
+    render_dashboard(meta["hotel"], meta["website"], sc, recs,
+                     fa_res.get("guest_questions"))
 
     st.caption(
         f"run {meta['run_at']} · hotel name {meta['hotel_name_source']}"
@@ -393,6 +471,33 @@ if fa_res:
                     f"*What this would take:* {c.get('how_to_enable', '')}"
                 )
                 st.divider()
+
+    # ---- the fact sheet: what a machine could learn from this site, each
+    # fact with the page it came from, so a wrong one can be traced and fixed
+    gq_res = fa_res.get("guest_questions") or {}
+    sheet = gq_res.get("fact_sheet") or []
+    if sheet:
+        st.subheader("What your website tells us about your hotel")
+        st.caption(
+            "Every fact below was read from your own pages, with the page it "
+            "came from. If one is wrong or missing, that is what an AI "
+            "assistant will repeat. Read by simple rules, not understanding - "
+            "check anything that looks off."
+        )
+        for c in gq_res.get("conflicts") or []:
+            vals = "; ".join(f"{v['value']} ({v['source_url']})" for v in c["values"])
+            st.warning(f"**{c['fact']} differs between pages:** {vals}. {c['note']}.")
+        st.dataframe(
+            [{"Fact": r["fact"], "What the site says": r["value"],
+              "Where": r["source_url"], "How it was read": r["note"]} for r in sheet],
+            column_config={"Where": st.column_config.LinkColumn("Page")},
+            use_container_width=True, hide_index=True,
+        )
+        if fa_res.get("own_facts_source") == "page text":
+            st.caption(
+                "This site publishes no structured data, so these page-text "
+                "facts were also used to cross-check OpenStreetMap and Wikidata."
+            )
 
     # ---- supporting detail, collapsed - evidence trail, not a second thing
     # to operate

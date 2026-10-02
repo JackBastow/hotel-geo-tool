@@ -188,10 +188,12 @@ hosted dashboard's configuration.
 One pipeline (`full_audit.run_full_audit`), everything free:
 
 1. **Checks the site** — robots.txt and AI crawlers, sitemap (including
-   `lastmod` dates for freshness), JSON-LD, Hotel schema completeness,
-   traveller topic coverage.
+   `lastmod` dates for freshness), JSON-LD, Hotel schema completeness.
 2. **Reads the hotel's name** from its own markup, so you don't have to type
    it.
+2b. **Reads up to 25 of the hotel's own pages and asks the questions guests
+   ask** — see *Guest-question coverage* below. This is the hotel-specific
+   part, and it shows the exact text it relied on.
 3. **Works out where the hotel is** — from its published address, any
    `PostalAddress` in its JSON-LD, a Google Maps link on the page (these
    carry latitude/longitude, the most precise signal available), or a
@@ -210,12 +212,60 @@ One pipeline (`full_audit.run_full_audit`), everything free:
 7. **Scores it** across the model above, and produces one prioritised list of
    what to fix.
 
-**Nothing here is cached or shared between visitors.** Each run lives only in
-that visitor's own browser session (gone on refresh) and in the JSON they can
-download — never written to a shared file other visitors could read. That
+**No audit result is stored or shared between visitors.** Each run lives only
+in that visitor's own browser session (gone on refresh) and in the JSON they
+can download — never written to a shared file other visitors could read. That
 matters because a public multi-tenant deployment has no safe place to keep a
 cross-visitor history: one visitor typing in another hotel's name must never
-surface a stranger's report.
+surface a stranger's report. The one thing kept in memory is the *public text
+of pages already published on the open web*, for up to 6 hours, so
+re-checking a site doesn't refetch it. That cache holds page content, never a
+report, and it is lost whenever the app restarts.
+
+### Guest-question coverage
+
+Rather than guessing from URLs whether a "parking page" exists, the audit
+reads the pages and checks whether they actually answer ten questions guests
+ask: parking, breakfast, check-in/out, pets, accessibility, family rooms,
+getting there, Wi-Fi, EV charging and cancellation. Each question has named
+sub-facts (parking needs the price, whether it is on-site, and whether you
+can reserve), so the report can say *"your parking page gives the price but
+not whether you can reserve a space"* instead of *"parking keyword found"*.
+
+Every result is in one of five states, and they mean different things:
+
+| State | Meaning |
+|---|---|
+| **Answered** | Every required detail found, on a page about the topic |
+| **Partly answered** | The topic is covered but named details are missing |
+| **Needs checking** | Only passing mentions - a human should look |
+| **Not found on pages checked** | We read N pages and found nothing. *Not* "missing" - it may be on a page we didn't reach |
+| **Couldn't check** | Pages were blocked, timed out, or had no readable text (often JavaScript-built sites). Never counted against the hotel |
+
+Everything shows the quoted text and a link to the page it came from.
+Matching is **rule-based and says so** - it finds evidence, it does not
+understand meaning - which is why uncertain results are labelled rather than
+guessed at. It looks sentence by sentence (so a "booking" in a neighbouring
+FAQ answer can't count as evidence about parking), and treats "we can't
+accommodate dogs" as a complete answer to the pets question.
+
+It is **bounded**: at most 25 pages, per-page timeouts, a 60-second total
+budget, parallel fetching. It only follows addresses the site itself lists in
+its sitemap or links to; it never guesses URLs. Because it can't read every
+page, "not found" is always worded as *not found on the pages checked*.
+
+This replaces the old "topics with a matching page address" component inside
+**Website & Technical**; the eight categories and their weights are
+unchanged.
+
+### The fact sheet
+
+The facts the audit read from the site (name, address, phone, email,
+check-in and check-out times, and each policy it found), each with a link to
+the page it came from. If two pages give different check-in times, that is
+flagged as a conflict. The same facts are used to cross-check OpenStreetMap
+and Wikidata, so the consistency check now works on sites that publish no
+structured data.
 
 ---
 
@@ -293,6 +343,8 @@ grounded result to others is not.
 | `scoring.py` | The eight-category weighted model, coverage and recommendations |
 | `site_check.py` | Website technical checks (robots.txt, sitemap, JSON-LD, schema) |
 | `external_check.py` | Entity presence (OpenStreetMap, Wikidata) and fact consistency |
+| `guest_questions.py` | Bounded crawl of the hotel's own pages; answers the guest questions with quoted evidence; builds the fact sheet |
+| `test_guest_questions.py` | Offline tests for the above. Run `python test_guest_questions.py` |
 | `tavily_check.py` | Optional — multi-angle, segment-aware search: OTA presence, editorial mentions, social mentions |
 | `gemini_reader.py` | Optional — free, ungrounded Gemini call that reads and judges text `tavily_check.py` fetches. Not AI Visibility - see its module docstring |
 | `places_check.py` | Optional — Google Places rating/reviews |

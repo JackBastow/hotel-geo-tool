@@ -41,6 +41,8 @@ penalised for a gap in this tool's reach.
 import datetime as dt
 import re
 
+import guest_questions
+
 # key, label, weight, one-line description of what it answers
 CATEGORIES = [
     ("ai_visibility", "AI Visibility", 25.0,
@@ -89,7 +91,86 @@ HIGH_VALUE_SCHEMA = ["checkinTime", "checkoutTime", "address", "telephone",
                      "geo", "amenityFeature", "starRating", "priceRange"]
 
 
-def score_website(site):
+def _guest_evidence(guest):
+    """Evidence lines for guest-question coverage, honest about what was read."""
+    qs = guest["questions"]
+    by = {}
+    for q in qs:
+        by.setdefault(q["state"], []).append(q["short"])
+    n_ok, n_all = guest.get("pages_ok", 0), guest.get("pages_attempted", 0)
+    total = guest.get("sitemap_total") or 0
+    ev = [f"Read {n_ok} of {n_all} pages"
+          + (f" (the site lists about {total})" if total > n_all else "")
+          + " to see what guests can learn"]
+    labels = [("answered", "Answered"), ("partial", "Partly answered"),
+              ("needs_checking", "Needs checking"),
+              ("not_found", "Not found on the pages checked"),
+              ("couldnt_check", "Couldn't check")]
+    for key, label in labels:
+        if by.get(key):
+            ev.append(f"{label}: {', '.join(by[key])}")
+    if guest.get("pages_failed"):
+        ev.append(f"{len(guest['pages_failed'])} page(s) could not be read - "
+                  f"never counted as missing information")
+    return ev
+
+
+def _guest_recs(guest):
+    """
+    Recommendations from guest-question results. Wording matters here: 'not
+    found' is NOT 'missing' - only the pages we read were searched - so those
+    ask the hotel to check, while partial answers (the topic IS covered, with
+    named gaps) are the confident, actionable ones.
+    """
+    recs = []
+    qs = guest["questions"]
+    n_ok = guest.get("pages_ok", 0)
+
+    for q in sorted((q for q in qs if q["state"] == "partial"),
+                    key=lambda q: not q["high_value"])[:4]:
+        recs.append({
+            "priority": "medium" if q["high_value"] else "low",
+            "action": f"{q['short']}: add {', '.join(q['missing'])}",
+            "why": f"Your site covers this ({q['source_url']}) but leaves out "
+                   f"details a guest or AI assistant would need. It currently "
+                   f"says: \"{q['snippet'][:160]}\"",
+        })
+
+    nf = [q for q in qs if q["state"] == "not_found"]
+    if nf:
+        recs.append({
+            "priority": "medium" if any(q["high_value"] for q in nf) else "low",
+            "action": "No answer found on the pages checked for: "
+                      + ", ".join(q["short"] for q in nf),
+            "why": f"We read {n_ok} pages and found nothing on these. That does "
+                   f"not prove the information is missing - it may be on a page "
+                   f"we didn't reach - so check by hand first. If it genuinely "
+                   f"isn't there, a guest (or an AI assistant) has nothing to "
+                   f"quote.",
+        })
+
+    chk = [q for q in qs if q["state"] == "needs_checking"]
+    if chk:
+        recs.append({
+            "priority": "low",
+            "action": "Passing mentions only - check: " + ", ".join(q["short"] for q in chk),
+            "why": "These topics appear in the text but not on a page about them, "
+                   "so the details may be thin or buried.",
+        })
+
+    cc = [q for q in qs if q["state"] == "couldnt_check"]
+    if cc and len(cc) == len(qs):
+        recs.append({
+            "priority": "low",
+            "action": "We couldn't read enough of the site to check guest questions",
+            "why": "Pages were blocked, timed out, or returned no readable text "
+                   "(often a JavaScript-built site). This says nothing about "
+                   "whether the information exists.",
+        })
+    return recs
+
+
+def score_website(site, guest=None):
     """Crawlability and machine-readability of the hotel's own site."""
     pts, ev, recs = [], [], []
 
@@ -146,19 +227,30 @@ def score_website(site):
                      "action": "Publish sitemap.xml and link it from robots.txt",
                      "why": "Without it crawlers must find pages by following links."})
 
-    covered = site.get("topics_covered") or []
-    gaps = site.get("topics_no_page_found") or []
-    total = len(covered) + len(gaps)
-    frac = len(covered) / total if total else 0.0
-    pts.append(("Topic coverage", frac, 0.15))
-    ev.append(f"Traveller topics with a page: {len(covered)}/{total}")
-    if gaps:
-        recs.append({
-            "priority": "low",
-            "action": f"Add pages for: {', '.join(gaps)}",
-            "why": "A question with no page answering it has no source to cite. "
-                   "Detection is by URL pattern, so check for unusual slugs first.",
-        })
+    gfrac = guest_questions.coverage_fraction(guest)
+    if gfrac is not None:
+        # Evidence-based: the pages were actually read. This replaces the old
+        # "topics with a matching URL" guess, which could call a hotel's
+        # parking info "missing" just because its page had an unusual address.
+        pts.append(("Guest-question coverage", gfrac, 0.15))
+        ev += _guest_evidence(guest)
+        recs += _guest_recs(guest)
+    else:
+        covered = site.get("topics_covered") or []
+        gaps = site.get("topics_no_page_found") or []
+        total = len(covered) + len(gaps)
+        frac = len(covered) / total if total else 0.0
+        pts.append(("Topic coverage", frac, 0.15))
+        ev.append(f"Traveller topics with a matching page address: {len(covered)}/{total} "
+                  f"(a guess from URL wording - the pages themselves were not read)")
+        if gaps:
+            recs.append({
+                "priority": "low",
+                "action": f"No page address matched: {', '.join(gaps)}",
+                "why": "This is a guess from page addresses, not from reading the "
+                       "pages - a page may exist under a different name. Check by "
+                       "hand before acting on it.",
+            })
 
     score = sum(v * w for _, v, w in pts) * 100
     return _cat("website", score,
@@ -619,7 +711,7 @@ def score_social(discovery, tavily_result=None):
 
 def build_scorecard(site, entities, consistency, location, discovery,
                     ai_visibility=None, tavily_result=None,
-                    places_result=None, amadeus_result=None):
+                    places_result=None, amadeus_result=None, guest_result=None):
     """
     Every category is assembled the same way: run its scorer, which itself
     decides "assessed" vs "not assessed" based on whether the data it needs
@@ -628,7 +720,7 @@ def build_scorecard(site, entities, consistency, location, discovery,
     their results in here - this function never reaches out to an API itself.
     """
     cats = [
-        score_website(site),
+        score_website(site, guest_result),
         score_entity(entities, consistency, location),
         score_freshness(site),
         score_social(discovery, tavily_result),

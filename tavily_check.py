@@ -64,6 +64,7 @@ except ImportError:  # pragma: no cover - degrade gracefully if not installed
 import gemini_reader
 
 API_URL = "https://api.tavily.com/search"
+READ_BUDGET_S = 90  # total time allowed for reading articles in one audit
 
 UA = ("Mozilla/5.0 (compatible; HotelDiscoverabilityAudit/1.0; "
      "hotel AI-visibility audit; contact: site owner)")
@@ -339,7 +340,17 @@ def check_coverage(hotel, city="", api_key=None, topics_covered=None,
     # A small pause before each LLM-backed read spaces out several calls in
     # quick succession, which otherwise risks the free tier's per-minute cap
     # (undocumented exact figure - see store.py's SERVICE_CAPS comment).
-    for i, entry in enumerate(editorial_candidates[:fetch_top_n]):
+    #
+    # Bounded: stop reading once READ_BUDGET_S has passed. Retries on a busy
+    # free-tier model can otherwise stretch one audit to many minutes, and a
+    # public visitor shouldn't wait on that. Anything not reached is simply
+    # left unread - never treated as bad coverage.
+    read_start = time.time()
+    to_read = editorial_candidates[:fetch_top_n]
+    for i, entry in enumerate(to_read):
+        if time.time() - read_start > READ_BUDGET_S:
+            out["read_budget_hit"] = True
+            break
         if progress:
             progress(f"Reading: {entry['url']}")
         if i > 0 and gemini_reader.has_key(gemini_reader_key):
@@ -348,10 +359,12 @@ def check_coverage(hotel, city="", api_key=None, topics_covered=None,
         entry["read"] = _judge(text, hotel, gemini_reader_key=gemini_reader_key,
                                gemini_reader_model=gemini_reader_model)
 
+    # Only candidates we actually tried to read can be called coverage;
+    # unread ones (past the cap or the time budget) are kept apart.
+    attempted = [e for e in to_read if "read" in e]
     out["editorial_hits"] = [
-        e for e in editorial_candidates
-        if e.get("read", {}).get("confirmed") is not False
-    ][:fetch_top_n]
+        e for e in attempted if e["read"].get("confirmed") is not False
+    ]
     out["other_hits"] = [e for e in editorial_candidates if e not in out["editorial_hits"]]
 
     return out
