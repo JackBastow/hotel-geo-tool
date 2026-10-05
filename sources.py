@@ -249,7 +249,7 @@ def osm_context(lat, lon, hotel_name=""):
         if la is None or not name:
             continue
         km = round(haversine_km(lat, lon, la, lo), 2)
-        row = {"name": name, "km": km, "osm": f"https://www.openstreetmap.org/{el['type']}/{el['id']}",
+        row = {"name": name, "km": km, "lat": la, "lon": lo, "osm": f"https://www.openstreetmap.org/{el['type']}/{el['id']}",
                "tags": {k: t[k] for k in ("stars", "website", "wheelchair", "rooms", "operator",
                                            "brand", "tourism", "railway", "historic", "leisure",
                                            "amenity", "wikidata", "iata", "network",

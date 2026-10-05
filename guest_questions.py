@@ -39,6 +39,7 @@ import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from site_check import get
+import pagesignals
 
 try:
     from bs4 import BeautifulSoup
@@ -47,7 +48,7 @@ except ImportError:  # pragma: no cover
 
 MAX_PAGES = 25
 FETCH_TIMEOUT = 12
-TIME_BUDGET_S = 60
+TIME_BUDGET_S = 100
 CACHE_TTL_S = 6 * 3600
 CACHE_MAX = 400
 MIN_READABLE_CHARS = 200
@@ -326,11 +327,16 @@ def _clean(s):
 def _parse_html(url, html):
     """Pull readable main text, title, headings, contact links out of a page."""
     out = {"title": "", "h1": [], "text": "", "footer_text": "",
-           "tels": [], "mails": [], "links": []}
+           "tels": [], "mails": [], "links": [], "signals": {}}
     if BeautifulSoup is None:
         out["text"] = _clean(re.sub(r"<[^>]+>", " ", html))[:30000]
         return out
     soup = BeautifulSoup(html, "html.parser")
+    # machine-readability signals come from the raw HTML, before scripts are stripped
+    try:
+        out["signals"] = pagesignals.extract(soup, url, html)
+    except Exception:  # noqa: BLE001 - signals are a bonus; never lose the page over them
+        out["signals"] = {}
     out["title"] = _clean(soup.title.get_text()) if soup.title else ""
     out["h1"] = [_clean(h.get_text()) for h in soup.find_all("h1")][:3]
     for a in soup.find_all("a", href=True):
@@ -352,6 +358,8 @@ def _parse_html(url, html):
         tag.decompose()
     root = soup.find("main") or soup.find("article") or soup.body or soup
     out["text"] = _clean(root.get_text(" "))[:30000]
+    if out["signals"]:
+        pagesignals.finish(out["signals"], out["text"])
     return out
 
 
@@ -364,7 +372,8 @@ def fetch_page(url, timeout=FETCH_TIMEOUT):
             return hit[1]
 
     res = {"url": url, "ok": False, "reason": "", "title": "", "h1": [],
-           "text": "", "footer_text": "", "tels": [], "mails": [], "links": []}
+           "text": "", "footer_text": "", "tels": [], "mails": [], "links": [],
+           "signals": {}, "status": None, "final_url": url}
     try:
         r = get(url, timeout=timeout)
     except Exception as e:  # noqa: BLE001 - one bad page must not sink the audit
@@ -373,11 +382,13 @@ def fetch_page(url, timeout=FETCH_TIMEOUT):
     if r is None:
         res["reason"] = res["reason"] or "request failed or timed out"
     elif r.status_code != 200:
+        res["status"], res["final_url"] = r.status_code, r.url or url
         res["reason"] = f"HTTP {r.status_code}"
     elif "html" not in (r.headers.get("Content-Type", "").lower()):
         res["reason"] = "not an HTML page"
     else:
         res.update(_parse_html(r.url or url, r.text))
+        res["status"], res["final_url"] = r.status_code, r.url or url
         if len(res["text"]) < MIN_READABLE_CHARS:
             res["reason"] = ("no readable text (probably built with JavaScript, "
                              "so a plain fetch sees an empty page)")
@@ -778,6 +789,20 @@ def build_fact_sheet(ok_pages, questions, hotel, base, lodging_node=None, locati
 
 # ----------------------------------------------------------------------- run
 
+def _page_row(p):
+    s = p.get("signals") or {}
+    return {"url": p["url"], "ok": p["ok"], "reason": p.get("reason", ""), "status": p.get("status"),
+            "final_url": p.get("final_url") or p["url"], "title": p.get("title", ""),
+            "h1": p.get("h1", []), "meta_description": s.get("meta_description", ""),
+            "canonical": s.get("canonical"), "noindex": bool(s.get("noindex")),
+            "structured": [{"types": n["types"], "keys": n["keys"]} for n in s.get("structured", [])],
+            "word_count": s.get("word_count"), "images_total": (s.get("images") or {}).get("total"),
+            "images_no_alt": (s.get("images") or {}).get("no_alt"), "pdfs": s.get("pdfs", []),
+            "js_shell": bool(s.get("js_shell")), "faq_like_items": s.get("faq_like_items", 0),
+            "breadcrumb": bool(s.get("breadcrumb")), "og_image": bool((s.get("og") or {}).get("image")),
+            "h1_count": s.get("h1_count"), "lang": s.get("lang")}
+
+
 def run(site, base, hotel="", location=None, progress=None,
         max_pages=MAX_PAGES, budget_s=TIME_BUDGET_S):
     """
@@ -844,7 +869,12 @@ def run(site, base, hotel="", location=None, progress=None,
         # positioning). The caller uses it and removes it before saving the
         # report, so it never bloats the downloaded JSON.
         "own_pages": [{"url": p["url"], "title": p.get("title", ""),
-                       "text": (p.get("text") or "")[:9000]} for p in ok_pages],
+                       "text": (p.get("text") or "")[:9000], "h1": p.get("h1", []),
+                       "tels": p.get("tels", []), "mails": p.get("mails", []),
+                       "links": p.get("links", [])[:150], "signals": p.get("signals", {}),
+                       "footer_text": (p.get("footer_text") or "")[:600]} for p in ok_pages],
+        # one compact row per page tried (kept in the saved report): what a crawler found
+        "pages_meta": [_page_row(p) for p in pages],
     }
 
 

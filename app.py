@@ -59,6 +59,7 @@ import dashboard
 import full_audit
 import report_pdf
 import store
+import ui_consult
 import ui_intel
 
 st.set_page_config(page_title="Hotel AI Discoverability Audit",
@@ -264,6 +265,8 @@ if fa_res:
     recs = fa_res["recommendations"]
     intel = fa_res.get("intel") or {}
     has_intel = bool(intel) and "error" not in intel
+    consult = fa_res.get("consultant") or {}
+    has_consult = bool(consult) and "error" not in consult
 
     # ---- downloads first: the PDF is built from the finished audit (no requests)
     json_bytes = json.dumps({**fa_res, "manual_ai_checks": st.session_state.get("ai_records", [])},
@@ -296,12 +299,44 @@ if fa_res:
         st.warning("The wider discovery and reputation analysis failed for this run "
                    f"({intel.get('error')}). The website score and guest-question results below are unaffected.")
 
-    names = ["Overview", "Identity & distribution", "Reviews & reputation", "Media & validation",
-             "Traveller fit", "Social & local", "Website", "Gaps & method", "Tools"]
+    names = ["Overview", "How AI sees your hotel", "Fix your website", "Beyond your website", "Scorecard", "Tools & method"]
     tabs = st.tabs(names)
 
-    # ------------------------------------------------------------- Overview
+    # ------------------------------------------------------------- the consultant view
     with tabs[0]:
+        if has_consult:
+            ui_consult.overview(consult)
+        elif has_intel:
+            ui_intel.overview(intel)
+        else:
+            st.info("The analysis of what AI systems can understand about this hotel did not run for this audit. "
+                    "The Scorecard tab still has the website results.")
+    with tabs[1]:
+        if has_consult:
+            ui_consult.ai_view(consult)
+        else:
+            st.info("This section needs the consultant analysis, which did not run for this audit.")
+    with tabs[2]:
+        if has_consult:
+            ui_consult.fix_site(consult)
+        else:
+            st.info("This section needs the consultant analysis, which did not run for this audit.")
+
+    # ------------------------------------------------------------- outside the hotel's own website
+    with tabs[3]:
+        st.caption("Evidence from outside the hotel's own website: where it is listed, how others describe it, and who covers it.")
+        sub = st.tabs(["Identity & distribution", "Reviews & reputation", "Media & validation", "Traveller fit", "Social & local"])
+        for t, fn in zip(sub, ("identity", "reviews", "media", "traveller", "social_local")):
+            with t:
+                if has_intel:
+                    getattr(ui_intel, fn)(intel)
+                else:
+                    st.info("This section needs the wider discovery analysis, which did not run for this audit.")
+
+    # ------------------------------------------------------------- the original scorecard
+    with tabs[4]:
+        st.caption("The original eight-category scorecard, with its coverage. The other tabs add evidence and recommendations; "
+                   "this number is unchanged by them.")
         top = fa_res.get("top_fixes") or []
         top_codes = {r.get("code") for r in top}
         rest = [r for r in recs if r.get("code") not in top_codes]
@@ -325,8 +360,7 @@ if fa_res:
             + (f" · location from {loc['source']}" if loc.get("source") else "")
         )
         st.info(f"**Read the score with its coverage.** {sc['caveat']}")
-        if has_intel:
-            ui_intel.overview(intel)
+
         # ---- per-category evidence, and what's not assessed - detail, not the
         # headline view the dashboard above already gives
         for c in sc["categories"]:
@@ -361,16 +395,7 @@ if fa_res:
                     st.divider()
 
 
-    # ------------------------------------------------------------- the report sections
-    for tab, fn in ((tabs[1], "identity"), (tabs[2], "reviews"), (tabs[3], "media"),
-                    (tabs[4], "traveller"), (tabs[5], "social_local")):
-        with tab:
-            if has_intel:
-                getattr(ui_intel, fn)(intel)
-            else:
-                st.info("This section needs the wider discovery analysis, which did not run for this audit.")
-
-    with tabs[6]:
+        st.divider()
         if has_intel:
             ui_intel.website(intel)
         # ---- the fact sheet: what a machine could learn from this site, each
@@ -499,13 +524,16 @@ if fa_res:
             )
 
 
-    with tabs[7]:
+
+    with tabs[5]:
+        st.subheader("Method: all 30 checks and what each source could and couldn't tell us")
         if has_intel:
             ui_intel.gaps(intel)
         else:
             st.info("The 30-check methodology table needs the wider analysis, which did not run.")
 
-    with tabs[8]:
+
+        st.divider()
         st.caption("Optional extras. Nothing here is part of the score.")
         # ---- the manual AI answer check. We don't call AI assistants (grounded
         # AI search costs real money and every free route was closed), but we can

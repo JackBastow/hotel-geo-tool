@@ -28,6 +28,40 @@ and upload next time to compare. A full run takes roughly 4–5 minutes
 (mostly waiting on other people's servers); untick *Include the wider
 discovery* for the faster, website-only audit.
 
+## The consultant view: what AI can understand, and what to fix first
+
+The headline of the report is not a list of checks. It answers: *what can AI
+and search systems understand about this hotel, what do they struggle with,
+and what are the few things most worth doing?* Everything here is computed
+from pages the audit already fetched (no extra requests) and quotes the page
+text it rests on.
+
+| Part | What it does |
+|---|---|
+| **How AI currently understands this hotel** | One cautious sentence built only from wording found on the pages, plus strong and weak signals. Nothing is invented; absence means "not stated", not "not true" |
+| **Traveller searches the content supports** | 17 traveller intents (business, family, couples, weddings, spa, pets, sustainability, accessibility...) classed strong / some / weak / none, each with the reason and a quote. Legal pages (terms, privacy) are not counted as evidence of what the hotel offers |
+| **Questions AI may struggle to answer** | Only questions that apply to *this* hotel (it says it has a pool, meeting rooms, a spa...) and that the pages leave open, each with the page where the answer belongs and example wording |
+| **Location** | Whether the site ties the hotel to the stations, airports and landmarks that matter, with a distance. Open map data is used only as a labelled straight-line *hint*; travel times are never calculated or invented |
+| **Consistency inside the site** | Different check-in times, phone numbers, postcodes, hotel names, opening hours, room counts, expired offers, opposite amenity statements - each with every page involved |
+| **Strengths that are easy to miss** | Features mentioned once, buried deep, only in PDFs (menus grouped as one finding), only in images, or not linked internally |
+| **Machine readiness** | Four separate groups - machine access, machine understanding, content gaps, outside evidence - never blended into one "GEO score" |
+| **Structured data** | What the markup *says* (wrong phone, bad coordinates, missing address parts), not whether it exists. Always carries the caution that markup is not a ranking lever; self-published ratings are never recommended |
+| **AI visibility readiness** | Eight separate component scores, each showing what drove it |
+| **Top actions and quick wins** | At most seven, ranked by impact against effort and spread across the four kinds of problem, plus a separate low-effort list |
+
+Every recommendation has the same shape: **what we found, why it matters, the
+evidence, what to do, where, what to add, an example, priority, effort and a
+confidence label** (*established good practice*, *reasonable inference* or
+*experimental*), with the SEO/GEO detail collapsed underneath. A recommendation
+is only generated from an actual finding, and a well-built site gets little or
+no advice. The crawl reads raw HTML and does not run JavaScript; where that
+matters the report says so.
+
+**Not implemented, deliberately:** Google PageSpeed Insights (a slow call per
+page that measures speed, not AI understanding), Common Crawl (presence in a
+crawl is not evidence an AI knows or recommends a hotel) and any competitor
+entry. Nothing in the main audit needs a competitor.
+
 ## The discovery & reputation report
 
 Built around 30 checks. Each is reported as **assessed**, **partial** or **not
@@ -463,6 +497,13 @@ grounded result to others is not.
 | `report_pdf.py` | The full PDF (reportlab): selectable text, links, page numbers, repeating table headers |
 | `ui_intel.py` | Streamlit rendering of the report sections |
 | `test_intel.py` | Offline tests: matching, source failures, duplicates, sample-size honesty, unsupported claims |
+| `pagesignals.py` | Machine-readability signals taken from pages the crawl already fetched (meta, canonical, JSON-LD contents, images, PDFs, JavaScript shell) |
+| `lexicon.py` | Feature, traveller-intent and distance vocabulary for the consultant layer |
+| `insight_content.py` | AI understanding, intents, unanswered questions, location, consistency, hidden strengths |
+| `insight_tech.py` | Structured-data audit, machine readiness (four buckets), readiness profile |
+| `advice.py`, `consultant.py` | Recommendation engine (finding → why → evidence → action → example) and the orchestrator |
+| `ui_consult.py`, `report_pdf_consult.py` | Streamlit and PDF rendering of the consultant report |
+| `test_insight.py`, `test_pdf.py`, `test_ui.py` | Offline tests for the analysis, the PDF layout and the whole results page |
 | `fixes.py` | Turns recommendations into an action plan: owner, page, worked example, top three. Builds the pre-filled JSON-LD |
 | `dashboard.py` | Builds the report as fully-escaped HTML, shown with `st.iframe` (needs `streamlit>=1.50`). No Streamlit import, so it is testable |
 | `ai_check.py` | Prompt pack and summary for the manual AI answer check. Never scored |

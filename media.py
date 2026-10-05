@@ -344,6 +344,28 @@ _RATING_PATTERNS = [
 ]
 
 
+_OTHER_LODGING = re.compile(r"[A-Z][\w'’]+(?:\s[A-Z][\w'’&]+){0,3}\s(?:Hotel|Inn|House|Lodge|Resort|Manor|Spa)\b")
+
+
+def _rating_belongs(text, variants, m):
+    """
+    True only if the rating sits right after the hotel's name (within ~90 characters), with no OTHER
+    named hotel in between. A listing page shows many hotels, each with its own
+    score; a number near ours that follows someone else's name is not ours.
+    """
+    folded, idx = evidence.fold_map(text)
+    for v in variants:
+        for fm in re.finditer(r"(?<![a-z0-9])" + re.escape(v) + r"(?![a-z0-9])", folded):
+            start = idx[fm.start()]
+            end = idx[min(fm.end() - 1, len(idx) - 1)] + 1
+            if not 0 <= m.start() - end <= 90:
+                continue       # only a score AFTER our name counts; one just before it is the previous entry's
+            between = text[end:m.start()]
+            if not _OTHER_LODGING.search(between):
+                return True
+    return False
+
+
 def rating_signals(corpus, hotel, city, ledger):
     """
     Aggregate ratings third parties display about the hotel (e.g. "5.0 (13)").
@@ -372,8 +394,7 @@ def rating_signals(corpus, hotel, city, ledger):
                 for cand in rx.finditer(t):
                     # the rating must sit right beside the hotel's name; a number
                     # elsewhere on a multi-hotel listing belongs to some other hotel
-                    near = evidence.fold(t[max(0, cand.start() - 170): cand.end() + 170])
-                    if any(v in near for v in variants):
+                    if _rating_belongs(t, variants, cand):
                         m = cand
                         break
                 if not m:

@@ -33,19 +33,23 @@ def run(report, label):
 print("1. the full report renders")
 at = run(rep, "full")
 check("no exception", not at.exception, [e.message for e in at.exception])
-check("the nine top-level tabs are there (plus two nested in the AI check)", len(at.tabs) == 11, len(at.tabs))
 labels = [t.label for t in at.tabs]
-check("Tools tab present", "Tools" in labels, labels)
-for want in ("Overview", "Identity & distribution", "Reviews & reputation", "Media & validation",
-             "Traveller fit", "Social & local", "Website", "Gaps & method"):
-    check(f"tab present: {want}", want in labels, labels)
+for want in ("Overview", "How AI sees your hotel", "Fix your website", "Beyond your website", "Scorecard", "Tools & method"):
+    check(f"top-level tab present: {want}", want in labels, labels)
+for want in ("Identity & distribution", "Reviews & reputation", "Media & validation", "Traveller fit", "Social & local"):
+    check(f"'Beyond your website' sub-tab present: {want}", want in labels, labels)
 text = " ".join(m.value for m in at.markdown) + " ".join(s.value for s in at.subheader)
-check("priority actions are shown", "Five priority actions" in text)
-check("the 30-check table section is shown", "All 30 checks" in text)
-check("the guest-review limitation is on the page", any("lawful, free, automated source" in (i.value or "") for i in at.info))
-check("tables rendered (dataframes present)", len(at.dataframe) >= 10, len(at.dataframe))
-check("the existing manual AI check still renders", "Check what AI assistants actually say" in " ".join(
-    s.value for s in at.subheader) or "AI assistants" in text)
+check("the AI-understanding statement leads the page", "AI currently understands this hotel as" in text)
+check("the readiness profile is shown as separate components", "AI visibility readiness" in text)
+check("top actions are shown", "things most worth doing" in text)
+check("quick wins are shown", "Quick wins" in text)
+check("what is already working is shown", "already doing well" in text)
+check("the unanswered-questions section is shown", "Questions AI may struggle to answer" in text)
+check("the structured-data audit is shown", "Structured data" in text)
+check("the 30-check method table is shown", "All 30 checks" in text)
+check("recommendation cards use the Finding / Why / Action shape", "What we found." in text and "Why it matters." in text and "What to do." in text)
+check("tables rendered (dataframes present)", len(at.dataframe) >= 8, len(at.dataframe))
+check("no generic GEO claim leaks into the page", not any(p in text.lower() for p in ("boost your chatgpt", "guarantees better", "llms prefer")))
 
 print("2. degraded runs")
 bad = copy.deepcopy(rep)
@@ -58,6 +62,23 @@ old.pop("intel", None)
 at3 = run(old, "old report format")
 check("a report from before this feature (no 'intel') still renders", not at3.exception,
       [e.message for e in at3.exception])
+nocons = copy.deepcopy(rep)
+nocons.pop("consultant", None)
+at5 = run(nocons, "no consultant")
+check("a report from before the consultant layer still renders", not at5.exception, [e.message for e in at5.exception])
+errcons = copy.deepcopy(rep)
+errcons["consultant"] = {"error": "RuntimeError: boom"}
+at6 = run(errcons, "consultant failed")
+check("a failed consultant analysis does not crash the page", not at6.exception, [e.message for e in at6.exception])
+import consultant  # noqa: E402
+unread = copy.deepcopy(rep)
+unread["consultant"] = consultant.analyse(
+    own_pages=[], pages_meta=[{"url": "https://x.com/p%d/" % i, "ok": False, "reason": "request failed or timed out", "status": None, "title": ""} for i in range(10)],
+    base="https://x.com/", hotel="X Hotel", city="Leeds", location={}, guest={"questions": [], "conflicts": [], "own_facts_node": {}},
+    site={"robots": {"present": False}, "sitemap": {}}, entities=[], intel=None, osm_ctx=None)
+at7 = run(unread, "unreadable site")
+check("an unreadable site renders, with a clear error banner", not at7.exception and any("Read 0 of 10 pages" in e.value for e in at7.error),
+      [e.message for e in at7.exception])
 nothing = copy.deepcopy(rep)
 m = nothing["intel"]["media"]
 for k in ("articles", "rejected", "unread", "targets", "angles", "comparison", "awards", "ratings", "roundups", "clusters"):

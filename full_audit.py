@@ -66,6 +66,7 @@ from concurrent.futures import ThreadPoolExecutor
 import amadeus_check
 import audit
 import collect
+import consultant
 import external_check
 import fixes
 import guest_questions
@@ -208,16 +209,17 @@ def infer_hotel_name(site_payload):
     """Best guess at the hotel's name from its own markup, so the user needn't type it."""
     node = site_payload.get("lodging_node") or {}
     if node.get("name"):
-        return str(node["name"])
+        return html_lib.unescape(str(node["name"])).strip()
     for p in site_payload.get("pages", []):
         for b in p.get("jsonld", []) or []:
             if isinstance(b, dict) and b.get("@type") in ("Organization", "WebSite") \
                     and b.get("name"):
-                return str(b["name"])
+                return html_lib.unescape(str(b["name"])).strip()
     for p in site_payload.get("pages", []):
         if p.get("title"):
             # "Brooklands Hotel | Luxury Hotel in Weybridge" -> "Brooklands Hotel"
-            return re.split(r"\s*[|\-–—:]\s*", p["title"])[0].strip()
+            # (titles arrive HTML-escaped: "Chewton Glen Hotel &amp; Spa")
+            return re.split(r"\s*[|\-–—:]\s*", html_lib.unescape(p["title"]))[0].strip()
     return ""
 
 
@@ -742,6 +744,21 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     except Exception as e:  # noqa: BLE001
         intel_result = {"error": f"{type(e).__name__}: {e}"}
 
+    # The consultant layer reads pages the crawl already fetched - no further requests.
+    say("Working out what AI systems can and can't understand about the hotel...")
+    try:
+        osm_item = ((corpus.get("sources") or {}).get("osm_context") or {})
+        osm_ctx = (osm_item.get("items") or [None])[0] if osm_item.get("status") == "ok" else None
+        consult_result = consultant.analyse(
+            own_pages=own_pages, pages_meta=guest.get("pages_meta", []), base=base, hotel=hotel, city=city,
+            location=location, guest=guest, site=site, entities=ext["entities"], intel=intel_result,
+            osm_ctx=osm_ctx,
+            jsonld_example=fixes.hotel_jsonld({"base": base, "hotel": hotel, "location": location, "guest": guest,
+                                               "discovery": discovery, "entities": ext["entities"], "site": site,
+                                               "tavily": tavily_result}))
+    except Exception as e:  # noqa: BLE001 - the audit must survive a failed analysis
+        consult_result = {"error": f"{type(e).__name__}: {e}"}
+
     return {
         "meta": {
             "hotel": hotel,
@@ -776,6 +793,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "guest_questions": guest,
         "own_facts_source": own_facts_source,
         "intel": intel_result,
+        "consultant": consult_result,
         "tavily_result": tavily_result,
         "places_result": places_result,
         "amadeus_result": amadeus_result,

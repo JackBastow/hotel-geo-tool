@@ -56,9 +56,13 @@ else:
     for heading in ("Executive summary", "Identity and distribution", "Reviews and reputation",
                     "Media coverage and independent validation", "Traveller fit and positioning",
                     "Social, video and local context", "Website support", "Coverage gaps and methodology",
-                    "Evidence appendix", "Detailed recommendations"):
+                    "Evidence appendix", "How AI understands this hotel", "Questions AI may struggle to answer",
+                    "Machine readiness and structured data", "Action plan"):
         check(f"section present: {heading}", heading in text)
     check("all 30 checks are listed", all(c["name"] in text for c in rep["intel"]["checks"]))
+    check("sections are numbered in order", all(f"{i}. " in text for i in range(1, 12)))
+    check("recommendation cards use the Finding / Why / Action shape", "What we found" in text and "Why it matters" in text and "What to do" in text)
+    check("the readiness profile explains what drove each score", "What drove it" in text)
     check("the media-target table is present with its caveat", "Media and organisation targets" in text)
     check("the guest-review limitation is stated", "0 guest reviews" in text)
     check("limitations stated: nothing measures what AI recommends", "Nothing in this report measures what any AI assistant" in text)
@@ -107,6 +111,21 @@ try:
         check("the notice explains what is missing", "did not complete" in nt)
 except Exception as e:  # noqa: BLE001
     check("a failed wider analysis still yields a usable PDF", False, repr(e))
+import consultant  # noqa: E402
+unreadable = copy.deepcopy(rep)
+unreadable["consultant"] = consultant.analyse(
+    own_pages=[], pages_meta=[{"url": "https://x.com/p%d/" % i, "ok": False, "reason": "request failed or timed out", "status": None, "title": ""} for i in range(10)],
+    base="https://x.com/", hotel="X Hotel", city="Leeds", location={}, guest={"questions": [], "conflicts": [], "own_facts_node": {}},
+    site={"robots": {"present": False}, "sitemap": {}}, entities=[], intel=None, osm_ctx=None)
+try:
+    ub = report_pdf.build_pdf(unreadable)
+    check("a PDF for an unreadable site builds", ub[:5] == b"%PDF-")
+    if pymupdf:
+        _, ut, _ = inspect(ub)
+        check("it says how little was read and does not claim anything is missing",
+              "Read 0 of 10 pages" in ut and "Check that the website can be read" in ut)
+except Exception as e:  # noqa: BLE001
+    check("a PDF for an unreadable site builds", False, repr(e))
 empty = copy.deepcopy(rep)
 for k in ("articles", "rejected", "unread", "targets", "angles", "comparison", "awards", "ratings", "roundups", "clusters"):
     empty["intel"]["media"][k] = []

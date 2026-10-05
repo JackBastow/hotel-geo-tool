@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import re
 import sys
+import threading
 import time
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -74,13 +75,34 @@ AI_AGENTS = [
 ]
 
 
+# A short-lived cache of successful page fetches. The website check and the guest-question
+# crawl both read the same pages; on a slow site (7-10 s per request) fetching each twice
+# used up most of the crawl's time budget. Only 200 responses are kept, only briefly, and
+# nothing is shared between processes - it simply stops one audit asking twice.
+_HTTP_CACHE = {}
+_HTTP_LOCK = threading.Lock()
+_HTTP_TTL_S = 600
+_HTTP_MAX = 150
+
+
 def get(url, timeout=25):
+    now = time.time()
+    with _HTTP_LOCK:
+        hit = _HTTP_CACHE.get(url)
+        if hit and now - hit[0] < _HTTP_TTL_S:
+            return hit[1]
     try:
         r = requests.get(url, headers={"User-Agent": UA}, timeout=timeout,
                          allow_redirects=True)
-        return r
     except requests.RequestException as e:
         return None
+    if r.status_code == 200:
+        with _HTTP_LOCK:
+            if len(_HTTP_CACHE) >= _HTTP_MAX:
+                for k in sorted(_HTTP_CACHE, key=lambda k: _HTTP_CACHE[k][0])[:_HTTP_MAX // 3]:
+                    _HTTP_CACHE.pop(k, None)
+            _HTTP_CACHE[url] = (now, r)
+    return r
 
 
 # ------------------------------------------------------------------- robots

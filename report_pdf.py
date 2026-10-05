@@ -191,9 +191,13 @@ def _score_colour(v):
 
 
 def build_story(rep):
+    import report_pdf_consult
+    _COUNTER[0] = 0
     meta = rep.get("meta", {})
     intel = rep.get("intel") or {}
     has_intel = bool(intel) and "error" not in intel
+    consult = rep.get("consultant") or {}
+    has_consult = bool(consult) and "error" not in consult
     sc = rep.get("scorecard", {})
     hotel = meta.get("hotel", "")
     story = []
@@ -213,7 +217,7 @@ def build_story(rep):
                 "recommends</b>; no assistant was asked.", "note")]
 
     # ---- 1. executive summary
-    story += [Spacer(1, 4), para("1. Executive summary and priority actions", "h1")]
+    story += [Spacer(1, 4), H1("Executive summary and priority actions")]
     ov = rep.get("score")
     if ov is not None:
         story.append(P(f"<b>Visibility score (the eight-category model): </b>{coloured(str(ov) + ' / 100', _score_colour(ov))} "
@@ -232,6 +236,9 @@ def build_story(rep):
                                f"{md['independent_publishers']} independent; {md['duplicates_removed']} duplicate copies collapsed"),
             ("Guest reviews", intel["reviews"]["sample"]["statement"]),
         ]))
+    if has_consult:
+        story += report_pdf_consult.summary_parts(consult, {r["id"]: r for r in consult["recommendations"]})
+    elif has_intel:
         recs = {r["id"]: r for r in intel["recommendations"]}
         story += [para("Five priority actions", "h2")]
         rows = [["#", "Action", "Team", "Priority", "Why this one"]]
@@ -240,9 +247,6 @@ def build_story(rep):
             rows.append([str(i), Markup(f"<b>{esc(r['title'])}</b><br/>{esc(r['action'])}"), r["team"],
                          r["priority"], r["priority_why"]])
         story.append(table(rows, [0.04, 0.46, 0.14, 0.09, 0.27]))
-        story.append(P("Priority reflects visibility to travellers and effort, not a promise of any outcome. "
-                       "Each action's basis (documented guidance / hypothesis / observation) is shown in the "
-                       "recommendations table.", "tiny"))
     story += [para("Scoring by category", "h2")]
     rows = [["Category", "Weight", "Score", "What it found"]]
     for c in sc.get("categories", []):
@@ -252,6 +256,11 @@ def build_story(rep):
     if sc.get("caveat"):
         story.append(para(sc["caveat"], "note"))
 
+    if has_consult:
+        story += report_pdf_consult.sections(consult, H1)
+    elif not has_intel:
+        story += [para("The analysis of what AI systems can understand about this hotel did not complete for this run"
+                       + (f": {consult.get('error')}" if consult else "") + ".", "note")]
     if not has_intel:
         story += [para("The wider discovery and reputation analysis did not complete for this run"
                        + (f": {intel.get('error')}" if intel else "") + ". The sections below that depend on it "
@@ -265,10 +274,20 @@ def build_story(rep):
     story += _traveller_section(intel)
     story += _social_local_section(intel)
     story += _website_section(rep, intel)
-    story += _recommendations_section(intel)
+    if not has_consult:
+        story += _recommendations_section(intel)
     story += _gaps_section(intel)
     story += _evidence_appendix(intel)
     return story
+
+
+_COUNTER = [0]
+
+
+def H1(title):
+    """Numbered top-level heading; the numbers follow whatever sections the report has."""
+    _COUNTER[0] += 1
+    return Paragraph(f"{_COUNTER[0]}. {esc(title)}", S["h1"])
 
 
 def _hr():
@@ -277,7 +296,7 @@ def _hr():
 
 def _identity_section(intel):
     idn = intel["identity"]
-    out = [PageBreak(), para("2. Identity and distribution", "h1")]
+    out = [PageBreak(), H1("Identity and distribution")]
     out += [para("Do the sources agree on who and where this hotel is, where is it listed, and does what is "
                  "listed match the website? 'Discovered' means a page exists in search results or open data; "
                  "'content assessed' means we were allowed to read it.", "muted")]
@@ -353,7 +372,7 @@ def P_link(url, label=None, maxlen=70):
 
 def _reviews_section(intel):
     rv, md = intel["reviews"], intel["media"]
-    out = [PageBreak(), para("3. Reviews and reputation", "h1"),
+    out = [PageBreak(), H1("Reviews and reputation"),
            para(rv["why_no_reviews"], "note"),
            para("Available review sample (check 6)", "h2"),
            para(rv["sample"]["statement"], "base")]
@@ -399,7 +418,7 @@ def _reviews_section(intel):
 def _media_section(intel):
     md = intel["media"]
     cov = md["summary"]
-    out = [PageBreak(), para("4. Media coverage and independent validation", "h1"),
+    out = [PageBreak(), H1("Media coverage and independent validation"),
            para("Only pages that name the hotel in full count as coverage of it. Look-alikes (a motor circuit, a college, "
                 "another hotel with the same name) are rejected and listed below. Search results vary between runs, so "
                 "absence of a piece here is not proof it does not exist.", "muted")]
@@ -504,7 +523,7 @@ def _media_section(intel):
 
 def _traveller_section(intel):
     tr = intel["traveller"]
-    out = [PageBreak(), para("5. Traveller fit and positioning", "h1"),
+    out = [PageBreak(), H1("Traveller fit and positioning"),
            para("What evidence exists for each kind of traveller, across the hotel's own pages, independent coverage and "
                 "open data. This assesses evidence; it does not measure any AI ranking.", "muted"),
            para("Traveller-need coverage (check 24)", "h2")]
@@ -549,7 +568,7 @@ def _traveller_section(intel):
 
 def _social_local_section(intel):
     so, lo = intel["social"], intel["local"]
-    out = [PageBreak(), para("6. Social, video and local context", "h1"),
+    out = [PageBreak(), H1("Social, video and local context"),
            para("Public social and video evidence (check 28)", "h2")]
     if so["profiles"]:
         out.append(table([["Platform", "Profile", "Evidence"]] +
@@ -586,7 +605,7 @@ def _social_local_section(intel):
 def _website_section(rep, intel):
     ws = intel.get("website") if intel and "error" not in intel else None
     gq = rep.get("guest_questions", {})
-    out = [PageBreak(), para("7. Website support", "h1"),
+    out = [PageBreak(), H1("Website support"),
            para("Does the website explain the strengths, policies and facts found elsewhere, and can public crawlers read it? "
                 "This is one pillar of the report, not the whole audit.", "muted")]
     if ws:
@@ -671,7 +690,7 @@ def _recommendations_section(intel):
 
 def _gaps_section(intel):
     m = intel["methodology"]
-    out = [PageBreak(), para("8. Coverage gaps and methodology", "h1"),
+    out = [PageBreak(), H1("Coverage gaps and methodology"),
            para("All 30 checks and their status", "h2")]
     rows = [["#", "Check", "Section", "Status", "Result / reason"]]
     titles = {s["id"]: s["title"].split(" and ")[0] for s in intel["sections"]}
