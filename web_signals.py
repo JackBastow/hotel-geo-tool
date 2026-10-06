@@ -124,8 +124,11 @@ def _crawl_ids(n=2):
     return ids[:n]
 
 
-def _cdx(crawl_id, domain, limit=CC_LIMIT, timeout=45, attempts=2):
-    """-> (rows or None, error or None). The public index is slow and sometimes times out, so one retry."""
+def _cdx(crawl_id, domain, limit=CC_LIMIT, timeout=40, attempts=3):
+    """
+    -> (rows or None, error or None). The public index is slow and sheds load with 5xx answers (503 means "slow down"),
+    so it is retried with a growing pause. One request at a time: asking for several at once is what gets throttled.
+    """
     params = {"url": domain, "matchType": "domain", "output": "json", "limit": limit, "fl": "url,status,timestamp,mime"}
     err = None
     for i in range(attempts):
@@ -133,6 +136,7 @@ def _cdx(crawl_id, domain, limit=CC_LIMIT, timeout=45, attempts=2):
             r = requests.get(f"{CC_INDEX}{crawl_id}-index", params=params, headers={"User-Agent": UA}, timeout=timeout)
         except requests.RequestException as e:
             err = f"request failed ({type(e).__name__})"
+            time.sleep(3 * (i + 1)) if i < attempts - 1 else None
             continue
         if r.status_code == 404:
             return [], None                              # the index answers 404 when it holds nothing for the domain
@@ -145,9 +149,9 @@ def _cdx(crawl_id, domain, limit=CC_LIMIT, timeout=45, attempts=2):
                     continue
             return rows, None
         err = f"HTTP {r.status_code}"
-        if r.status_code not in (500, 502, 503, 504):
+        if r.status_code not in (429, 500, 502, 503, 504):
             break
-        time.sleep(2)
+        time.sleep(4 * (i + 1)) if i < attempts - 1 else None
     return None, err
 
 
@@ -186,23 +190,26 @@ def summarise_crawl(crawl_id, rows, limit=CC_LIMIT):
             "latest": max(stamps)[:8] if stamps else ""}
 
 
-def commoncrawl(base, budget_s=45, crawls=2):
+def commoncrawl(base, budget_s=40, crawls=2):
     host = (urllib.parse.urlparse(base).netloc or base).lower().split(":")[0]
     domain = host[4:] if host.startswith("www.") else host
     ids = _crawl_ids(crawls)
     if not ids:
         return {"source": "Common Crawl", "status": "unavailable", "access": CC_ACCESS, "items": [], "domain": domain,
                 "reason": "Common Crawl's list of crawls could not be reached, so this was not assessed."}
-    items, errors = [], []
-    with ThreadPoolExecutor(max_workers=len(ids)) as ex:      # each lookup takes ~25 s, so ask for the crawls side by side
-        for cid, (rows, err) in zip(ids, ex.map(lambda c: _cdx(c, domain, timeout=budget_s), ids)):
-            if rows is None:
-                errors.append(f"{cid}: {err}")
-                continue
-            items.append(summarise_crawl(cid, rows))
+    items, errors, started = [], [], time.time()
+    for cid in ids:
+        if items and time.time() - started > budget_s:       # the newest crawl is the one that matters; the second only confirms it
+            break
+        rows, err = _cdx(cid, domain)
+        if rows is None:
+            errors.append(f"{cid}: {err}")
+            continue
+        items.append(summarise_crawl(cid, rows))
     if not items:
         return {"source": "Common Crawl", "status": "unavailable", "access": CC_ACCESS, "items": [], "domain": domain,
-                "reason": "Common Crawl's index did not answer (" + "; ".join(errors) + "), so this was not assessed."}
+                "reason": "Common Crawl's index did not answer (" + "; ".join(errors) + "). It is a busy public service, so running the audit again may "
+                          "work. This was not assessed."}
     ok = sum(i["counts"]["ok"] for i in items)
     refused = sum(i["counts"]["refused"] for i in items)
     total = sum(i["captures"] for i in items)

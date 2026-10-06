@@ -98,7 +98,7 @@ calls = []
 w.requests.get = lambda *a, **k: (calls.append(1), Resp(504))[1]
 w.time.sleep = lambda s: None
 rows, err = w._cdx("CC-MAIN-2026-39", "x.com")
-check("a 504 is retried once, then reported", rows is None and err == "HTTP 504" and len(calls) == 2)
+check("a 504 is retried with backoff (three tries), then reported", rows is None and err == "HTTP 504" and len(calls) == 3)
 w.requests.get = lambda *a, **k: Resp(200, "\n".join(json.dumps(x) for x in rows_ok))
 check("the index's one-JSON-object-per-line output is parsed", len(w._cdx("CC-MAIN-2026-39", "x.com")[0]) == 4)
 
