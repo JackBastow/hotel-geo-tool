@@ -190,9 +190,10 @@ def _score_colour(v):
     return GOOD if v >= 75 else (WARN if v >= 50 else BAD)
 
 
-def build_story(rep):
+def _appendix_story(rep):
+    """The Technical & Evidence Appendix: every detailed finding, extract, URL and method, said once."""
+    import headline as headline_mod
     import report_pdf_consult
-    _COUNTER[0] = 0
     meta = rep.get("meta", {})
     intel = rep.get("intel") or {}
     has_intel = bool(intel) and "error" not in intel
@@ -203,58 +204,39 @@ def build_story(rep):
     story = []
 
     # ---- cover
-    story += [Spacer(1, 18 * mm), para("Hotel discovery & reputation report", "title"),
+    story += [Spacer(1, 12 * mm), para("Technical & evidence appendix", "title"),
               para(hotel, "h1"),
               P(link(meta.get("base", ""), meta.get("website", "")) + " - " + esc(meta.get("city", "")), "base"),
               Spacer(1, 4),
               para(f"Audit run {_date(meta.get('run_at'))}. Generated from the completed audit; no further "
                    "requests were made to produce this document.", "muted"),
               Spacer(1, 8),
-              P("<b>How to read this report.</b> Every finding points at evidence (an E-number) listed with its source, "
-                "URL, dates and a supporting extract in the Evidence appendix. Findings are labelled <b>observed</b> "
-                "(we read it), <b>inferred</b> (we drew a conclusion from observed evidence) or <b>not assessed</b> "
-                "(we could not check it, with the reason). <b>Nothing in this report measures what any AI assistant "
-                "recommends</b>; no assistant was asked.", "note")]
+              P("<b>How to use this appendix.</b> The management report states each finding once and gives it a reference. This appendix "
+                "holds the detail behind them: the quotes and URLs (each tied to an E-number in the evidence list at the end), the "
+                "methodology, the structured-data examples, platform discovery, media coverage and technical checks. Findings are "
+                "labelled <b>observed</b> (we read it), <b>inferred</b> (a conclusion drawn from observed evidence) or <b>not assessed</b> "
+                "(we could not check it, with the reason). <b>Nothing here measures what any AI assistant recommends</b>; no assistant was asked.", "note")]
 
-    # ---- 1. executive summary
-    story += [Spacer(1, 4), H1("Executive summary and priority actions")]
-    ov = rep.get("score")
-    if ov is not None:
-        story.append(P(f"<b>Visibility score (the eight-category model): </b>{coloured(str(ov) + ' / 100', _score_colour(ov))} "
-                       f"- weighted across {esc(str(rep.get('coverage_pct')))}% of the scoring model. The score only "
-                       "reflects categories that could be assessed; unassessed categories neither help nor hurt. The discovery and "
-                       "reputation findings in this report add evidence and recommendations but do not change this number.", "base"))
+    # ---- scorecard, coverage and evidence strength (the summary lives in the management report)
+    h = rep.get("headline") or headline_mod.build(rep)
+    story += [Spacer(1, 4), H1("Scorecard, coverage and evidence strength"), para(h["explanation"], "note")]
+    rows = [["Category", "Weight", "Score", "Evidence strength", "What it found"]]
+    for c in sc.get("categories", []):
+        sv = f"{c['score']}" if c.get("assessed") else "not assessed"
+        ev = (c.get("evidence_level") or "") + (f" - {c.get('evidence_note')}" if c.get("evidence_note") else "")
+        rows.append([c["label"], f"{c['weight']}%", sv, ev, (c.get("detail") or "")[:200]])
+    story.append(table(rows, [0.17, 0.07, 0.1, 0.26, 0.4]))
+    if sc.get("caveat"):
+        story.append(para(sc["caveat"], "note"))
     if has_intel:
         cc = intel["methodology"]["check_counts"]
         md = intel["media"]["summary"]
-        story.append(Spacer(1, 3))
-        story.append(kv([
-            ("Checks", f"{cc.get('assessed', 0)} assessed, {cc.get('partial', 0)} partial, "
-                       f"{cc.get('not_assessed', 0)} not assessed (of 30)"),
+        story += [Spacer(1, 3), kv([
+            ("Checks", f"{cc.get('assessed', 0)} assessed, {cc.get('partial', 0)} partial, {cc.get('not_assessed', 0)} not assessed (of 30)"),
             ("Evidence records", str(len(intel["ledger"]))),
             ("Media coverage", f"{md['articles']} pages naming the hotel from {md['publishers']} publishers; "
                                f"{md['independent_publishers']} independent; {md['duplicates_removed']} duplicate copies collapsed"),
-            ("Guest reviews", intel["reviews"]["sample"]["statement"]),
-        ]))
-    if has_consult:
-        story += report_pdf_consult.summary_parts(consult, {r["id"]: r for r in consult["recommendations"]})
-    elif has_intel:
-        recs = {r["id"]: r for r in intel["recommendations"]}
-        story += [para("Five priority actions", "h2")]
-        rows = [["#", "Action", "Team", "Priority", "Why this one"]]
-        for i, rid in enumerate(intel["priority_actions"], 1):
-            r = recs[rid]
-            rows.append([str(i), Markup(f"<b>{esc(r['title'])}</b><br/>{esc(r['action'])}"), r["team"],
-                         r["priority"], r["priority_why"]])
-        story.append(table(rows, [0.04, 0.46, 0.14, 0.09, 0.27]))
-    story += [para("Scoring by category", "h2")]
-    rows = [["Category", "Weight", "Score", "What it found"]]
-    for c in sc.get("categories", []):
-        s = f"{c['score']}" if c.get("assessed") else "not assessed"
-        rows.append([c["label"], f"{c['weight']}%", s, (c.get("detail") or "")[:260]])
-    story.append(table(rows, [0.2, 0.08, 0.11, 0.61]))
-    if sc.get("caveat"):
-        story.append(para(sc["caveat"], "note"))
+            ("Guest reviews", intel["reviews"]["sample"]["statement"])])]
 
     if has_consult:
         story += report_pdf_consult.sections(consult, H1)
@@ -635,7 +617,8 @@ def _website_section(rep, intel):
                 table([["Fact", "Value", "From"]] + [[f["fact"], str(f["value"])[:120], P_link(f.get("source_url"))] for f in gq["fact_sheet"]],
                       [0.18, 0.5, 0.32])]
     fixes = rep.get("top_fixes", [])
-    if fixes:
+    consult_ok = bool(rep.get("consultant")) and "error" not in (rep.get("consultant") or {})
+    if fixes and not consult_ok:       # with the consultant analysis these examples live once, in the recommendation register
         out += [para("Top website fixes with worked examples", "h2")]
         for f in fixes:
             out.append(P(f"<b>{esc(f['action'])}</b> - owner: {esc(f.get('owner', ''))}; page: " + link(f.get("page", "")), "base"))
@@ -737,11 +720,30 @@ def _evidence_appendix(intel):
     return out
 
 
-def build_pdf(rep):
+def build_story(rep, part="full"):
+    """part: 'management' (short), 'appendix' (detail and evidence) or 'full' (both, in that order)."""
+    import report_pdf_mgmt
+    _COUNTER[0] = 0
+    consult = rep.get("consultant") or {}
+    has_consult = bool(consult) and "error" not in consult
+    if part == "appendix" or not has_consult:
+        return _appendix_story(rep)
+    mgmt = report_pdf_mgmt.story(rep, H1)
+    if part == "management":
+        return mgmt
+    _COUNTER[0] = 0
+    return mgmt + [PageBreak()] + _appendix_story(rep)
+
+
+TITLES = {"management": "management report", "appendix": "technical & evidence appendix", "full": "discovery & reputation report"}
+
+
+def build_pdf(rep, part="full"):
     """-> bytes. Raises nothing for missing optional sections."""
     buf = io.BytesIO()
     hotel = rep.get("meta", {}).get("hotel", "Hotel")
-    header = f"{hotel} - discovery & reputation report - {_date(rep.get('meta', {}).get('run_at'))}"
+    label = TITLES.get(part, TITLES["full"])
+    header = f"{hotel} - {label} - {_date(rep.get('meta', {}).get('run_at'))}"
 
     class _Canvas(NumberedCanvas):
         def __init__(self, *a, **kw):
@@ -749,13 +751,14 @@ def build_pdf(rep):
             self.header_text = header
 
     doc = SimpleDocTemplate(buf, pagesize=PAGE, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=17 * mm,
-                            bottomMargin=17 * mm, title=clean(f"{hotel} - discovery & reputation report"),
-                            author="Hotel Discoverability Audit", subject="Hotel discovery and reputation evidence report")
-    doc.build(build_story(rep), canvasmaker=_Canvas)
+                            bottomMargin=17 * mm, title=clean(f"{hotel} - {label}"),
+                            author="Hotel Discoverability Audit", subject="Hotel discovery and reputation report")
+    doc.build(build_story(rep, part), canvasmaker=_Canvas)
     return buf.getvalue()
 
 
-def filename(rep):
+def filename(rep, part="full"):
     meta = rep.get("meta", {})
     slug = re.sub(r"[^a-z0-9]+", "-", (meta.get("hotel") or "hotel").lower()).strip("-")
-    return f"{slug}-discovery-report-{_date(meta.get('run_at')) or dt.date.today().isoformat()}.pdf"
+    kind = {"management": "management-report", "appendix": "technical-evidence-appendix", "full": "discovery-report"}.get(part, "discovery-report")
+    return f"{slug}-{kind}-{_date(meta.get('run_at')) or dt.date.today().isoformat()}.pdf"

@@ -22,11 +22,54 @@ organisations are worth approaching — with a **full PDF report** to download.
 
 If this has been deployed (see **Deploying your own copy** below), just open
 the link and use it. One form: a website, optionally a hotel name and city,
-one button. Nothing else to configure. When it finishes you get eight report
-sections as tabs, plus **Download full PDF report** and a `.json` you can keep
-and upload next time to compare. A full run takes roughly 4–5 minutes
+one button. Nothing else to configure. When it finishes you get the report as
+tabs, plus two PDFs - a short **management report** (about 5-10 pages: the
+score and its coverage, the top actions, gaps, risks and a 30/60/90-day plan)
+and a **technical & evidence appendix** (everything behind it) - and a `.json`
+you can keep and upload next time to compare. A full run takes roughly 4–5 minutes
 (mostly waiting on other people's servers); untick *Include the wider
 discovery* for the faster, website-only audit.
+
+## How the headline and the ranking work
+
+**The headline is a readiness score, shown with its coverage.** The number is
+the average of the categories that could be assessed, so it is labelled *AI
+discoverability readiness (assessed factors)* and always appears with how
+much of the full model it rests on (e.g. "83/100, provisional, 60% measured")
+and what was *not* measured - chiefly what AI assistants actually say about
+the hotel, and guest reviews. Below 70% coverage it is marked **provisional**;
+below 30% no single number is given at all. It is never presented as a measure
+of how visible the hotel is to AI.
+
+**A score and the evidence behind it are separate.** Every readiness component
+and scorecard category also carries an evidence strength (high / medium / low),
+so "100/100 from one place checked, with the map data down" reads as thin, not
+perfect. A thin score is marked provisional rather than "strong".
+
+**One global ranking decides what is most worth doing.** Every finding in the
+audit - website, entity, crawl, reputation, distribution - is scored on
+*business/reputation risk*, *how much travellers care*, *effect on
+discoverability* and *how sure we are*, then moderated by effort. Risk is
+weighted highest on purpose: a 2/5 food-hygiene rating, a wrong phone number or
+a site that blocks crawlers outranks cheap technical tidying such as markup.
+The numbers are written down in `ranking.py` so they can be argued with. The
+top list is built from the whole audit, after every module has finished.
+
+**Required fixes are separate from commercial opportunities.** Wrong or
+conflicting information, missing guest information, crawl problems, reputation
+risks and broken entity information are *required fixes*. A weak signal for a
+segment (couples, families, meetings, city breaks...) is a *commercial
+opportunity*, phrased conditionally - "If couples are a target segment, the
+hotel has a spa and restaurant but doesn't connect them into a clear
+romantic-stay proposition" - and never presented as a defect or placed in the
+top actions.
+
+**Wording is kept to what can be shown.** The report does not claim that AI
+"skips the hotel or guesses" or that "machines can't see images". Sources other
+than the hotel's own pages (OTAs, maps, publishers) also feed AI answers, so it
+says systems "may be less able to answer accurately or confidently", and that
+information only in images is "less reliably discoverable, indexable and
+accessible" than text with alt text.
 
 ## The consultant view: what AI can understand, and what to fix first
 
@@ -502,7 +545,10 @@ grounded result to others is not.
 | `insight_content.py` | AI understanding, intents, unanswered questions, location, consistency, hidden strengths |
 | `insight_tech.py` | Structured-data audit, machine readiness (four buckets), readiness profile |
 | `advice.py`, `consultant.py` | Recommendation engine (finding → why → evidence → action → example) and the orchestrator |
+| `ranking.py` | The one global ranking model (risk x traveller x visibility x confidence, moderated by effort), fix-vs-opportunity classification, top actions, quick wins, 30/60/90 plan |
+| `headline.py` | The readiness headline: score + coverage + what was not measured; provisional/withheld thresholds; per-category evidence strength |
 | `ui_consult.py`, `report_pdf_consult.py` | Streamlit and PDF rendering of the consultant report |
+| `report_pdf_mgmt.py` | The short management report PDF (the full PDF in `report_pdf.py` is the technical & evidence appendix) |
 | `test_insight.py`, `test_pdf.py`, `test_ui.py` | Offline tests for the analysis, the PDF layout and the whole results page |
 | `fixes.py` | Turns recommendations into an action plan: owner, page, worked example, top three. Builds the pre-filled JSON-LD |
 | `dashboard.py` | Builds the report as fully-escaped HTML, shown with `st.iframe` (needs `streamlit>=1.50`). No Streamlit import, so it is testable |

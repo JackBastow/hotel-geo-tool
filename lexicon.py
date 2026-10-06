@@ -49,7 +49,8 @@ INTENTS = {
     "weddings": ("Weddings", rx(r"wedding|civil ceremon|marriage|bridal"), ("wedding",)),
     "spa": ("Spa and wellness", rx(r"\bspa\b|wellness|massage|sauna|health club|treatments?"), ("spa", "wellness")),
     "food": ("Food and dining", rx(r"restaurant|dining|chef|tasting menu|afternoon tea|brasserie|fine dining|rosettes?|cocktails?"), ("dining", "restaurant", "eat", "menu", "food")),
-    "beach": ("Beach / seaside", rx(r"beach|seafront|seaside|coastal|sea views?|promenade"), ("beach",)),
+    # a themed bar called "the beach bar" is not a beach location, so a bare "beach" does not count
+    "beach": ("Beach / seaside", rx(r"beachfront|beach(?:side)? (?:access|views?|location)|(?:near|close to|on|by|steps from|minutes from|walk to|overlooking) the (?:beach|seafront|coast|sea)|seafront|seaside|sea views?|promenade|coastal (?:walks?|path|location|hotel)"), ("beach",)),
     "airport": ("Airport stays", rx(r"airport|heathrow|gatwick|stansted|luton|terminal [1-5]|park (?:and|&) fly"), ("airport",)),
     "city_break": ("City breaks", rx(r"city breaks?|city[- ]centre|sightseeing|weekend (?:away|break)|short breaks?|nearby attractions"), ("city", "visit", "explore", "things to do")),
     "pet": ("Dog / pet friendly", rx(r"dog[- ]friendly|pet[- ]friendly|dogs? (?:are )?(?:welcome|allowed)|pets? (?:are )?(?:welcome|allowed)|bring your dog"), ("dog", "pet")),

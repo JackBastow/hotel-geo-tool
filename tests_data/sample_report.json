@@ -51,7 +51,9 @@
     "evidence": [
      "OTAs found in search results: TripAdvisor, Booking.com, Travelocity, Trivago, Hotels.com, Expedia, Kayak"
     ],
-    "recommendations": []
+    "recommendations": [],
+    "evidence_level": "medium",
+    "evidence_note": "3 platform(s) seen in search results (platforms themselves are not read)"
    },
    {
     "key": "reviews",
@@ -80,7 +82,9 @@
      "www.thesun.ie: substantial mention, neutral (read by LLM) - \"The text outlines autumn spa day and dining packages at the Brooklands Hotel in Weybridge, detailing its facilities, treatment options, and pricing.\"",
      "www.getsurrey.co.uk: feature, positive - \"Park Hotel and Spa in Bagshot is an award-winning venue (Image: Laura Nightingale ) A shortlist of the bests spas in the UK and Ireland have been announced, with three sites in Surrey among the hopefuls eager to crowned the winner of the Good Spa Guide Awards 2026. \u200c \u200c The Spa at\""
     ],
-    "recommendations": []
+    "recommendations": [],
+    "evidence_level": "medium",
+    "evidence_note": "3 article(s) read and confirmed"
    },
    {
     "key": "website",
@@ -137,7 +141,9 @@
       "action": "No answer found on the pages checked for: EV charging",
       "why": "We read 13 pages and found nothing on these. That does not prove the information is missing - it may be on a page we didn't reach - so check by hand first. If it genuinely isn't there, a guest (or an AI assistant) has nothing to quote."
      }
-    ]
+    ],
+    "evidence_level": "medium",
+    "evidence_note": "13 of 25 pages read"
    },
    {
     "key": "social",
@@ -159,7 +165,9 @@
       "action": "Declare the hotel's profiles in a JSON-LD `sameAs` array",
       "why": "They're currently ordinary links, which is a weaker, inferred signal than an explicit statement that these are the same entity. `sameAs` is how the link is made machine-readable."
      }
-    ]
+    ],
+    "evidence_level": "low",
+    "evidence_note": "profile links only; activity is not measured"
    },
    {
     "key": "entity",
@@ -175,7 +183,9 @@
      "Location determined from: Google Maps link on the site",
      "5 fact comparisons: 0 significant, 0 minor discrepancies"
     ],
-    "recommendations": []
+    "recommendations": [],
+    "evidence_level": "high",
+    "evidence_note": "2 open-data source(s) matched; 5 fact comparison(s)"
    },
    {
     "key": "freshness",
@@ -191,7 +201,9 @@
      "Median page age: 93 days",
      "Updated within 12 months: 98% of pages"
     ],
-    "recommendations": []
+    "recommendations": [],
+    "evidence_level": "high",
+    "evidence_note": "104 page dates in the sitemap"
    }
   ],
   "caveat": "Score is 83 across the 60.0% of the model that could be measured. It is NOT a score out of 100 for the whole model - 40.0% (AI Visibility, Reviews & Reputation) was not assessed. Unassessed categories neither help nor hurt the number - see 'Not assessed' below for what each one would need."
@@ -5933,6 +5945,29 @@
  "consultant": {
   "version": 1,
   "pages_read": 23,
+  "coverage": {
+   "pages_read": 23,
+   "pages_attempted": 25,
+   "ratio": 0.92,
+   "unreadable": false,
+   "limited": false,
+   "failure_reasons": {
+    "no readable text": 2
+   },
+   "note": "",
+   "failed_pages": [
+    {
+     "url": "https://brooklandshotelsurrey.com/eat-drink/book-a-table/",
+     "reason": "no readable text (probably built with JavaScript, so a plain fetch sees an empty page)",
+     "status": 200
+    },
+    {
+     "url": "https://brooklandshotelsurrey.com/eat-drink/book-vetro/",
+     "reason": "no readable text (probably built with JavaScript, so a plain fetch sees an empty page)",
+     "status": 200
+    }
+   ]
+  },
   "understanding": {
    "summary": "A spa hotel in Weybridge, mainly associated on its own pages with food and dining, spa and wellness and luxury.",
    "descriptor_found": "spa hotel",
@@ -5943,8 +5978,7 @@
     "Weddings",
     "Spa and wellness",
     "Food and dining",
-    "Sustainability",
-    "Bar / lounge"
+    "Sustainability"
    ],
    "weak_signals": [
     {
@@ -6148,19 +6182,10 @@
    {
     "key": "beach",
     "label": "Beach / seaside",
-    "level": "some",
-    "pages": 2,
-    "reason": "Mentioned on 2 pages (/bspa/spa-facilities/, /about-us/faqs/). Example: \u201cand relaxed moments between treatments or unwind time. 1907 beach bar Cocktails and light bites served with sunshine, style and easygoing charm. Memberships designed for regular calm\u201d",
-    "evidence": [
-     {
-      "url": "https://brooklandshotelsurrey.com/bspa/spa-facilities/",
-      "snippet": "and relaxed moments between treatments or unwind time. 1907 beach bar Cocktails and light bites served with sunshine, style and easygoing charm. Memberships designed for regular calm"
-     },
-     {
-      "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
-      "snippet": "Complete your journey in BSpa in our Sunlight Therapy Room & 1907 beach bar, where we serve a range of drinks & cocktails. The unrivalled facilities at BSpa are guaranteed to relax the body"
-     }
-    ]
+    "level": "none",
+    "pages": 0,
+    "reason": "",
+    "evidence": []
    },
    {
     "key": "airport",
@@ -6355,6 +6380,7 @@
    {
     "id": "parking",
     "question": "Is there parking, and what does it cost?",
+    "short": "Parking",
     "state": "partial",
     "source": "standard",
     "high_value": true,
@@ -6388,6 +6414,7 @@
    {
     "id": "breakfast",
     "question": "When is breakfast served, and what does it cost?",
+    "short": "Breakfast",
     "state": "partial",
     "source": "standard",
     "high_value": true,
@@ -6420,6 +6447,7 @@
    {
     "id": "accessibility",
     "question": "Are there accessible rooms, and what features do they have?",
+    "short": "Accessibility",
     "state": "partial",
     "source": "standard",
     "high_value": true,
@@ -6452,6 +6480,7 @@
    {
     "id": "family",
     "question": "Are there family or connecting rooms, and how many can they sleep?",
+    "short": "Family rooms",
     "state": "partial",
     "source": "standard",
     "high_value": false,
@@ -6485,6 +6514,7 @@
    {
     "id": "ev",
     "question": "Is there EV charging, and what does it cost?",
+    "short": "EV charging",
     "state": "missing",
     "source": "standard",
     "high_value": false,
@@ -6510,6 +6540,7 @@
    {
     "id": "wedding_detail",
     "question": "How many guests can a wedding hold, and is the hotel licensed for ceremonies?",
+    "short": "Weddings",
     "state": "partial",
     "source": "extended",
     "high_value": false,
@@ -6548,6 +6579,7 @@
    {
     "id": "spa_detail",
     "question": "What are the spa's opening hours, prices and age rules for day guests?",
+    "short": "Spa",
     "state": "partial",
     "source": "extended",
     "high_value": false,
@@ -6585,6 +6617,7 @@
    {
     "id": "restaurant_detail",
     "question": "When is the restaurant open, and can it cater for dietary needs?",
+    "short": "Restaurant",
     "state": "partial",
     "source": "extended",
     "high_value": false,
@@ -6618,6 +6651,7 @@
    {
     "id": "room_count",
     "question": "How many rooms does the hotel have?",
+    "short": "Number of rooms",
     "state": "missing",
     "source": "extended",
     "high_value": false,
@@ -6741,7 +6775,7 @@
      }
     ],
     "finding": "20 menus are published as PDFs rather than page text (Sample Menu, Sample Children\u2019s Menu, Sample Menu...), linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/.",
-    "suggestion": "Keep the PDFs for guests to download, but also write the essentials as page text: opening times, a few signature dishes and dietary options. PDFs are harder for search engines and AI systems to read and quote."
+    "suggestion": "Keep the PDFs for guests to download, but also write the essentials as page text: opening times, a few signature dishes and dietary options. PDFs are less reliably indexed and quoted than normal page text."
    },
    {
     "kind": "poorly_linked",
@@ -6765,7 +6799,7 @@
     {
      "item": "Hotel / LodgingBusiness",
      "status": "missing",
-     "detail": "No Hotel or LodgingBusiness markup was found on any page read, so the website states none of its basic facts in a form a machine can read directly.",
+     "detail": "No Hotel or LodgingBusiness markup was found on any page read, so the website does not state its basic facts in a standard, machine-readable form.",
      "evidence": [],
      "advice": "Add one Hotel block to the homepage with the name, address, telephone, coordinates and links to the official profiles.",
      "confidence": "Established good practice",
@@ -6799,7 +6833,7 @@
        "snippet": "Where flavour takes the lead; Our menus; Breakfast Menu"
       }
      ],
-     "advice": "Marking up an existing FAQ makes the questions and answers easier for machines to pick out. Search engines have limited FAQ rich results to a few kinds of site, so do not expect a visible change in results.",
+     "advice": "Marking up an existing FAQ makes the questions and answers easier for systems that read the page to identify. Search engines have limited FAQ rich results to a few kinds of site, so do not expect a visible change in results.",
      "confidence": "Reasonable inference",
      "optional": true
     }
@@ -6851,7 +6885,7 @@
     "title": "23 PDF link(s) found on the pages read",
     "status": "info",
     "severity": "low",
-    "detail": "Information in PDFs is harder for machines to read and quote than normal page text.",
+    "detail": "Information in PDFs is less reliably indexed and quoted than normal page text.",
     "consequence": "Where a PDF holds facts guests ask about (capacities, menus, prices), repeat them as page text.",
     "fix": "",
     "evidence": [],
@@ -6888,7 +6922,7 @@
     "status": "issue",
     "severity": "medium",
     "detail": "More than half the images on the pages read have no description (for example gif;base64,R0lGODlhBAADAIAAAAAAAAAAACH5BAEAAAAALAAAAAAEAAMAAAIDhI9WADs=). Some may be purely decorative.",
-    "consequence": "Machines can't see pictures: without alt text, rooms, the spa and the restaurant are invisible to them, and screen-reader guests get nothing.",
+    "consequence": "Important information contained only in images is less reliably discoverable, indexable and accessible than clear text and descriptive alt text; screen-reader guests also get nothing from an undescribed image.",
     "fix": "Describe the important images (rooms, facilities, views) in a short, factual alt text.",
     "evidence": [
      {
@@ -6938,7 +6972,7 @@
     "status": "issue",
     "severity": "high",
     "detail": "Is there parking, and what does it cost?; When is breakfast served, and what does it cost?; Are there accessible rooms, and what features do they have?...",
-    "consequence": "Where the pages don't answer a question, a machine either skips the hotel or guesses.",
+    "consequence": "If authoritative sources don't state these clearly, AI systems and search tools may be less able to answer these questions accurately or confidently.",
     "fix": "See the unanswered-questions list for where to add each answer.",
     "evidence": [],
     "confidence": "Established good practice"
@@ -6966,7 +7000,11 @@
      "+ robots.txt, sitemap and page access show no problems"
     ],
     "note": "Can crawlers reach and index the pages?",
-    "assessed": true
+    "assessed": true,
+    "evidence": {
+     "level": "high",
+     "why": "23 of 25 pages read; robots.txt and sitemap checked"
+    }
    },
    {
     "key": "entity",
@@ -6978,8 +7016,12 @@
      "+ matched in open map/knowledge data",
      "- 1 consistency problem(s): phone"
     ],
-    "note": "Can a machine tell what and where this hotel is?",
-    "assessed": true
+    "note": "Is it clear what and where this hotel is?",
+    "assessed": true,
+    "evidence": {
+     "level": "high",
+     "why": "23 of 25 pages read; open-data match confirmed"
+    }
    },
    {
     "key": "content",
@@ -6994,7 +7036,11 @@
      "- Family rooms: partly answered"
     ],
     "note": "Does the site answer what travellers ask?",
-    "assessed": true
+    "assessed": true,
+    "evidence": {
+     "level": "high",
+     "why": "10 common questions evaluated; 23 of 25 pages read"
+    }
    },
    {
     "key": "location",
@@ -7006,18 +7052,26 @@
      "- Mercedes-Benz World: mentioned no distance"
     ],
     "note": "Does the site tie the hotel to the places guests care about?",
-    "assessed": true
+    "assessed": true,
+    "evidence": {
+     "level": "medium",
+     "why": "3 place(s) assessed; map data complete"
+    }
    },
    {
     "key": "intent",
     "label": "Traveller-intent coverage",
-    "score": 70,
+    "score": 71,
     "band": "fair",
     "drivers": [
-     "7 traveller types strongly supported, 3 partly, 4 barely"
+     "7 traveller types strongly supported, 2 partly, 4 barely"
     ],
     "note": "Which kinds of search does the content support?",
-    "assessed": true
+    "assessed": true,
+    "evidence": {
+     "level": "high",
+     "why": "13 traveller types had any evidence; 23 of 25 pages read"
+    }
    },
    {
     "key": "technical",
@@ -7027,8 +7081,12 @@
     "drivers": [
      "- most images have no alt text"
     ],
-    "note": "Is the page itself built so machines can read it?",
-    "assessed": true
+    "note": "Is the page itself built to be read reliably?",
+    "assessed": true,
+    "evidence": {
+     "level": "high",
+     "why": "23 of 25 pages read"
+    }
    },
    {
     "key": "structured",
@@ -7039,7 +7097,11 @@
      "- Hotel / LodgingBusiness: missing"
     ],
     "note": "Does the markup say the right things? (Not a ranking lever.)",
-    "assessed": true
+    "assessed": true,
+    "evidence": {
+     "level": "high",
+     "why": "homepage read"
+    }
    },
    {
     "key": "authority",
@@ -7051,16 +7113,23 @@
      "(reviews were not measurable - no lawful free source)"
     ],
     "note": "Where measurable: independent coverage, awards, listings.",
-    "assessed": true
+    "assessed": true,
+    "evidence": {
+     "level": "medium",
+     "why": "14 outside pages read; guest reviews are not measurable"
+    }
    }
   ],
   "recommendations": [
    {
     "id": "Q1",
+    "tag": "",
+    "short_title": "Answer 4 open guest questions on /about-us/faqs/",
+    "summary": "Parking (whether you can or must reserve); Breakfast (serving times); Accessibility (specific features (bathroom, lift, step-free)); Family rooms (how many guests it sleeps)",
     "category": "content",
-    "title": "Fill the gaps on /about-us/faqs/: is there parking, when is breakfast served, are there accessible rooms",
-    "finding": "6 questions guests ask are only partly answered or not answered: Is there parking, and what does it cost; When is breakfast served, and what does it cost; Are there accessible rooms, and what features do they have; Are there family or connecting rooms, and how many can they sleep; How many guests can a wedding hold, and is the hotel licensed for ceremonies.",
-    "why": "Guests ask this before they book, and an AI assistant can only answer it if a page says it clearly. Where it can't find the answer it may leave the hotel out or guess.",
+    "title": "Fill the gaps on /about-us/faqs/: Parking, Breakfast, Accessibility and 1 more",
+    "finding": "4 questions guests ask are only partly answered or not answered: Is there parking, and what does it cost; When is breakfast served, and what does it cost; Are there accessible rooms, and what features do they have; Are there family or connecting rooms, and how many can they sleep.",
+    "why": "Guests look for this before they book. If authoritative sources don't state it clearly, AI systems and search tools may be less able to answer the question accurately or confidently.",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
@@ -7084,9 +7153,7 @@
      "Is there parking, and what does it cost - add: whether you can or must reserve",
      "When is breakfast served, and what does it cost - add: serving times",
      "Are there accessible rooms, and what features do they have - add: specific features (bathroom, lift, step-free)",
-     "Are there family or connecting rooms, and how many can they sleep - add: how many guests it sleeps",
-     "How many guests can a wedding hold, and is the hotel licensed for ceremonies - add: licensed for civil ceremonies",
-     "How many rooms does the hotel have - add: total number of rooms"
+     "Are there family or connecting rooms, and how many can they sleep - add: how many guests it sleeps"
     ],
     "example": "Parking: we have [on-site / nearby] parking for guests. It costs \u00a3[amount] per [night / 24 hours]. Spaces [can be reserved in advance by \u2026] / [are first come, first served].\nBreakfast is served [Mon\u2013Fri 7:00\u201310:00, weekends 7:30\u201310:30] in [location]. It is [included in the room rate / \u00a3[amount] per person].\nWe have [number] accessible bedrooms with [step-free access, a wet room, grab rails]. The hotel has [a lift to all floors / ground-floor rooms only]. Call [number] to discuss your needs.",
     "technical": "Content-completeness gap. Write each answer as plain text in a clearly headed section so it can be quoted; optionally mark up an FAQ section as FAQPage (see structured data).",
@@ -7100,45 +7167,116 @@
      "parking",
      "breakfast",
      "accessibility",
-     "family",
-     "wedding_detail",
-     "room_count"
+     "family"
     ],
+    "factors": {
+     "risk": 3,
+     "traveller": 5,
+     "visibility": 3,
+     "confidence": 1.0
+    },
+    "kind": "fix",
+    "value": 71.8,
+    "rank": 71.8,
     "impact": "high",
-    "score": 70.0
+    "ref": "Q1",
+    "expected_outcome": "The answers are published as plain text on the page, so guests and any system reading it can find them; the next audit should show these questions as answered.",
+    "score": 71.8
    },
    {
-    "id": "SD1",
+    "id": "X-F1-2",
+    "tag": "",
+    "short_title": "Food hygiene rating 2/5 recorded for Brooklands Hotel",
+    "summary": "",
+    "category": "authority",
+    "title": "Food hygiene rating 2/5 recorded for Brooklands Hotel",
+    "finding": "The Food Standards Agency's public register shows 2/5 ('Improvement necessary') for Brooklands Hotel, inspected 2026-08-11.",
+    "why": "Hygiene ratings are public, shown on the FSA site and many others, and weigh on trust in the hotel's food and drink.",
+    "evidence": [
+     {
+      "url": "https://ratings.food.gov.uk/business/1778515",
+      "snippet": "Brooklands Hotel (Hotel/bed & breakfast/guest house): food hygiene rating 2 - Improvement necessary, inspected 2026-08-11"
+     }
+    ],
+    "action": "Review the inspection report with the kitchen team, fix the findings and ask the local authority about a re-inspection.",
+    "page": null,
+    "additions": [],
+    "example": "",
+    "technical": "",
+    "priority": "high",
+    "effort": "medium",
+    "confidence": "Established good practice",
+    "team": "operations",
+    "success_check": "A new FSA rating is published.",
+    "source": "intel",
+    "question_ids": [],
+    "factors": {
+     "risk": 5,
+     "traveller": 5,
+     "visibility": 2,
+     "confidence": 1.0
+    },
+    "kind": "fix",
+    "value": 85.9,
+    "rank": 64.0,
+    "impact": "high",
+    "ref": "X-F1-2",
+    "expected_outcome": "A new FSA rating is published.",
+    "score": 64.0
+   },
+   {
+    "id": "C1",
+    "tag": "phone",
+    "short_title": "2 different telephone numbers appear on the site",
+    "summary": "",
     "category": "understanding",
-    "title": "Give search engines the hotel's basic facts in a form they can read directly",
-    "finding": "Your pages state the hotel's name, address and phone in sentences, but there is no machine-readable 'Hotel' block, so every system has to work these facts out for itself.",
-    "why": "When the basics are stated in a standard format, a machine doesn't have to guess which phone number or address is the hotel's - and any other source that does publish them becomes the authority by default.",
+    "title": "2 different telephone numbers appear on the site",
+    "finding": "2 different telephone numbers appear on the site: 1932335700 (/); 1932335720 (/occasions/festive-dining/).",
+    "why": "This may be intentional (for example a separate events or spa line). If it isn't, a guest - or an AI assistant quoting your number - may use the wrong one. Contradictory facts make a hotel harder to describe correctly.",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/",
-      "snippet": "No Hotel/LodgingBusiness structured data found on any page read."
+      "snippet": "1932335700"
+     },
+     {
+      "url": "https://brooklandshotelsurrey.com/occasions/festive-dining/",
+      "snippet": "1932335720"
      }
     ],
-    "action": "Ask your web supplier to add one Hotel block to the homepage (below is a starting point filled from what we read - check every value).",
+    "action": "Label any deliberate second number (\u201cEvents: ...\u201d), and make the main reservations number identical everywhere.",
     "page": {
      "url": "https://brooklandshotelsurrey.com/",
-     "label": "the homepage"
+     "label": "/"
     },
     "additions": [],
-    "example": "<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Hotel\",\n  \"name\": \"Brooklands Hotel\",\n  \"url\": \"https://brooklandshotelsurrey.com/\",\n  \"telephone\": \"+441932335700\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"Brooklands Dr\",\n    \"addressLocality\": \"Weybridge\",\n    \"postalCode\": \"KT13 0SL\",\n    \"addressCountry\": \"[Country code, e.g. GB]\"\n  },\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": 51.3531863,\n    \"longitude\": -0.4733129\n  },\n  \"checkinTime\": \"15:00\",\n  \"checkoutTime\": \"11:00\",\n  \"priceRange\": \"[\u00a3\u00a3\u00a3]\",\n  \"sameAs\": [\n    \"https://www.facebook.com/BHSurrey\",\n    \"https://www.instagram.com/brooklands_hotel\",\n    \"https://www.tiktok.com/@brooklandshotel\",\n    \"https://www.openstreetmap.org/way/1001475344\",\n    \"https://www.wikidata.org/wiki/Q137806771\"\n  ],\n  \"amenityFeature\": [\n    {\n      \"@type\": \"LocationFeatureSpecification\",\n      \"name\": \"Free Wi-Fi\",\n      \"value\": true\n    }\n  ],\n  \"petsAllowed\": false\n}\n</script>\n\nFill the [bracketed] parts - the rest was read from your own site. Test it at https://validator.schema.org/ before publishing.",
-    "technical": "Add JSON-LD (schema.org Hotel/LodgingBusiness) to the homepage: name, url, telephone, PostalAddress, GeoCoordinates, image, sameAs. This improves how accurately machines read the facts; it is not shown to make an AI assistant recommend a hotel.",
-    "priority": "high",
+    "example": "",
+    "technical": "Entity consistency (phone). Keep one value across page text, titles, footer and structured data.",
+    "priority": "medium",
     "effort": "low",
-    "confidence": "Established good practice",
+    "confidence": "Reasonable inference",
     "team": "web",
-    "success_check": "A Hotel block is present on the homepage and matches the page text.",
-    "source": "structured",
+    "success_check": "The next audit no longer reports this.",
+    "source": "consistency",
     "question_ids": [],
-    "impact": "high",
-    "score": 70.0
+    "factors": {
+     "risk": 4,
+     "traveller": 4,
+     "visibility": 3,
+     "confidence": 0.8
+    },
+    "kind": "fix",
+    "value": 60.2,
+    "rank": 60.2,
+    "impact": "medium",
+    "ref": "C1",
+    "expected_outcome": "One consistent value appears everywhere on the site; the next audit should report no contradiction.",
+    "score": 60.2
    },
    {
     "id": "L1",
+    "tag": "",
+    "short_title": "Say how far the hotel is from Mercedes-Benz World",
+    "summary": "",
     "category": "content",
     "title": "Say how far the hotel is from Mercedes-Benz World",
     "finding": "The website mentions Mercedes-Benz World but doesn't say how far away it is.",
@@ -7166,75 +7304,25 @@
     "success_check": "The next audit no longer reports this.",
     "source": "location",
     "question_ids": [],
-    "impact": "medium",
-    "score": 40.0
-   },
-   {
-    "id": "C1",
-    "category": "understanding",
-    "title": "2 different telephone numbers appear on the site",
-    "finding": "2 different telephone numbers appear on the site: 1932335700 (/); 1932335720 (/occasions/festive-dining/).",
-    "why": "This may be intentional (for example a separate events or spa line). If it isn't, a guest - or an AI assistant quoting your number - may use the wrong one. Contradictory facts make a hotel harder to describe correctly.",
-    "evidence": [
-     {
-      "url": "https://brooklandshotelsurrey.com/",
-      "snippet": "1932335700"
-     },
-     {
-      "url": "https://brooklandshotelsurrey.com/occasions/festive-dining/",
-      "snippet": "1932335720"
-     }
-    ],
-    "action": "Label any deliberate second number (\u201cEvents: ...\u201d), and make the main reservations number identical everywhere.",
-    "page": {
-     "url": "https://brooklandshotelsurrey.com/",
-     "label": "/"
+    "factors": {
+     "risk": 2,
+     "traveller": 4,
+     "visibility": 3,
+     "confidence": 1.0
     },
-    "additions": [],
-    "example": "",
-    "technical": "Entity consistency (phone). Keep one value across page text, titles, footer and structured data.",
-    "priority": "medium",
-    "effort": "low",
-    "confidence": "Established good practice",
-    "team": "web",
-    "success_check": "The next audit no longer reports this.",
-    "source": "consistency",
-    "question_ids": [],
+    "kind": "fix",
+    "value": 56.5,
+    "rank": 56.5,
     "impact": "medium",
-    "score": 40.0
-   },
-   {
-    "id": "H1",
-    "category": "content",
-    "title": "Make afternoon tea easier to find",
-    "finding": "Afternoon tea is mentioned only once (/eat-drink/1907-bar/), and not on the homepage or in the FAQ.",
-    "why": "A real strength that is hard to find is a strength a traveller - or a machine reading the site - may never learn about.",
-    "evidence": [
-     {
-      "url": "https://brooklandshotelsurrey.com/eat-drink/1907-bar/",
-      "snippet": "\u2013 our menus celebrate good times and great ingredients. Bar Menu Afternoon Tea Menu Drinks Menu Wine Menu Tea & Coffee Menu Intimate rooms and elegant spaces for every occasion. Find out more Find"
-     }
-    ],
-    "action": "Repeat the key facts about afternoon tea on the homepage or a facilities page and in your FAQ.",
-    "page": {
-     "url": "https://brooklandshotelsurrey.com/eat-drink/1907-bar/",
-     "label": "/eat-drink/1907-bar/"
-    },
-    "additions": [],
-    "example": "",
-    "technical": "Information stated once, off the main paths, is easy to miss; repeat key facts where people look.",
-    "priority": "medium",
-    "effort": "low",
-    "confidence": "Reasonable inference",
-    "team": "marketing",
-    "success_check": "The next audit no longer reports this.",
-    "source": "hidden",
-    "question_ids": [],
-    "impact": "medium",
-    "score": 40.0
+    "ref": "L1",
+    "expected_outcome": "The page states the distance or travel time to each place, so the location signal is specific; the next audit should show them as described with a distance.",
+    "score": 56.5
    },
    {
     "id": "X-A1",
+    "tag": "",
+    "short_title": "Award wording that names no issuer cannot be verified",
+    "summary": "",
     "category": "authority",
     "title": "Award wording that names no issuer cannot be verified",
     "finding": "The website uses award wording (e.g. 'award-winning') without naming who gave it or when.",
@@ -7257,11 +7345,25 @@
     "success_check": "Each award statement names its issuer, year and a link.",
     "source": "intel",
     "question_ids": [],
+    "factors": {
+     "risk": 3,
+     "traveller": 2,
+     "visibility": 1,
+     "confidence": 1.0
+    },
+    "kind": "fix",
+    "value": 44.7,
+    "rank": 44.7,
     "impact": "medium",
-    "score": 40.0
+    "ref": "X-A1",
+    "expected_outcome": "Each award statement names its issuer, year and a link.",
+    "score": 44.7
    },
    {
     "id": "X-I1",
+    "tag": "",
+    "short_title": "The hotel appears under more than one name",
+    "summary": "",
     "category": "understanding",
     "title": "The hotel appears under more than one name",
     "finding": "Sources use different forms of the name: 'Brooklands Hotel'; 'Brooklands Hotel & Spa'; 'Brooklands Hotel spa'.",
@@ -7284,42 +7386,29 @@
     "success_check": "The next audit shows one dominant name form.",
     "source": "intel",
     "question_ids": [],
+    "factors": {
+     "risk": 2,
+     "traveller": 2,
+     "visibility": 3,
+     "confidence": 1.0
+    },
+    "kind": "fix",
+    "value": 44.7,
+    "rank": 44.7,
     "impact": "medium",
-    "score": 40.0
-   },
-   {
-    "id": "X-F1-2",
-    "category": "authority",
-    "title": "Food hygiene rating 2/5 recorded for Brooklands Hotel",
-    "finding": "The Food Standards Agency's public register shows 2/5 ('Improvement necessary') for Brooklands Hotel, inspected 2026-08-11.",
-    "why": "Hygiene ratings are public, shown on the FSA site and many others, and weigh on trust in the hotel's food and drink.",
-    "evidence": [
-     {
-      "url": "https://ratings.food.gov.uk/business/1778515",
-      "snippet": "Brooklands Hotel (Hotel/bed & breakfast/guest house): food hygiene rating 2 - Improvement necessary, inspected 2026-08-11"
-     }
-    ],
-    "action": "Review the inspection report with the kitchen team, fix the findings and ask the local authority about a re-inspection.",
-    "page": null,
-    "additions": [],
-    "example": "",
-    "technical": "",
-    "priority": "high",
-    "effort": "medium",
-    "confidence": "Established good practice",
-    "team": "operations",
-    "success_check": "A new FSA rating is published.",
-    "source": "intel",
-    "question_ids": [],
-    "impact": "high",
-    "score": 38.9
+    "ref": "X-I1",
+    "expected_outcome": "The next audit shows one dominant name form.",
+    "score": 44.7
    },
    {
     "id": "M-alt",
+    "tag": "",
+    "short_title": "Describe your key images in text (alt text) for search and screen readers",
+    "summary": "",
     "category": "understanding",
-    "title": "Describe your key images for machines and screen readers",
+    "title": "Describe your key images in text (alt text) for search and screen readers",
     "finding": "1199 of 1205 images have no alt text. More than half the images on the pages read have no description (for example gif;base64,R0lGODlhBAADAIAAAAAAAAAAACH5BAEAAAAALAAAAAAEAAMAAAIDhI9WADs=). Some may be purely decorative.",
-    "why": "Machines can't see pictures: without alt text, rooms, the spa and the restaurant are invisible to them, and screen-reader guests get nothing.",
+    "why": "Important information contained only in images is less reliably discoverable, indexable and accessible than clear text and descriptive alt text; screen-reader guests also get nothing from an undescribed image.",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/",
@@ -7338,77 +7427,29 @@
     "success_check": "The next audit no longer reports this.",
     "source": "machine",
     "question_ids": [],
+    "factors": {
+     "risk": 3,
+     "traveller": 3,
+     "visibility": 2,
+     "confidence": 1.0
+    },
+    "kind": "fix",
+    "value": 55.3,
+    "rank": 41.2,
     "impact": "medium",
-    "score": 22.2
-   },
-   {
-    "id": "X-M4",
-    "category": "authority",
-    "title": "2 relevant guides and organisations to approach, with evidence",
-    "finding": "Real, current pages in your area or segment that do not mention the hotel: visitsurrey.com, visitbritain.com.",
-    "why": "These pages already serve travellers with the hotel's profile; being absent from them is a specific, checkable gap.",
-    "evidence": [
-     {
-      "url": "https://www.visitsurrey.com/listing/best-western-the-ship-hotel-weybridge/3569301",
-      "snippet": "Your browser is not supported for this experience. We recommend using Chrome, Firefox, Edge, or Safari. Skip to main content Discover the best of Surrey, every month Discover the best of Surrey, every month From must-visit attractions to scenic walks and local"
-     },
-     {
-      "url": "https://www.visitbritain.com/en",
-      "snippet": "Discover the land of Big Ben, Banksy and bangers and mash. From its bustling cities to its blooming beautiful gardens, it doesn\u2019t disappoint.\n\n Plan a trip to England\n\nScotland\n\n## Discover Great Britain\u2019s northern reaches\n\nImagine a country where ancient cast"
-     }
-    ],
-    "action": "Read each page in the target table; where the hotel genuinely fits, send a short factual note with the hotel's supporting facts. Skip anything the hotel does not match. Do not use paid or incentivised placement without disclosing it.",
-    "page": null,
-    "additions": [],
-    "example": "",
-    "technical": "",
-    "priority": "medium",
-    "effort": "medium",
-    "confidence": "Experimental",
-    "team": "PR",
-    "success_check": "Each approach and any resulting listing is logged with a date; re-audit in 3 months.",
-    "source": "intel",
-    "question_ids": [],
-    "impact": "medium",
-    "score": 22.2
-   },
-   {
-    "id": "X-M5",
-    "category": "authority",
-    "title": "Prepare the evidence behind your pitch angles",
-    "finding": "2 angle(s) rest on facts from the hotel's own pages (accessibility features, local partnership or destination link), but none is yet supported by an independent source or by pitch-ready material.",
-    "why": "A pitch needs verifiable specifics; without them it reads as promotion.",
-    "evidence": [
-     {
-      "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
-      "snippet": "and public areas. Do you have accessible facilities? Yes, the hotel is equipped with accessible facilities, including accessible bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking is available at \u00a3"
-     },
-     {
-      "url": "https://brooklandshotelsurrey.com/sustainability-policy/",
-      "snippet": "Focus on our people: Provide our people with opportunities to succeed and grow. Luxury skincare brand [comfort zone] partnered with us in BSpa, who are a certified B Corp\u00ae. Serious Tissues in all guest areas. At least 10 million trees are cut down every year f"
-     }
-    ],
-    "action": "For each angle, gather the items listed under 'missing evidence' in the pitch table before contacting anyone.",
-    "page": null,
-    "additions": [],
-    "example": "",
-    "technical": "",
-    "priority": "medium",
-    "effort": "medium",
-    "confidence": "Established good practice",
-    "team": "PR",
-    "success_check": "Each angle has its missing items ticked off and a named internal owner.",
-    "source": "intel",
-    "question_ids": [],
-    "impact": "medium",
-    "score": 22.2
+    "ref": "M-alt",
+    "expected_outcome": "The next audit no longer reports this.",
+    "score": 41.2
    },
    {
     "id": "Q2",
+    "tag": "",
+    "short_title": "State the missing ev charging details on /about-us/contact-us/",
+    "summary": "EV charging (how many points and what type)",
     "category": "content",
     "title": "Answer this clearly: Is there EV charging, and what does it cost?",
     "finding": "Is there EV charging, and what does it cost? The site touches on it but doesn't say how many points and what type.",
-    "why": "Guests ask this before they book, and an AI assistant can only answer it if a page says it clearly. Where it can't find the answer it may leave the hotel out or guess.",
+    "why": "Guests look for this before they book. If authoritative sources don't state it clearly, AI systems and search tools may be less able to answer the question accurately or confidently.",
     "evidence": [
      {
       "url": "",
@@ -7425,7 +7466,7 @@
     ],
     "example": "We have [number] [type, e.g. 7kW Type 2] EV charging points [in the car park]. Charging [is free / costs \u00a3[amount] per kWh]; pay via [app/network].",
     "technical": "Content-completeness gap. Write each answer as plain text in a clearly headed section so it can be quoted; optionally mark up an FAQ section as FAQPage (see structured data).",
-    "priority": "low",
+    "priority": "medium",
     "effort": "low",
     "confidence": "Reasonable inference",
     "team": "web",
@@ -7434,15 +7475,83 @@
     "question_ids": [
      "ev"
     ],
-    "impact": "low",
-    "score": 15.0
+    "factors": {
+     "risk": 2,
+     "traveller": 3,
+     "visibility": 3,
+     "confidence": 0.8
+    },
+    "kind": "fix",
+    "value": 40.5,
+    "rank": 40.5,
+    "impact": "medium",
+    "ref": "Q2",
+    "expected_outcome": "The answers are published as plain text on the page, so guests and any system reading it can find them; the next audit should show these questions as answered.",
+    "score": 40.5
    },
    {
     "id": "Q3",
+    "tag": "",
+    "short_title": "If a target segment: complete the weddings, number of rooms details",
+    "summary": "Weddings (licensed for civil ceremonies); Number of rooms (total number of rooms)",
     "category": "content",
-    "title": "Answer this clearly: What are the spa's opening hours, prices and age rules for day guests?",
-    "finding": "What are the spa's opening hours, prices and age rules for day guests? The site touches on it (prices, age or booking rules) but doesn't say opening hours.",
-    "why": "Guests ask this before they book, and an AI assistant can only answer it if a page says it clearly. Where it can't find the answer it may leave the hotel out or guess.",
+    "title": "If this is a target segment, complete the details: Weddings, Number of rooms",
+    "finding": "The hotel promotes weddings, number of rooms, but the pages don't yet state: licensed for civil ceremonies; total number of rooms. Worth completing if this is a segment you want to attract.",
+    "why": "Guests look for this before they book. If authoritative sources don't state it clearly, AI systems and search tools may be less able to answer the question accurately or confidently.",
+    "evidence": [
+     {
+      "url": "https://brooklandshotelsurrey.com/occasions/festive-dining/",
+      "snippet": "ever day you are looking to celebrate, we have tempting menus to choose from. Tables of 12 guests or more will need to pre book and pre order and private dining options are available for groups of 24 guests or more. Please call our"
+     },
+     {
+      "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
+      "snippet": "early check-in or late check-out, please contact us in advance, and we\u2019ll do our best to accommodate your request (subject to availability). Additional information: Brooklands Hotel is now \u2018Pay As You Go\u2019, where we kindly ask our guests to"
+     }
+    ],
+    "action": "Add the answer to /about-us/faqs/ (your FAQ page - no more specific page was found). Also worth repeating on /about-us/faqs/.",
+    "page": {
+     "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
+     "label": "/about-us/faqs/"
+    },
+    "additions": [
+     "How many guests can a wedding hold, and is the hotel licensed for ceremonies - add: licensed for civil ceremonies",
+     "How many rooms does the hotel have - add: total number of rooms"
+    ],
+    "example": "Weddings: licensed for civil ceremonies for up to [x] guests, with [x] evening guests. [x] bedrooms on site. Packages from [\u00a3x] per head - request the brochure or call [phone].\nOur [x] bedrooms range from [Classic doubles] to [suites].",
+    "technical": "Content-completeness gap. Write each answer as plain text in a clearly headed section so it can be quoted; optionally mark up an FAQ section as FAQPage (see structured data).",
+    "priority": "medium",
+    "effort": "low",
+    "confidence": "Reasonable inference",
+    "team": "web",
+    "success_check": "The question is answered in plain text on the page and the next audit marks it 'answered'.",
+    "source": "questions",
+    "question_ids": [
+     "wedding_detail",
+     "room_count"
+    ],
+    "factors": {
+     "risk": 2,
+     "traveller": 3,
+     "visibility": 3,
+     "confidence": 0.8
+    },
+    "kind": "opportunity",
+    "value": 40.5,
+    "rank": 40.5,
+    "impact": "medium",
+    "ref": "Q3",
+    "expected_outcome": "The answers are published as plain text on the page, so guests and any system reading it can find them; the next audit should show these questions as answered.",
+    "score": 40.5
+   },
+   {
+    "id": "Q4",
+    "tag": "",
+    "short_title": "If a target segment: complete the spa details",
+    "summary": "Spa (opening hours)",
+    "category": "content",
+    "title": "If this is a target segment, complete the details: Spa",
+    "finding": "The hotel promotes spa, but the pages don't yet state: opening hours. Worth completing if this is a segment you want to attract.",
+    "why": "Guests look for this before they book. If authoritative sources don't state it clearly, AI systems and search tools may be less able to answer the question accurately or confidently.",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/",
@@ -7463,7 +7572,7 @@
     ],
     "example": "Spa open daily [9am-8pm]. Day guest passes from [\u00a3x]. Guests must be [16+]. Book ahead on [phone/link].",
     "technical": "Content-completeness gap. Write each answer as plain text in a clearly headed section so it can be quoted; optionally mark up an FAQ section as FAQPage (see structured data).",
-    "priority": "low",
+    "priority": "medium",
     "effort": "low",
     "confidence": "Reasonable inference",
     "team": "web",
@@ -7472,15 +7581,29 @@
     "question_ids": [
      "spa_detail"
     ],
-    "impact": "low",
-    "score": 15.0
+    "factors": {
+     "risk": 2,
+     "traveller": 3,
+     "visibility": 3,
+     "confidence": 0.8
+    },
+    "kind": "opportunity",
+    "value": 40.5,
+    "rank": 40.5,
+    "impact": "medium",
+    "ref": "Q4",
+    "expected_outcome": "The answers are published as plain text on the page, so guests and any system reading it can find them; the next audit should show these questions as answered.",
+    "score": 40.5
    },
    {
-    "id": "Q4",
+    "id": "Q5",
+    "tag": "",
+    "short_title": "If a target segment: complete the restaurant details",
+    "summary": "Restaurant (opening times, dietary options)",
     "category": "content",
-    "title": "Answer this clearly: When is the restaurant open, and can it cater for dietary needs?",
-    "finding": "When is the restaurant open, and can it cater for dietary needs? The site touches on it (booking) but doesn't say opening times, dietary options.",
-    "why": "Guests ask this before they book, and an AI assistant can only answer it if a page says it clearly. Where it can't find the answer it may leave the hotel out or guess.",
+    "title": "If this is a target segment, complete the details: Restaurant",
+    "finding": "The hotel promotes restaurant, but the pages don't yet state: dietary options; opening times. Worth completing if this is a segment you want to attract.",
+    "why": "Guests look for this before they book. If authoritative sources don't state it clearly, AI systems and search tools may be less able to answer the question accurately or confidently.",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/",
@@ -7498,7 +7621,7 @@
     ],
     "example": "[Restaurant name] is open [12-2.30pm and 6-9.30pm] daily. Book online or call [phone]. Vegetarian, vegan and gluten-free dishes are always available - tell us about allergies when booking.",
     "technical": "Content-completeness gap. Write each answer as plain text in a clearly headed section so it can be quoted; optionally mark up an FAQ section as FAQPage (see structured data).",
-    "priority": "low",
+    "priority": "medium",
     "effort": "low",
     "confidence": "Reasonable inference",
     "team": "web",
@@ -7507,15 +7630,158 @@
     "question_ids": [
      "restaurant_detail"
     ],
+    "factors": {
+     "risk": 2,
+     "traveller": 3,
+     "visibility": 3,
+     "confidence": 0.8
+    },
+    "kind": "opportunity",
+    "value": 40.5,
+    "rank": 40.5,
+    "impact": "medium",
+    "ref": "Q5",
+    "expected_outcome": "The answers are published as plain text on the page, so guests and any system reading it can find them; the next audit should show these questions as answered.",
+    "score": 40.5
+   },
+   {
+    "id": "X-V2-Trustpil",
+    "tag": "",
+    "short_title": "Check whether the low rating on Trustpilot is your hotel",
+    "summary": "",
+    "category": "authority",
+    "title": "Check whether the low rating on Trustpilot is your hotel",
+    "finding": "Trustpilot shows 2.5/5 for 'a hotel with your name', but the snippet names no town, so it may be another hotel.",
+    "why": "Mistaken identity can attach someone else's reputation to the hotel.",
+    "evidence": [
+     {
+      "url": "https://nz.trustpilot.com/review/brooklandshotelsurrey.com",
+      "snippet": "Brooklands Hotel is rated \"Poor\" with 2.5 / 5 on Trustpilot Next morning check out no issues, we had breakfast and as with evening meal fantastic service and delicious food.  \n  \nThe whole stay/experiebce was amazing we loved it and well definetely book again."
+     }
+    ],
+    "action": "Open the Trustpilot page and confirm the address.",
+    "page": null,
+    "additions": [],
+    "example": "",
+    "technical": "",
+    "priority": "medium",
+    "effort": "medium",
+    "confidence": "Established good practice",
+    "team": "reputation management",
+    "success_check": "The listing is confirmed as yours or as another hotel.",
+    "source": "intel",
+    "question_ids": [],
+    "factors": {
+     "risk": 2,
+     "traveller": 3,
+     "visibility": 1,
+     "confidence": 1.0
+    },
+    "kind": "fix",
+    "value": 41.2,
+    "rank": 30.7,
+    "impact": "medium",
+    "ref": "X-V2-Trustpil",
+    "expected_outcome": "The listing is confirmed as yours or as another hotel.",
+    "score": 30.7
+   },
+   {
+    "id": "SD1",
+    "tag": "",
+    "short_title": "Give search engines the hotel's basic facts in a form they can read directly",
+    "summary": "",
+    "category": "understanding",
+    "title": "Give search engines the hotel's basic facts in a form they can read directly",
+    "finding": "Your pages state the hotel's name, address and phone in sentences, but there is no machine-readable 'Hotel' block, so every system has to work these facts out for itself.",
+    "why": "When the hotel's basic facts are stated in a standard, machine-readable format, systems reading the page can pick them out with less ambiguity. Search and AI tools also draw on other sources, so this is about accuracy and tidiness rather than a ranking boost.",
+    "evidence": [
+     {
+      "url": "https://brooklandshotelsurrey.com/",
+      "snippet": "No Hotel/LodgingBusiness structured data found on any page read."
+     }
+    ],
+    "action": "Ask your web supplier to add one Hotel block to the homepage (below is a starting point filled from what we read - check every value).",
+    "page": {
+     "url": "https://brooklandshotelsurrey.com/",
+     "label": "the homepage"
+    },
+    "additions": [],
+    "example": "<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Hotel\",\n  \"name\": \"Brooklands Hotel\",\n  \"url\": \"https://brooklandshotelsurrey.com/\",\n  \"telephone\": \"+441932335700\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"Brooklands Dr\",\n    \"addressLocality\": \"Weybridge\",\n    \"postalCode\": \"KT13 0SL\",\n    \"addressCountry\": \"[Country code, e.g. GB]\"\n  },\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": 51.3531863,\n    \"longitude\": -0.4733129\n  },\n  \"checkinTime\": \"15:00\",\n  \"checkoutTime\": \"11:00\",\n  \"priceRange\": \"[\u00a3\u00a3\u00a3]\",\n  \"sameAs\": [\n    \"https://www.facebook.com/BHSurrey\",\n    \"https://www.instagram.com/brooklands_hotel\",\n    \"https://www.tiktok.com/@brooklandshotel\",\n    \"https://www.openstreetmap.org/way/1001475344\",\n    \"https://www.wikidata.org/wiki/Q137806771\"\n  ],\n  \"amenityFeature\": [\n    {\n      \"@type\": \"LocationFeatureSpecification\",\n      \"name\": \"Free Wi-Fi\",\n      \"value\": true\n    }\n  ],\n  \"petsAllowed\": false\n}\n</script>\n\nFill the [bracketed] parts - the rest was read from your own site. Test it at https://validator.schema.org/ before publishing.",
+    "technical": "Add JSON-LD (schema.org Hotel/LodgingBusiness) to the homepage: name, url, telephone, PostalAddress, GeoCoordinates, image, sameAs. This helps systems read the facts accurately; there is no evidence it makes an AI assistant recommend a hotel.",
+    "priority": "low",
+    "effort": "low",
+    "confidence": "Established good practice",
+    "team": "web",
+    "success_check": "A Hotel block is present on the homepage and matches the page text.",
+    "source": "structured",
+    "question_ids": [],
+    "factors": {
+     "risk": 1,
+     "traveller": 2,
+     "visibility": 2,
+     "confidence": 1.0
+    },
+    "kind": "fix",
+    "value": 30.6,
+    "rank": 30.6,
     "impact": "low",
-    "score": 15.0
+    "ref": "SD1",
+    "expected_outcome": "The structured data matches the page text; the next audit should report it as correct.",
+    "score": 30.6
+   },
+   {
+    "id": "H1",
+    "tag": "once",
+    "short_title": "Make afternoon tea easier to find",
+    "summary": "",
+    "category": "content",
+    "title": "Make afternoon tea easier to find",
+    "finding": "Afternoon tea is mentioned only once (/eat-drink/1907-bar/), and not on the homepage or in the FAQ.",
+    "why": "A real strength that is hard to find is less likely to be noticed by travellers, and less reliably picked up by systems that read the site.",
+    "evidence": [
+     {
+      "url": "https://brooklandshotelsurrey.com/eat-drink/1907-bar/",
+      "snippet": "\u2013 our menus celebrate good times and great ingredients. Bar Menu Afternoon Tea Menu Drinks Menu Wine Menu Tea & Coffee Menu Intimate rooms and elegant spaces for every occasion. Find out more Find"
+     }
+    ],
+    "action": "Repeat the key facts about afternoon tea on the homepage or a facilities page and in your FAQ.",
+    "page": {
+     "url": "https://brooklandshotelsurrey.com/eat-drink/1907-bar/",
+     "label": "/eat-drink/1907-bar/"
+    },
+    "additions": [],
+    "example": "",
+    "technical": "Information stated once, off the main paths, is easy to miss; repeat key facts where people look.",
+    "priority": "low",
+    "effort": "low",
+    "confidence": "Reasonable inference",
+    "team": "marketing",
+    "success_check": "The next audit no longer reports this.",
+    "source": "hidden",
+    "question_ids": [],
+    "factors": {
+     "risk": 1,
+     "traveller": 3,
+     "visibility": 2,
+     "confidence": 0.8
+    },
+    "kind": "opportunity",
+    "value": 29.2,
+    "rank": 29.2,
+    "impact": "low",
+    "ref": "H1",
+    "expected_outcome": "The strength is reachable from the pages guests and crawlers visit first, and is not held only in a PDF or a single mention.",
+    "score": 29.2
    },
    {
     "id": "H3",
+    "tag": "poorly_linked",
+    "short_title": "Link to /occasions/festive-dining/ from your main pages",
+    "summary": "",
     "category": "content",
     "title": "Link to /occasions/festive-dining/ from your main pages",
     "finding": "/occasions/festive-dining/ exists but none of the 23 pages we read link to it.",
-    "why": "A real strength that is hard to find is a strength a traveller - or a machine reading the site - may never learn about.",
+    "why": "A real strength that is hard to find is less likely to be noticed by travellers, and less reliably picked up by systems that read the site.",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/occasions/festive-dining/",
@@ -7537,22 +7803,80 @@
     "success_check": "The next audit no longer reports this.",
     "source": "hidden",
     "question_ids": [],
+    "factors": {
+     "risk": 1,
+     "traveller": 2,
+     "visibility": 3,
+     "confidence": 0.8
+    },
+    "kind": "opportunity",
+    "value": 28.2,
+    "rank": 28.2,
     "impact": "low",
-    "score": 15.0
+    "ref": "H3",
+    "expected_outcome": "The strength is reachable from the pages guests and crawlers visit first, and is not held only in a PDF or a single mention.",
+    "score": 28.2
+   },
+   {
+    "id": "H2",
+    "tag": "pdf_menu",
+    "short_title": "Write the essentials of your menus as page text",
+    "summary": "",
+    "category": "content",
+    "title": "Write the essentials of your menus as page text",
+    "finding": "20 menus are published as PDFs rather than page text (Sample Menu, Sample Children\u2019s Menu, Sample Menu...), linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/.",
+    "why": "A real strength that is hard to find is less likely to be noticed by travellers, and less reliably picked up by systems that read the site.",
+    "evidence": [
+     {
+      "url": "https://hotelcms-production.imgix.net/brooklandshotelsurrey.com/wp-content/uploads/2026/02/Christmas-Day-Childrens-Menu-April-2025-1.pdf?fm=pdf",
+      "snippet": "20 PDF(s) linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/: Sample Menu, Sample Children\u2019s Menu, Sample Menu, Sample Menu, VETRO pizza & pasta menu"
+     }
+    ],
+    "action": "Keep the PDFs for guests to download, but also write the essentials as page text: opening times, a few signature dishes and dietary options. PDFs are less reliably indexed and quoted than normal page text.",
+    "page": {
+     "url": "https://brooklandshotelsurrey.com/occasions/festive-dining/",
+     "label": "/occasions/festive-dining/"
+    },
+    "additions": [],
+    "example": "",
+    "technical": "Content in PDFs is harder to extract and cite than HTML. Keep the PDF as a download.",
+    "priority": "low",
+    "effort": "medium",
+    "confidence": "Reasonable inference",
+    "team": "web",
+    "success_check": "The next audit no longer reports this.",
+    "source": "hidden",
+    "question_ids": [],
+    "factors": {
+     "risk": 1,
+     "traveller": 2,
+     "visibility": 2,
+     "confidence": 0.8
+    },
+    "kind": "opportunity",
+    "value": 24.5,
+    "rank": 18.2,
+    "impact": "low",
+    "ref": "H2",
+    "expected_outcome": "The strength is reachable from the pages guests and crawlers visit first, and is not held only in a PDF or a single mention.",
+    "score": 18.2
    },
    {
     "id": "SD5",
+    "tag": "",
+    "short_title": "Mark up the FAQ you already have",
+    "summary": "",
     "category": "understanding",
     "title": "Mark up the FAQ you already have",
     "finding": "/eat-drink/1907-restaurant/ answers 3 questions in plain text but has no FAQ markup.",
-    "why": "Marking up existing questions and answers makes them easier for machines to pick out and quote accurately.",
+    "why": "Marking up existing questions and answers makes them easier for systems that read the page to identify accurately.",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/eat-drink/1907-restaurant/",
       "snippet": "Where flavour takes the lead; Our menus; Breakfast Menu"
      }
     ],
-    "action": "Marking up an existing FAQ makes the questions and answers easier for machines to pick out. Search engines have limited FAQ rich results to a few kinds of site, so do not expect a visible change in results.",
+    "action": "Marking up an existing FAQ makes the questions and answers easier for systems that read the page to identify. Search engines have limited FAQ rich results to a few kinds of site, so do not expect a visible change in results.",
     "page": {
      "url": "https://brooklandshotelsurrey.com/eat-drink/1907-restaurant/",
      "label": "/eat-drink/1907-restaurant/"
@@ -7567,11 +7891,115 @@
     "success_check": "The next audit no longer reports this.",
     "source": "structured",
     "question_ids": [],
+    "factors": {
+     "risk": 1,
+     "traveller": 1,
+     "visibility": 1,
+     "confidence": 0.8
+    },
+    "kind": "opportunity",
+    "value": 16.0,
+    "rank": 16.0,
     "impact": "low",
-    "score": 15.0
+    "ref": "SD5",
+    "expected_outcome": "The structured data matches the page text; the next audit should report it as correct.",
+    "score": 16.0
+   },
+   {
+    "id": "X-M5",
+    "tag": "",
+    "short_title": "Prepare the evidence behind your pitch angles",
+    "summary": "",
+    "category": "authority",
+    "title": "Prepare the evidence behind your pitch angles",
+    "finding": "2 angle(s) rest on facts from the hotel's own pages (accessibility features, local partnership or destination link), but none is yet supported by an independent source or by pitch-ready material.",
+    "why": "A pitch needs verifiable specifics; without them it reads as promotion.",
+    "evidence": [
+     {
+      "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
+      "snippet": "and public areas. Do you have accessible facilities? Yes, the hotel is equipped with accessible facilities, including accessible bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking is available at \u00a3"
+     },
+     {
+      "url": "https://brooklandshotelsurrey.com/sustainability-policy/",
+      "snippet": "Focus on our people: Provide our people with opportunities to succeed and grow. Luxury skincare brand [comfort zone] partnered with us in BSpa, who are a certified B Corp\u00ae. Serious Tissues in all guest areas. At least 10 million trees are cut down every year f"
+     }
+    ],
+    "action": "For each angle, gather the items listed under 'missing evidence' in the pitch table before contacting anyone.",
+    "page": null,
+    "additions": [],
+    "example": "",
+    "technical": "",
+    "priority": "low",
+    "effort": "medium",
+    "confidence": "Established good practice",
+    "team": "PR",
+    "success_check": "Each angle has its missing items ticked off and a named internal owner.",
+    "source": "intel",
+    "question_ids": [],
+    "factors": {
+     "risk": 1,
+     "traveller": 1,
+     "visibility": 1,
+     "confidence": 1.0
+    },
+    "kind": "opportunity",
+    "value": 20.0,
+    "rank": 14.9,
+    "impact": "low",
+    "ref": "X-M5",
+    "expected_outcome": "Each angle has its missing items ticked off and a named internal owner.",
+    "score": 14.9
+   },
+   {
+    "id": "X-M4",
+    "tag": "",
+    "short_title": "2 relevant guides and organisations to approach, with evidence",
+    "summary": "",
+    "category": "authority",
+    "title": "2 relevant guides and organisations to approach, with evidence",
+    "finding": "Real, current pages in your area or segment that do not mention the hotel: visitsurrey.com, visitbritain.com.",
+    "why": "These pages already serve travellers with the hotel's profile; being absent from them is a specific, checkable gap.",
+    "evidence": [
+     {
+      "url": "https://www.visitsurrey.com/listing/best-western-the-ship-hotel-weybridge/3569301",
+      "snippet": "Your browser is not supported for this experience. We recommend using Chrome, Firefox, Edge, or Safari. Skip to main content Discover the best of Surrey, every month Discover the best of Surrey, every month From must-visit attractions to scenic walks and local"
+     },
+     {
+      "url": "https://www.visitbritain.com/en",
+      "snippet": "Discover the land of Big Ben, Banksy and bangers and mash. From its bustling cities to its blooming beautiful gardens, it doesn\u2019t disappoint.\n\n Plan a trip to England\n\nScotland\n\n## Discover Great Britain\u2019s northern reaches\n\nImagine a country where ancient cast"
+     }
+    ],
+    "action": "Read each page in the target table; where the hotel genuinely fits, send a short factual note with the hotel's supporting facts. Skip anything the hotel does not match. Do not use paid or incentivised placement without disclosing it.",
+    "page": null,
+    "additions": [],
+    "example": "",
+    "technical": "",
+    "priority": "low",
+    "effort": "medium",
+    "confidence": "Experimental",
+    "team": "PR",
+    "success_check": "Each approach and any resulting listing is logged with a date; re-audit in 3 months.",
+    "source": "intel",
+    "question_ids": [],
+    "factors": {
+     "risk": 1,
+     "traveller": 2,
+     "visibility": 2,
+     "confidence": 0.55
+    },
+    "kind": "opportunity",
+    "value": 16.8,
+    "rank": 12.5,
+    "impact": "low",
+    "ref": "X-M4",
+    "expected_outcome": "Each approach and any resulting listing is logged with a date; re-audit in 3 months.",
+    "score": 12.5
    },
    {
     "id": "X-W2",
+    "tag": "",
+    "short_title": "No press, news or awards page was found among the pages read",
+    "summary": "",
     "category": "understanding",
     "title": "No press, news or awards page was found among the pages read",
     "finding": "Coverage and recognition exist but no page of the website collects them.",
@@ -7598,80 +8026,132 @@
     "success_check": "A press page exists and is linked from the footer and sitemap.",
     "source": "intel",
     "question_ids": [],
-    "impact": "low",
-    "score": 15.0
-   },
-   {
-    "id": "H2",
-    "category": "content",
-    "title": "Write the essentials of your menus as page text",
-    "finding": "20 menus are published as PDFs rather than page text (Sample Menu, Sample Children\u2019s Menu, Sample Menu...), linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/.",
-    "why": "A real strength that is hard to find is a strength a traveller - or a machine reading the site - may never learn about.",
-    "evidence": [
-     {
-      "url": "https://hotelcms-production.imgix.net/brooklandshotelsurrey.com/wp-content/uploads/2026/02/Christmas-Day-Childrens-Menu-April-2025-1.pdf?fm=pdf",
-      "snippet": "20 PDF(s) linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/: Sample Menu, Sample Children\u2019s Menu, Sample Menu, Sample Menu, VETRO pizza & pasta menu"
-     }
-    ],
-    "action": "Keep the PDFs for guests to download, but also write the essentials as page text: opening times, a few signature dishes and dietary options. PDFs are harder for search engines and AI systems to read and quote.",
-    "page": {
-     "url": "https://brooklandshotelsurrey.com/occasions/festive-dining/",
-     "label": "/occasions/festive-dining/"
+    "factors": {
+     "risk": 1,
+     "traveller": 1,
+     "visibility": 1,
+     "confidence": 0.55
     },
-    "additions": [],
-    "example": "",
-    "technical": "Content in PDFs is harder to extract and cite than HTML. Keep the PDF as a download.",
-    "priority": "low",
-    "effort": "medium",
-    "confidence": "Reasonable inference",
-    "team": "web",
-    "success_check": "The next audit no longer reports this.",
-    "source": "hidden",
-    "question_ids": [],
+    "kind": "opportunity",
+    "value": 11.0,
+    "rank": 11.0,
     "impact": "low",
-    "score": 8.3
-   },
-   {
-    "id": "X-V2-Trustpil",
-    "category": "authority",
-    "title": "Check whether the low rating on Trustpilot is your hotel",
-    "finding": "Trustpilot shows 2.5/5 for 'a hotel with your name', but the snippet names no town, so it may be another hotel.",
-    "why": "Mistaken identity can attach someone else's reputation to the hotel.",
-    "evidence": [
-     {
-      "url": "https://nz.trustpilot.com/review/brooklandshotelsurrey.com",
-      "snippet": "Brooklands Hotel is rated \"Poor\" with 2.5 / 5 on Trustpilot Next morning check out no issues, we had breakfast and as with evening meal fantastic service and delicious food.  \n  \nThe whole stay/experiebce was amazing we loved it and well definetely book again."
-     }
-    ],
-    "action": "Open the Trustpilot page and confirm the address.",
-    "page": null,
-    "additions": [],
-    "example": "",
-    "technical": "",
-    "priority": "low",
-    "effort": "medium",
-    "confidence": "Established good practice",
-    "team": "reputation management",
-    "success_check": "The listing is confirmed as yours or as another hotel.",
-    "source": "intel",
-    "question_ids": [],
-    "impact": "low",
-    "score": 8.3
+    "ref": "X-W2",
+    "expected_outcome": "A press page exists and is linked from the footer and sitemap.",
+    "score": 11.0
    }
   ],
   "top_actions": [
    "Q1",
-   "SD1",
-   "L1",
+   "X-F1-2",
    "C1",
-   "H1",
+   "L1",
    "X-A1",
-   "X-I1"
+   "X-I1",
+   "M-alt"
   ],
   "quick_wins": [
-   "H3",
-   "SD5"
+   "Q2",
+   "Q3",
+   "Q4",
+   "Q5",
+   "SD1",
+   "H1",
+   "H3"
   ],
+  "required_fixes": [
+   "Q1",
+   "X-F1-2",
+   "C1",
+   "L1",
+   "X-A1",
+   "X-I1",
+   "M-alt",
+   "Q2",
+   "X-V2-Trustpil",
+   "SD1"
+  ],
+  "opportunity_recs": [
+   "Q3",
+   "Q4",
+   "Q5",
+   "H1",
+   "H3",
+   "H2",
+   "SD5",
+   "X-M5",
+   "X-M4",
+   "X-W2"
+  ],
+  "opportunities": [
+   {
+    "key": "business",
+    "label": "Business travel",
+    "level": "none",
+    "assets": [
+     "Meeting rooms",
+     "Parking"
+    ],
+    "statement": "If business travellers are a target segment, the hotel has meeting rooms and parking, but its website does not currently speak to this audience and does not connect those assets into a clear business-stay proposition.",
+    "suggestion": "Only if you want to attract this audience: bring the meeting rooms and parking together on one page written for them, with specifics (what is included, who it suits, how to book).",
+    "evidence": [
+     {
+      "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
+      "snippet": "with a variety of menu options. Is on-site parking available for delegates? Yes, on-site parking is available for meeting attendees. Do you offer corporate packages? Yes, we offer corporate"
+     },
+     {
+      "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
+      "snippet": "bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night. Please ensure you register your"
+     }
+    ],
+    "caveat": "Not a defect. Worth acting on only if this is a segment the hotel wants."
+   },
+   {
+    "key": "couples",
+    "label": "Couples / romantic",
+    "level": "weak",
+    "assets": [
+     "Spa",
+     "Restaurant / dining"
+    ],
+    "statement": "If couples looking for a romantic break are a target segment, the hotel has spa and restaurant / dining, but its website mentions this audience only once, in passing and does not connect those assets into a clear romantic-stay proposition.",
+    "suggestion": "Only if you want to attract this audience: bring the spa and restaurant / dining together on one page written for them, with specifics (what is included, who it suits, how to book).",
+    "evidence": [
+     {
+      "url": "https://brooklandshotelsurrey.com/",
+      "snippet": "flavours pop and calm comes easy. Think bold interiors, a soothing spa, and trackside views. Take a tour Take a tour Rooms with rhythm, views with character, and a stay that keeps up. Our"
+     },
+     {
+      "url": "https://brooklandshotelsurrey.com/",
+      "snippet": "Dining here feels effortless, but always memorable. View our restaurants Book a table Steam, stillness and skyline views. From soothing treatments to a rooftop hot tub, our Surrey spa is your"
+     }
+    ],
+    "caveat": "Not a defect. Worth acting on only if this is a segment the hotel wants."
+   }
+  ],
+  "plan": {
+   "30": [
+    "Q1",
+    "X-F1-2",
+    "C1",
+    "L1",
+    "X-A1",
+    "X-I1",
+    "Q2"
+   ],
+   "60": [
+    "M-alt",
+    "X-V2-Trustpil"
+   ],
+   "90": [
+    "Q3",
+    "Q4",
+    "Q5",
+    "SD1",
+    "H1",
+    "H3"
+   ]
+  },
   "working": [
    {
     "point": "5 of the 10 common guest questions are clearly answered (check-in and check-out, pets, getting there, wi-fi, cancellation).",
@@ -7686,29 +8166,78 @@
     "url": "https://brooklandshotelsurrey.com/about-us/contact-us/"
    },
    {
-    "point": "robots.txt allows crawlers - robots.txt is present and does not block the whole site..",
+    "point": "robots.txt allows crawlers.",
     "url": ""
    },
    {
-    "point": "A sitemap is published - 105 URLs listed..",
+    "point": "A sitemap is published: 105 URLs listed.",
     "url": ""
    },
    {
-    "point": "The homepage title names the hotel and its place - \u201cBrooklands Hotel | Luxury Spa Hotel | Weybridge, Surrey\u201d.",
+    "point": "The homepage title names the hotel and its place: \u201cBrooklands Hotel | Luxury Spa Hotel | Weybridge, Surrey\u201d.",
     "url": ""
    },
    {
-    "point": "The homepage has a meta description - Just 30 minutes from London, our hotel is where design moves, flavours pop and calm comes easy. Think bold interiors, a soothing spa, and tr.",
+    "point": "The homepage has a meta description: Just 30 minutes from London, our hotel is where design moves, flavours pop and calm.",
     "url": ""
    },
    {
-    "point": "The hotel is recognised in open map/knowledge data - OpenStreetMap, Wikidata lists it, matched to this location..",
+    "point": "The hotel is recognised in open map/knowledge data: OpenStreetMap, Wikidata lists it, matched to this location.",
     "url": ""
    },
    {
-    "point": "6 independent publisher(s) cover the hotel - 4 in the last 12 months..",
+    "point": "6 independent publisher(s) cover the hotel: 4 in the last 12 months.",
     "url": ""
    }
   ]
+ },
+ "headline": {
+  "title": "AI discoverability readiness (assessed factors)",
+  "score": 83,
+  "coverage_pct": 60.0,
+  "status": "provisional",
+  "unassessed": [
+   {
+    "key": "ai_visibility",
+    "label": "AI Visibility",
+    "weight": 25.0,
+    "why": "What AI assistants actually say about the hotel is not measured by this tool (it needs a paid, grounded search). You can sample it yourself in the Tools tab."
+   },
+   {
+    "key": "reviews",
+    "label": "Reviews & Reputation",
+    "weight": 15.0,
+    "why": "Guest reviews have no lawful, free, automated source (review platforms prohibit collection; Google needs a billing account)."
+   }
+  ],
+  "unassessed_weight": 40.0,
+  "explanation": "83/100 is the average of the categories that could be assessed, which is 60% of the full model. The other 40% is not measured (AI Visibility, Reviews & Reputation). Read it as an indicator of how well the hotel is set up, not as a measure of how visible it is to AI assistants.",
+  "badge": "provisional",
+  "category_evidence": {
+   "website": {
+    "level": "medium",
+    "note": "13 of 25 pages read"
+   },
+   "entity": {
+    "level": "high",
+    "note": "2 open-data source(s) matched; 5 fact comparison(s)"
+   },
+   "freshness": {
+    "level": "high",
+    "note": "104 page dates in the sitemap"
+   },
+   "otas": {
+    "level": "medium",
+    "note": "3 platform(s) seen in search results (platforms themselves are not read)"
+   },
+   "editorial": {
+    "level": "medium",
+    "note": "3 article(s) read and confirmed"
+   },
+   "social": {
+    "level": "low",
+    "note": "profile links only; activity is not measured"
+   }
+  }
  }
 }

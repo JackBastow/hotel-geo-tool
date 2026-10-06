@@ -175,7 +175,8 @@ def build(ctx):
             "Search each platform yourself for the hotel; if it is not listed or the listing is wrong, "
             "contact the platform's partner support.",
             "distribution", "low", "Unconfirmed - the checking is quick but the finding may be nothing.",
-            "Each platform's listing URL is recorded and its details checked.", "observation"))
+            "Each platform's listing URL is recorded and its details checked.", "hypothesis",
+            "Based only on our searches not surfacing a listing - absence from a search index is weak evidence."))
     if ident["destination"] and not ident["destination"]["listing_found"] and ident["destination"]["body"]:
         d = ident["destination"]
         recs.append(_rec(

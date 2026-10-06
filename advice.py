@@ -5,7 +5,7 @@ Each one is generated from a specific finding - never inserted as generic
 advice - and has the same shape:
 
   finding      what was discovered, in plain hotel language
-  why          why it matters to how a machine understands or retrieves the hotel
+  why          why it matters to how the hotel is understood, found or chosen
   evidence     the actual page, wording or missing fact
   action       a specific thing to do
   page         where to do it (when there is a page)
@@ -23,6 +23,8 @@ hotel. Where confidence is limited the recommendation says so.
 import re
 import urllib.parse
 
+import ranking
+
 PRIORITY_WEIGHT = {"critical": 100, "high": 70, "medium": 40, "low": 15}
 EFFORT_COST = {"low": 1.0, "medium": 1.8, "high": 3.0}
 CATEGORY_LABEL = {"access": "Can machines reach it?", "understanding": "Can machines understand it?",
@@ -31,8 +33,8 @@ BEST = "Established good practice"
 INFER = "Reasonable inference"
 EXPER = "Experimental"
 
-WHY_QUESTION = ("Guests ask this before they book, and an AI assistant can only answer it if a page says it clearly. "
-                "Where it can't find the answer it may leave the hotel out or guess.")
+WHY_QUESTION = ("Guests look for this before they book. If authoritative sources don't state it clearly, AI systems and search "
+                "tools may be less able to answer the question accurately or confidently.")
 
 
 def _path(u):
@@ -50,8 +52,9 @@ def _ev(rows, n=2):
 
 
 def _rec(rid, category, title, finding, why, evidence, action, priority, effort, *, page=None, additions=None,
-         example="", technical="", confidence=BEST, team="web", success="", source="", question_ids=None):
-    return {"id": rid, "category": category, "title": title, "finding": finding, "why": why,
+         example="", technical="", confidence=BEST, team="web", success="", source="", question_ids=None, tag="",
+         short_title="", summary=""):
+    return {"id": rid, "tag": tag, "short_title": short_title or title, "summary": summary, "category": category, "title": title, "finding": finding, "why": why,
             "evidence": evidence, "action": action, "page": page, "additions": additions or [], "example": example,
             "technical": technical, "priority": priority, "effort": effort, "confidence": confidence, "team": team,
             "success_check": success or "The next audit no longer reports this.", "source": source,
@@ -60,12 +63,27 @@ def _rec(rid, category, title, finding, why, evidence, action, priority, effort,
 
 # ------------------------------------------------------------------ questions
 
+def _name_group(rec, qs, where_txt, kind):
+    """Short, readable names for a group of open questions (used in summaries and plans)."""
+    shorts = [q.get("short") or q["question"].rstrip("?") for q in qs]
+    rec["summary"] = "; ".join(
+        f"{sh} ({', '.join(q['missing'][:2])})" if q["missing"] else sh for sh, q in zip(shorts, qs))[:400]
+    if kind == "opportunity":
+        rec["short_title"] = "If a target segment: complete the " + ", ".join(shorts[:2]).lower() + " details"
+    else:
+        n = len(qs)
+        rec["short_title"] = (f"State the missing {shorts[0].lower()} details on {where_txt}" if n == 1 else
+                              f"Answer {n} open guest questions on {where_txt}")
+
 def _from_questions(questions):
     groups = {}
     for q in questions:
         w = q["where"]
-        key = w["url"] or w["label"]
-        groups.setdefault(key, {"where": w, "qs": []})["qs"].append(q)
+        # a guest-information gap and a gap in the detail of a segment the hotel promotes (weddings, spa,
+        # meeting rooms) are different kinds of thing, so they are not grouped together
+        kind = "opportunity" if q.get("source") == "extended" else "fix"
+        key = (w["url"] or w["label"], kind)
+        groups.setdefault(key, {"where": w, "qs": [], "kind": kind})["qs"].append(q)
     recs = []
     for i, (key, g) in enumerate(groups.items(), 1):
         qs, w = g["qs"], g["where"]
@@ -80,7 +98,12 @@ def _from_questions(questions):
         topics = [q["question"].rstrip("?") for q in qs]
         where_txt = f"{_path(w['url'])}" if w["url"] else w["label"]
         found_bits = [f for q in qs for f in q["found"]][:3]
-        if n == 1:
+        if g["kind"] == "opportunity":
+            shorts = [q.get("short") or q["question"].rstrip("?") for q in qs]
+            finding = (f"The hotel promotes {', '.join(sh.lower() for sh in shorts[:4])}, but the pages don't yet state: "
+                       + "; ".join(sorted({m for q in qs for m in q["missing"]})[:6]) + ". Worth completing if this is a segment you want to attract.")
+            title = "If this is a target segment, complete the details: " + ", ".join(shorts[:3])
+        elif n == 1:
             q = qs[0]
             finding = (f"{q['question']} " + ("The site touches on it" + (f" ({', '.join(found_bits)})" if found_bits else "") +
                                                  f" but doesn't say {', '.join(q['missing'])}." if q["missing"] else "No page we read answers it clearly."))
@@ -107,6 +130,7 @@ def _from_questions(questions):
             confidence=BEST if any(q.get("high_value") for q in qs) else INFER, team="web",
             success="The question is answered in plain text on the page and the next audit marks it 'answered'.",
             source="questions", question_ids=[q["id"] for q in qs]))
+        _name_group(recs[-1], qs, where_txt, g["kind"])
     return recs
 
 
@@ -161,8 +185,11 @@ def _from_consistency(items):
             f"C{i}", "understanding", c["title"], f"{c['title']}: {vals}.", c["detail"] + " Contradictory facts make a hotel harder to describe correctly.",
             _ev([{"url": v["url"], "snippet": v["value"]} for v in c["values"]], 3), c["fix"], pr, "low",
             page={"url": c["values"][0]["url"], "label": _path(c["values"][0]["url"])} if c["values"] else None,
+            tag=c["type"],
             technical=f"Entity consistency ({c['type']}). Keep one value across page text, titles, footer and structured data.",
-            confidence=BEST, team="operations" if c["type"] in ("times", "hours", "rooms", "amenity") else "web",
+            # a second phone number, venue hours or an amenity rule can be perfectly legitimate, so those are inferences
+            confidence=BEST if c["type"] in ("times", "postcode", "old_offer", "rooms") else INFER,
+            team="operations" if c["type"] in ("times", "hours", "rooms", "amenity") else "web",
             source="consistency"))
     return recs
 
@@ -178,14 +205,15 @@ def _from_hidden(items):
             f"H{i}", "content", {"once": f"Make {h['label'].lower()} easier to find", "deep": f"Bring {h['label'].lower()} out of a buried page",
                                   "pdf": ("Write the essentials of your menus as page text" if h.get("menu") else f"Put the {h['label']} information on a web page, not only in a PDF"), "image": "Write out what's in the pictures",
                                   "poorly_linked": f"Link to {h['label']} from your main pages"}[h["kind"]],
-            h["finding"], "A real strength that is hard to find is a strength a traveller - or a machine reading the site - may never learn about.",
+            h["finding"], "A real strength that is hard to find is less likely to be noticed by travellers, and less reliably picked up by systems that read the site.",
             _ev(h["evidence"]), h["suggestion"], pr, eff, page={"url": h["pages"][0], "label": _path(h["pages"][0])},
             technical={"pdf": "Content in PDFs is harder to extract and cite than HTML. Keep the PDF as a download.",
                        "image": "Text inside images is not machine-readable without OCR; add real text and descriptive alt text.",
                        "deep": "Deep, weakly-linked pages are crawled less and weighted less. Improve internal linking.",
                        "poorly_linked": "No internal links found among the crawled sample - verify against the full navigation.",
                        "once": "Information stated once, off the main paths, is easy to miss; repeat key facts where people look."}[h["kind"]],
-            confidence=INFER, team="web" if h["kind"] != "once" else "marketing", source="hidden"))
+            confidence=INFER, team="web" if h["kind"] != "once" else "marketing", source="hidden",
+            tag="pdf_menu" if h.get("menu") else h["kind"]))
     return recs
 
 
@@ -199,7 +227,7 @@ def _from_structured(sd, jsonld_example, site):
         recs.append(_rec(
             "SD1", "understanding", "Give search engines the hotel's basic facts in a form they can read directly",
             "Your pages state the hotel's name, address and phone in sentences, but there is no machine-readable 'Hotel' block, so every system has to work these facts out for itself.",
-            "When the basics are stated in a standard format, a machine doesn't have to guess which phone number or address is the hotel's - and any other source that does publish them becomes the authority by default.",
+            "When the hotel's basic facts are stated in a standard, machine-readable format, systems reading the page can pick them out with less ambiguity. Search and AI tools also draw on other sources, so this is about accuracy and tidiness rather than a ranking boost.",
             [{"url": site.base, "snippet": "No Hotel/LodgingBusiness structured data found on any page read."}],
             "Ask your web supplier to add one Hotel block to the homepage (below is a starting point filled from what we read - check every value).",
             "high", "low", page={"url": site.base, "label": "the homepage"}, example=jsonld_example or "",
@@ -210,7 +238,7 @@ def _from_structured(sd, jsonld_example, site):
     if inc and inc["status"] == "incorrect":
         recs.append(_rec(
             "SD2", "understanding", "Correct facts in your structured data that disagree with the page", inc["detail"],
-            "A machine that trusts the markup will repeat the wrong fact. A page and its markup that disagree look unreliable.",
+            "A system that relies on the markup may repeat the wrong fact, and a page whose markup disagrees with its text reads as unreliable.",
             _ev(inc["evidence"], 3), inc["advice"], "high", "low", page={"url": site.base, "label": "the homepage"},
             technical="JSON-LD values do not match visible text (telephone/postcode/coordinates/times). Update the markup to match the page.",
             confidence=BEST, team="web", source="structured"))
@@ -218,14 +246,14 @@ def _from_structured(sd, jsonld_example, site):
     if det and det["status"] == "could_improve":
         recs.append(_rec(
             "SD3", "understanding", "Complete the hotel's structured details", det["detail"],
-            "A half-complete block states fewer facts, so machines still have to guess the rest.", _ev(det["evidence"]), det["advice"],
+            "A fuller block states more facts in a standard format, which leaves less for a reading system to infer.", _ev(det["evidence"]), det["advice"],
             "medium", "low", page={"url": site.base, "label": "the homepage"}, example=jsonld_example or "",
             technical=det["detail"] + " " + CAUTION_SHORT, confidence=BEST, team="web", source="structured"))
     ex = items.get("Useful extras")
     if ex and ex["status"] == "could_improve" and "sameAs" in ex["detail"]:
         recs.append(_rec(
             "SD4", "understanding", "Link your official profiles from your structured data", ex["detail"],
-            "Declaring which profiles are really yours lets a machine connect the website, the social accounts and the listings as one hotel.",
+            "Declaring which profiles are really yours helps systems that read the page connect the website, the social accounts and the listings as one hotel.",
             [{"url": site.base, "snippet": ex["detail"]}], "Add the hotel's official Facebook, Instagram and other profile addresses to the Hotel block's 'sameAs' list.",
             "low", "low", page={"url": site.base, "label": "the homepage"}, technical="schema.org sameAs array on the Hotel node.",
             confidence=INFER, team="web", source="structured"))
@@ -233,7 +261,7 @@ def _from_structured(sd, jsonld_example, site):
     if faq and faq["status"] == "could_improve":
         recs.append(_rec(
             "SD5", "understanding", "Mark up the FAQ you already have", faq["detail"],
-            "Marking up existing questions and answers makes them easier for machines to pick out and quote accurately.",
+            "Marking up existing questions and answers makes them easier for systems that read the page to identify accurately.",
             _ev(faq["evidence"]), faq["advice"], "low", "low", page={"url": faq["evidence"][0]["url"], "label": _path(faq["evidence"][0]["url"])} if faq["evidence"] else None,
             technical="FAQPage JSON-LD for the existing visible Q&A. Google limits FAQ rich results to a few site types, so this is for machine clarity, not a visible search feature.",
             confidence=INFER, team="web", source="structured"))
@@ -241,12 +269,12 @@ def _from_structured(sd, jsonld_example, site):
     if amen and amen["status"] == "missing" and hotel and hotel["status"] != "missing":
         recs.append(_rec(
             "SD6", "understanding", "List the hotel's facilities in its structured data", amen["detail"],
-            "A facilities list in a standard format is a quick way for a machine to learn what the hotel offers.", _ev(hotel["evidence"]), amen["advice"],
+            "A facilities list in a standard format states what the hotel offers in a form that is easy to read automatically.", _ev(hotel["evidence"]), amen["advice"],
             "low", "low", technical="amenityFeature (LocationFeatureSpecification) on the Hotel node.", confidence=INFER, team="web", source="structured"))
     return recs
 
 
-CAUTION_SHORT = "This improves how accurately machines read the facts; it is not shown to make an AI assistant recommend a hotel."
+CAUTION_SHORT = "This helps systems read the facts accurately; there is no evidence it makes an AI assistant recommend a hotel."
 
 
 # ----------------------------------------------------------- machine readiness
@@ -265,7 +293,7 @@ TEXT = {
     "home_meta": ("Write a description for the homepage", "medium", "low"),
     "meta_missing": ("Add descriptions to guest-facing pages", "low", "low"),
     "h1": ("Give every page one clear main heading", "low", "low"),
-    "alt": ("Describe your key images for machines and screen readers", "medium", "medium"),
+    "alt": ("Describe your key images in text (alt text) for search and screen readers", "medium", "medium"),
     "entity_missing": ("Get the hotel recognised in open map and knowledge data", "medium", "low"),
 }
 PEOPLE = {
@@ -293,7 +321,7 @@ def _from_machine(findings):
 
 SUPERSEDED_SCORING = ("no_hotel_schema", "schema_incomplete", "social_sameas", "social_link", "guest_", "topic_guess", "crawler_block",
                       "no_sitemap", "location_unreadable", "facts_conflict")
-DROP_INTEL = ("V3", "T2-", "W1", "T1", "T3", "I2")      # limits or superseded by findings above
+DROP_INTEL = ("V3", "T2-", "W1", "T1", "T3")      # limits or superseded by findings above
 EFFORT_BY_TEAM = {"PR": "medium", "distribution": "low", "marketing": "low", "operations": "medium", "reputation management": "medium", "web": "low"}
 
 
@@ -333,40 +361,34 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
         recs += _from_structured(structured, jsonld_example, site)
     recs += _from_machine(machine)
     recs += _from_intel(intel)
+    limited_note = None
     if coverage.get("limited"):
         # Findings of the form "X isn't on the site" are weaker when part of the site wasn't read.
-        caveat = (f" (Only {coverage['pages_read']} of {coverage['pages_attempted']} pages could be read, so this may be "
-                  "stated on a page we didn't read.)")
+        limited_note = (f" (Only {coverage['pages_read']} of {coverage['pages_attempted']} pages could be read, so this may be "
+                        "stated on a page we didn't read.)")
         for r in recs:
             if r["source"] in ("questions", "location", "hidden"):
-                if r["priority"] in ("high", "critical"):
-                    r["priority"] = "medium"
                 r["confidence"] = INFER
-                r["finding"] += caveat
+                r["finding"] += limited_note
+    # ONE global judgement for everything the audit found (risk x traveller importance x visibility x confidence, moderated by effort)
+    ranking.annotate(recs, questions)
+    if limited_note:
+        for r in recs:
+            if r["source"] in ("questions", "location", "hidden") and r["priority"] in ("high", "critical"):
+                r["priority"] = "medium"
+                r["impact"] = "medium"
     for r in recs:
-        r["impact"] = {"critical": "high", "high": "high", "medium": "medium", "low": "low"}[r["priority"]]
-        r["score"] = round(PRIORITY_WEIGHT[r["priority"]] / EFFORT_COST[r["effort"]], 1)
-    recs.sort(key=lambda r: -r["score"])
+        r["ref"] = r["id"]
+        r["expected_outcome"] = ranking.expected_outcome(r)
+        r["score"] = r["rank"]          # kept for older readers of the report
+    recs.sort(key=lambda r: -r["rank"])
     return recs
 
 
-def top_actions(recs, n=7, per_category=3):
-    """The few that matter most: likely impact against effort, spread across the four kinds of problem."""
-    picked, used = [], {}
-    for r in recs:
-        if len(picked) >= n:
-            break
-        if used.get(r["category"], 0) >= per_category:
-            continue
-        picked.append(r)
-        used[r["category"]] = used.get(r["category"], 0) + 1
-    return picked
+def top_actions(recs, n=7):
+    """The few required fixes most worth doing, chosen from the whole audit by the global ranking."""
+    return ranking.top_actions(recs, n=n)
 
 
-def quick_wins(recs, exclude_ids=(), n=10):
-    """Low-effort fixes that aren't already in the top list."""
-    out = [r for r in recs if r["effort"] == "low" and r["id"] not in exclude_ids and r["priority"] != "low"
-           and r["source"] not in ("intel",)]
-    out += [r for r in recs if r["effort"] == "low" and r["id"] not in exclude_ids and r["priority"] == "low"
-            and r["source"] in ("machine", "structured", "hidden", "consistency")]
-    return out[:n]
+def quick_wins(recs, exclude_ids=(), n=8):
+    return ranking.quick_wins(recs, exclude_ids, n=n)

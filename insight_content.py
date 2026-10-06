@@ -727,7 +727,7 @@ def consistency(site, guest, today=None):
             out.append({"type": "amenity", "title": f"{amenity} is described in opposite ways", "severity": "medium" if amenity == "Pets" else "low",
                         "values": [{"value": f"{yl}: " + ys[0]["snippet"][:140], "url": ys[0]["page"]["url"], "pages": len(ys)},
                                    {"value": f"{nl}: " + ns[0]["snippet"][:140], "url": ns[0]["page"]["url"], "pages": len(ns)}],
-                        "detail": "This is often legitimate (it can differ for residents and visitors, by room type or by season), but unexplained it reads as a contradiction to a machine.",
+                        "detail": "This is often legitimate (it can differ for residents and visitors, by room type or by season), but unexplained it can read as a contradiction.",
                         "fix": f"State the {amenity.lower()} rule once, completely (including any exceptions), and make every other page agree."})
     return out
 
@@ -788,9 +788,9 @@ def hidden_strengths(site, feature_rows, pages_meta=None):
                     "finding": (f"{len(g['pdfs'])} {'menu' if is_menu else 'document'}{'' if len(g['pdfs']) == 1 else 's'} {'is' if len(g['pdfs']) == 1 else 'are'} published as PDF{'' if len(g['pdfs']) == 1 else 's'} rather than page text "
                                 f"({', '.join(names[:3])}{'...' if len(names) > 3 else ''}), linked from {', '.join(site.label(p) for p in pages[:3])}."),
                     "suggestion": ("Keep the PDFs for guests to download, but also write the essentials as page text: opening times, a few signature dishes and "
-                                   "dietary options. PDFs are harder for search engines and AI systems to read and quote." if is_menu else
-                                   "Put the key facts (capacities, prices, hours, contacts) on a normal web page. PDFs are harder for search engines and AI systems "
-                                   "to read and quote; keep the PDF as a download, not the only source.")})
+                                   "dietary options. PDFs are less reliably indexed and quoted than normal page text." if is_menu else
+                                   "Put the key facts (capacities, prices, hours, contacts) on a normal web page. PDFs are less reliably indexed and quoted than normal page text; "
+                                   "keep the PDF as a download, not the only source.")})
     # image-heavy pages that may keep their facts in pictures
     for p in site.pages:
         sig = p.get("signals") or {}
@@ -801,7 +801,7 @@ def hidden_strengths(site, feature_rows, pages_meta=None):
                 out.append({"kind": "image", "key": "image", "label": site.label(p), "pages": [p["url"]],
                             "evidence": [{"url": p["url"], "snippet": f"{imgs} images but only {sig.get('word_count')} words of text; image files include: "
                                           + ", ".join(f["src"] for f in (sig.get("images") or {}).get("files", [])[:4])}],
-                            "finding": f"{site.label(p)} is mostly images with very little text - menus, prices or plans may be pictures a machine can't read.",
+                            "finding": f"{site.label(p)} is mostly images with very little text - menus, prices or plans may exist only as pictures, which are less reliably discoverable and accessible than text.",
                             "suggestion": "Write the same information out as text beside the images."})
     # relevant pages nobody links to
     for p in site.pages:
@@ -814,3 +814,53 @@ def hidden_strengths(site, feature_rows, pages_meta=None):
                         "finding": f"{site.label(p)} exists but none of the {len(site.pages)} pages we read link to it.",
                         "suggestion": "Link to it from the homepage or the main menu and from related pages. (We read a sample of the site, so check your navigation first.)"})
     return out
+
+
+# ------------------------------------------------------------ commercial opportunities
+
+# intent -> (the proposition, how to say the audience, its verb, the facilities that would support it)
+OPPORTUNITY_ASSETS = {
+    "couples": ("romantic-stay", "couples looking for a romantic break", "are", ("spa", "restaurant", "afternoon_tea", "garden", "heritage")),
+    "family": ("family-stay", "families", "are", ("family", "pool", "garden", "restaurant")),
+    "business": ("business-stay", "business travellers", "are", ("meeting_rooms", "wifi", "parking", "airport_transfer")),
+    "weddings": ("wedding", "weddings", "are", ("weddings", "garden", "heritage", "restaurant")),
+    "spa": ("spa-break", "spa and wellness breaks", "are", ("spa", "pool", "gym", "restaurant")),
+    "pet": ("dog-friendly-stay", "guests travelling with dogs", "are", ("pets", "garden")),
+}
+
+
+def opportunities(site, intent_rows, feature_rows):
+    """
+    Where the hotel has real supporting assets that its pages don't connect into a clear proposition
+    for a traveller type. These are COMMERCIAL OPPORTUNITIES, not defects: whether to pursue one
+    depends on which segments the hotel wants. The wording says so.
+    """
+    levels = {r["key"]: r for r in intent_rows}
+    feats = {f["key"]: f for f in feature_rows}
+    out = []
+    for key, (noun, who, verb, asset_keys) in OPPORTUNITY_ASSETS.items():
+        row = levels.get(key)
+        if not row or row["level"] == "strong":
+            continue
+        assets = [feats[a] for a in asset_keys if a in feats and feats[a]["level"] in ("some", "strong")]
+        if len(assets) < 2 and not (assets and row["level"] == "weak"):
+            continue
+        names = [a["label"].lower() for a in assets][:4]
+        listed = ", ".join(names[:-1]) + " and " + names[-1] if len(names) > 1 else names[0]
+        ev = []
+        for a in assets[:3]:
+            f = a["found"][0] if a.get("found") else None
+            if f:
+                ev.append({"url": f["page"]["url"], "snippet": f["snippet"]})
+        state = {"none": "does not currently speak to this audience",
+                 "weak": "mentions this audience only once, in passing",
+                 "some": "touches on this audience but does not make it a clear offer"}[row["level"]]
+        out.append({
+            "key": key, "label": row["label"], "level": row["level"], "assets": [a["label"] for a in assets],
+            "statement": (f"If {who} {verb} a target segment, the hotel has {listed}, but its website {state} and does not connect "
+                          f"those assets into a clear {noun} proposition."),
+            "suggestion": (f"Only if you want to attract this audience: bring the {listed} together on one page written for them, "
+                           "with specifics (what is included, who it suits, how to book)."),
+            "evidence": ev, "caveat": "Not a defect. Worth acting on only if this is a segment the hotel wants."})
+    out.sort(key=lambda o: ({"none": 0, "weak": 1, "some": 2}[o["level"]], -len(o["assets"])))
+    return out[:5]

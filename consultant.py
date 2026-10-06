@@ -9,6 +9,7 @@ collected, so it adds no requests and little time.
 """
 
 import advice
+import ranking
 import insight_content as ic
 import insight_tech as it
 
@@ -48,15 +49,18 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     understanding = ic.understanding(s, intents, feats, city)
     loc = ic.location(s, osm_ctx)
     questions = ic.questions(s, guest, intents, feats, loc["items"])
+    opps = ic.opportunities(s, intents, feats)
     cons = ic.consistency(s, guest)
     hidden = ic.hidden_strengths(s, feats, pages_meta)
     sd = it.structured_audit(s, location, guest, intents)
     machine = it.machine_readiness(s, pages_meta, site, entities, intel, sd, cons, questions)
-    profile = it.readiness_profile(s, guest, intents, loc, sd, machine, cons, intel)
+    profile = it.readiness_profile(s, guest, intents, loc, sd, machine, cons, intel, coverage=cov,
+                                   map_failed=(osm_ctx or {}).get("failed_parts", []) if osm_ctx else ["all (no map data)"])
     recs = advice.build(questions=questions, location=loc, consistency=cons, hidden=hidden, structured=sd,
                         machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov)
     top = advice.top_actions(recs)
     quick = advice.quick_wins(recs, exclude_ids={r["id"] for r in top})
+    plan = ranking.plan_30_60_90(recs, {r["id"] for r in top})
     working = what_works(s, guest, intents, feats, loc, sd, machine, cons, intel)
     if cov["limited"]:
         understanding["note"] = cov["note"] + " " + understanding["note"]
@@ -67,7 +71,9 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         "questions": questions, "location": loc, "consistency": cons, "hidden": hidden,
         "structured": {k: v for k, v in sd.items() if k != "best"}, "machine": machine, "profile": profile,
         "recommendations": recs, "top_actions": [r["id"] for r in top], "quick_wins": [r["id"] for r in quick],
-        "working": working,
+        "required_fixes": [r["id"] for r in recs if r["kind"] == "fix"],
+        "opportunity_recs": [r["id"] for r in recs if r["kind"] == "opportunity"],
+        "opportunities": opps, "plan": plan, "working": working,
     }
 
 
@@ -86,19 +92,21 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel):
         "READ1", "access", "Check that the website can be read by automated visitors",
         f"We could only read {cov['pages_read']} of {cov['pages_attempted']} pages ({reasons}).",
         "If our crawler cannot read the site, search engines and AI crawlers may not be able to either - or the site may be refusing automated "
-        "visitors on purpose (some firewalls do), in which case the information on it is invisible to those systems.",
+        "visitors on purpose (some firewalls do), in which case the information on it is less reliably discoverable by those systems.",
         evd or [{"url": "", "snippet": "No page could be read."}],
         "Ask your web supplier whether a firewall, bot-protection rule or very slow hosting is blocking automated visitors, and check that the "
-        "main pages show their text without JavaScript. If the blocking is deliberate, the report simply can't see inside the site.",
+        "main pages show their text without JavaScript. If the blocking is deliberate, this report cannot assess what is inside the site.",
         "high", "medium", page={"url": s.base, "label": "the website"},
         technical="Crawl returned timeouts/refusals. Could be our fetch (rate limits, user agent) as well as the site; "
                   "verify by loading the pages with a plain HTTP client.", confidence=advice.INFER, team="web", source="machine",
         success="A later audit reads most of the site's pages.")
     recs = [rec] + advice._from_machine([f for f in machine if f["status"] == "issue"]) + advice._from_intel(intel)
+    ranking.annotate(recs, [])
     for r in recs:
-        r["impact"] = {"critical": "high", "high": "high", "medium": "medium", "low": "low"}[r["priority"]]
-        r["score"] = round(advice.PRIORITY_WEIGHT[r["priority"]] / advice.EFFORT_COST[r["effort"]], 1)
-    recs.sort(key=lambda r: -r["score"])
+        r["ref"] = r["id"]
+        r["expected_outcome"] = ranking.expected_outcome(r)
+        r["score"] = r["rank"]
+    recs.sort(key=lambda r: -r["rank"])
     top = advice.top_actions(recs)
     profile = [{"key": k, "label": l, "score": None, "band": "not assessed", "drivers": ["the site could not be read well enough"],
                 "note": "", "assessed": False} for k, l in (
@@ -110,7 +118,10 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel):
                               "note": cov["note"]},
             "intents": [], "features": [], "questions": [], "location": {"items": [], "map_data": False, "clear": 0, "note": cov["note"]},
             "consistency": [], "hidden": [], "structured": sd, "machine": machine, "profile": profile, "recommendations": recs,
-            "top_actions": [r["id"] for r in top], "quick_wins": [], "working": []}
+            "top_actions": [r["id"] for r in top], "quick_wins": [],
+            "required_fixes": [r["id"] for r in recs if r["kind"] == "fix"],
+            "opportunity_recs": [r["id"] for r in recs if r["kind"] == "opportunity"],
+            "opportunities": [], "plan": ranking.plan_30_60_90(recs, {r["id"] for r in top}), "working": []}
 
 
 def what_works(site, guest, intents, feats, loc, sd, machine, cons, intel):
@@ -132,7 +143,11 @@ def what_works(site, guest, intents, feats, loc, sd, machine, cons, intel):
                              ", ".join((i["place"] or i["label"]) for i in stated[:4]) + ".", "url": stated[0]["evidence"][0]["url"]})
     for f in machine:
         if f["status"] == "ok" and f["id"] in ("robots_ok", "sitemap_ok", "home_title_ok", "home_meta_ok", "entity_ok", "schema_ok", "independent_ok", "alt_ok"):
-            out.append({"point": f["title"] + (f" - {f['detail']}" if f["detail"] else "") + ".", "url": ""})
+            detail = (f["detail"] or "").strip()
+            if f["id"] in ("robots_ok", "schema_ok") or detail.lower().startswith(f["title"].lower()[:20]):
+                detail = ""           # the title already says it
+            detail = detail if len(detail) <= 90 else detail[:87].rsplit(" ", 1)[0] + "..."
+            out.append({"point": f["title"].rstrip(".") + (f": {detail.rstrip('.')}" if detail else "") + ".", "url": ""})
     if sd.get("hotel_found") and not any(i["status"] == "incorrect" for i in sd["items"]):
         out.append({"point": "The structured data that exists matches the page text.", "url": ""})
     if not cons:

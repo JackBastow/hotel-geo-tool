@@ -70,6 +70,7 @@ import consultant
 import external_check
 import fixes
 import guest_questions
+import headline
 import intel
 import places_check
 import sources
@@ -759,7 +760,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     except Exception as e:  # noqa: BLE001 - the audit must survive a failed analysis
         consult_result = {"error": f"{type(e).__name__}: {e}"}
 
-    return {
+    result = {
         "meta": {
             "hotel": hotel,
             "city": city,
@@ -799,6 +800,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "amadeus_result": amadeus_result,
         "ai_visibility_raw": ai_visibility_raw,
     }
+    return headline.attach(result)
 
 
 # ---------------------------------------------------------------------- main

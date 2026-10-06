@@ -57,6 +57,7 @@ import ai_check
 import compare
 import dashboard
 import full_audit
+import headline
 import report_pdf
 import store
 import ui_consult
@@ -271,28 +272,37 @@ if fa_res:
     # ---- downloads first: the PDF is built from the finished audit (no requests)
     json_bytes = json.dumps({**fa_res, "manual_ai_checks": st.session_state.get("ai_records", [])},
                             indent=2, default=str)
-    d1, d2, d3 = st.columns([2, 2, 3])
+    headline.attach(fa_res)       # readiness score, coverage and per-category evidence strength (also for older reports)
+    d0, d1, d2 = st.columns([2, 2, 2])
     pdf_key = (meta["run_at"], meta["website"])
     if st.session_state.get("pdf_key") != pdf_key:
-        try:
-            st.session_state["pdf_bytes"] = report_pdf.build_pdf(fa_res)
-            st.session_state["pdf_error"] = None
-        except Exception as e:  # noqa: BLE001 - a PDF problem must never hide the report
-            st.session_state["pdf_bytes"] = None
-            st.session_state["pdf_error"] = f"{type(e).__name__}: {e}"
+        for part in ("management", "appendix"):
+            try:
+                st.session_state[f"pdf_{part}"] = report_pdf.build_pdf(fa_res, part)
+                st.session_state[f"pdf_error_{part}"] = None
+            except Exception as e:  # noqa: BLE001 - a PDF problem must never hide the report
+                st.session_state[f"pdf_{part}"] = None
+                st.session_state[f"pdf_error_{part}"] = f"{type(e).__name__}: {e}"
         st.session_state["pdf_key"] = pdf_key
-    if st.session_state.get("pdf_bytes"):
-        d1.download_button("Download full PDF report", st.session_state["pdf_bytes"],
-                           file_name=report_pdf.filename(fa_res), mime="application/pdf",
-                           type="primary", width="stretch")
+    if st.session_state.get("pdf_management"):
+        d0.download_button("Download management report (PDF)", st.session_state["pdf_management"],
+                           file_name=report_pdf.filename(fa_res, "management"), mime="application/pdf",
+                           type="primary", width="stretch",
+                           help="A short, decision-oriented summary: the score and coverage, the top actions, gaps, risks and a 30/60/90-day plan.")
     else:
-        d1.warning("The PDF could not be built for this run (" + str(st.session_state.get("pdf_error")) + ").")
+        d0.warning("The management report could not be built (" + str(st.session_state.get("pdf_error_management")) + ").")
+    if st.session_state.get("pdf_appendix"):
+        d1.download_button("Download technical & evidence appendix (PDF)", st.session_state["pdf_appendix"],
+                           file_name=report_pdf.filename(fa_res, "appendix"), mime="application/pdf", width="stretch",
+                           help="All the detail behind the management report: findings, quotes, URLs, methodology, structured-data examples.")
+    else:
+        d1.warning("The appendix could not be built (" + str(st.session_state.get("pdf_error_appendix")) + ").")
     d2.download_button(
         "Download report data (.json)", json_bytes,
         file_name=f"{store.slug(meta['hotel'] or meta['website'])}-audit-{str(meta['run_at'])[:10]}.json",
         mime="application/json", width="stretch",
         help="Keep it to compare with a future run (Tools tab).")
-    d3.caption(f"Run {meta['run_at'][:16].replace('T', ' ')} UTC · hotel name {meta['hotel_name_source']}"
+    st.caption(f"Run {meta['run_at'][:16].replace('T', ' ')} UTC · hotel name {meta['hotel_name_source']}"
                + (f" · location from {loc['source']}" if loc.get("source") else ""))
 
     if intel and not has_intel:
@@ -305,7 +315,7 @@ if fa_res:
     # ------------------------------------------------------------- the consultant view
     with tabs[0]:
         if has_consult:
-            ui_consult.overview(consult)
+            ui_consult.overview(consult, fa_res.get("headline"))
         elif has_intel:
             ui_intel.overview(intel)
         else:
@@ -342,7 +352,7 @@ if fa_res:
         rest = [r for r in recs if r.get("code") not in top_codes]
         html_doc, est_height = dashboard.build(
             meta["hotel"], meta["website"], sc, rest,
-            fa_res.get("guest_questions"), top)
+            fa_res.get("guest_questions"), top, fa_res.get("headline"))
         # st.iframe replaces st.components.v1.html (removal date already passed) and
         # sizes itself to the content. It embeds the string as-is with JavaScript
         # and same-origin access, so the string must never contain untrusted

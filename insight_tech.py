@@ -73,7 +73,7 @@ def structured_audit(site, location, guest, intent_rows):
             advice="Fix the syntax so the block can be read; an unreadable block is the same as none.")
     if not hotel:
         add("Hotel / LodgingBusiness", "missing",
-            "No Hotel or LodgingBusiness markup was found on any page read, so the website states none of its basic facts in a form a machine can read directly.",
+            "No Hotel or LodgingBusiness markup was found on any page read, so the website does not state its basic facts in a standard, machine-readable form.",
             advice="Add one Hotel block to the homepage with the name, address, telephone, coordinates and links to the official profiles.",
             level=BEST)
         best = None
@@ -85,7 +85,7 @@ def structured_audit(site, location, guest, intent_rows):
             f"Found ({', '.join(best['types'])}) on {urllib.parse.urlparse(u).path or '/'}."
             + ("" if on_home else " It is not on the homepage."),
             [{"url": u, "snippet": "Properties present: " + ", ".join(best["keys"][:14])}],
-            advice="" if on_home else "Put the Hotel block on the homepage, where machines look first.")
+            advice="" if on_home else "Put the Hotel block on the homepage, where it is easiest to find.")
 
         # --- the fields a useful Hotel block carries
         missing_core = [f for f, ok in (("name", best["name"]), ("url", best["url"]), ("telephone", best["telephone"]),
@@ -167,7 +167,7 @@ def structured_audit(site, location, guest, intent_rows):
     if ratings:
         add("AggregateRating / Review", "present", "Rating or review markup is present on the site.",
             [{"url": ratings[0][0], "snippet": ""}],
-            advice="Only keep it if the ratings come from genuine, independent reviews you may show; search engines may ignore a hotel rating its own site marks up.",
+            advice="Only keep it if the ratings come from genuine, independent reviews you may show; search engines restrict how a business's own ratings about itself are shown, so it may not be used.",
             level=BEST, optional=True)
     else:
         add("AggregateRating / Review", "missing", "None - and none is recommended unless it comes from a genuine independent source.",
@@ -192,7 +192,7 @@ def structured_audit(site, location, guest, intent_rows):
         add("FAQPage", "could_improve",
             f"{site.label(p)} answers {p['signals']['faq_like_items']} questions in plain text but has no FAQ markup.",
             [{"url": p["url"], "snippet": "; ".join((p["signals"].get("headings") or [])[:3])}],
-            advice="Marking up an existing FAQ makes the questions and answers easier for machines to pick out. Search engines have limited FAQ rich results to a few kinds of site, so do not expect a visible change in results.",
+            advice="Marking up an existing FAQ makes the questions and answers easier for systems that read the page to identify. Search engines have limited FAQ rich results to a few kinds of site, so do not expect a visible change in results.",
             level=INFER, optional=True)
     # --- breadcrumbs
     crumbs_visible = [p for p in site.pages if (p.get("signals") or {}).get("breadcrumb")]
@@ -229,7 +229,7 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
     # ======================= ACCESS
     if robots.get("blocks_all"):
         out.append(_f("access", "robots_block_all", "robots.txt tells every crawler to stay out", "issue", "critical",
-                      "robots.txt disallows the whole site.", "Search engines and AI systems that respect robots.txt will not read the hotel's pages at all.",
+                      "robots.txt disallows the whole site.", "Search engines and AI crawlers that respect robots.txt will not read the hotel's pages (other sources may still describe the hotel).",
                       "Remove the blanket Disallow rule unless the site is deliberately private.", [{"url": site.base.rstrip("/") + "/robots.txt", "snippet": "Disallow: /"}]))
     elif not robots.get("present"):
         out.append(_f("access", "robots_missing", "No robots.txt found", "info", "low", "The site has no robots.txt.",
@@ -240,7 +240,7 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
     blocked = (site_payload or {}).get("ai_crawlers_blocked") or []
     if blocked:
         out.append(_f("access", "ai_blocked", f"{len(blocked)} AI crawler(s) are blocked in robots.txt", "issue", "medium",
-                      "Blocked: " + ", ".join(blocked), "Those assistants' crawlers are told not to read the site, so their answers cannot draw on it. "
+                      "Blocked: " + ", ".join(blocked), "Those assistants' crawlers are told not to read the site, so they may be less able to draw on it directly (they can still use other sources). "
                       "Blocking can be a deliberate choice about content use.", "Decide deliberately. If you want to be discoverable by those assistants, remove the block.",
                       [{"url": site.base.rstrip("/") + "/robots.txt", "snippet": ", ".join(blocked)}], level=BEST))
     if sitemap.get("present"):
@@ -261,7 +261,7 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
     if shells:
         out.append(_f("access", "js_empty", f"{len(shells)} page(s) show almost no text without JavaScript", "issue", "high",
                       "The raw page contains little or no readable text: " + ", ".join(urllib.parse.urlparse(r["url"]).path or "/" for r in shells[:4]) + ".",
-                      "Crawlers that don't run JavaScript see an empty page, so the facts on it are invisible to them. (We read the raw HTML and do not run JavaScript, so a page that renders fine in a browser can still look empty here.)",
+                      "Crawlers that don't run JavaScript see an almost empty page, so the facts on it may not be picked up by them. (We read the raw HTML and do not run JavaScript, so a page that renders fine in a browser can still look empty here.)",
                       "Make the key content part of the page's HTML (server-side rendering) or provide a text version.",
                       [{"url": r["url"], "snippet": r.get("reason") or "app shell with almost no text"} for r in shells[:3]], level=INFER))
     errs = [r for r in pm if not r["ok"] and r.get("status") and r["status"] >= 400]
@@ -280,7 +280,7 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
     if noidx:
         out.append(_f("access", "noindex", f"{len(noidx)} page(s) are marked 'noindex'", "issue", "high",
                       ", ".join(urllib.parse.urlparse(r["url"]).path or "/" for r in noidx[:5]),
-                      "'noindex' asks search engines to leave the page out. If it's a guest-information page, it won't be found.",
+                      "'noindex' asks search engines to leave the page out. If it is a guest-information page, it may not appear in search results.",
                       "Remove 'noindex' from pages you want found.", [{"url": r["url"], "snippet": "robots meta contains noindex"} for r in noidx[:3]]))
     # canonicals
     off = []
@@ -292,7 +292,7 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
     if off:
         out.append(_f("access", "canonical_other", f"{len(off)} page(s) say another page is the 'real' one", "issue", "medium",
                       "; ".join(f"{urllib.parse.urlparse(u).path or '/'} -> {urllib.parse.urlparse(c).path or '/'}" for u, c in off[:4]),
-                      "Search engines may ignore these pages in favour of the one named. Fine for true duplicates, a problem if the page is unique.",
+                      "Search engines may treat the page named as the preferred version. That is right for true duplicates, but a problem if this page is unique.",
                       "Check each canonical points where you intend.", [{"url": u, "snippet": f"canonical: {c}"} for u, c in off[:3]]))
     if site.pages and len(nocanon) >= max(3, len(site.pages) // 2):
         out.append(_f("access", "canonical_missing", f"{len(nocanon)} of {len(site.pages)} pages have no canonical address", "info", "low",
@@ -319,12 +319,12 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
     if dups:
         out.append(_f("access", "dup_content", f"{len(dups)} pair(s) of pages are near-identical", "issue", "medium",
                       "; ".join(f"{urllib.parse.urlparse(a).path or '/'} = {urllib.parse.urlparse(b).path or '/'}" for a, b in dups[:3]),
-                      "Duplicate pages split attention and can leave a machine unsure which one to trust.", "Merge duplicates or make each page distinct.",
+                      "Duplicate pages can leave a search engine unsure which version to show.", "Merge duplicates or make each page distinct.",
                       [{"url": a, "snippet": f"near-identical to {b}"} for a, b in dups[:2]]))
     pdf_total = sum(len(r.get("pdfs", [])) for r in pm)
     if pdf_total:
         out.append(_f("access", "pdfs", f"{pdf_total} PDF link(s) found on the pages read", "info", "low",
-                      "Information in PDFs is harder for machines to read and quote than normal page text.",
+                      "Information in PDFs is less reliably indexed and quoted than normal page text.",
                       "Where a PDF holds facts guests ask about (capacities, menus, prices), repeat them as page text.", level=INFER))
 
     # ======================= UNDERSTANDING
@@ -341,7 +341,7 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
             miss = [x for x, ok in (("the hotel's name", has_name), ("where it is", has_place)) if not ok]
             out.append(_f("understanding", "home_title", "The homepage title doesn't say " + " or ".join(miss), "issue", "medium",
                           f"The title is “{title[:90] or 'missing'}”.",
-                          "The title is the strongest single label a search engine or assistant has for the page; without the name and place it is a weaker description of the hotel.",
+                          "The title is one of the main labels a search engine shows for a page; without the name and place it describes the hotel less clearly.",
                           f"Rewrite it to include the hotel name and town, e.g. “{site.hotel or '[Hotel name]'} | [type of hotel] in {(site.city or '[town]').split(',')[0]}”.",
                           [{"url": home["url"], "snippet": f"<title>{title[:100]}</title>"}], level=BEST))
         if not sg.get("meta_description"):
@@ -360,7 +360,7 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
     if len(h1bad) >= max(3, len(pm) // 3):
         out.append(_f("understanding", "h1", f"{len(h1bad)} pages don't have exactly one main heading", "issue", "low",
                       ", ".join(f"{urllib.parse.urlparse(r['url']).path or '/'} ({r['h1_count']})" for r in h1bad[:5]),
-                      "A single clear main heading tells a machine what each page is about.", "Give each page one H1 that names its topic.", level=INFER))
+                      "A single clear main heading states what each page is about.", "Give each page one H1 that names its topic.", level=INFER))
     imgs = sum(r.get("images_total") or 0 for r in pm)
     noalt = sum(r.get("images_no_alt") or 0 for r in pm)
     if imgs >= 10 and noalt / imgs > 0.5:
@@ -368,7 +368,7 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
         out.append(_f("understanding", "alt", f"{noalt} of {imgs} images have no alt text", "issue", "medium",
                       "More than half the images on the pages read have no description" + (f" (for example {ex[1]['src']})" if ex else "") +
                       ". Some may be purely decorative.",
-                      "Machines can't see pictures: without alt text, rooms, the spa and the restaurant are invisible to them, and screen-reader guests get nothing.",
+                      "Important information contained only in images is less reliably discoverable, indexable and accessible than clear text and descriptive alt text; screen-reader guests also get nothing from an undescribed image.",
                       "Describe the important images (rooms, facilities, views) in a short, factual alt text.",
                       [{"url": ex[0], "snippet": f"image {ex[1]['src']} has no alt attribute"}] if ex else None, level=BEST))
     elif imgs:
@@ -380,14 +380,14 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
     else:
         out.append(_f("understanding", "entity_missing", "No confident match in OpenStreetMap or Wikidata", "issue", "medium",
                       "Neither source could be matched to this hotel with confidence.",
-                      "Open map and knowledge data feed many apps and AI tools; without it the hotel is an unconfirmed name.",
+                      "Open map and knowledge data feed many apps and tools; without a clear entry the hotel is less well established there.",
                       "Check the hotel's OpenStreetMap entry (adding the website and phone) and consider whether Wikidata is appropriate.", level=BEST))
     if structured["hotel_found"]:
         out.append(_f("understanding", "schema_ok", "The site states the hotel's facts as structured data", "ok", "none", "Hotel markup is present.", ""))
     for it in structured["items"]:
         if it["status"] in ("incorrect",):
             out.append(_f("understanding", "schema_incorrect", "Structured data contradicts the page", "issue", "high", it["detail"],
-                          "A machine that trusts the markup will repeat the wrong fact.", it["advice"], it["evidence"], level=BEST))
+                          "A system that relies on the markup may repeat the wrong fact.", it["advice"], it["evidence"], level=BEST))
     for c in consistency_items:
         if c["severity"] in ("high", "medium"):
             out.append(_f("understanding", f"cons_{c['type']}", c["title"], "issue", c["severity"], c["detail"],
@@ -400,7 +400,7 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
     out.append(_f("content", "gaps", f"{len(gaps)} traveller question(s) are unclear or missing", "issue" if gaps else "ok",
                   "high" if len(hv) >= 2 else ("medium" if gaps else "none"),
                   "; ".join(q["question"] for q in gaps[:3]) + ("..." if len(gaps) > 3 else ""),
-                  "Where the pages don't answer a question, a machine either skips the hotel or guesses.", "See the unanswered-questions list for where to add each answer.") if gaps else
+                  "If authoritative sources don't state these clearly, AI systems and search tools may be less able to answer these questions accurately or confidently.", "See the unanswered-questions list for where to add each answer.") if gaps else
                _f("content", "gaps_ok", "The common traveller questions are answered", "ok", "none", "", ""))
 
     # ======================= AUTHORITY
@@ -414,7 +414,7 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
             if md["independent_publishers"] == 0:
                 out.append(_f("authority", "no_independent", "No independent coverage was found", "issue", "medium",
                               f"{md['articles']} page(s) name the hotel, none independent editorial.",
-                              "With little outside confirmation, a machine's picture of the hotel rests mostly on the hotel's own words.",
+                              "With little outside confirmation, what is known about the hotel rests mostly on the hotel's own words.",
                               "See the media section for evidenced places to approach.", level=INFER))
             else:
                 out.append(_f("authority", "independent_ok", f"{md['independent_publishers']} independent publisher(s) cover the hotel", "ok", "none",
@@ -434,7 +434,8 @@ def _band(s):
     return "strong" if s >= 75 else ("fair" if s >= 50 else "needs work")
 
 
-def readiness_profile(site, guest, intent_rows, location_res, structured, findings, consistency_items, intel):
+def readiness_profile(site, guest, intent_rows, location_res, structured, findings, consistency_items, intel,
+                      coverage=None, map_failed=()):
     comps = []
 
     def comp(key, label, score, drivers, assessed=True, note=""):
@@ -478,7 +479,7 @@ def readiness_profile(site, guest, intent_rows, location_res, structured, findin
     if any(i["status"] == "incorrect" for i in structured["items"]):
         e -= 20
         er.append("- structured data contradicts the page")
-    comp("entity", "Entity clarity", e, er, note="Can a machine tell what and where this hotel is?")
+    comp("entity", "Entity clarity", e, er, note="Is it clear what and where this hotel is?")
 
     # Content completeness
     qs = (guest or {}).get("questions", [])
@@ -531,7 +532,7 @@ def readiness_profile(site, guest, intent_rows, location_res, structured, findin
             t -= pen / 2
     if t == 100:
         tr.append("+ titles, descriptions, headings and image text look sound")
-    comp("technical", "Technical accessibility", t, tr, note="Is the page itself built so machines can read it?")
+    comp("technical", "Technical accessibility", t, tr, note="Is the page itself built to be read reliably?")
 
     # Structured data quality
     pts, tot, sr = 0, 0, []
@@ -560,4 +561,56 @@ def readiness_profile(site, guest, intent_rows, location_res, structured, findin
              note="Where measurable: independent coverage, awards, listings.")
     else:
         comp("authority", "External authority / evidence", 0, ["not measured this run"], assessed=False)
+    _attach_evidence(comps, site, guest, intent_rows, location_res, structured, findings, intel, coverage or {}, map_failed)
     return comps
+
+
+def _level(n, high, medium):
+    return "high" if n >= high else ("medium" if n >= medium else "low")
+
+
+def _attach_evidence(comps, site, guest, intent_rows, location_res, structured, findings, intel, cov, map_failed):
+    """
+    How much evidence stands behind each score. A score and the evidence behind it are different
+    things: 100/100 from one place checked, with the map data down, is a thin 100.
+    """
+    pages = cov.get("pages_read", len(site.pages))
+    attempted = cov.get("pages_attempted", pages)
+    ratio = (pages / attempted) if attempted else 0
+    base = f"{pages} of {attempted} pages read"
+    graded = [i for i in location_res["items"]
+              if i["category"] in ("transport", "airports", "attractions", "venues", "business", "city_centre")]
+    n_int = sum(1 for r in intent_rows if r["level"] != "none")
+    qs = [q for q in (guest or {}).get("questions", []) if q["state"] != "couldnt_check"]
+    web = _level(pages, 15, 8) if ratio >= 0.6 else "low"
+    ev = {
+        "discoverability": (web, f"{base}; robots.txt and sitemap checked"),
+        "technical": (web, f"{base}"),
+        "entity": ("high" if web == "high" and structured.get("hotel_found") is not None and any(
+            f["id"] == "entity_ok" for f in findings) else ("medium" if web != "low" else "low"),
+            f"{base}; open-data match {'confirmed' if any(f['id'] == 'entity_ok' for f in findings) else 'not confirmed'}"),
+        "content": (web if (guest or {}).get("evidence_sufficient", True) else "low", f"{len(qs)} common questions evaluated; {base}"),
+        "intent": ("high" if web == "high" and n_int >= 5 else ("medium" if web != "low" and n_int >= 3 else "low"),
+                   f"{n_int} traveller types had any evidence; {base}"),
+        "structured": (("high" if web == "high" else "medium") if site.home is not None else "low",
+                       "homepage read" if site.home is not None else "the homepage could not be read"),
+    }
+    # location: how many places were actually assessed, and whether the map data was complete
+    n = len(graded)
+    lv = "high" if n >= 4 else ("medium" if n >= 2 else "low")
+    if map_failed:
+        lv = "low" if n <= 2 else "medium"
+    ev["location"] = (lv, f"{n} place(s) assessed; map data " + (f"incomplete ({', '.join(map_failed)})" if map_failed else "complete"))
+    # outside authority: never better than medium - guest reviews cannot be measured at all
+    if intel and "error" not in intel and intel["methodology"]["queries"]:
+        reads = intel["methodology"]["reads"].get("ok", 0)
+        ev["authority"] = (("medium" if reads >= 6 else "low"), f"{reads} outside pages read; guest reviews are not measurable")
+    else:
+        ev["authority"] = ("low", "not measured this run")
+    for c in comps:
+        lvl, why = ev.get(c["key"], ("low", ""))
+        c["evidence"] = {"level": lvl, "why": why}
+        if c["assessed"] and lvl == "low":
+            c["band"] = "provisional"        # a thin basis cannot earn a confident 'strong'
+
+

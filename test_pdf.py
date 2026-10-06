@@ -57,15 +57,15 @@ else:
                     "Media coverage and independent validation", "Traveller fit and positioning",
                     "Social, video and local context", "Website support", "Coverage gaps and methodology",
                     "Evidence appendix", "How AI understands this hotel", "Questions AI may struggle to answer",
-                    "Machine readiness and structured data", "Action plan"):
+                    "Machine readiness and structured data", "Recommendation register"):
         check(f"section present: {heading}", heading in text)
     check("all 30 checks are listed", all(c["name"] in text for c in rep["intel"]["checks"]))
-    check("sections are numbered in order", all(f"{i}. " in text for i in range(1, 12)))
+    check("sections are numbered in order", all(f"{i}. " in text for i in range(1, 9)))
     check("recommendation cards use the Finding / Why / Action shape", "What we found" in text and "Why it matters" in text and "What to do" in text)
     check("the readiness profile explains what drove each score", "What drove it" in text)
     check("the media-target table is present with its caveat", "Media and organisation targets" in text)
     check("the guest-review limitation is stated", "0 guest reviews" in text)
-    check("limitations stated: nothing measures what AI recommends", "Nothing in this report measures what any AI assistant" in text)
+    check("limitations stated: nothing measures what AI recommends", "Nothing here measures what any AI assistant recommends" in text)
     check("no escaping artefacts leaked into the text",
           not any(x in text for x in ("&amp;", "&lt;", "<br", "<b>", "<font", "<link")))
     check("every evidence id used by a recommendation appears in the appendix",
@@ -81,6 +81,38 @@ else:
     check("a 250-row table paginates (more pages)", len(d2) > len(doc), (len(d2), len(doc)))
     check("table header repeats on continuation pages", t2.count("Published / collected") >= 3, t2.count("Published / collected"))
     check("no evidence row is lost to clipping", all(f"E{1000 + k}" in t2 for k in (0, 100, 249)))
+
+print("1b. the management report is short, decision-oriented and says each thing once")
+if pymupdf is not None:
+    mdata = report_pdf.build_pdf(rep, "management")
+    mdoc, mtext, mlinks = inspect(mdata)
+    check("the management report is about 4-11 pages (the appendix holds the detail)", 4 <= len(mdoc) <= 11, len(mdoc))
+    adoc, atext, _ = inspect(report_pdf.build_pdf(rep, "appendix"))
+    check("the appendix is separate and much longer than the management report", len(adoc) >= 3 * len(mdoc), (len(adoc), len(mdoc)))
+    for heading in ("Executive summary", "Readiness score and coverage", "things most worth doing", "What AI and search can clearly understand",
+                    "Important information gaps", "Reputation and distribution risks", "already doing well", "30 / 60 / 90-day plan"):
+        check(f"management section present: {heading}", heading in mtext)
+    check("the score is shown WITH its coverage and a provisional label", "Measurement coverage" in mtext and "PROVISIONAL" in mtext)
+    check("what was not measured is stated", "Not measured" in mtext and "AI Visibility" in mtext)
+    check("each evidence-strength level is shown beside component scores", "evidence" in mtext and "Evidence strength" in mtext)
+    for fld in ("Issue", "Why it matters", "Evidence", "Exact action", "Owner", "Expected outcome"):
+        check(f"each top action shows: {fld}", mtext.count(fld) >= 3, mtext.count(fld))
+    check("each top action shows priority, effort and confidence", all(w in mtext for w in ("priority - effort", "confidence:")))
+    check("the 2/5 food hygiene rating reaches the management report", "Food hygiene rating" in mtext)
+    check("at most seven top actions", mtext.count("Appendix reference") <= 7, mtext.count("Appendix reference"))
+    check("opportunities are labelled as not defects", "Not defects" in mtext)
+    check("the limits are stated up front and at the end", "does not show what any AI assistant actually says" in mtext)
+    import re as _re
+    sents = [x.strip() for x in _re.split(r"(?<=[.!?])\s+", mtext) if len(x.strip()) >= 90]
+    dup = sorted({x for x in sents if sents.count(x) > 1})
+    check("no long sentence is repeated word-for-word in the management report", not dup, dup[:2])
+    ex = [r["example"].strip().splitlines()[0] for r in rep["consultant"]["recommendations"] if r.get("example") and len(r["example"].strip().splitlines()[0]) > 25]
+    ex_clean = [" ".join(e.split())[:50] for e in ex]
+    check("a worked example appears once in the appendix, not in several sections",
+          all(atext.count(e) <= 1 for e in ex_clean), [(e, atext.count(e)) for e in ex_clean if atext.count(e) > 1])
+    check("the appendix says what it is and points back to the management report", "Technical & evidence appendix" in atext and "management report" in atext)
+    check("the management report links to the evidence by reference, not by repeating it", "Appendix reference" in mtext)
+    check("filenames say which document it is", "management-report" in report_pdf.filename(rep, "management") and "appendix" in report_pdf.filename(rep, "appendix"))
 
 print("2. hostile and awkward content")
 hostile = copy.deepcopy(rep)

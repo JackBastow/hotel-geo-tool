@@ -357,6 +357,114 @@ fw = ic.features(sw)
 check("Wi-Fi and 'bar' are not presented as strong, distinguishing signals",
       not any(x in ic.understanding(sw, ic.intents(sw), fw, CITY)["strong_signals"] for x in ("Wi-Fi", "Bar / lounge")))
 
+print("13. one global judgement: serious risks outrank technical tidying")
+import headline as hl  # noqa: E402
+import ranking  # noqa: E402
+rep_fix = json.load(open("tests_data/sample_report.json", encoding="utf8"))
+real_intel = rep_fix["intel"]
+site13 = [HOME, MEET, FAQ, ROOMS] + [page(f"/x{i}/", f"Page {i}. " + LONG, title=f"X{i}", meta_description="m", links=["/"]) for i in range(6)]
+pm13 = [{"url": p["url"], "ok": True, "title": p["title"], "meta_description": "m", "h1_count": 1, "pdfs": []} for p in site13]
+g13 = guest_for(site13)
+res13 = consultant.analyse(own_pages=site13, pages_meta=pm13, base=BASE, hotel=HOTEL, city=CITY, location={}, guest=g13,
+                           site={"robots": {"present": True}, "sitemap": {"present": True, "url_count": 9}}, entities=[], intel=real_intel, osm_ctx=None)
+r13 = {r["id"]: r for r in res13["recommendations"]}
+fsa = next((r for r in res13["recommendations"] if r["id"].startswith("X-F1")), None)
+check("the 2/5 hygiene rating is among the recommendations", fsa is not None)
+check("...and it IS in the top actions (the previous ranking left it out)", fsa and fsa["id"] in res13["top_actions"], res13["top_actions"])
+sd1 = next((r for r in res13["recommendations"] if r["id"] == "SD1"), None)
+check("a risk that guests can see outranks missing structured data", fsa and sd1 and fsa["rank"] > sd1["rank"], (fsa and fsa["rank"], sd1 and sd1["rank"]))
+check("structured-data advice stays modest: it is not a top action when real fixes exist", sd1 is None or sd1["id"] not in res13["top_actions"])
+check("every recommendation shows the factors behind its rank",
+      all({"risk", "traveller", "visibility", "confidence"} <= set(r["factors"]) and r["value"] > 0 and r["rank"] > 0 for r in res13["recommendations"]))
+check("the top actions are all REQUIRED FIXES", all(r13[i]["kind"] == "fix" for i in res13["top_actions"]))
+check("segment-detail gaps are classed as opportunities, not fixes",
+      all(r["kind"] == "opportunity" for r in res13["recommendations"] if r["id"].startswith("Q") and r["title"].startswith("If this is a target")))
+check("an opportunity is never one of the top actions", not any(r13[i]["kind"] == "opportunity" for i in res13["top_actions"]))
+check("top actions are capped at seven and sorted by rank", len(res13["top_actions"]) <= 7 and
+      [r13[i]["rank"] for i in res13["top_actions"]] == sorted([r13[i]["rank"] for i in res13["top_actions"]], reverse=True))
+check("every top action carries an expected outcome and a reference",
+      all(r13[i]["expected_outcome"] and r13[i]["ref"] for i in res13["top_actions"]))
+planned = [i for k in ("30", "60", "90") for i in res13["plan"][k]]
+check("the 30/60/90 plan lists each recommendation at most once", len(planned) == len(set(planned)))
+# a pure unit check on the model
+mk = lambda src, tag, eff="low", conf=advice.BEST, cat="understanding": {"id": tag, "source": src, "tag": tag, "effort": eff, "confidence": conf,  # noqa: E731
+                                                                         "category": cat, "question_ids": []}
+fsa_u, sd_u = mk("intel", "F1", "medium"), mk("structured", "SD1")
+ranking.annotate([fsa_u, sd_u], [])
+check("model: hygiene (risk 5, traveller 5) scores far above markup (risk 1)", fsa_u["value"] > sd_u["value"] * 2, (fsa_u["value"], sd_u["value"]))
+inf_u, bes_u = mk("consistency", "phone", conf=advice.INFER), mk("consistency", "phone")
+ranking.annotate([inf_u, bes_u], [])
+check("model: lower confidence lowers the value", inf_u["value"] < bes_u["value"])
+blk = mk("machine", "robots_block_all")
+ranking.annotate([blk], [])
+check("model: 'critical' is reserved for blocking crawlers entirely", blk["priority"] == "critical" and fsa_u["priority"] == "high")
+
+i3 = next((r for r in real_intel["recommendations"] if r["id"] == "I3"), None)
+check("a finding that rests only on a search NOT finding something is low-confidence and cannot reach the top actions",
+      all(r13[i]["confidence"] != advice.BEST for i in res13["top_actions"] if r13[i]["id"].startswith("X-I3")) and not any(
+          r13[i]["id"].startswith("X-I3") for i in res13["top_actions"]), res13["top_actions"])
+
+print("14. fixes versus commercial opportunities")
+weak_home = page("/", "Test Hotel is a boutique hotel in Leeds. Our spa and restaurant are lovely. Romantic evenings are possible. " + LONG,
+                 title="Test Hotel | Boutique hotel in Leeds", h1=["Test Hotel"], links=["/spa/"])
+spa13 = page("/spa/", "Our spa has a sauna and treatment rooms. The restaurant serves afternoon tea. " + LONG, title="Spa")
+sx = ic.Site([weak_home, spa13, FAQ], BASE, HOTEL, CITY)
+ox = ic.opportunities(sx, ic.intents(sx), ic.features(sx))
+check("a weak segment with real supporting assets is offered as an OPPORTUNITY", ox and ox[0]["key"] == "couples", [o["key"] for o in ox])
+check("it is phrased conditionally, never as a defect", ox[0]["statement"].startswith("If ") and "target segment" in ox[0]["statement"]
+      and "Not a defect" in ox[0]["caveat"])
+check("it names the assets it rests on", "spa" in ox[0]["statement"].lower() and "restaurant" in ox[0]["statement"].lower())
+check("a segment with no supporting assets is not suggested at all", not any(o["key"] == "weddings" for o in ox))
+
+print("15. the headline is honest about coverage")
+mkrep = lambda cov, overall=83: {"scorecard": {"overall": overall, "coverage_pct": cov, "categories": [  # noqa: E731
+    {"key": "ai_visibility", "label": "AI Visibility", "weight": 25.0, "assessed": False, "score": None, "detail": "x"},
+    {"key": "reviews", "label": "Reviews & Reputation", "weight": 15.0, "assessed": False, "score": None, "detail": "x"},
+    {"key": "website", "label": "Website & Technical", "weight": 12.5, "assessed": True, "score": 83, "detail": "x"}]},
+    "guest_questions": {"pages_ok": 5, "pages_attempted": 25}, "site": {}, "entities": [], "tavily_result": {}}
+h60 = hl.build(mkrep(60.0))
+check("60% coverage is labelled PROVISIONAL, with the coverage shown beside the score", h60["status"] == "provisional" and h60["score"] == 83
+      and h60["coverage_pct"] == 60.0 and "60% of the full model" in h60["explanation"])
+check("the explanation names what was not measured", "AI Visibility" in h60["explanation"] and "Reviews" in h60["explanation"])
+check("it says the number is not a measure of how visible the hotel is to AI", "not as a measure of how visible it is to AI" in h60["explanation"])
+h20 = hl.build(mkrep(20.0))
+check("below 30% coverage NO single score is given", h20["status"] == "withheld" and h20["score"] is None)
+check("the title never calls it 'AI visibility'", "readiness" in h60["title"].lower() and "visibility" not in h60["title"].lower())
+hc = hl.build(mkrep(60.0))["category_evidence"]
+check("a category read from only 5 pages is flagged as LOW evidence even if its score is high", hc["website"]["level"] == "low")
+rr = hl.attach(mkrep(60.0))
+check("evidence strength is attached to each assessed category and never to an unassessed one",
+      rr["scorecard"]["categories"][2].get("evidence_level") == "low" and "evidence_level" not in rr["scorecard"]["categories"][0])
+
+print("16. a score and the evidence behind it are separate")
+osm_fail = {"stations": [{"name": "Leeds", "km": 0.4, "tags": {}}], "attractions": [], "airports": [], "venues": [], "hotels": [], "failed_parts": ["attractions", "airports"]}
+site16 = [home2] + [page(f"/y{i}/", f"Page {i}. " + LONG, title=f"Y{i}", links=["/"]) for i in range(11)]
+res16 = consultant.analyse(own_pages=site16, pages_meta=[{"url": p["url"], "ok": True, "title": p["title"], "meta_description": "m", "h1_count": 1, "pdfs": []} for p in site16],
+                           base=BASE, hotel=HOTEL, city=CITY, location={}, guest=guest_for(site16), site={"robots": {"present": True}, "sitemap": {"present": True}},
+                           entities=[], intel=None, osm_ctx=osm_fail)
+locp = next(p for p in res16["profile"] if p["key"] == "location")
+check("location with ONE place assessed and map data incomplete is LOW evidence", locp["evidence"]["level"] == "low", locp)
+check("...and a thin score is marked provisional, never 'strong'", locp["band"] == "provisional" and "incomplete" in locp["evidence"]["why"])
+check("every assessed component states its evidence strength",
+      all(p["evidence"]["level"] in ("high", "medium", "low") and p["evidence"]["why"] for p in res16["profile"] if p["assessed"]))
+
+print("17. careful language - no claim the audit can't prove")
+BANNED = ("or guesses", "skips the hotel", "can't see pictures", "invisible to", "will repeat the wrong", "every machine", "becomes the authority",
+          "cannot draw on", "won't be found", "llms prefer", "will boost", "guarantee")
+texts = []
+for src in (res13, res16, res, quiet):
+    for r in src["recommendations"]:
+        texts.append(" ".join([r["title"], r["finding"], r["why"], r["action"], r["technical"], r["expected_outcome"]]).lower())
+    texts += [f["consequence"].lower() + " " + f["detail"].lower() for f in src["machine"]]
+    texts += [i["advice"].lower() + " " + i["detail"].lower() for i in src["structured"]["items"]]
+hit = sorted({b for b in BANNED for t in texts if b in t and not ("guarantee" in b and "no recommendation" in t)})
+check("none of the overstated phrases appears in any recommendation or finding", not hit, hit)
+check("the question rationale is appropriately cautious",
+      advice.WHY_QUESTION.startswith("Guests look for this") and "less able to answer the question accurately or confidently" in advice.WHY_QUESTION)
+alt = next(f for f in mach if f["id"] == "alt")
+check("the image claim uses the careful wording",
+      "less reliably discoverable, indexable and accessible than clear text and descriptive alt text" in alt["consequence"])
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

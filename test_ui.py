@@ -40,9 +40,13 @@ for want in ("Identity & distribution", "Reviews & reputation", "Media & validat
     check(f"'Beyond your website' sub-tab present: {want}", want in labels, labels)
 text = " ".join(m.value for m in at.markdown) + " ".join(s.value for s in at.subheader)
 check("the AI-understanding statement leads the page", "AI currently understands this hotel as" in text)
-check("the readiness profile is shown as separate components", "AI visibility readiness" in text)
+check("the readiness profile is shown as separate measures", "Readiness, measure by measure" in text)
+check("the headline metric is labelled readiness, never AI visibility",
+      any(m.label == "AI discoverability readiness" for m in at.metric) and not any("AI visibility score" in m.label for m in at.metric), [m.label for m in at.metric])
+check("the explanation says what was not measured", any("not measured" in c.value.lower() for c in at.caption) or "Not measured" in " ".join(m.value for m in at.markdown))
 check("top actions are shown", "things most worth doing" in text)
-check("quick wins are shown", "Quick wins" in text)
+check("fixes, opportunities, quick wins and the 30/60/90 plan are separate views",
+      all(any(w in l for l in labels) for w in ("Other required fixes", "Commercial opportunities", "Quick wins", "30 / 60 / 90-day plan")), labels)
 check("what is already working is shown", "already doing well" in text)
 check("the unanswered-questions section is shown", "Questions AI may struggle to answer" in text)
 check("the structured-data audit is shown", "Structured data" in text)

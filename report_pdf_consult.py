@@ -45,13 +45,19 @@ def _bullets(items):
     return out
 
 
-def rec_block(r):
-    """One recommendation: Finding / Why / Evidence / Action / Where / Add / Example / Priority / Effort."""
-    head = cat(Markup(f"<b>{esc(r['title'])}</b>"))
+def rec_block(r, compact=False):
+    """
+    One recommendation. Full form: Finding / Why / Evidence / Action / Where / Add / Example.
+    Compact form (used in the appendix register) leaves out what the detailed sections already say
+    and keeps what is unique to the recommendation: where, what to add, and the worked example.
+    """
+    head = cat(Markup(f"<b>{esc(r['ref'])} - {esc(r['title'])}</b>"))
     meta = cat(R.coloured(r["priority"].upper() + " priority", PRI_COL[r["priority"]]), f" - effort {r['effort']} - team: {r['team']}")
-    rows = [[head, meta], ["What we found", r["finding"]], ["Why it matters", r["why"]]]
-    if r["evidence"]:
-        rows.append(["Evidence", _ev(r["evidence"])])
+    rows = [[head, meta]]
+    if not compact:
+        rows += [["What we found", r["finding"]], ["Why it matters", r["why"]]]
+        if r["evidence"]:
+            rows.append(["Evidence", _ev(r["evidence"])])
     rows.append(["What to do", r["action"]])
     p = r.get("page")
     if p and (p.get("url") or p.get("label")):
@@ -59,7 +65,8 @@ def rec_block(r):
     if r.get("additions"):
         rows.append(["Add", _bullets(r["additions"][:10])])
     rows.append(["Confidence", r["confidence"]])
-    rows.append(["Technical detail", r["technical"] or "-"])
+    if not compact:
+        rows.append(["Technical detail", r["technical"] or "-"])
     block = [table(rows, [0.2, 0.8], header=False, zebra=False)]
     if r.get("example"):
         lines = R._wrap_code(R.clean(r["example"])).splitlines()[:28]
@@ -120,7 +127,7 @@ def sections(c, H1):
 
     # ---- how AI understands the hotel
     out += [PageBreak(), H1("How AI understands this hotel"),
-            para("What a machine could learn from the hotel's own pages, and which traveller searches that content supports. Built only from wording "
+            para("What automated systems could learn from the hotel's own pages, and which traveller searches that content supports. Built only from wording "
                  "found on the pages read.", "muted")]
     out.append(para("Strong signals", "h3"))
     out += R.bullets(u["strong_signals"] or ["(none stood out)"])
@@ -152,10 +159,7 @@ def sections(c, H1):
             rows.append(["What the pages say now", _ev(q["evidence"], 2)])
         w = q["where"]
         rows.append(["Where to add it", cat(link(w["url"], w["label"]) if w.get("url") else w["label"], f" - {w['reason']}")])
-        out.append(KeepTogether([table(rows, [0.2, 0.8], header=False, zebra=False)]))
-        if q.get("example"):
-            out.append(Preformatted("\n".join(R._wrap_code(R.clean(q["example"])).splitlines()[:10]), R.S["code"]))
-        out.append(Spacer(1, 5))
+        out.append(KeepTogether([table(rows, [0.2, 0.8], header=False, zebra=False), Spacer(1, 5)]))
 
     # ---- location
     out += [H1("How the website relates the hotel to its location")]
@@ -217,24 +221,21 @@ def sections(c, H1):
     out.append(table(rows, [0.2, 0.13, 0.37, 0.3]))
     out.append(para(sd["caution"], "note"))
 
-    # ---- action plan
-    out += [PageBreak(), H1("Action plan"),
-            para("Every recommendation below was generated from a specific finding and shows its evidence. Priority reflects what travellers can see "
-                 "and the effort involved; the confidence label separates established good practice from reasonable inference and experiment. "
-                 "None guarantees that any AI assistant will recommend the hotel.", "muted")]
-    done = set()
-    for label, ids in (("Top actions", c["top_actions"]), ("Quick wins", c["quick_wins"])):
-        out.append(para(label, "h2"))
-        for rid in ids:
-            out += rec_block(recs[rid])
-            done.add(rid)
-    rest = [r for r in c["recommendations"] if r["id"] not in done]
-    if rest:
-        out.append(para("All other recommendations", "h2"))
-        for cat_, (title, _q) in BUCKET.items():
-            rs = [r for r in rest if r["category"] == cat_]
-            if rs:
-                out.append(para(title, "h3"))
-                for r in rs:
-                    out += rec_block(r)
+    # ---- recommendation register: every recommendation once; worked examples only where they exist
+    out += [PageBreak(), H1("Recommendation register"),
+            para("Every recommendation, once. The references match the management report. Each was generated from a specific finding described in "
+                 "the sections above; this register adds only what is unique to it (where to make the change, what to add, worked examples). "
+                 "Priority comes from one ranking model (business and reputation risk, traveller importance, effect on discoverability, "
+                 "confidence, moderated by effort). None guarantees that any AI assistant will recommend the hotel.", "muted")]
+    rows = [["Ref", "Type", "Recommendation", "Priority", "Effort", "Team", "Where"]]
+    for r in c["recommendations"]:
+        pg = r.get("page") or {}
+        rows.append([r["ref"], "Fix" if r["kind"] == "fix" else "Opportunity", r["title"][:110], R.coloured(r["priority"], PRI_COL[r["priority"]]),
+                     r["effort"], r["team"], link(pg["url"], pg["label"]) if pg.get("url") else (pg.get("label") or "-")])
+    out.append(table(rows, [0.07, 0.1, 0.38, 0.09, 0.07, 0.12, 0.17]))
+    withdetail = [r for r in c["recommendations"] if r.get("example") or r.get("additions")]
+    if withdetail:
+        out.append(para("Where to make each change, what to add, and worked examples", "h2"))
+        for r in withdetail:
+            out += rec_block(r, compact=True)
     return out

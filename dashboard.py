@@ -230,15 +230,21 @@ _RESIZE_JS = """
 """
 
 
-def build(hotel_name, website, sc, rest_recs, guest=None, top=None):
+def build(hotel_name, website, sc, rest_recs, guest=None, top=None, headline=None):
     """
     Returns (html, estimated_height_px).
 
     `top` are the fixes to do first; `rest_recs` is everything else.
     """
     overall, coverage = sc["overall"], sc["coverage_pct"]
+    # The number is a READINESS score on the factors that could be measured, shown with how much of
+    # the model that is. Below a coverage threshold no single number is given at all.
+    status = (headline or {}).get("status", "provisional" if coverage < 70 else "assessed")
+    shown = None if status == "withheld" else overall
     circumference = 213.6  # 2*pi*34, matching the SVG radius below
-    offset = circumference * (1 - min(max(overall, 0), 100) / 100)
+    offset = circumference * (1 - min(max(shown or 0, 0), 100) / 100)
+    badge = {"withheld": "not enough measured for a single score", "provisional": "provisional",
+             "assessed": "on assessed factors"}[status]
 
     cards = ""
     for c in sc["categories"]:
@@ -250,6 +256,10 @@ def build(hotel_name, website, sc, rest_recs, guest=None, top=None):
             tag = f'<span class="tag" style="background:{color}22;color:{color}">partial</span>'
         elif not assessed:
             tag = '<span class="tag mute">not assessed</span>'
+        if assessed and c.get("evidence_level"):
+            # the score and the evidence behind it are different things
+            tag += (f'<span class="tag mute" title="{esc(c.get("evidence_note", ""))}">'
+                    f'{esc(c["evidence_level"])} evidence</span>')
         cards += f"""
         <div class="card {'na' if not assessed else ''}">
           <div class="top"><span class="cat">{esc(c['label'])}</span>
@@ -291,9 +301,10 @@ def build(hotel_name, website, sc, rest_recs, guest=None, top=None):
               <circle class="fgring" cx="40" cy="40" r="34" fill="none" stroke-width="7"
                 stroke-dasharray="{circumference}" stroke-dashoffset="{offset}" />
             </svg>
-            <div class="num"><b>{esc(overall)}</b><span>SCORE</span></div>
+            <div class="num"><b>{esc(shown) if shown is not None else '&mdash;'}</b><span>READINESS</span></div>
           </div>
-          <div class="covnote">Weighted across <b style="color:var(--ink)">{esc(coverage)}%</b> of the model.</div>
+          <div class="covnote"><b style="color:var(--ink)">{esc(badge)}</b><br>{esc(coverage)}% of the full model measured.
+            AI answers and guest reviews are not.</div>
         </div>
       </div>
       {fixes}
