@@ -26,7 +26,9 @@ def crawl_coverage(pages_read, pages_meta):
     unreadable = pages_read < 3
     limited = unreadable or pages_read < 8 or ratio < 0.6
     if unreadable:
-        note = (f"We could only read {pages_read} of {attempted} pages, which is too few to say what the site does or doesn't contain. "
+        found = ("only " + str(attempted) + " page" + ("" if attempted == 1 else "s") + " could be found to read" if attempted <= pages_read
+                 else f"we could only read {pages_read} of {attempted} pages")
+        note = (f"{found[0].upper() + found[1:]}, which is too few to say what the site does or doesn't contain. "
                 "Nothing below claims that information is missing.")
     elif limited:
         note = (f"We could read {pages_read} of {attempted} pages. Anything reported as missing may be on a page we didn't read, so "

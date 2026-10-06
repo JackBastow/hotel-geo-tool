@@ -361,6 +361,9 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
         recs += _from_structured(structured, jsonld_example, site)
     recs += _from_machine(machine)
     recs += _from_intel(intel)
+    # the scoring layer already names the specific sources (OpenStreetMap, Wikidata); don't repeat it generically
+    if any(r["id"].startswith("X-S-entity_missing") for r in recs):
+        recs = [r for r in recs if r["id"] != "M-entity_missing"]
     limited_note = None
     if coverage.get("limited"):
         # Findings of the form "X isn't on the site" are weaker when part of the site wasn't read.

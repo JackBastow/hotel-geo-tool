@@ -310,6 +310,21 @@ check("...but the report explains what happened and what to check", any(r["id"] 
 check("...and every readiness component is 'not assessed', not zero-scored", all(not p["assessed"] for p in GONE["profile"]))
 check("...and no recommendation says the hotel's markup, pages or answers are missing",
       not any(w in (r["title"] + r["finding"]).lower() for r in GONE["recommendations"] for w in ("no hotel", "markup", "unanswered")))
+check("a one-page crawl says the page count honestly ('only 1 page could be found'), not 'read 1 of 1'",
+      "Only 1 page could be found to read" in consultant.crawl_coverage(1, [{"url": BASE, "ok": True}])["note"]
+      and "We could only read 1 of 21 pages" in GONE["coverage"]["note"], GONE["coverage"]["note"])
+_orig_from_intel = advice._from_intel
+advice._from_intel = lambda intel: [
+    advice._rec("M-entity_missing", "entity", "Get the hotel recognised in open map and knowledge data", "f", "w", [], "a", "medium", "low"),
+    advice._rec("X-S-entity_missing:OpenStreetMap", "entity", "Add the hotel to OpenStreetMap", "f", "w", [], "a", "medium", "low")]
+try:
+    dd = advice.build(questions=[], location={"items": []}, consistency=[], hidden=[], structured={"items": []}, machine=[], intel=None,
+                      jsonld_example=None, site=ic.Site([], BASE, HOTEL, CITY), coverage={})
+finally:
+    advice._from_intel = _orig_from_intel
+dids = [r["id"] for r in dd]
+check("the same entity finding is not listed twice (generic one dropped when the source-specific one exists)",
+      "X-S-entity_missing:OpenStreetMap" in dids and "M-entity_missing" not in dids, dids)
 json.dumps(GONE, default=str)
 check("an unreadable-site result is still JSON-serialisable", True)
 grouped = [r for r in res["recommendations"] if r["id"].startswith("Q")]
@@ -429,6 +444,11 @@ check("the explanation names what was not measured", "AI Visibility" in h60["exp
 check("it says the number is not a measure of how visible the hotel is to AI", "not as a measure of how visible it is to AI" in h60["explanation"])
 h20 = hl.build(mkrep(20.0))
 check("below 30% coverage NO single score is given", h20["status"] == "withheld" and h20["score"] is None)
+hu = hl.build({**mkrep(60.0), "consultant": {"coverage": {"unreadable": True, "limited": True, "pages_read": 1}}})
+check("an UNREADABLE website gets no headline score, even when other sources give 60% coverage",
+      hu["status"] == "withheld" and hu["score"] is None and "could be read" in hu["explanation"])
+hlim = hl.build({**mkrep(80.0), "consultant": {"coverage": {"unreadable": False, "limited": True, "pages_read": 5}}})
+check("a limited crawl keeps the score provisional even at high coverage", hlim["status"] == "provisional" and hlim["score"] == 83)
 check("the title never calls it 'AI visibility'", "readiness" in h60["title"].lower() and "visibility" not in h60["title"].lower())
 hc = hl.build(mkrep(60.0))["category_evidence"]
 check("a category read from only 5 pages is flagged as LOW evidence even if its score is high", hc["website"]["level"] == "low")

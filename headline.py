@@ -62,14 +62,19 @@ def build(rep):
     unassessed = [{"key": c["key"], "label": c["label"], "weight": c["weight"],
                    "why": WHY_NOT.get(c["key"], c.get("detail", ""))} for c in cats if not c.get("assessed")]
     miss_w = round(sum(u["weight"] for u in unassessed), 1)
-    if overall is None or cov < WITHHOLD_BELOW:
+    crawl = (rep.get("consultant") or {}).get("coverage") or {}
+    if overall is None or cov < WITHHOLD_BELOW or crawl.get("unreadable"):
         status = "withheld"
-    elif cov < PROVISIONAL_BELOW:
+    elif cov < PROVISIONAL_BELOW or crawl.get("limited"):
         status = "provisional"
     else:
         status = "assessed"
     names = ", ".join(u["label"] for u in sorted(unassessed, key=lambda u: -u["weight"])[:3])
-    if status == "withheld":
+    if status == "withheld" and crawl.get("unreadable"):
+        expl = (f"Only {crawl.get('pages_read', 0)} page(s) of the website could be read, which is too few to give a meaningful readiness "
+                "score: a score on a site we could not read would be misleading. Findings that do not depend on reading the site "
+                "(official registers, open data, outside coverage) are still shown.")
+    elif status == "withheld":
         expl = (f"Only {cov:.0f}% of the full model could be assessed, which is too little for a single score. "
                 "The category results below are shown on their own.")
     else:

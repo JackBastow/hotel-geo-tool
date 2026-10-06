@@ -321,6 +321,9 @@ check("no recommendation advises incentivised/fake reviews or keyword stuffing",
 fsa_rec = next(r for r in res["recommendations"] if r["id"].startswith("F1"))
 check("a real FSA rating below 4 produces an operations recommendation citing the register",
       fsa_rec["team"] == "operations" and fsa_rec["evidence_ids"] and "Improvement necessary" in fsa_rec["problem"])
+a2 = next(r for r in res["recommendations"] if r["id"].startswith("A2"))
+check("the award recommendation reads correctly ('the AA', not 'the The AA') and is a hypothesis, not a fact",
+      "The The" not in a2["title"] and "the The" not in a2["title"] and a2["title"] == "Confirm and link the AA recognition" and a2["basis"] == "hypothesis")
 check("the guest-review blind spot is itself a recommendation, labelled documented guidance",
       any(r["id"] == "V3" and r["basis"] == "documented guidance" for r in res["recommendations"]))
 check("five priority actions, spread across sections", len(res["priority_actions"]) == 5 and len(

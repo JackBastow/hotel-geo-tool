@@ -128,7 +128,8 @@ def build(ctx):
                 "documented guidance", "UK CAP Code rules on substantiating advertising claims."))
         elif a["claims"] and not a["issuer_confirmed"] and a["issuer"] != "(issuer not named)":
             recs.append(_rec(
-                f"A2-{a['issuer'][:6]}", "media", f"Confirm and link the {a['issuer']} recognition",
+                f"A2-{a['issuer'][:6]}", "media",
+                f"Confirm and link the {a['issuer'][4:] if a['issuer'].startswith('The ') else a['issuer']} recognition",
                 f"The hotel states {a['issuer']} recognition"
                 f"{' (' + ', '.join(a['years']) + ')' if a['years'] else ''}, but no page on the issuer's "
                 "site naming the hotel was found.",
@@ -138,7 +139,9 @@ def build(ctx):
                 "it has lapsed, update or remove the wording.",
                 "marketing", "medium", "Protects accuracy and makes a genuine award checkable.",
                 "The issuer's own page names the hotel and the website links to it.",
-                "documented guidance", "UK CAP Code rules on substantiating advertising claims."))
+                "hypothesis",
+                "Detected from wording near the issuer's name on the hotel's pages, so check it really is a claim of recognition. "
+                "UK CAP Code rules expect advertising claims to be substantiated."))
     # --------------------------------------------------------------- identity
     ident = ctx["identity"]
     if len(ident["name_variants"]) > 1:
