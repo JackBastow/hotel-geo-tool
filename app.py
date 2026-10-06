@@ -44,9 +44,35 @@ That public-and-free-to-the-VISITOR design shapes everything here:
 """
 
 import datetime as dt
+import hashlib
 import json
+import sys
+from pathlib import Path
 
 import streamlit as st
+
+
+def _drop_stale_modules():
+    """
+    Streamlit keeps imported modules alive between reruns, and a redeploy can replace the files while
+    the old process keeps running. The result is a NEW app.py calling OLD modules (seen live:
+    "build_pdf() takes 1 positional argument but 2 were given"). So: fingerprint the project's .py
+    files, and when the fingerprint changes, forget every project module so the imports below load
+    the current code. It is a cheap check on every run and only does work after a code change.
+    """
+    here = Path(__file__).resolve().parent
+    files = sorted(here.glob("*.py"))
+    sig = hashlib.sha1("|".join(f"{p.name}:{p.stat().st_size}:{p.stat().st_mtime_ns}" for p in files).encode()).hexdigest()
+    if getattr(sys, "_hotel_audit_build", None) == sig:
+        return
+    mine = {p.stem for p in files} - {"app"}
+    for name in list(sys.modules):
+        if name in mine:
+            del sys.modules[name]
+    sys._hotel_audit_build = sig
+
+
+_drop_stale_modules()
 
 try:  # deprecated: scheduled for removal after 2026-06-01, kept only as a fallback
     import streamlit.components.v1 as components

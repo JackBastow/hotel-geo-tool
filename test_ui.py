@@ -55,6 +55,30 @@ check("recommendation cards use the Finding / Why / Action shape", "What we foun
 check("tables rendered (dataframes present)", len(at.dataframe) >= 8, len(at.dataframe))
 check("no generic GEO claim leaks into the page", not any(p in text.lower() for p in ("boost your chatgpt", "guarantees better", "llms prefer")))
 
+print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
+import sys  # noqa: E402
+import types  # noqa: E402
+run(rep, "warm")                                    # first run records the code fingerprint
+real_mods = {k: sys.modules[k] for k in ("report_pdf", "ui_consult") if k in sys.modules}
+old_pdf = types.ModuleType("report_pdf")
+old_pdf.build_pdf = lambda rep_: b"%PDF-old"          # the previous version: no `part` argument
+old_pdf.filename = lambda rep_: "old.pdf"
+old_ui = types.ModuleType("ui_consult")
+old_ui.overview = lambda c: None                      # the previous version: no `headline` argument
+for _n in ("ai_view", "fix_site"):
+    setattr(old_ui, _n, lambda c: None)
+sys.modules["report_pdf"], sys.modules["ui_consult"] = old_pdf, old_ui
+atx = run(rep, "stale, same fingerprint")
+check("(control) with the OLD modules kept in memory the page does fail - this is the live bug",
+      bool(atx.exception) and any("positional argument" in e.message or "takes" in e.message for e in atx.exception),
+      [e.message[:80] for e in atx.exception])
+sys.modules["report_pdf"], sys.modules["ui_consult"] = old_pdf, old_ui
+sys._hotel_audit_build = None                         # a redeploy changes the code fingerprint
+aty = run(rep, "stale, new deployment")
+check("after a code change the stale modules are dropped and the page renders", not aty.exception, [e.message[:100] for e in aty.exception])
+check("...with the CURRENT modules in use (two PDFs offered, new overview)",
+      sys.modules["report_pdf"] is not old_pdf and sys.modules["ui_consult"] is not old_ui)
+
 print("2. degraded runs")
 bad = copy.deepcopy(rep)
 bad["intel"] = {"error": "RuntimeError: boom"}
