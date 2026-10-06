@@ -325,6 +325,13 @@ DROP_INTEL = ("V3", "T2-", "W1", "T1", "T3")      # limits or superseded by find
 EFFORT_BY_TEAM = {"PR": "medium", "distribution": "low", "marketing": "low", "operations": "medium", "reputation management": "medium", "web": "low"}
 
 
+def drop_duplicate_entity(recs):
+    """The scoring layer names the specific sources (OpenStreetMap, Wikidata); drop the generic entity rec when it does."""
+    if any(r["id"].startswith("X-S-entity_missing") for r in recs):
+        return [r for r in recs if r["id"] != "M-entity_missing"]
+    return recs
+
+
 def _from_intel(intel):
     recs = []
     if not intel or "error" in intel:
@@ -361,9 +368,7 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
         recs += _from_structured(structured, jsonld_example, site)
     recs += _from_machine(machine)
     recs += _from_intel(intel)
-    # the scoring layer already names the specific sources (OpenStreetMap, Wikidata); don't repeat it generically
-    if any(r["id"].startswith("X-S-entity_missing") for r in recs):
-        recs = [r for r in recs if r["id"] != "M-entity_missing"]
+    recs = drop_duplicate_entity(recs)
     limited_note = None
     if coverage.get("limited"):
         # Findings of the form "X isn't on the site" are weaker when part of the site wasn't read.

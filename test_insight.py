@@ -325,6 +325,19 @@ finally:
 dids = [r["id"] for r in dd]
 check("the same entity finding is not listed twice (generic one dropped when the source-specific one exists)",
       "X-S-entity_missing:OpenStreetMap" in dids and "M-entity_missing" not in dids, dids)
+_orig2 = advice._from_intel
+advice._from_intel = lambda intel: [
+    advice._rec("X-S-entity_missing:OpenStreetMap", "entity", "Add the hotel to OpenStreetMap", "f", "w", [], "a", "medium", "low")]
+try:
+    GONE2 = consultant.analyse(own_pages=[page("/", HOME["text"], title="x")], pages_meta=[{"url": BASE, "ok": True, "title": "x"}], base=BASE,
+                               hotel=HOTEL, city=CITY, location={}, guest={"questions": [], "conflicts": [], "own_facts_node": {}},
+                               site={"robots": {"present": False}, "sitemap": {}}, entities=[], intel=None, osm_ctx=None)
+finally:
+    advice._from_intel = _orig2
+ids2 = [r["id"] for r in GONE2["recommendations"]]
+check("the unreadable-site path also never lists the entity finding twice", ids2.count("M-entity_missing") + sum(i.startswith("X-S-entity_missing") for i in ids2) <= 1, ids2)
+check("a one-page site's READ1 says 'only 1 page', not 'read 1 of 1'",
+      "Only 1 page(s) of the site could be found and read" in next(r for r in GONE2["recommendations"] if r["id"] == "READ1")["finding"])
 json.dumps(GONE, default=str)
 check("an unreadable-site result is still JSON-serialisable", True)
 grouped = [r for r in res["recommendations"] if r["id"].startswith("Q")]

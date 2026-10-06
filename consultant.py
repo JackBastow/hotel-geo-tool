@@ -92,10 +92,11 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel):
     evd = [{"url": p["url"], "snippet": p["reason"] or f"HTTP {p['status']}"} for p in cov["failed_pages"][:3]]
     rec = advice._rec(
         "READ1", "access", "Check that the website can be read by automated visitors",
-        f"We could only read {cov['pages_read']} of {cov['pages_attempted']} pages ({reasons}).",
+        (f"Only {cov['pages_read']} page(s) of the site could be found and read." if cov["pages_attempted"] <= cov["pages_read"]
+         else f"We could only read {cov['pages_read']} of {cov['pages_attempted']} pages ({reasons})."),
         "If our crawler cannot read the site, search engines and AI crawlers may not be able to either - or the site may be refusing automated "
         "visitors on purpose (some firewalls do), in which case the information on it is less reliably discoverable by those systems.",
-        evd or [{"url": "", "snippet": "No page could be read."}],
+        evd or [{"url": "", "snippet": "Too few pages could be read to say what the site contains."}],
         "Ask your web supplier whether a firewall, bot-protection rule or very slow hosting is blocking automated visitors, and check that the "
         "main pages show their text without JavaScript. If the blocking is deliberate, this report cannot assess what is inside the site.",
         "high", "medium", page={"url": s.base, "label": "the website"},
@@ -103,6 +104,7 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel):
                   "verify by loading the pages with a plain HTTP client.", confidence=advice.INFER, team="web", source="machine",
         success="A later audit reads most of the site's pages.")
     recs = [rec] + advice._from_machine([f for f in machine if f["status"] == "issue"]) + advice._from_intel(intel)
+    recs = advice.drop_duplicate_entity(recs)
     ranking.annotate(recs, [])
     for r in recs:
         r["ref"] = r["id"]

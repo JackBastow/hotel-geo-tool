@@ -75,7 +75,8 @@ def coverage_banner(c):
     if not cov.get("limited"):
         return
     why = "; ".join(f"{n} × {r}" for r, n in (cov.get("failure_reasons") or {}).items())
-    msg = f"**Read {cov['pages_read']} of {cov['pages_attempted']} pages.** {cov['note']}" + (f"  \nWhy pages failed: {why}." if why else "")
+    head = "" if cov["pages_attempted"] <= cov["pages_read"] and cov.get("unreadable") else f"**Read {cov['pages_read']} of {cov['pages_attempted']} pages.** "
+    msg = f"{head}{cov['note']}" + (f"  \nWhy pages failed: {why}." if why else "")
     (st.error if cov.get("unreadable") else st.warning)(msg)
 
 
