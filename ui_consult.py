@@ -300,7 +300,64 @@ def ai_view(c):
 
 # --------------------------------------------------------------- fix the site
 
-def fix_site(c):
+def web_card(web):
+    """How automated visitors meet the site: AI-crawler policy, Common Crawl, llms.txt, PageSpeed. Each says plainly if it wasn't measured."""
+    if not web:
+        return
+    st.markdown("##### How crawlers and phones meet the website")
+    st.caption("Four free checks. None of them shows what any AI assistant says about the hotel; they show whether the door is open and how fast it opens.")
+    pol = web.get("ai_policy") or {}
+    with st.container(border=True):
+        st.markdown("**AI crawlers and robots.txt**")
+        st.markdown(md_safe(pol.get("summary", "")))
+        for key, label in (("training", "Training"), ("search", "AI search"), ("user", "Live look-up")):
+            g = (pol.get("groups") or {}).get(key)
+            if g:
+                st.markdown(f"- {label} ({md_safe(g['what'].lower())}): "
+                            + (("asked to stay away: " + ", ".join(g["blocked"])) if g["blocked"] else "not singled out"))
+        st.caption(pol.get("caveat", ""))
+    cc = web.get("commoncrawl") or {}
+    with st.container(border=True):
+        st.markdown("**Common Crawl (public web archive behind much AI training data)**")
+        if cc.get("status") == "ok":
+            for i in cc["items"]:
+                c = i["counts"]
+                st.markdown(f"- {i['crawl']}: {i['captures']}{'+' if i['capped'] else ''} capture(s) - {c['ok']} readable, {c['refused']} refused, "
+                            f"{c['redirect']} redirect(s), {c['error']} error(s)" + (f"; robots.txt answered HTTP {i['robots_status']}" if i.get("robots_status") else ""))
+            if cc.get("state") == "refused":
+                st.warning("The site answered the archive's crawler with 'forbidden' or 'too many requests' rather than its pages. "
+                           "See the Machine access findings below.")
+        else:
+            st.markdown(("ℹ️ " if cc.get("status") != "no_results" else "") + md_safe(cc.get("reason", "Not assessed.")))
+        st.caption("Being in the archive is not evidence that any AI model knows or recommends the hotel.")
+    ll = web.get("llms_txt") or {}
+    with st.container(border=True):
+        st.markdown("**llms.txt**")
+        if ll.get("present"):
+            st.markdown(f"🟢 The site publishes one ({ll.get('bytes', 0)} bytes, {ll.get('link_count', 0)} link(s)).")
+        else:
+            st.markdown(md_safe(ll.get("reason", "Not assessed.")))
+        st.caption(ll.get("note", ""))
+    ps = web.get("pagespeed") or {}
+    with st.container(border=True):
+        st.markdown("**Mobile speed and accessibility (Google PageSpeed Insights)**")
+        if ps.get("status") == "ok":
+            sc = ps["scores"]
+            cols = st.columns(4)
+            for col, (k, label) in zip(cols, (("performance", "Performance"), ("accessibility", "Accessibility"), ("seo", "SEO"), ("best-practices", "Best practice"))):
+                col.metric(label, "n/a" if sc.get(k) is None else f"{sc[k]}/100")
+            if ps.get("metrics"):
+                st.markdown("; ".join(f"{md_safe(m['label'])}: {md_safe(m['value'])}" for m in ps["metrics"]))
+            if ps.get("weak"):
+                st.markdown("**Main things Google flagged:** " + "; ".join(md_safe(w["title"]) for w in ps["weak"][:5]))
+            st.caption("A lab test of the homepage only, on a simulated mid-range phone. Scores vary run to run and are not what every guest experiences."
+                       + (f" Real-user data for the site: {ps['field_category'].lower()}." if ps.get("field_category") else ""))
+        else:
+            st.markdown("ℹ️ " + md_safe(ps.get("reason", "Not assessed.")))
+
+
+def fix_site(c, web=None):
+    web_card(web)
     st.caption("The technical side, in four separate groups because they need different people and different fixes.")
     for key, (title, q) in BUCKET.items():
         rows = [f for f in c["machine"] if f["bucket"] == key]

@@ -119,7 +119,46 @@ def summary_parts(c, recs):
     return out
 
 
-def sections(c, H1):
+def web_section(web):
+    """Evidence behind the crawler-access and speed findings: the four free checks, each stating plainly if it was not measured."""
+    if not web:
+        return []
+    out = [para("Crawler access and speed: the evidence", "h2"),
+           para("Four free checks of how automated visitors and phones meet the website. None shows what any AI assistant says about the hotel.", "tiny")]
+    pol = web.get("ai_policy") or {}
+    rows = [["Check", "Result", "Limits"]]
+    groups = "; ".join(f"{k}: " + (", ".join(g["blocked"]) if g["blocked"] else "not singled out") for k, g in (pol.get("groups") or {}).items())
+    rows.append(["AI crawlers in robots.txt", cat(pol.get("summary", ""), Markup("<br/>"), groups), pol.get("caveat", "")])
+    cc = web.get("commoncrawl") or {}
+    if cc.get("status") == "ok":
+        parts = []
+        for i in cc["items"]:
+            parts += [f"{i['crawl']}: {i['captures']}{'+' if i['capped'] else ''} capture(s); {i['counts']['ok']} readable, {i['counts']['refused']} refused, "
+                      f"{i['counts']['redirect']} redirect(s), {i['counts']['error']} error(s)"
+                      + (f"; robots.txt answered HTTP {i['robots_status']}" if i.get("robots_status") else ""), Markup("<br/>")]
+        res = cat(*parts[:-1])
+    else:
+        res = cc.get("reason", "Not assessed.")
+    rows.append(["Common Crawl", res, "Presence in the archive is not evidence that any AI model knows or recommends the hotel."])
+    ll = web.get("llms_txt") or {}
+    rows.append(["llms.txt", "Published" if ll.get("present") else ll.get("reason", "Not assessed."), ll.get("note", "")])
+    ps = web.get("pagespeed") or {}
+    if ps.get("status") == "ok":
+        sc = ps["scores"]
+        res = ", ".join(f"{lab} {sc[k]}/100" for k, lab in (("performance", "performance"), ("accessibility", "accessibility"), ("seo", "SEO"),
+                                                             ("best-practices", "best practice")) if sc.get(k) is not None)
+        if ps.get("metrics"):
+            res += "; " + "; ".join(f"{m['label'].lower()} {m['value']}" for m in ps["metrics"][:3])
+        if ps.get("weak"):
+            res += ". Flagged: " + "; ".join(w["title"] for w in ps["weak"][:4])
+    else:
+        res = ps.get("reason", "Not assessed.")
+    rows.append(["PageSpeed Insights (mobile, homepage)", res, "One page, one lab test; scores vary run to run."])
+    out.append(table(rows, [0.2, 0.5, 0.3]))
+    return out
+
+
+def sections(c, H1, web=None):
     """The dedicated consultant sections, in reading order."""
     recs = {r["id"]: r for r in c["recommendations"]}
     out = []
@@ -213,6 +252,7 @@ def sections(c, H1):
                        Markup("<br/><b>What to do:</b> ") if f["fix"] else "", f["fix"])
             rows.append([f["title"], R.coloured(st, col), body])
         out.append(table(rows, [0.28, 0.12, 0.6]))
+    out += web_section(web)
     sd = c["structured"]
     out.append(para("Structured data: what it says, not just whether it exists", "h2"))
     rows = [["Item", "Status", "Detail", "Advice"]]

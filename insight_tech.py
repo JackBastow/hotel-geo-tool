@@ -219,7 +219,7 @@ def _f(bucket, fid, title, status, severity, detail, consequence, fix="", evd=No
             "consequence": consequence, "fix": fix, "evidence": evd or [], "confidence": level}
 
 
-def machine_readiness(site, pages_meta, site_payload, entities, intel, structured, consistency_items, question_rows):
+def machine_readiness(site, pages_meta, site_payload, entities, intel, structured, consistency_items, question_rows, web=None):
     out = []
     pm = pages_meta or []
     robots = (site_payload or {}).get("robots", {})
@@ -425,6 +425,76 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
                               "Look for a genuine reason for fresh coverage (see pitch angles).", level=INFER))
     else:
         out.append(_f("authority", "not_measured", "Outside validation was not measured", "info", "none", "", ""))
+    out += web_findings(web, site.base)
+    return out
+
+
+A11Y_GROUPS = ("a11y-names-labels", "a11y-contrast", "a11y-navigation", "a11y-aria", "a11y-best-practices", "a11y-color-contrast",
+               "a11y-tables-lists", "a11y-language", "a11y-audio-video", "")
+
+
+def web_findings(web, base):
+    """Findings from web_signals (Common Crawl, PageSpeed, llms.txt). Wording stays on what was observed."""
+    out = []
+    if not web:
+        return out
+    cc = web.get("commoncrawl") or {}
+    ccbot_blocked = "CCBot" in ((web.get("ai_policy") or {}).get("groups", {}).get("training", {}).get("blocked") or [])
+    if cc.get("status") == "ok":
+        dom = cc.get("domain", "")
+        url = f"https://index.commoncrawl.org/{cc['items'][0]['crawl']}-index?url={dom}&matchType=domain&output=json"
+        refused, pages = cc.get("refused", 0), cc.get("pages_captured", 0)
+        rs = next((i["robots_status"] for i in cc["items"] if i.get("robots_status")), None)
+        if cc.get("state") == "refused" and ccbot_blocked:
+            out.append(_f("access", "cc_policy", "Common Crawl is kept out by robots.txt", "info", "none",
+                          "robots.txt asks CCBot (Common Crawl's crawler) to stay away, and the archive holds no readable copies of the site.",
+                          "A deliberate choice about content use. It means pages from this site are less likely to be in datasets built from Common Crawl.",
+                          level=BEST))
+        elif cc.get("state") == "refused":
+            out.append(_f("access", "cc_refused", "The website refused Common Crawl's crawler", "issue", "medium",
+                          f"In Common Crawl's latest crawl(s) the site answered its crawler 'forbidden' or 'too many requests' {refused} time(s) and gave "
+                          f"{'no' if not pages else str(pages)} readable page(s)" + (f" (robots.txt itself: HTTP {rs})" if rs else "") + ".",
+                          "Common Crawl is a public archive that much AI training data is drawn from, so a site it cannot read is less likely to appear in "
+                          "that data. A firewall that refuses this crawler may refuse other automated visitors too. (Being in the archive does not show "
+                          "what any AI model says about the hotel.)",
+                          "Ask your web supplier whether a firewall or bot-protection rule is refusing automated visitors. If keeping them out is deliberate, "
+                          "no change is needed; if not, allow well-behaved crawlers (CCBot, Googlebot, Bingbot).",
+                          [{"url": url, "snippet": f"Common Crawl: {refused} refused capture(s)" + (f"; robots.txt HTTP {rs}" if rs else "")}], level=INFER))
+        else:
+            out.append(_f("access", "cc_ok", "The site's pages are in Common Crawl", "ok", "none",
+                          f"{pages} page(s) captured in the latest crawl(s)"
+                          + (", including the homepage" if any(i.get("homepage_captured") for i in cc["items"]) else "")
+                          + (f"; the crawler was also refused {refused} time(s)" if refused else "") + ".", ""))
+    elif cc.get("status") == "no_results":
+        out.append(_f("access", "cc_none", "No copies of the site were found in Common Crawl", "info", "low", cc.get("reason", ""), "",
+                      level=INFER))
+    ll = web.get("llms_txt") or {}
+    if ll.get("present"):
+        out.append(_f("access", "llms_ok", "The site publishes an llms.txt", "ok", "none",
+                      f"{ll.get('bytes', 0)} bytes, {ll.get('link_count', 0)} link(s).", ""))
+    elif ll.get("status") == "no_results":
+        out.append(_f("access", "llms_missing", "No llms.txt (optional)", "info", "none", ll.get("reason", ""), ll.get("note", ""), level=INFER))
+    ps = web.get("pagespeed") or {}
+    if ps.get("status") == "ok":
+        sc = ps["scores"]
+        perf, acc = sc.get("performance"), sc.get("accessibility")
+        link = f"https://pagespeed.web.dev/analysis?url={ps.get('url', base)}"
+        mets = "; ".join(f"{m['label'].lower()} {m['value']}" for m in ps.get("metrics", [])[:3])
+        if perf is not None:
+            st, sev = ("issue", "medium") if perf < 50 else (("info", "low") if perf < 90 else ("ok", "none"))
+            out.append(_f("access", "speed", f"Mobile speed score {perf}/100" + (" - slow" if perf < 50 else ""), st, sev,
+                          f"Google's lab test of the homepage on a simulated phone scored {perf}/100 ({mets}). One page, one test: scores vary from run to run.",
+                          "Slow pages frustrate guests booking on a phone and are harder for crawlers to read reliably." if st != "ok" else "",
+                          "Ask your web supplier to act on the main findings in Google's report (typically oversized images and heavy scripts).",
+                          [{"url": link, "snippet": f"PageSpeed Insights, mobile: performance {perf}"}], level=BEST))
+        if acc is not None and acc < 90:
+            weak = "; ".join(w["title"] for w in ps.get("weak", []) if w.get("group") in A11Y_GROUPS)[:240]
+            out.append(_f("access", "a11y", f"Accessibility score {acc}/100", "issue" if acc < 80 else "info", "medium" if acc < 80 else "low",
+                          "Google's automated accessibility checks flagged problems on the homepage" + (f" (e.g. {weak})" if weak else "") + ".",
+                          "Accessibility problems affect guests using screen readers or keyboards and are often legal and reputational issues as well as "
+                          "practical ones. Automated checks catch only some problems.",
+                          "Fix the items listed in Google's report; ask a web supplier to check key pages with a screen reader.",
+                          [{"url": link, "snippet": f"PageSpeed Insights, mobile: accessibility {acc}"}], level=BEST))
     return out
 
 
@@ -450,7 +520,7 @@ def readiness_profile(site, guest, intent_rows, location_res, structured, findin
                           ("js_empty", 30, "pages that look empty without JavaScript"), ("noindex", 30, "pages marked noindex"),
                           ("http_errors", 15, "linked pages that error"), ("dup_titles", 8, "duplicate page titles"),
                           ("dup_content", 8, "near-duplicate pages"), ("canonical_other", 6, "pages pointing to another canonical"),
-                          ("ai_blocked", 5, "AI crawlers blocked")):
+                          ("ai_blocked", 5, "AI crawlers blocked"), ("cc_refused", 8, "the public web archive's crawler was refused")):
         if fid in byid and byid[fid]["status"] == "issue":
             d -= pen
             dr.append(f"- {msg}")
@@ -524,7 +594,8 @@ def readiness_profile(site, guest, intent_rows, location_res, structured, findin
     t, tr = 100, []
     for fid, pen, msg in (("home_title", 12, "homepage title lacks name/place"), ("home_meta", 12, "no homepage meta description"),
                           ("meta_missing", 8, "many pages lack a description"), ("h1", 6, "inconsistent main headings"),
-                          ("alt", 14, "most images have no alt text"), ("canonical_missing", 4, "no canonical addresses")):
+                          ("alt", 14, "most images have no alt text"), ("canonical_missing", 4, "no canonical addresses"),
+                          ("speed", 12, "slow on a phone (Google's lab test)"), ("a11y", 10, "accessibility problems found by Google's test")):
         if fid in byid and byid[fid]["status"] == "issue":
             t -= pen
             tr.append(f"- {msg}")

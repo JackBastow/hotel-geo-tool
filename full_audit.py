@@ -77,6 +77,7 @@ import sources
 import scoring
 import site_check
 import tavily_check
+import web_signals
 from site_check import get, _extract_jsonld
 
 
@@ -530,7 +531,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    include_ai_visibility=False, gemini_api_key=None,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
-                   youtube_api_key=None, wider=True):
+                   youtube_api_key=None, wider=True, pagespeed_api_key=None):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -559,6 +560,11 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     site = site_check.run_site_check(website, max_pages=max_pages, progress=progress)
 
     base = site["meta"]["base"]
+
+    # AI-crawler access, Common Crawl, llms.txt and PageSpeed are slow but independent of everything else, so they run
+    # alongside the rest of the audit and are joined just before the analysis.
+    web_ex = ThreadPoolExecutor(max_workers=1)
+    web_future = web_ex.submit(web_signals.run, base, site.get("robots"), pagespeed_api_key, None)
 
     hotel_given, city_given = bool(hotel), bool(city)
     hotel = hotel or infer_hotel_name(site)
@@ -745,6 +751,18 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     except Exception as e:  # noqa: BLE001
         intel_result = {"error": f"{type(e).__name__}: {e}"}
 
+    try:
+        web = web_future.result(timeout=120)
+    except Exception as e:  # noqa: BLE001 - these are extras; the audit stands without them
+        web = {"version": 1, "ai_policy": web_signals.ai_policy(site.get("robots")),
+               "llms_txt": {"status": "unavailable", "present": None, "reason": f"Not completed ({type(e).__name__})."},
+               "commoncrawl": {"source": "Common Crawl", "status": "unavailable", "items": [],
+                               "reason": f"Not completed in time ({type(e).__name__}), so this was not assessed."},
+               "pagespeed": {"source": "PageSpeed Insights", "status": "unavailable", "items": [],
+                             "reason": f"Not completed in time ({type(e).__name__}), so this was not assessed."}}
+    finally:
+        web_ex.shutdown(wait=False, cancel_futures=True)
+
     # The consultant layer reads pages the crawl already fetched - no further requests.
     say("Working out what AI systems can and can't understand about the hotel...")
     try:
@@ -753,7 +771,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         consult_result = consultant.analyse(
             own_pages=own_pages, pages_meta=guest.get("pages_meta", []), base=base, hotel=hotel, city=city,
             location=location, guest=guest, site=site, entities=ext["entities"], intel=intel_result,
-            osm_ctx=osm_ctx,
+            osm_ctx=osm_ctx, web=web,
             jsonld_example=fixes.hotel_jsonld({"base": base, "hotel": hotel, "location": location, "guest": guest,
                                                "discovery": discovery, "entities": ext["entities"], "site": site,
                                                "tavily": tavily_result}))
@@ -775,6 +793,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 "google_places": bool(places_result and places_result.get("configured")),
                 "amadeus": bool(amadeus_result and amadeus_result.get("configured")),
                 "ai_visibility": bool(ai_visibility_cat and ai_visibility_cat["assessed"]),
+                "pagespeed": web.get("pagespeed", {}).get("status") == "ok",
             },
         },
         "score": scorecard["overall"],
@@ -795,6 +814,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "own_facts_source": own_facts_source,
         "intel": intel_result,
         "consultant": consult_result,
+        "web_signals": web,
         "tavily_result": tavily_result,
         "places_result": places_result,
         "amadeus_result": amadeus_result,

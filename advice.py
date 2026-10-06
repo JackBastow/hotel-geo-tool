@@ -295,11 +295,14 @@ TEXT = {
     "h1": ("Give every page one clear main heading", "low", "low"),
     "alt": ("Describe your key images in text (alt text) for search and screen readers", "medium", "medium"),
     "entity_missing": ("Get the hotel recognised in open map and knowledge data", "medium", "low"),
+    "cc_refused": ("Check whether your firewall is refusing automated visitors", "medium", "medium"),
+    "speed": ("Speed up the homepage on mobile", "medium", "high"),
+    "a11y": ("Fix the accessibility problems Google's test found", "medium", "medium"),
 }
 PEOPLE = {
     "robots_block_all": "web", "ai_blocked": "marketing", "sitemap_missing": "web", "js_empty": "web", "http_errors": "web", "noindex": "web",
     "canonical_other": "web", "dup_titles": "web", "dup_content": "web", "home_title": "web", "home_meta": "marketing", "meta_missing": "marketing",
-    "h1": "web", "alt": "marketing", "entity_missing": "distribution",
+    "h1": "web", "alt": "marketing", "entity_missing": "distribution", "cc_refused": "web", "speed": "web", "a11y": "web",
 }
 
 

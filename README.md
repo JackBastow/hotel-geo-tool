@@ -100,10 +100,17 @@ is only generated from an actual finding, and a well-built site gets little or
 no advice. The crawl reads raw HTML and does not run JavaScript; where that
 matters the report says so.
 
-**Not implemented, deliberately:** Google PageSpeed Insights (a slow call per
-page that measures speed, not AI understanding), Common Crawl (presence in a
-crawl is not evidence an AI knows or recommends a hotel) and any competitor
-entry. Nothing in the main audit needs a competitor.
+**Crawler access and speed (added later, all free).** `web_signals.py` adds four bounded checks that run
+in the background while the site is read: what robots.txt asks of AI crawlers (training, AI search, live
+look-up, in plain English); whether the site publishes an `llms.txt` (an informal proposal, so its absence
+is never a defect); whether the **Common Crawl** public web archive could read the site, and whether the
+site *refused* its crawler; and **Google PageSpeed Insights** mobile speed/accessibility scores. PageSpeed
+needs a free key from a Google Cloud project with no billing account, set as the `PAGESPEED_API_KEY`
+secret; without one it says it wasn't measured. None of this shows what any AI assistant says about a
+hotel, and presence in Common Crawl is not evidence that any model knows or recommends it.
+
+**Not implemented, deliberately:** any competitor entry (nothing in the main audit needs a competitor)
+and anything that needs a billing account or breaks a platform's terms.
 
 ## The discovery & reputation report
 

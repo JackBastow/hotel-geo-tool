@@ -239,7 +239,7 @@ def _appendix_story(rep):
             ("Guest reviews", intel["reviews"]["sample"]["statement"])])]
 
     if has_consult:
-        story += report_pdf_consult.sections(consult, H1)
+        story += report_pdf_consult.sections(consult, H1, rep.get("web_signals"))
     elif not has_intel:
         story += [para("The analysis of what AI systems can understand about this hotel did not complete for this run"
                        + (f": {consult.get('error')}" if consult else "") + ".", "note")]

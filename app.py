@@ -121,6 +121,10 @@ GEMINI_READER_KEY = _operator_secret("GEMINI_READER_API_KEY")
 # video part of the report says so and is skipped.
 YOUTUBE_KEY = _operator_secret("YOUTUBE_API_KEY")
 
+# Optional: a Google PageSpeed Insights key (free, from a Google Cloud project with no billing account). Without
+# it Google's shared quota is usually used up, so page speed and accessibility scores say they weren't measured.
+PAGESPEED_KEY = _operator_secret("PAGESPEED_API_KEY")
+
 # A full audit runs about a dozen Tavily searches (see collect.search_plan).
 TAVILY_CREDITS_PER_AUDIT = 12
 
@@ -248,7 +252,7 @@ if fa_go:
             amadeus_api_key=use_amadeus_key,
             amadeus_api_secret=use_amadeus_secret,
             gemini_reader_key=use_gemini_reader,
-            youtube_api_key=YOUTUBE_KEY, wider=fa_wider,
+            youtube_api_key=YOUTUBE_KEY, wider=fa_wider, pagespeed_api_key=PAGESPEED_KEY,
         )
     except Exception as e:  # noqa: BLE001 - surface the real error
         prog.empty()
@@ -354,7 +358,7 @@ if fa_res:
             st.info("This section needs the consultant analysis, which did not run for this audit.")
     with tabs[2]:
         if has_consult:
-            ui_consult.fix_site(consult)
+            ui_consult.fix_site(consult, fa_res.get("web_signals"))
         else:
             st.info("This section needs the consultant analysis, which did not run for this audit.")
 

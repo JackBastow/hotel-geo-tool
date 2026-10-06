@@ -110,6 +110,8 @@ if pymupdf is not None:
     ex_clean = [" ".join(e.split())[:50] for e in ex]
     check("a worked example appears once in the appendix, not in several sections",
           all(atext.count(e) <= 1 for e in ex_clean), [(e, atext.count(e)) for e in ex_clean if atext.count(e) > 1])
+    check("the appendix carries the crawler-access evidence table, with its limits",
+          "Crawler access and speed" in atext and "Common Crawl" in atext and "PageSpeed Insights" in atext and "not a lock" in atext)
     check("the appendix says what it is and points back to the management report", "Technical & evidence appendix" in atext and "management report" in atext)
     check("the management report links to the evidence by reference, not by repeating it", "Appendix reference" in mtext)
     check("filenames say which document it is", "management-report" in report_pdf.filename(rep, "management") and "appendix" in report_pdf.filename(rep, "appendix"))

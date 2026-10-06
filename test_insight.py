@@ -498,6 +498,69 @@ alt = next(f for f in mach if f["id"] == "alt")
 check("the image claim uses the careful wording",
       "less reliably discoverable, indexable and accessible than clear text and descriptive alt text" in alt["consequence"])
 
+print("18. crawler access and speed findings (web_signals) - what they say and how they rank")
+def cc_item(ok, refused, robots="403"):
+    return {"crawl": "CC-MAIN-2026-39", "captures": ok + refused, "capped": False,
+            "counts": {"ok": ok, "redirect": 0, "refused": refused, "notfound": 0, "error": 0, "other": 0},
+            "robots_status": robots, "homepage_captured": ok > 0, "pages_captured": ok, "latest": "20260912"}
+WEB_BAD = {"ai_policy": {"groups": {"training": {"blocked": []}}},
+           "commoncrawl": {"status": "ok", "state": "refused", "domain": "brookl.example", "items": [cc_item(0, 3)], "refused": 3, "pages_captured": 0},
+           "llms_txt": {"status": "no_results", "present": False, "reason": "No llms.txt was found at the usual address.", "note": "not a defect"},
+           "pagespeed": {"status": "ok", "url": BASE, "scores": {"performance": 38, "accessibility": 72, "seo": 95, "best-practices": 90},
+                         "metrics": [{"id": "lcp", "label": "Main content shown", "value": "6.1 s", "score": 0.1}],
+                         "weak": [{"id": "color-contrast", "title": "Low contrast text", "group": "a11y-color-contrast", "weight": 7}]}}
+wf = {f["id"]: f for f in it.web_findings(WEB_BAD, BASE)}
+check("a site that refuses Common Crawl gets an evidenced, medium 'issue' - worded as observation, not as proof of AI harm",
+      wf["cc_refused"]["status"] == "issue" and "3 time(s)" in wf["cc_refused"]["detail"] and "HTTP 403" in wf["cc_refused"]["detail"]
+      and "does not show what any AI model says" in wf["cc_refused"]["consequence"] and wf["cc_refused"]["confidence"] == advice.INFER)
+check("the Common Crawl finding links to the index query that shows it", wf["cc_refused"]["evidence"][0]["url"].startswith("https://index.commoncrawl.org/"))
+check("a missing llms.txt is informational with no severity, never an issue", wf["llms_missing"]["status"] == "info" and wf["llms_missing"]["severity"] == "none")
+check("a 38/100 mobile score is an issue; 72 accessibility is an issue; both cite Google's report",
+      wf["speed"]["status"] == "issue" and wf["a11y"]["status"] == "issue" and "pagespeed.web.dev" in wf["speed"]["evidence"][0]["url"])
+check("speed wording says it is one test of one page", "One page, one test" in wf["speed"]["detail"])
+check("the accessibility finding names what Google flagged and admits automated checks miss things",
+      "Low contrast text" in wf["a11y"]["detail"] and "only some problems" in wf["a11y"]["consequence"])
+deliberate = dict(WEB_BAD, ai_policy={"groups": {"training": {"blocked": ["CCBot"]}}})
+wf2 = {f["id"]: f for f in it.web_findings(deliberate, BASE)}
+check("when robots.txt itself keeps CCBot out, that is a deliberate choice (info), not a defect", "cc_refused" not in wf2 and wf2["cc_policy"]["status"] == "info")
+good = {"commoncrawl": {"status": "ok", "state": "captured", "domain": "x", "items": [cc_item(30, 0, "200")], "refused": 0, "pages_captured": 30},
+        "pagespeed": {"status": "ok", "url": BASE, "scores": {"performance": 93, "accessibility": 96, "seo": 100, "best-practices": 100}, "metrics": [], "weak": []},
+        "llms_txt": {"status": "ok", "present": True, "bytes": 900, "link_count": 4}}
+wf3 = {f["id"]: f for f in it.web_findings(good, BASE)}
+check("healthy results produce reassurance, not advice", wf3["cc_ok"]["status"] == "ok" and wf3["speed"]["status"] == "ok" and "a11y" not in wf3 and wf3["llms_ok"]["status"] == "ok")
+nr = {"commoncrawl": {"status": "no_results", "reason": "Common Crawl holds no captures"}, "pagespeed": {"status": "not_configured", "reason": "x"},
+      "llms_txt": {"status": "unavailable", "present": None, "reason": "x"}}
+check("not-measured checks produce no finding at all (silence, not a made-up result)",
+      [f["id"] for f in it.web_findings(nr, BASE)] == ["cc_none"] and it.web_findings(None, BASE) == [])
+check("no web data leaves machine readiness exactly as before", not any(f["id"] in ("cc_refused", "speed", "a11y") for f in
+                                                                     it.machine_readiness(ic.Site(site16, BASE, HOTEL, CITY), [], {"robots": {"present": True}}, [], None,
+                                                                                          {"hotel_found": None, "items": []}, [], [])))
+
+recs = advice._from_machine([f for f in wf.values()])
+byid = {r["id"]: r for r in recs}
+ranking.annotate(recs, [])
+check("only issues become recommendations: refused crawler, slow mobile, accessibility - not llms.txt",
+      set(byid) == {"M-cc_refused", "M-speed", "M-a11y"}, set(byid))
+check("they are required fixes, owned by the web team, with a rank and a reason", all(r["kind"] == "fix" and r["team"] == "web" and r["rank"] > 0 for r in recs))
+check("a blocked crawler never outranks genuine reputation or operations risk (food-hygiene factors are higher)",
+      ranking.F[("machine", "cc_refused")][0] < ranking.F[("intel", "F1")][0] and ranking.F[("machine", "speed")][0] < ranking.F[("intel", "F1")][0])
+
+res18 = consultant.analyse(own_pages=site16, pages_meta=[{"url": p["url"], "ok": True, "title": p["title"], "meta_description": "m", "h1_count": 1, "pdfs": []} for p in site16],
+                           base=BASE, hotel=HOTEL, city=CITY, location={}, guest=guest_for(site16), site={"robots": {"present": True}, "sitemap": {"present": True}},
+                           entities=[], intel=None, osm_ctx=osm_fail, web=WEB_BAD)
+ids18 = {r["id"] for r in res18["recommendations"]}
+check("the full analysis carries them through to recommendations", {"M-cc_refused", "M-speed", "M-a11y"} <= ids18, ids18)
+tech = next(p for p in res18["profile"] if p["key"] == "technical")
+disc = next(p for p in res18["profile"] if p["key"] == "discoverability")
+check("a slow, inaccessible homepage lowers 'Technical accessibility' and says why", any("slow on a phone" in d for d in tech["drivers"]) and any("accessibility problems" in d for d in tech["drivers"]))
+check("a refused archive crawler lowers 'Discoverability' and says why", any("web archive" in d for d in disc["drivers"]))
+GONE3 = consultant.analyse(own_pages=[page("/", HOME["text"], title="x")], pages_meta=[{"url": BASE, "ok": True, "title": "x"}], base=BASE, hotel=HOTEL, city=CITY,
+                           location={}, guest={"questions": [], "conflicts": [], "own_facts_node": {}}, site={"robots": {"present": False}, "sitemap": {}},
+                           entities=[], intel=None, osm_ctx=None, web=WEB_BAD)
+check("even on an UNREADABLE site, the 'crawler was refused' evidence is kept - it is exactly what such a site needs to hear",
+      any(f["id"] == "cc_refused" for f in GONE3["machine"]) and any(r["id"] == "M-cc_refused" for r in GONE3["recommendations"]))
+json.dumps(res18, default=str)
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

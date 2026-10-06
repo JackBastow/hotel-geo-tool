@@ -53,6 +53,7 @@ F = {
     ("machine", "home_meta"): (1, 2, 2, "fix"), ("machine", "meta_missing"): (1, 1, 1, "fix"),
     ("machine", "h1"): (1, 1, 1, "fix"), ("machine", "alt"): (3, 3, 2, "fix"),
     ("machine", "entity_missing"): (3, 2, 4, "fix"), ("machine", "READ1"): (4, 3, 5, "fix"),
+    ("machine", "cc_refused"): (3, 2, 4, "fix"), ("machine", "speed"): (3, 4, 3, "fix"), ("machine", "a11y"): (3, 3, 2, "fix"),
     # structured data - deliberately modest: accuracy and tidiness, not a ranking lever
     ("structured", "SD1"): (1, 2, 2, "fix"), ("structured", "SD2"): (3, 2, 3, "fix"),
     ("structured", "SD3"): (1, 1, 2, "fix"), ("structured", "SD4"): (1, 1, 2, "opportunity"),

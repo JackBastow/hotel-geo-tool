@@ -41,11 +41,11 @@ def crawl_coverage(pages_read, pages_meta):
 
 
 def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, entities, intel,
-            osm_ctx, jsonld_example=""):
+            osm_ctx, jsonld_example="", web=None):
     s = ic.Site(own_pages, base, hotel, city)
     cov = crawl_coverage(len(s.pages), pages_meta)
     if cov["unreadable"]:
-        return _unreadable(s, cov, pages_meta, site, entities, intel)
+        return _unreadable(s, cov, pages_meta, site, entities, intel, web)
     feats = ic.features(s)
     intents = ic.intents(s)
     understanding = ic.understanding(s, intents, feats, city)
@@ -55,7 +55,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     cons = ic.consistency(s, guest)
     hidden = ic.hidden_strengths(s, feats, pages_meta)
     sd = it.structured_audit(s, location, guest, intents)
-    machine = it.machine_readiness(s, pages_meta, site, entities, intel, sd, cons, questions)
+    machine = it.machine_readiness(s, pages_meta, site, entities, intel, sd, cons, questions, web)
     profile = it.readiness_profile(s, guest, intents, loc, sd, machine, cons, intel, coverage=cov,
                                    map_failed=(osm_ctx or {}).get("failed_parts", []) if osm_ctx else ["all (no map data)"])
     recs = advice.build(questions=questions, location=loc, consistency=cons, hidden=hidden, structured=sd,
@@ -79,14 +79,14 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     }
 
 
-def _unreadable(s, cov, pages_meta, site_payload, entities, intel):
+def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None):
     """
     Too few pages were read to judge the content. Report that plainly, keep only findings that
     come from what actually happened (what the fetches returned, robots.txt, open-data matches),
     and make no claim that anything is missing from the site.
     """
     sd = {"items": [], "node_count": 0, "hotel_found": None, "unreadable": True, "caution": it.CAUTION}
-    machine = [f for f in it.machine_readiness(s, pages_meta, site_payload, entities, intel, {"hotel_found": None, "items": []}, [], [])
+    machine = [f for f in it.machine_readiness(s, pages_meta, site_payload, entities, intel, {"hotel_found": None, "items": []}, [], [], web)
                if f["bucket"] in ("access", "authority") or f["id"] in ("entity_ok", "entity_missing")]
     reasons = "; ".join(f"{n} x {r}" for r, n in cov["failure_reasons"].items()) or "no reason was reported"
     evd = [{"url": p["url"], "snippet": p["reason"] or f"HTTP {p['status']}"} for p in cov["failed_pages"][:3]]

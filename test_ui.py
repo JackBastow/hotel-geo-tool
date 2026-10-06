@@ -55,6 +55,12 @@ check("recommendation cards use the Finding / Why / Action shape", "What we foun
 check("tables rendered (dataframes present)", len(at.dataframe) >= 8, len(at.dataframe))
 check("no generic GEO claim leaks into the page", not any(p in text.lower() for p in ("boost your chatgpt", "guarantees better", "llms prefer")))
 
+check("the crawler-access card is shown, with its plain-English AI-crawler summary", "How crawlers and phones meet the website" in text and "deliberate choice about content use" in text)
+check("Common Crawl, llms.txt and PageSpeed each get their own box", all(w in text for w in ("Common Crawl (public web archive", "llms.txt", "Google PageSpeed Insights")))
+check("a refused crawler is flagged, and the card says presence/absence is not proof of AI knowledge",
+      any("forbidden" in w.value for w in at.warning) and "not evidence that any AI model knows" in " ".join(c.value for c in at.caption))
+check("the four PageSpeed scores are shown as metrics", {"Performance", "Accessibility", "SEO", "Best practice"} <= {m.label for m in at.metric}, [m.label for m in at.metric])
+
 print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
 import sys  # noqa: E402
 import types  # noqa: E402

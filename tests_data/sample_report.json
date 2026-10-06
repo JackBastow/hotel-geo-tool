@@ -78,9 +78,9 @@
     "evidence": [
      "Checked as: wedding venue, business/conference hotel, family hotel, spa/wellness hotel (detected from the hotel's own topic pages) - search angles tailored accordingly",
      "www.getsurrey.co.uk: feature, positive (read by LLM) - \"A new Italian restaurant called VETRO is opening inside the 1907 glasshouse at the art deco-inspired Brooklands Hotel in Weybridge.\"",
-     "www.getsurrey.co.uk: feature, positive - \"the building. From simulators to tours, there's also a cinema which screens a 20-minute film called The World\u2019s Most Valuable that plays throughout the day for free. \u200c The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day. A\"",
+     "www.getsurrey.co.uk: feature, positive - \"the building. From simulators to tours, there's also a cinema which screens a 20-minute film called The World’s Most Valuable that plays throughout the day for free. ‌ The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day. A\"",
      "www.thesun.ie: substantial mention, neutral (read by LLM) - \"The text outlines autumn spa day and dining packages at the Brooklands Hotel in Weybridge, detailing its facilities, treatment options, and pricing.\"",
-     "www.getsurrey.co.uk: feature, positive - \"Park Hotel and Spa in Bagshot is an award-winning venue (Image: Laura Nightingale ) A shortlist of the bests spas in the UK and Ireland have been announced, with three sites in Surrey among the hopefuls eager to crowned the winner of the Good Spa Guide Awards 2026. \u200c \u200c The Spa at\""
+     "www.getsurrey.co.uk: feature, positive - \"Park Hotel and Spa in Bagshot is an award-winning venue (Image: Laura Nightingale ) A shortlist of the bests spas in the UK and Ireland have been announced, with three sites in Surrey among the hopefuls eager to crowned the winner of the Good Spa Guide Awards 2026. ‌ ‌ The Spa at\""
     ],
     "recommendations": [],
     "evidence_level": "medium",
@@ -115,7 +115,7 @@
       "code": "guest_partial:parking",
       "priority": "medium",
       "action": "Parking: add whether you can or must reserve",
-      "why": "Your site covers this (https://brooklandshotelsurrey.com/about-us/faqs/) but leaves out details a guest or AI assistant would need. It currently says: \"Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night.\""
+      "why": "Your site covers this (https://brooklandshotelsurrey.com/about-us/faqs/) but leaves out details a guest or AI assistant would need. It currently says: \"Is parking available at the hotel? Overnight parking is available at £14 per vehicle, per night.\""
      },
      {
       "code": "guest_partial:breakfast",
@@ -219,20 +219,20 @@
    "category_weight": 12.5,
    "owner": "Web developer or website supplier",
    "page": "https://brooklandshotelsurrey.com/",
-   "example": "<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Hotel\",\n  \"name\": \"Brooklands Hotel\",\n  \"url\": \"https://brooklandshotelsurrey.com/\",\n  \"telephone\": \"+441932335700\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"Brooklands Dr\",\n    \"addressLocality\": \"Weybridge\",\n    \"postalCode\": \"KT13 0SL\",\n    \"addressCountry\": \"[Country code, e.g. GB]\"\n  },\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": 51.3531863,\n    \"longitude\": -0.4733129\n  },\n  \"checkinTime\": \"15:00\",\n  \"checkoutTime\": \"11:00\",\n  \"priceRange\": \"[\u00a3\u00a3\u00a3]\",\n  \"sameAs\": [\n    \"https://www.facebook.com/BHSurrey\",\n    \"https://www.instagram.com/brooklands_hotel\",\n    \"https://www.tiktok.com/@brooklandshotel\",\n    \"https://www.openstreetmap.org/way/1001475344\",\n    \"https://www.wikidata.org/wiki/Q137806771\"\n  ],\n  \"amenityFeature\": [\n    {\n      \"@type\": \"LocationFeatureSpecification\",\n      \"name\": \"Free Wi-Fi\",\n      \"value\": true\n    }\n  ],\n  \"petsAllowed\": false\n}\n</script>\n\nFill the [bracketed] parts - the rest was read from your own site. Test it at https://validator.schema.org/ before publishing.",
+   "example": "<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Hotel\",\n  \"name\": \"Brooklands Hotel\",\n  \"url\": \"https://brooklandshotelsurrey.com/\",\n  \"telephone\": \"+441932335700\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"Brooklands Dr\",\n    \"addressLocality\": \"Weybridge\",\n    \"postalCode\": \"KT13 0SL\",\n    \"addressCountry\": \"[Country code, e.g. GB]\"\n  },\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": 51.3531863,\n    \"longitude\": -0.4733129\n  },\n  \"checkinTime\": \"15:00\",\n  \"checkoutTime\": \"11:00\",\n  \"priceRange\": \"[£££]\",\n  \"sameAs\": [\n    \"https://www.facebook.com/BHSurrey\",\n    \"https://www.instagram.com/brooklands_hotel\",\n    \"https://www.tiktok.com/@brooklandshotel\",\n    \"https://www.openstreetmap.org/way/1001475344\",\n    \"https://www.wikidata.org/wiki/Q137806771\"\n  ],\n  \"amenityFeature\": [\n    {\n      \"@type\": \"LocationFeatureSpecification\",\n      \"name\": \"Free Wi-Fi\",\n      \"value\": true\n    }\n  ],\n  \"petsAllowed\": false\n}\n</script>\n\nFill the [bracketed] parts - the rest was read from your own site. Test it at https://validator.schema.org/ before publishing.",
    "effort": "moderate"
   },
   {
    "code": "guest_partial:parking",
    "priority": "medium",
    "action": "Parking: add whether you can or must reserve",
-   "why": "Your site covers this (https://brooklandshotelsurrey.com/about-us/faqs/) but leaves out details a guest or AI assistant would need. It currently says: \"Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night.\"",
+   "why": "Your site covers this (https://brooklandshotelsurrey.com/about-us/faqs/) but leaves out details a guest or AI assistant would need. It currently says: \"Is parking available at the hotel? Overnight parking is available at £14 per vehicle, per night.\"",
    "category": "Website & Technical",
    "category_key": "website",
    "category_weight": 12.5,
    "owner": "Whoever writes the website copy",
    "page": "https://brooklandshotelsurrey.com/about-us/faqs/",
-   "example": "Parking: we have [on-site / nearby] parking for guests. It costs \u00a3[amount] per [night / 24 hours]. Spaces [can be reserved in advance by \u2026] / [are first come, first served].",
+   "example": "Parking: we have [on-site / nearby] parking for guests. It costs £[amount] per [night / 24 hours]. Spaces [can be reserved in advance by …] / [are first come, first served].",
    "effort": "quick"
   },
   {
@@ -245,7 +245,7 @@
    "category_weight": 12.5,
    "owner": "Whoever writes the website copy",
    "page": "https://brooklandshotelsurrey.com/about-us/faqs/",
-   "example": "Breakfast is served [Mon\u2013Fri 7:00\u201310:00, weekends 7:30\u201310:30] in [location]. It is [included in the room rate / \u00a3[amount] per person].",
+   "example": "Breakfast is served [Mon–Fri 7:00–10:00, weekends 7:30–10:30] in [location]. It is [included in the room rate / £[amount] per person].",
    "effort": "quick"
   },
   {
@@ -284,7 +284,7 @@
    "category_weight": 12.5,
    "owner": "Whoever writes the website copy",
    "page": "https://brooklandshotelsurrey.com/about-us/faqs/",
-   "example": "Our family rooms sleep up to [number] ([2 adults and 2 children]). Connecting rooms are [available on request]. Cots and extra beds are [free / \u00a3[amount]].",
+   "example": "Our family rooms sleep up to [number] ([2 adults and 2 children]). Connecting rooms are [available on request]. Cots and extra beds are [free / £[amount]].",
    "effort": "quick"
   },
   {
@@ -297,7 +297,7 @@
    "category_weight": 12.5,
    "owner": "Whoever writes the website copy",
    "page": "Your FAQ or the page guests read policies on",
-   "example": "EV charging:\nWe have [number] [type, e.g. 7kW Type 2] EV charging points [in the car park]. Charging [is free / costs \u00a3[amount] per kWh]; pay via [app/network].",
+   "example": "EV charging:\nWe have [number] [type, e.g. 7kW Type 2] EV charging points [in the car park]. Charging [is free / costs £[amount] per kWh]; pay via [app/network].",
    "effort": "quick"
   }
  ],
@@ -312,7 +312,7 @@
    "category_weight": 12.5,
    "owner": "Web developer or website supplier",
    "page": "https://brooklandshotelsurrey.com/",
-   "example": "<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Hotel\",\n  \"name\": \"Brooklands Hotel\",\n  \"url\": \"https://brooklandshotelsurrey.com/\",\n  \"telephone\": \"+441932335700\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"Brooklands Dr\",\n    \"addressLocality\": \"Weybridge\",\n    \"postalCode\": \"KT13 0SL\",\n    \"addressCountry\": \"[Country code, e.g. GB]\"\n  },\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": 51.3531863,\n    \"longitude\": -0.4733129\n  },\n  \"checkinTime\": \"15:00\",\n  \"checkoutTime\": \"11:00\",\n  \"priceRange\": \"[\u00a3\u00a3\u00a3]\",\n  \"sameAs\": [\n    \"https://www.facebook.com/BHSurrey\",\n    \"https://www.instagram.com/brooklands_hotel\",\n    \"https://www.tiktok.com/@brooklandshotel\",\n    \"https://www.openstreetmap.org/way/1001475344\",\n    \"https://www.wikidata.org/wiki/Q137806771\"\n  ],\n  \"amenityFeature\": [\n    {\n      \"@type\": \"LocationFeatureSpecification\",\n      \"name\": \"Free Wi-Fi\",\n      \"value\": true\n    }\n  ],\n  \"petsAllowed\": false\n}\n</script>\n\nFill the [bracketed] parts - the rest was read from your own site. Test it at https://validator.schema.org/ before publishing.",
+   "example": "<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Hotel\",\n  \"name\": \"Brooklands Hotel\",\n  \"url\": \"https://brooklandshotelsurrey.com/\",\n  \"telephone\": \"+441932335700\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"Brooklands Dr\",\n    \"addressLocality\": \"Weybridge\",\n    \"postalCode\": \"KT13 0SL\",\n    \"addressCountry\": \"[Country code, e.g. GB]\"\n  },\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": 51.3531863,\n    \"longitude\": -0.4733129\n  },\n  \"checkinTime\": \"15:00\",\n  \"checkoutTime\": \"11:00\",\n  \"priceRange\": \"[£££]\",\n  \"sameAs\": [\n    \"https://www.facebook.com/BHSurrey\",\n    \"https://www.instagram.com/brooklands_hotel\",\n    \"https://www.tiktok.com/@brooklandshotel\",\n    \"https://www.openstreetmap.org/way/1001475344\",\n    \"https://www.wikidata.org/wiki/Q137806771\"\n  ],\n  \"amenityFeature\": [\n    {\n      \"@type\": \"LocationFeatureSpecification\",\n      \"name\": \"Free Wi-Fi\",\n      \"value\": true\n    }\n  ],\n  \"petsAllowed\": false\n}\n</script>\n\nFill the [bracketed] parts - the rest was read from your own site. Test it at https://validator.schema.org/ before publishing.",
    "effort": "moderate"
   },
   {
@@ -332,13 +332,13 @@
    "code": "guest_partial:parking",
    "priority": "medium",
    "action": "Parking: add whether you can or must reserve",
-   "why": "Your site covers this (https://brooklandshotelsurrey.com/about-us/faqs/) but leaves out details a guest or AI assistant would need. It currently says: \"Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night.\"",
+   "why": "Your site covers this (https://brooklandshotelsurrey.com/about-us/faqs/) but leaves out details a guest or AI assistant would need. It currently says: \"Is parking available at the hotel? Overnight parking is available at £14 per vehicle, per night.\"",
    "category": "Website & Technical",
    "category_key": "website",
    "category_weight": 12.5,
    "owner": "Whoever writes the website copy",
    "page": "https://brooklandshotelsurrey.com/about-us/faqs/",
-   "example": "Parking: we have [on-site / nearby] parking for guests. It costs \u00a3[amount] per [night / 24 hours]. Spaces [can be reserved in advance by \u2026] / [are first come, first served].",
+   "example": "Parking: we have [on-site / nearby] parking for guests. It costs £[amount] per [night / 24 hours]. Spaces [can be reserved in advance by …] / [are first come, first served].",
    "effort": "quick"
   }
  ],
@@ -387,7 +387,7 @@
    ],
    "ai_agent_rules": {},
    "blocks_all": false,
-   "raw_excerpt": "# GLOBAL CRAWLER RULES\nUser-agent: *\n# Block core admin and login pages\nDisallow: /wp-admin/\nDisallow: /wp-login.php\nDisallow: /wp-register.php\n\n# But allow the AJAX handler so plugins & themes still work\nAllow: /wp-admin/admin-ajax.php\n\n# Block XML-RPC endpoint (widely abused)\nDisallow: /xmlrpc.php\n\n# Block includes, plugins, themes (these aren\u00e2\u0080\u0099t needed in search results)\nDisallow: /wp-includes/\nDisallow: /wp-content/plugins/\n\n# Block query URLs that generate duplicate content\n# search results pages\nDisallow: /*?s=\n# feed URLs\nDisallow: /*?*feed=\n# custom order URLs\nDisallow: /*?*orderby=\n# comment reply URLs\nDisallow: /*?*replytocom\n\n# Optional: block raw documents if you don\u00e2\u0080\u0099t want PDFs, DOCs indexed\nDisallow: /wp-content/uploads/*.pdf\nDisallow: /wp-content/uploads/*.doc\nDisallow: /wp-content/uploads/*.docx\n\n# Let image-only crawlers in (so your JPG/PNG still show up in Google Images)\nAllow: /wp-content/uploads/\n\n# Sitemap declaration\nSitemap: https://brooklandshotelsurrey.com/sitemap_index.xml\n"
+   "raw_excerpt": "# GLOBAL CRAWLER RULES\nUser-agent: *\n# Block core admin and login pages\nDisallow: /wp-admin/\nDisallow: /wp-login.php\nDisallow: /wp-register.php\n\n# But allow the AJAX handler so plugins & themes still work\nAllow: /wp-admin/admin-ajax.php\n\n# Block XML-RPC endpoint (widely abused)\nDisallow: /xmlrpc.php\n\n# Block includes, plugins, themes (these arenât needed in search results)\nDisallow: /wp-includes/\nDisallow: /wp-content/plugins/\n\n# Block query URLs that generate duplicate content\n# search results pages\nDisallow: /*?s=\n# feed URLs\nDisallow: /*?*feed=\n# custom order URLs\nDisallow: /*?*orderby=\n# comment reply URLs\nDisallow: /*?*replytocom\n\n# Optional: block raw documents if you donât want PDFs, DOCs indexed\nDisallow: /wp-content/uploads/*.pdf\nDisallow: /wp-content/uploads/*.doc\nDisallow: /wp-content/uploads/*.docx\n\n# Let image-only crawlers in (so your JPG/PNG still show up in Google Images)\nAllow: /wp-content/uploads/\n\n# Sitemap declaration\nSitemap: https://brooklandshotelsurrey.com/sitemap_index.xml\n"
   },
   "ai_crawlers_blocked": [],
   "sitemap": {
@@ -910,7 +910,7 @@
     "status": 200,
     "final_url": "https://brooklandshotelsurrey.com/eat-drink/1907-restaurant/",
     "title": "1907 Restaurant | Brooklands Hotel &amp; Restaurants | Surrey",
-    "meta_description": "Modern dining inspired by Brooklands\u2019 golden age, with seasonal dishes, relaxed elegance and a vibrant bar &amp; grill atmosphere.",
+    "meta_description": "Modern dining inspired by Brooklands’ golden age, with seasonal dishes, relaxed elegance and a vibrant bar &amp; grill atmosphere.",
     "canonical": "https://brooklandshotelsurrey.com/eat-drink/1907-restaurant/",
     "h1": [
      "Modern, all-day restaurant in Weybridge, Surrey"
@@ -972,7 +972,7 @@
         "publisher": {
          "@id": "https://brooklandshotelsurrey.com/#person"
         },
-        "description": "Modern dining inspired by Brooklands\u2019 golden age, with seasonal dishes, relaxed elegance and a vibrant bar &amp; grill atmosphere.",
+        "description": "Modern dining inspired by Brooklands’ golden age, with seasonal dishes, relaxed elegance and a vibrant bar &amp; grill atmosphere.",
         "name": "1907 Restaurant | Brooklands Hotel &amp; Restaurants | Surrey",
         "@id": "https://brooklandshotelsurrey.com/eat-drink/1907-restaurant/#richSnippet",
         "isPartOf": {
@@ -1210,11 +1210,11 @@
      "whether you can or must reserve"
     ],
     "nice_to_have": [],
-    "snippet": "Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night.",
+    "snippet": "Is parking available at the hotel? Overnight parking is available at £14 per vehicle, per night.",
     "source_url": "https://brooklandshotelsurrey.com/about-us/faqs/",
     "other_sources": [],
     "note": "",
-    "template": "Parking: we have [on-site / nearby] parking for guests. It costs \u00a3[amount] per [night / 24 hours]. Spaces [can be reserved in advance by \u2026] / [are first come, first served].",
+    "template": "Parking: we have [on-site / nearby] parking for guests. It costs £[amount] per [night / 24 hours]. Spaces [can be reserved in advance by …] / [are first come, first served].",
     "state": "partial",
     "state_label": "Partly answered"
    },
@@ -1237,7 +1237,7 @@
      "https://brooklandshotelsurrey.com/terms-conditions/"
     ],
     "note": "",
-    "template": "Breakfast is served [Mon\u2013Fri 7:00\u201310:00, weekends 7:30\u201310:30] in [location]. It is [included in the room rate / \u00a3[amount] per person].",
+    "template": "Breakfast is served [Mon–Fri 7:00–10:00, weekends 7:30–10:30] in [location]. It is [included in the room rate / £[amount] per person].",
     "state": "partial",
     "state_label": "Partly answered"
    },
@@ -1259,7 +1259,7 @@
      "https://brooklandshotelsurrey.com/hotel-information/"
     ],
     "note": "",
-    "template": "Check-in is from [15:00]. Check-out is by [11:00]. Early check-in and late check-out are [available on request / \u00a3[amount]].",
+    "template": "Check-in is from [15:00]. Check-out is by [11:00]. Early check-in and late check-out are [available on request / £[amount]].",
     "state": "answered",
     "state_label": "Answered"
    },
@@ -1273,13 +1273,13 @@
     ],
     "missing": [],
     "nice_to_have": [],
-    "snippet": "Is the hotel dog-friendly? We love dogs, but unfortunately, we can\u2019t accommodate them at Brooklands Hotel.",
+    "snippet": "Is the hotel dog-friendly? We love dogs, but unfortunately, we can’t accommodate them at Brooklands Hotel.",
     "source_url": "https://brooklandshotelsurrey.com/about-us/faqs/",
     "other_sources": [
      "https://brooklandshotelsurrey.com/sustainability-policy/"
     ],
     "note": "the text appears to say this is not offered - check the wording",
-    "template": "Dogs [are / are not] welcome. [There is a charge of \u00a3[amount] per night / There is no charge.] [Limit of [number] per room; allowed in [rooms/areas]].",
+    "template": "Dogs [are / are not] welcome. [There is a charge of £[amount] per night / There is no charge.] [Limit of [number] per room; allowed in [rooms/areas]].",
     "state": "answered",
     "state_label": "Answered"
    },
@@ -1326,7 +1326,7 @@
      "https://brooklandshotelsurrey.com/room/family-rooms/"
     ],
     "note": "",
-    "template": "Our family rooms sleep up to [number] ([2 adults and 2 children]). Connecting rooms are [available on request]. Cots and extra beds are [free / \u00a3[amount]].",
+    "template": "Our family rooms sleep up to [number] ([2 adults and 2 children]). Connecting rooms are [available on request]. Cots and extra beds are [free / £[amount]].",
     "state": "partial",
     "state_label": "Partly answered"
    },
@@ -1342,7 +1342,7 @@
     ],
     "missing": [],
     "nice_to_have": [],
-    "snippet": "Where to find us Brooklands Hotel, Brooklands Drive, Weybridge, Surrey, KT13 0SL United Kingdom View in Google Maps How to find us Easy to reach by road, rail or air \u2013 getting here is refreshingly simple.",
+    "snippet": "Where to find us Brooklands Hotel, Brooklands Drive, Weybridge, Surrey, KT13 0SL United Kingdom View in Google Maps How to find us Easy to reach by road, rail or air – getting here is refreshingly simple.",
     "source_url": "https://brooklandshotelsurrey.com/about-us/contact-us/",
     "other_sources": [
      "https://brooklandshotelsurrey.com/about-us/faqs/"
@@ -1366,7 +1366,7 @@
     "source_url": "https://brooklandshotelsurrey.com/about-us/faqs/",
     "other_sources": [],
     "note": "",
-    "template": "Wi-Fi is [free / \u00a3[amount]] throughout the hotel, including guest rooms.",
+    "template": "Wi-Fi is [free / £[amount]] throughout the hotel, including guest rooms.",
     "state": "answered",
     "state_label": "Answered"
    },
@@ -1384,7 +1384,7 @@
     "source_url": "",
     "other_sources": [],
     "note": "",
-    "template": "We have [number] [type, e.g. 7kW Type 2] EV charging points [in the car park]. Charging [is free / costs \u00a3[amount] per kWh]; pay via [app/network].",
+    "template": "We have [number] [type, e.g. 7kW Type 2] EV charging points [in the car park]. Charging [is free / costs £[amount] per kWh]; pay via [app/network].",
     "state": "not_found",
     "state_label": "Not found on pages checked"
    },
@@ -1449,7 +1449,7 @@
    },
    {
     "fact": "Parking",
-    "value": "Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night.",
+    "value": "Is parking available at the hotel? Overnight parking is available at £14 per vehicle, per night.",
     "source_url": "https://brooklandshotelsurrey.com/about-us/faqs/",
     "note": "partly answered - missing whether you can or must reserve"
    },
@@ -1461,7 +1461,7 @@
    },
    {
     "fact": "Pets",
-    "value": "Is the hotel dog-friendly? We love dogs, but unfortunately, we can\u2019t accommodate them at Brooklands Hotel.",
+    "value": "Is the hotel dog-friendly? We love dogs, but unfortunately, we can’t accommodate them at Brooklands Hotel.",
     "source_url": "https://brooklandshotelsurrey.com/about-us/faqs/",
     "note": "answered"
    },
@@ -1479,7 +1479,7 @@
    },
    {
     "fact": "Getting there",
-    "value": "Where to find us Brooklands Hotel, Brooklands Drive, Weybridge, Surrey, KT13 0SL United Kingdom View in Google Maps How to find us Easy to reach by road, rail or air \u2013 getting here is refreshingly simple.",
+    "value": "Where to find us Brooklands Hotel, Brooklands Drive, Weybridge, Surrey, KT13 0SL United Kingdom View in Google Maps How to find us Easy to reach by road, rail or air – getting here is refreshingly simple.",
     "source_url": "https://brooklandshotelsurrey.com/about-us/contact-us/",
     "note": "answered"
    },
@@ -1546,7 +1546,7 @@
     "url": "https://www.getsurrey.co.uk/lifestyle/food-drink/new-italian-restaurant-opens-weybridge-33561483",
     "source": "Surrey Live",
     "source_type": "news_or_magazine",
-    "extract": "New Italian restaurant opens in Weybridge glasshouse opposite famous Surrey race track Diners can indulge in hand-stretched pizzas at the bright and elegant dining spot Comments Lifestyle Laura Nightingale What's On writer and content editor 06:00, 11 Mar 2026 View Image Brooklands Hotel in Weybridge (Image: Laura Nightingale) A new restaurant is set to open on the site of one of Britain\u2019s most famous racing heritage circuits in Weybridge this week. \u200c \u200c Offering delicious Italian cuisine, VETRO",
+    "extract": "New Italian restaurant opens in Weybridge glasshouse opposite famous Surrey race track Diners can indulge in hand-stretched pizzas at the bright and elegant dining spot Comments Lifestyle Laura Nightingale What's On writer and content editor 06:00, 11 Mar 2026 View Image Brooklands Hotel in Weybridge (Image: Laura Nightingale) A new restaurant is set to open on the site of one of Britain’s most famous racing heritage circuits in Weybridge this week. ‌ ‌ Offering delicious Italian cuisine, VETRO",
     "published": "2026-03-11",
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1562,7 +1562,7 @@
     "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/surrey-estate-home-race-track-33409442",
     "source": "Surrey Live",
     "source_type": "news_or_magazine",
-    "extract": "the building. From simulators to tours, there's also a cinema which screens a 20-minute film called The World\u2019s Most Valuable that plays throughout the day for free. \u200c The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day. Across the road from Mercedes Benz World is the luxurious four star Brooklands Hotel. A modern boutique spot that combines contemporary style with classic elegance, it has an award-winning restaurant called 1907 which pay",
+    "extract": "the building. From simulators to tours, there's also a cinema which screens a 20-minute film called The World’s Most Valuable that plays throughout the day for free. ‌ The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day. Across the road from Mercedes Benz World is the luxurious four star Brooklands Hotel. A modern boutique spot that combines contemporary style with classic elegance, it has an award-winning restaurant called 1907 which pay",
     "published": "2026-02-15",
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1578,7 +1578,7 @@
     "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/three-surrey-spas-running-crowned-34375898",
     "source": "Surrey Live",
     "source_type": "news_or_magazine",
-    "extract": "Park Hotel and Spa in Bagshot is an award-winning venue (Image: Laura Nightingale ) A shortlist of the bests spas in the UK and Ireland have been announced, with three sites in Surrey among the hopefuls eager to crowned the winner of the Good Spa Guide Awards 2026. \u200c \u200c The Spa at Pennyhill Park in Bagshot, The Spa at Runnymede in Egham and BSpa at Brooklands Hotel in Weybridge made the South-East finals this week. \u200c The awards received more than 350 individual entries, spanning 20 categories cov",
+    "extract": "Park Hotel and Spa in Bagshot is an award-winning venue (Image: Laura Nightingale ) A shortlist of the bests spas in the UK and Ireland have been announced, with three sites in Surrey among the hopefuls eager to crowned the winner of the Good Spa Guide Awards 2026. ‌ ‌ The Spa at Pennyhill Park in Bagshot, The Spa at Runnymede in Egham and BSpa at Brooklands Hotel in Weybridge made the South-East finals this week. ‌ The awards received more than 350 individual entries, spanning 20 categories cov",
     "published": "2026-08-02",
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1626,7 +1626,7 @@
     "url": "https://www.youneedtovisit.co.uk/brooklands-hotel-review",
     "source": "You need to visit | Family Travel Blog",
     "source_type": "blog",
-    "extract": "For our weekend family break in Surrey we were looking for a hotel that was close to both Legoland Windsor and Thorpe Park and the Brooklands hotel ticked all the right boxes. This is our family review of the Brooklands Hotel. Opened in 2010 and built on the site of the world\u2019s first purpose-built race track this luxurious, modern and contemporary four star hotel has 131 bedrooms and suites. Even though the original race track had disappeared we caught our first glimpse of",
+    "extract": "For our weekend family break in Surrey we were looking for a hotel that was close to both Legoland Windsor and Thorpe Park and the Brooklands hotel ticked all the right boxes. This is our family review of the Brooklands Hotel. Opened in 2010 and built on the site of the world’s first purpose-built race track this luxurious, modern and contemporary four star hotel has 131 bedrooms and suites. Even though the original race track had disappeared we caught our first glimpse of",
     "published": "2017-07-20",
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1642,7 +1642,7 @@
     "url": "https://www.my-travelmonkey.com/reviewed-pampering-stay-brooklands-hotel-spa-surrey",
     "source": "My Travel Monkey",
     "source_type": "blog",
-    "extract": "Last Updated on 30/04/2025 by Ting Dalton Brooklands Hotel & Spa has a unique position which sees its front exterior overlooking the famous Mercedes-Benz World track \u2013 of which the hotel takes its inspiration from. This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users \u2013",
+    "extract": "Last Updated on 30/04/2025 by Ting Dalton Brooklands Hotel & Spa has a unique position which sees its front exterior overlooking the famous Mercedes-Benz World track – of which the hotel takes its inspiration from. This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users –",
     "published": "2018-06-10",
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1658,7 +1658,7 @@
     "url": "https://www.mummytravels.com/car-spa-brooklands-hotel-surrey",
     "source": "MUMMYTRAVELS",
     "source_type": "blog",
-    "extract": "Sometimes a hotel break seems almost to have been designed perfectly for you. That\u2019s what I always think about Brooklands Hotel in Surrey \u2013 on the site of the UK\u2019s oldest purpose-built race track, next door to Mercedes Benz World, it\u2019s the ultimate place to stay for my car-mad husband. review stay * Then the Brooklands Museum next door has one of the few remaining Concordes which you can tour\u2026 so basically that\u2019s perfect for me. Throw in a spa, a promise",
+    "extract": "Sometimes a hotel break seems almost to have been designed perfectly for you. That’s what I always think about Brooklands Hotel in Surrey – on the site of the UK’s oldest purpose-built race track, next door to Mercedes Benz World, it’s the ultimate place to stay for my car-mad husband. review stay * Then the Brooklands Museum next door has one of the few remaining Concordes which you can tour… so basically that’s perfect for me. Throw in a spa, a promise",
     "published": "2016-11-13",
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1674,7 +1674,7 @@
     "url": "https://timeandleisure.co.uk/style/brooklands-spa-review",
     "source": "Time & Leisure",
     "source_type": "blog",
-    "extract": "Style Brooklands spa review By Tina Lofthouse 28 August 2024 6.21k Brooklands spa review Brooklands Hotel has just revamped its spa. We went for a test drive\u2026 >SUBSCRIBE FOR THE BEST THINGS TO DO EVERY WEEKEND< The spa at Brooklands Hotel has a rather unusually sited hot tub. And it\u2019s brilliant. I\u2019m not sure of anywhere else where you can sit in your swirling bubbles and look out over a race track. The hotel is located alongside",
+    "extract": "Style Brooklands spa review By Tina Lofthouse 28 August 2024 6.21k Brooklands spa review Brooklands Hotel has just revamped its spa. We went for a test drive… >SUBSCRIBE FOR THE BEST THINGS TO DO EVERY WEEKEND< The spa at Brooklands Hotel has a rather unusually sited hot tub. And it’s brilliant. I’m not sure of anywhere else where you can sit in your swirling bubbles and look out over a race track. The hotel is located alongside",
     "published": "2024-08-28",
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1738,7 +1738,7 @@
     "url": "https://www.hitched.co.uk/wedding-venues/weybridge.htm",
     "source": "hitched.co.uk",
     "source_type": "hotel_directory",
-    "extract": "The 10 Best Wedding Venues in Weybridge | hitched.co.uk ### Wedding Venues in Weybridge with Real Weddings published\n\nOatlands Park Hotel\n\nOatlands Park Hotel 1\n\nOatlands Park Hotel 2\n\nOatlands Park Hotel 3\n\n \n\nOatlands Park Hotel\n\n5.0 out of 5 rating, 181 reviews\n\n5.0 (181)\n\n \u00b7 Hotels . Weybridge,",
+    "extract": "The 10 Best Wedding Venues in Weybridge | hitched.co.uk ### Wedding Venues in Weybridge with Real Weddings published\n\nOatlands Park Hotel\n\nOatlands Park Hotel 1\n\nOatlands Park Hotel 2\n\nOatlands Park Hotel 3\n\n \n\nOatlands Park Hotel\n\n5.0 out of 5 rating, 181 reviews\n\n5.0 (181)\n\n · Hotels . Weybridge,",
     "published": null,
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1770,7 +1770,7 @@
     "url": "https://www.thesun.ie/travel/17651747/ultimate-guide-spa-breaks-girly-days-free-prosecco",
     "source": "thesun.ie",
     "source_type": "news_or_magazine",
-    "extract": "A couple relaxing in a spa in a hotel.\n\nAnd so you don\u2019t have to do all that searching, we have found the very top offers for you.\n\n## Day spa pass\n\nBrooklands Hotel spa and dining experience\n\nThe Brooklands Hotel in Weybridge offers three hours of spa access from \u00a327pp, or upgrade to three hours of spa access, a spa treatment and a meal, from \u00a376.69pp. [...] ### Andy Carroll lays bare every detai",
+    "extract": "A couple relaxing in a spa in a hotel.\n\nAnd so you don’t have to do all that searching, we have found the very top offers for you.\n\n## Day spa pass\n\nBrooklands Hotel spa and dining experience\n\nThe Brooklands Hotel in Weybridge offers three hours of spa access from £27pp, or upgrade to three hours of spa access, a spa treatment and a meal, from £76.69pp. [...] ### Andy Carroll lays bare every detai",
     "published": "2026-09-21",
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1786,7 +1786,7 @@
     "url": "https://www.visitsurrey.com/listing/best-western-the-ship-hotel-weybridge/3569301",
     "source": "visitsurrey.com",
     "source_type": "news_or_magazine",
-    "extract": "Your browser is not supported for this experience. We recommend using Chrome, Firefox, Edge, or Safari. Skip to main content Discover the best of Surrey, every month Discover the best of Surrey, every month From must-visit attractions to scenic walks and local events - get our handpicked guide to what\u2019s on across Surrey, delivered straight to your inbox. Sign up to the Visit Surrey newsletter",
+    "extract": "Your browser is not supported for this experience. We recommend using Chrome, Firefox, Edge, or Safari. Skip to main content Discover the best of Surrey, every month Discover the best of Surrey, every month From must-visit attractions to scenic walks and local events - get our handpicked guide to what’s on across Surrey, delivered straight to your inbox. Sign up to the Visit Surrey newsletter",
     "published": null,
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1802,7 +1802,7 @@
     "url": "https://www.hitched.co.uk/wedding-venues/weybridge.htm",
     "source": "hitched.co.uk",
     "source_type": "other",
-    "extract": "### Wedding Venues in Weybridge with Real Weddings published\n\nOatlands Park Hotel\n\nOatlands Park Hotel 1\n\nOatlands Park Hotel 2\n\nOatlands Park Hotel 3\n\n \n\nOatlands Park Hotel\n\n5.0 out of 5 rating, 181 reviews\n\n5.0 (181)\n\n \u00b7 Hotels . Weybridge, Surrey\n\nView 5 real weddings\n\nBrooklands Hotel\n\nBrooklands Hotel 1\n\nBrooklands Hotel 2\n\nBrooklands Hotel 3\n\n \n\nBrooklands Hotel\n\n5.0 out of 5 rating, 13 rev",
+    "extract": "### Wedding Venues in Weybridge with Real Weddings published\n\nOatlands Park Hotel\n\nOatlands Park Hotel 1\n\nOatlands Park Hotel 2\n\nOatlands Park Hotel 3\n\n \n\nOatlands Park Hotel\n\n5.0 out of 5 rating, 181 reviews\n\n5.0 (181)\n\n · Hotels . Weybridge, Surrey\n\nView 5 real weddings\n\nBrooklands Hotel\n\nBrooklands Hotel 1\n\nBrooklands Hotel 2\n\nBrooklands Hotel 3\n\n \n\nBrooklands Hotel\n\n5.0 out of 5 rating, 13 rev",
     "published": null,
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1818,7 +1818,7 @@
     "url": "https://www.visitsurrey.com/ideas-and-inspiration/meetings-and-conference",
     "source": "visitsurrey.com",
     "source_type": "news_or_magazine",
-    "extract": "Need a venue with accommodation? Oatlands Park Hotel near Weybridge stands on the site of the grand Royal Palaces of Henry VIII and Elizabeth I; and The Foxhills Club and Resort near Ottershaw has established itself as one of Britain\u2019s best country estate hotels.    Whether you\u2019re looking to arrange an intimate board meeting in a special location or a trend-setting conference that needs to capture",
+    "extract": "Need a venue with accommodation? Oatlands Park Hotel near Weybridge stands on the site of the grand Royal Palaces of Henry VIII and Elizabeth I; and The Foxhills Club and Resort near Ottershaw has established itself as one of Britain’s best country estate hotels.    Whether you’re looking to arrange an intimate board meeting in a special location or a trend-setting conference that needs to capture",
     "published": null,
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1834,7 +1834,7 @@
     "url": "https://www.visitbritain.com/en",
     "source": "visitbritain.com",
     "source_type": "destination_body",
-    "extract": "Discover the land of Big Ben, Banksy and bangers and mash. From its bustling cities to its blooming beautiful gardens, it doesn\u2019t disappoint.\n\n Plan a trip to England\n\nScotland\n\n## Discover Great Britain\u2019s northern reaches\n\nImagine a country where ancient castles guard mysterious lochs and emerald glens, and where the local spirit is as warm as the welcome.\n\n Plan a trip to Scotland\n\nWales\n\n## Dis",
+    "extract": "Discover the land of Big Ben, Banksy and bangers and mash. From its bustling cities to its blooming beautiful gardens, it doesn’t disappoint.\n\n Plan a trip to England\n\nScotland\n\n## Discover Great Britain’s northern reaches\n\nImagine a country where ancient castles guard mysterious lochs and emerald glens, and where the local spirit is as warm as the welcome.\n\n Plan a trip to Scotland\n\nWales\n\n## Dis",
     "published": null,
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1850,7 +1850,7 @@
     "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
     "source": "Hotel's own website",
     "source_type": "own_website",
-    "extract": "and public areas. Do you have accessible facilities? Yes, the hotel is equipped with accessible facilities, including accessible bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night. Please",
+    "extract": "and public areas. Do you have accessible facilities? Yes, the hotel is equipped with accessible facilities, including accessible bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking is available at £14 per vehicle, per night. Please",
     "published": null,
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -1866,7 +1866,7 @@
     "url": "https://brooklandshotelsurrey.com/sustainability-policy/",
     "source": "Hotel's own website",
     "source_type": "own_website",
-    "extract": "Focus on our people: Provide our people with opportunities to succeed and grow. Luxury skincare brand [comfort zone] partnered with us in BSpa, who are a certified B Corp\u00ae. Serious Tissues in all guest areas. At least 10 million trees are cut down every year for toilet paper and Serious",
+    "extract": "Focus on our people: Provide our people with opportunities to succeed and grow. Luxury skincare brand [comfort zone] partnered with us in BSpa, who are a certified B Corp®. Serious Tissues in all guest areas. At least 10 million trees are cut down every year for toilet paper and Serious",
     "published": null,
     "collected_at": "2026-10-02T18:12:50+00:00",
     "match": "high",
@@ -2374,7 +2374,7 @@
        "publisher_key": "Reach plc",
        "url": "https://www.getsurrey.co.uk/lifestyle/food-drink/new-italian-restaurant-opens-weybridge-33561483",
        "date": "2026-03-11",
-       "text": "\u200c The bright, elegant space is ideal for casual lunches, intimate dinners and stylish evening gatherings."
+       "text": "‌ The bright, elegant space is ideal for casual lunches, intimate dinners and stylish evening gatherings."
       }
      },
      {
@@ -2386,7 +2386,7 @@
        "publisher_key": "Reach plc",
        "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/three-surrey-spas-running-crowned-34375898",
        "date": "2026-08-02",
-       "text": "View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists \u200c BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton U"
+       "text": "View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists ‌ BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton U"
       }
      },
      {
@@ -2410,7 +2410,7 @@
        "publisher_key": "my-travelmonkey.com",
        "url": "https://www.my-travelmonkey.com/reviewed-pampering-stay-brooklands-hotel-spa-surrey",
        "date": "2018-06-10",
-       "text": "This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users \u2013 would you believe Brooklands Hotel Spa also has hordes of guests looking for a speci"
+       "text": "This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users – would you believe Brooklands Hotel Spa also has hordes of guests looking for a speci"
       }
      },
      {
@@ -2499,7 +2499,7 @@
      "publisher": "You need to visit | Family Travel Blog",
      "date": "2017-07-20",
      "url": "https://www.youneedtovisit.co.uk/brooklands-hotel-review",
-     "title": "Review: Brooklands Hotel Surrey \u2013 You need to visit | Family Travel Blog",
+     "title": "Review: Brooklands Hotel Surrey – You need to visit | Family Travel Blog",
      "freshness": "old"
     }
    ],
@@ -2579,7 +2579,7 @@
      "windows": [
       "27.5K At a glance Brooklands Hotel is a stylish art-deco spa hotel in Weybridge, Surrey set on the historic Brooklands racing circuit. Location: Weybridge, Surrey, beside the former Brooklands racing circuit and close to Brooklands Museum and Mercedes-Benz World Highlights: Art-deco design, spacious contemporary rooms (many with track views) and spa facilities",
       "and sauna/steam suites Best for: Motorsport enthusiasts, spa breaks and weekend getaways with stylish dining at the 1907 restaurant and bar Booking: Check availability at Brooklands Hotel Brooklands hotel review Whether you are a car enthusiast, plane-spotter or just love relaxing in spas, you will find something to delight you during your stay at Brooklands hotel in Weybridge, Surrey. This four-star, 131 bedroom art deco-style hotel was built on the site of the original Brooklands racetrack , where motor-racing began in the UK during the 1920s and 1930s. What's in this article... show Brooklands hotel review Brooklands Hotel rooms Brooklands spa at Brooklands hotel Spa treatments Sunlight",
-      "1907 Brooklands hotel breakfast What else is there to do at Brooklands? Visiting the Brooklands Museum Mercedes Benz World Driving Experience Hotel information and to book Brooklands Hotel Surrey FAQs Where is Brooklands hotel located? Is Brooklands hotel a spa hotel? Does Brooklands hotel have views of the race track? What type of stay is Brooklands hotel best for? Is Brooklands hotel easy to reach from London? The Brooklands hotel, Weybridge, has 131 bedrooms and isn\u2019t short on space While the original track closed in 1938, the vast rooms and suites at Brooklands hotel have great views of the lively Mercedes-Benz racetrack which is at the front of the hotel. Readers also love Best",
+      "1907 Brooklands hotel breakfast What else is there to do at Brooklands? Visiting the Brooklands Museum Mercedes Benz World Driving Experience Hotel information and to book Brooklands Hotel Surrey FAQs Where is Brooklands hotel located? Is Brooklands hotel a spa hotel? Does Brooklands hotel have views of the race track? What type of stay is Brooklands hotel best for? Is Brooklands hotel easy to reach from London? The Brooklands hotel, Weybridge, has 131 bedrooms and isn’t short on space While the original track closed in 1938, the vast rooms and suites at Brooklands hotel have great views of the lively Mercedes-Benz racetrack which is at the front of the hotel. Readers also love Best",
       "UK hotels with swimming pools If you are a petrol-head then you will find it hard to resist taking a spin around the track yourself, while if you are more about relaxing, then Brooklands spa is the ideal place. The huge reception lobby of the hotel entrance which is just opposite the Brooklands racetrack As well as the spa and the great location, Brooklands hotel has two restaurants and a stylish bar which make it perfect for leisure or business travel, serving afternoon tea, coffee and cocktails depending on your mood or the time of day. Find hotels in Surrey Brooklands Hotel rooms One massive advantage that country hotels have over their capital city rivals is space and our suite at"
      ],
      "fingerprint": "27 5k at a glance brooklands hotel is a stylish art deco spa hotel in weybridge surrey set on the historic brooklands racing circuit location weybridge surrey beside the former brooklands racing circuit and close to brooklands museum and mercedes benz world highlights art deco design spacious contemporary rooms many with track views and spa facilities including outdoor hydrotherapy hot tub and sauna steam suites best for motorsport enthusiasts spa breaks and weekend getaways with stylish dining at the 1907 restaurant and bar booking check availability at brooklands hotel brooklands hotel review whether you are a car enthusiast plane spotter or just love relaxing in spas you will find something to delight you during your stay at brooklands hotel in weybridge surrey this four star 131 bedroom art deco style hotel was built on the site of the original brooklands racetrack where motor racing began in the uk during the 1920s and 1930s what s in this article show brooklands hotel review brooklands hotel rooms brooklands spa at brooklands hotel spa treatments sunlight therapy brooklands hotel restaurant 1907 brooklands hotel breakfast what else is there to do at brooklands visiting the brooklands museum mercedes benz world driving experience hotel information and to book brooklands hotel surrey faqs where is brooklands hotel located is brooklands hotel a spa hotel does brooklands hotel have views of the race track what type of stay is brooklands hotel best",
@@ -2613,8 +2613,8 @@
      "text_len": 3333,
      "substance": "substantial mention",
      "windows": [
-      "Park Hotel and Spa in Bagshot is an award-winning venue (Image: Laura Nightingale ) A shortlist of the bests spas in the UK and Ireland have been announced, with three sites in Surrey among the hopefuls eager to crowned the winner of the Good Spa Guide Awards 2026. \u200c \u200c The Spa at Pennyhill Park in Bagshot, The Spa at Runnymede in Egham and BSpa at Brooklands Hotel in Weybridge made the South-East finals this week. \u200c The awards received more than 350 individual entries, spanning 20 categories covering spa type, regional excellence and specialist achievement. \u200c From Monday (August 3) the public are invited to cast their vote for their favourite South-East spa, with the results combined with",
-      "The Spa at South Lodge, located just over the Surrey border in Horsham, was crowned Best Spa in the South-East at the Good Spa Guide Awards 2025. \u200c It returns as a finalist this year, competing once again for the region's top spa title. View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists \u200c BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton Utilita Bowl Southampton Field Trip Spa Brighton H Spa at Horwood House Old Thorns Hotel andResort SenSpa at Careys Manor Sequoia Spa at The Grove Simply Healing Retreats Solent Hotel and Spa Taplow"
+      "Park Hotel and Spa in Bagshot is an award-winning venue (Image: Laura Nightingale ) A shortlist of the bests spas in the UK and Ireland have been announced, with three sites in Surrey among the hopefuls eager to crowned the winner of the Good Spa Guide Awards 2026. ‌ ‌ The Spa at Pennyhill Park in Bagshot, The Spa at Runnymede in Egham and BSpa at Brooklands Hotel in Weybridge made the South-East finals this week. ‌ The awards received more than 350 individual entries, spanning 20 categories covering spa type, regional excellence and specialist achievement. ‌ From Monday (August 3) the public are invited to cast their vote for their favourite South-East spa, with the results combined with",
+      "The Spa at South Lodge, located just over the Surrey border in Horsham, was crowned Best Spa in the South-East at the Good Spa Guide Awards 2025. ‌ It returns as a finalist this year, competing once again for the region's top spa title. View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists ‌ BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton Utilita Bowl Southampton Field Trip Spa Brighton H Spa at Horwood House Old Thorns Hotel andResort SenSpa at Careys Manor Sequoia Spa at The Grove Simply Healing Retreats Solent Hotel and Spa Taplow"
      ],
      "fingerprint": "the three surrey spas in the running to be crowned the uk s best these wellness retreats on our doorstep offer the most indulgent pampering experiences comments what s on laura nightingale what s on writer and content editor 06 00 02 aug 2026 view 2 images pennyhill park hotel and spa in bagshot is an award winning venue image laura nightingale a shortlist of the bests spas in the uk and ireland have been announced with three sites in surrey among the hopefuls eager to crowned the winner of the good spa guide awards 2026 the spa at pennyhill park in bagshot the spa at runnymede in egham and bspa at brooklands hotel in weybridge made the south east finals this week the awards received more than 350 individual entries spanning 20 categories covering spa type regional excellence and specialist achievement from monday august 3 the public are invited to cast their vote for their favourite south east spa with the results combined with independent panel judging to decide this year s winner new for this year the shortlist will be assessed by a specially assembled judging panel of respected industry experts working alongside the good spa guide s renowned spa spies to bring an added layer of independent expert scrutiny to the judging process lesley bacon spa and wellness director at good spa guide said the south east continues to set the bar high from spas with all the thermals and no less than eight pools to eco conscious builds with natural swimmin",
      "author": "Laura Nightingale",
@@ -2647,10 +2647,10 @@
      "text_len": 2868,
      "substance": "feature",
      "windows": [
-      "New Italian restaurant opens in Weybridge glasshouse opposite famous Surrey race track Diners can indulge in hand-stretched pizzas at the bright and elegant dining spot Comments Lifestyle Laura Nightingale What's On writer and content editor 06:00, 11 Mar 2026 View Image Brooklands Hotel in Weybridge (Image: Laura Nightingale) A new restaurant is set to open on the site of one of Britain\u2019s most famous racing heritage circuits in Weybridge this week. \u200c \u200c Offering delicious Italian cuisine, VETRO will be located within a stunning 1907 glasshouse at Brooklands Hotel in Weybridge, where the world\u2019s first purpose built",
-      "by the warmth and simplicity of traditional Italian dining and opening to the public on Wednesday (March 11), VETRO will offer a relaxed yet refined pizza and pasta menu designed for sharing, savouring and socialising. \u200c Marco Gervasoni, general manager of Brooklands Hotel, said: \u201cWe are thrilled to introduce VETRO as an exciting new addition to Brooklands Hotel. \"Our vision was to create a dining experience that captures the warmth and generosity of Italian hospitality while offering the quality and style our guests expect. \"VETRO is all about bringing people together; whether for a relaxed lunch, an after-work dinner or an evening out, and we\u2019re incredibly proud to open our doors and",
-      "from \u00a315, alongside a selection of comforting pasta dishes finished with rich, flavourful sauces. From vibrant tomato bases to indulgent creamy creations, every dish is crafted to reflect the true spirit of Italy, with each plate designed to be enjoyed slowly and shared generously. Set within the light-filled surroundings of the 1907 glasshouse at Brooklands Hotel, VETRO provides a contemporary backdrop that perfectly complements its Italian influence. \u200c The bright, elegant space is ideal for casual lunches, intimate dinners and stylish evening gatherings. Brooklands Hotel boasts an iconic, art deco inspired interior. It features the world\u2019s most historic motor racing track running through",
-      "and grill and luxurious spa facilities. The hotel takes great inspiration from its racetrack history and location, from the original Brooklands racetrack, which rolls out before you in riven quartz and honed granite, to the glittering 1930s inspired honeycomb pendants that greet you upon arrival. Article continues below How to find VETRO Address: Brooklands Hotel, Brooklands Drive, Weybridge , KT13 0SL. ENJOYED THIS STORY? Choose Surrey Live as a 'Preferred Source' on Google News for quick access to the news you value. \u200c Weybridge Things to do in Surrey Mercedes-Benz World Brooklands Museum"
+      "New Italian restaurant opens in Weybridge glasshouse opposite famous Surrey race track Diners can indulge in hand-stretched pizzas at the bright and elegant dining spot Comments Lifestyle Laura Nightingale What's On writer and content editor 06:00, 11 Mar 2026 View Image Brooklands Hotel in Weybridge (Image: Laura Nightingale) A new restaurant is set to open on the site of one of Britain’s most famous racing heritage circuits in Weybridge this week. ‌ ‌ Offering delicious Italian cuisine, VETRO will be located within a stunning 1907 glasshouse at Brooklands Hotel in Weybridge, where the world’s first purpose built",
+      "by the warmth and simplicity of traditional Italian dining and opening to the public on Wednesday (March 11), VETRO will offer a relaxed yet refined pizza and pasta menu designed for sharing, savouring and socialising. ‌ Marco Gervasoni, general manager of Brooklands Hotel, said: “We are thrilled to introduce VETRO as an exciting new addition to Brooklands Hotel. \"Our vision was to create a dining experience that captures the warmth and generosity of Italian hospitality while offering the quality and style our guests expect. \"VETRO is all about bringing people together; whether for a relaxed lunch, an after-work dinner or an evening out, and we’re incredibly proud to open our doors and",
+      "from £15, alongside a selection of comforting pasta dishes finished with rich, flavourful sauces. From vibrant tomato bases to indulgent creamy creations, every dish is crafted to reflect the true spirit of Italy, with each plate designed to be enjoyed slowly and shared generously. Set within the light-filled surroundings of the 1907 glasshouse at Brooklands Hotel, VETRO provides a contemporary backdrop that perfectly complements its Italian influence. ‌ The bright, elegant space is ideal for casual lunches, intimate dinners and stylish evening gatherings. Brooklands Hotel boasts an iconic, art deco inspired interior. It features the world’s most historic motor racing track running through",
+      "and grill and luxurious spa facilities. The hotel takes great inspiration from its racetrack history and location, from the original Brooklands racetrack, which rolls out before you in riven quartz and honed granite, to the glittering 1930s inspired honeycomb pendants that greet you upon arrival. Article continues below How to find VETRO Address: Brooklands Hotel, Brooklands Drive, Weybridge , KT13 0SL. ENJOYED THIS STORY? Choose Surrey Live as a 'Preferred Source' on Google News for quick access to the news you value. ‌ Weybridge Things to do in Surrey Mercedes-Benz World Brooklands Museum"
      ],
      "fingerprint": "new italian restaurant opens in weybridge glasshouse opposite famous surrey race track diners can indulge in hand stretched pizzas at the bright and elegant dining spot comments lifestyle laura nightingale what s on writer and content editor 06 00 11 mar 2026 view image brooklands hotel in weybridge image laura nightingale a new restaurant is set to open on the site of one of britain s most famous racing heritage circuits in weybridge this week offering delicious italian cuisine vetro will be located within a stunning 1907 glasshouse at brooklands hotel in weybridge where the world s first purpose built real race track opened in 1907 inspired by the warmth and simplicity of traditional italian dining and opening to the public on wednesday march 11 vetro will offer a relaxed yet refined pizza and pasta menu designed for sharing savouring and socialising marco gervasoni general manager of brooklands hotel said we are thrilled to introduce vetro as an exciting new addition to brooklands hotel our vision was to create a dining experience that captures the warmth and generosity of italian hospitality while offering the quality and style our guests expect vetro is all about bringing people together whether for a relaxed lunch an after work dinner or an evening out and we re incredibly proud to open our doors and welcome guests to experience it guests can enjoy hand stretched pizzas baked to perfection and starting from 15 alongside a selection",
      "author": "Laura Nightingale",
@@ -2683,8 +2683,8 @@
      "text_len": 3545,
      "substance": "substantial mention",
      "windows": [
-      "the building. From simulators to tours, there's also a cinema which screens a 20-minute film called The World\u2019s Most Valuable that plays throughout the day for free. \u200c The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day. Across the road from Mercedes Benz World is the luxurious four star Brooklands Hotel. A modern boutique spot that combines contemporary style with classic elegance, it has an award-winning restaurant called 1907 which pays homage to the 1920s and 30s - the golden age of racing - plus, a stunning spa with outdoor hydrotherapy hot tub overlooking the Mercedes-Benz World track. \u200c Named Bspa, it also features a",
-      "Nightingale) \u200c How to visit the Brooklands estate Brooklands Museum Address: Brooklands Drive, Weybridge , KT13 0SL. Opening dates: Daily. Half term activities will run between February 15 to 23. Opening times: 10am to 4pm. Entry price: Child entry (ages 4-17) costs \u00a310 and adult entry is \u00a324 if bought in advance. Under fours enter for free. \u200c Brooklands Hotel Address: Brooklands Drive, Weybridge KT13 0SL. Parking: Car park on site. Book: For a spa day, restaurant reservation or for rooms call the hotel on 01932 335700 or visit brooklandshotelsurrey.com . Mercedes Benz World Article continues below Address: Brooklands Drive, Weybridge, KT13 0SL. Parking: Free car park on site. Opening"
+      "the building. From simulators to tours, there's also a cinema which screens a 20-minute film called The World’s Most Valuable that plays throughout the day for free. ‌ The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day. Across the road from Mercedes Benz World is the luxurious four star Brooklands Hotel. A modern boutique spot that combines contemporary style with classic elegance, it has an award-winning restaurant called 1907 which pays homage to the 1920s and 30s - the golden age of racing - plus, a stunning spa with outdoor hydrotherapy hot tub overlooking the Mercedes-Benz World track. ‌ Named Bspa, it also features a",
+      "Nightingale) ‌ How to visit the Brooklands estate Brooklands Museum Address: Brooklands Drive, Weybridge , KT13 0SL. Opening dates: Daily. Half term activities will run between February 15 to 23. Opening times: 10am to 4pm. Entry price: Child entry (ages 4-17) costs £10 and adult entry is £24 if bought in advance. Under fours enter for free. ‌ Brooklands Hotel Address: Brooklands Drive, Weybridge KT13 0SL. Parking: Car park on site. Book: For a spa day, restaurant reservation or for rooms call the hotel on 01932 335700 or visit brooklandshotelsurrey.com . Mercedes Benz World Article continues below Address: Brooklands Drive, Weybridge, KT13 0SL. Parking: Free car park on site. Opening"
      ],
      "fingerprint": "the surrey estate home to the race track where britain s first grand prix was held 100 years ago the town is also home to a hotel inspired by the golden age of racing comments what s on laura nightingale what s on writer and content editor 12 00 15 feb 2026 view 2 images image paul stewart located in the affluent surrey town of weybridge is an estate called brooklands and it s a great place to visit especially if you re a motoring fan the desirable neighbourhood nestled between the m25 and m3 near chertsey shot to fame when the world s first motor racing circuit opened there in 1907 this summer marks one hundred years since britain s first grand prix was held at the circuit on august 7 1926 to celebrate the momentous anniversary various events will take place at brooklands museum which sees a whopping 180 000 visitors a year occupying 32 acres including the racing track the museum in the estate showcases the achievements of the pioneering men and women in motorsport as well as aviation and uses their history of innovation and endeavour to inspire a new generation since opening as a public museum in 1991 it has continued to grow its collection of aircraft racing bikes and cars as well as opening the award winning brooklands aircraft factory and the only concorde with public access in south east england next door to the museum is mercedes benz world as well as offering thrilling driving experiences outdoors members of the public can explore thr",
      "author": "Laura Nightingale",
@@ -2718,9 +2718,9 @@
      "substance": "feature",
      "windows": [
       "Back A stay at Brooklands Hotel near Weybridge, Surrey - VS review By Matthew Williams - Visit Surrey on Mar. 09, 2025 Celebrating its 15 th anniversary, Brooklands Hotel near Weybridge has made a name for itself with its award-winning spa, elegant restaurant and bar and views across motoring history. Matthew Williams visits There are surely not too many places",
-      "as you step into the impressive art deco hotel foyer, the floor is designed to showcase where the original Brooklands finishing straight once ran. The hotel's restaurant, 1907, is also named after the date that the racing circuit opened. It would host the first British Grand Prix in 1926, too. The racetrack that is, not the restaurant. Fittingly, Brooklands Hotel makes a bold first impression \u2013 and, this year, it is celebrating its 15 th anniversary, having first opened its doors in 2010. We're greeted on a gorgeous late February afternoon by a friendly receptionist and then head upstairs to drop our bag off in our track view room for the night. A quick pitstop and we're off to the BSpa,",
-      "the floral delights of RHS Wisley are only a 15-minute journey away; the majestic Painshill landscape garden about the same\u2026 and that\u2019s just a start. We opt for a morning in the slow lane, with a stroll along the River Wey and a refresher among Weybridge\u2019s independent shops. Any dreams of being Lewis Hamilton will have to wait for next time. Brooklands Hotel, Brooklands Drive, Weybridge, Surrey KT13 0SL. For more information, visit their website here . Share your favourite Surrey hotels, pubs and restaurants with us on social media at @visitsurrey and @foodchatmatt What we ate Starters Wild Boar Pate with caramelised onion chutney, port-soaked cranberries and croutes, \u00a312.50 King Prawn",
-      "Meringue Tart with lemon curd and meringue crumble, \u00a310.50 Trio of Cheese (Black Bomber, Roquefort and Rosary Ash) with cheese, red onion and apple chutney, grapes and Miller\u2019s toast, \u00a314.50 Book your stay From spa stays to dinner, bed and breakfast, as well as the Ultimate Brooklands Experience (which includes a driving experience), you can find Brooklands Hotel\u2019s latest package offers here . While you\u2019re there Brooklands Museum \u2013 0 miles away (pictured) Painshill \u2013 3.8 miles away RHS Wisley \u2013 6 miles away Hampton Court Palace - 11 miles away Author Matthew Williams - Visit Surrey"
+      "as you step into the impressive art deco hotel foyer, the floor is designed to showcase where the original Brooklands finishing straight once ran. The hotel's restaurant, 1907, is also named after the date that the racing circuit opened. It would host the first British Grand Prix in 1926, too. The racetrack that is, not the restaurant. Fittingly, Brooklands Hotel makes a bold first impression – and, this year, it is celebrating its 15 th anniversary, having first opened its doors in 2010. We're greeted on a gorgeous late February afternoon by a friendly receptionist and then head upstairs to drop our bag off in our track view room for the night. A quick pitstop and we're off to the BSpa,",
+      "the floral delights of RHS Wisley are only a 15-minute journey away; the majestic Painshill landscape garden about the same… and that’s just a start. We opt for a morning in the slow lane, with a stroll along the River Wey and a refresher among Weybridge’s independent shops. Any dreams of being Lewis Hamilton will have to wait for next time. Brooklands Hotel, Brooklands Drive, Weybridge, Surrey KT13 0SL. For more information, visit their website here . Share your favourite Surrey hotels, pubs and restaurants with us on social media at @visitsurrey and @foodchatmatt What we ate Starters Wild Boar Pate with caramelised onion chutney, port-soaked cranberries and croutes, £12.50 King Prawn",
+      "Meringue Tart with lemon curd and meringue crumble, £10.50 Trio of Cheese (Black Bomber, Roquefort and Rosary Ash) with cheese, red onion and apple chutney, grapes and Miller’s toast, £14.50 Book your stay From spa stays to dinner, bed and breakfast, as well as the Ultimate Brooklands Experience (which includes a driving experience), you can find Brooklands Hotel’s latest package offers here . While you’re there Brooklands Museum – 0 miles away (pictured) Painshill – 3.8 miles away RHS Wisley – 6 miles away Hampton Court Palace - 11 miles away Author Matthew Williams - Visit Surrey"
      ],
      "fingerprint": "back a stay at brooklands hotel near weybridge surrey vs review by matthew williams visit surrey on mar 09 2025 celebrating its 15 th anniversary brooklands hotel near weybridge has made a name for itself with its award winning spa elegant restaurant and bar and views across motoring history matthew williams visits there are surely not too many places in england where you can relax with a cocktail in a hot tub while watching high performance cars slip and slide around a racetrack but so it is at the four star brooklands hotel near weybridge which is located just a wave of a chequered flag across the mercedes benz world track from the birthplace of british motorsport and aviation brooklands museum in fact as you step into the impressive art deco hotel foyer the floor is designed to showcase where the original brooklands finishing straight once ran the hotel s restaurant 1907 is also named after the date that the racing circuit opened it would host the first british grand prix in 1926 too the racetrack that is not the restaurant fittingly brooklands hotel makes a bold first impression and this year it is celebrating its 15 th anniversary having first opened its doors in 2010 we re greeted on a gorgeous late february afternoon by a friendly receptionist and then head upstairs to drop our bag off in our track view room for the night a quick pitstop and we re off to the bspa which is hidden away on the third floor of the hotel life s a beach at",
      "author": "Matthew Williams - Visit Surrey",
@@ -2753,7 +2753,7 @@
      "text_len": 2756,
      "substance": "passing mention",
      "windows": [
-      "Style Brooklands spa review By Tina Lofthouse 28 August 2024 6.21k Brooklands spa review Brooklands Hotel has just revamped its spa. We went for a test drive\u2026 >SUBSCRIBE FOR THE BEST THINGS TO DO EVERY WEEKEND< The spa at Brooklands Hotel has a rather unusually sited hot tub. And it\u2019s brilliant. I\u2019m not sure of anywhere else where you can sit in your swirling bubbles and look out over a race track. The hotel is located alongside"
+      "Style Brooklands spa review By Tina Lofthouse 28 August 2024 6.21k Brooklands spa review Brooklands Hotel has just revamped its spa. We went for a test drive… >SUBSCRIBE FOR THE BEST THINGS TO DO EVERY WEEKEND< The spa at Brooklands Hotel has a rather unusually sited hot tub. And it’s brilliant. I’m not sure of anywhere else where you can sit in your swirling bubbles and look out over a race track. The hotel is located alongside"
      ],
      "fingerprint": "style brooklands spa review by tina lofthouse 28 august 2024 6 21k brooklands spa review brooklands hotel has just revamped its spa we went for a test drive subscribe for the best things to do every weekend the spa at brooklands hotel has a rather unusually sited hot tub and it s brilliant i m not sure of anywhere else where you can sit in your swirling bubbles and look out over a race track the hotel is located alongside mercedes benz world and brooklands motor museum so it s a perfect spot to please all petrolhead or spa lover the museum tells the story of motoring and aviation through history mercedes benz world offers racetrack driving experiences i d wanted to try this famous hot tub for a while i grew up in a household where the constant thrum of top gear or the grand prix blasted out on the tv and so the idea of watching people whizz around the circuit while i was lounging around in a whirlpool was a big draw it didn t disappoint i could have stayed in a long while but the newly renovated spa was also commanding my attention there are finnish and infra red saunas a steam room and you can refresh with the fountain of crushed ice whenever the fancy takes you but it was the himalayan salt room that really worked for me i felt cleansed lighter somehow and like i could really breathe deeply afterwards there is also a sunlight therapy room where you can relax on loungers with all the benefits of sunshine but without the risk of skin damage my first s",
      "author": "Tina Lofthouse",
@@ -2786,10 +2786,10 @@
      "text_len": 8799,
      "substance": "feature",
      "windows": [
-      "Last Updated on 30/04/2025 by Ting Dalton Brooklands Hotel & Spa has a unique position which sees its front exterior overlooking the famous Mercedes-Benz World track \u2013 of which the hotel takes its inspiration from. This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users \u2013",
-      "would you believe Brooklands Hotel Spa also has hordes of guests looking for a special getaway and a pampering treat, great dining options and peace and relaxation? With the hotel\u2019s spa doing a roaring trade \u2013 the hotel is looking into expanding the spa area due to its phenomenal success. Not hard to believe after witnessing myself how busy Brooklands Hotel was even on a Sunday. When I was invited to come and stay for a one night package and bring along one of my best pals, I jumped at the chance. It\u2019s not often we get the opportunity for a pampering treat so we were both excited to have some time to ourselves alongside our friend, Prosecco\u2026 Here is a full Brooklands Hotel review\u2026",
-      "race track, which opened in 1907 by wealthy landowner Hugh Locke-King and was the scene of the earliest motor racing in the country during the 1920s and 1930s. The hotel is easily accessed with direct train routes into London and, aside from the close proximity of Mercedes Benz World, the famous Brooklands Museum is also close by. The Rooms at Brooklands Hotel & Spa With rooms starting at the deluxe tier and rising to track-facing suites \u2013 there\u2019s definitely an element of space and luxury to them all \u2013 with each room kitted out with the latest gadgets including a 42in flat-screen TV, iPod docking station, rain-showers and king-sized beds. We were lucky to be staying in one of four",
-      "personalised welcome note, spa-quality toiletries and complimentary wi-fi added a certain je ne sais quoi \u2013 and we both slept splendidly in the plush king-sized bed with piles of duck-down pillows and the comfortably soft duvet bathed in crisp white sheets. Amenities As soon as you step into the impressive lobby, you get an instant sense that Brooklands Hotel & Spa means business. Not only does the hotel have over six conference suites and meeting rooms with state-of-the-art facilities, but the capacity to hold large corporate events and even weddings. Meanwhile, the trendy 1907 Bar & Grill offers up plenty of space for guests to enjoy a drink or two. Head to the third floor and you\u2019ll"
+      "Last Updated on 30/04/2025 by Ting Dalton Brooklands Hotel & Spa has a unique position which sees its front exterior overlooking the famous Mercedes-Benz World track – of which the hotel takes its inspiration from. This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users –",
+      "would you believe Brooklands Hotel Spa also has hordes of guests looking for a special getaway and a pampering treat, great dining options and peace and relaxation? With the hotel’s spa doing a roaring trade – the hotel is looking into expanding the spa area due to its phenomenal success. Not hard to believe after witnessing myself how busy Brooklands Hotel was even on a Sunday. When I was invited to come and stay for a one night package and bring along one of my best pals, I jumped at the chance. It’s not often we get the opportunity for a pampering treat so we were both excited to have some time to ourselves alongside our friend, Prosecco… Here is a full Brooklands Hotel review…",
+      "race track, which opened in 1907 by wealthy landowner Hugh Locke-King and was the scene of the earliest motor racing in the country during the 1920s and 1930s. The hotel is easily accessed with direct train routes into London and, aside from the close proximity of Mercedes Benz World, the famous Brooklands Museum is also close by. The Rooms at Brooklands Hotel & Spa With rooms starting at the deluxe tier and rising to track-facing suites – there’s definitely an element of space and luxury to them all – with each room kitted out with the latest gadgets including a 42in flat-screen TV, iPod docking station, rain-showers and king-sized beds. We were lucky to be staying in one of four",
+      "personalised welcome note, spa-quality toiletries and complimentary wi-fi added a certain je ne sais quoi – and we both slept splendidly in the plush king-sized bed with piles of duck-down pillows and the comfortably soft duvet bathed in crisp white sheets. Amenities As soon as you step into the impressive lobby, you get an instant sense that Brooklands Hotel & Spa means business. Not only does the hotel have over six conference suites and meeting rooms with state-of-the-art facilities, but the capacity to hold large corporate events and even weddings. Meanwhile, the trendy 1907 Bar & Grill offers up plenty of space for guests to enjoy a drink or two. Head to the third floor and you’ll"
      ],
      "fingerprint": "last updated on 30 04 2025 by ting dalton brooklands hotel spa has a unique position which sees its front exterior overlooking the famous mercedes benz world track of which the hotel takes its inspiration from this modern and sleek hotel with its monochrome exterior and contemporary art deco interior has no outside grounds to speak of and appeals to conference and business users with several meeting suites and event teams available brooklands hotel review in full however would you believe brooklands hotel spa also has hordes of guests looking for a special getaway and a pampering treat great dining options and peace and relaxation with the hotel s spa doing a roaring trade the hotel is looking into expanding the spa area due to its phenomenal success not hard to believe after witnessing myself how busy brooklands hotel was even on a sunday when i was invited to come and stay for a one night package and bring along one of my best pals i jumped at the chance it s not often we get the opportunity for a pampering treat so we were both excited to have some time to ourselves alongside our friend prosecco here is a full brooklands hotel review location of brooklands hotel surrey the brooklands site in weybridge surrey is home to one of britain s most famous racing heritage circuits in fact it was the world s first purpose built real race track which opened in 1907 by wealthy landowner hugh locke king and was the scene of the earliest motor racing in the co",
      "author": "Ting Dalton",
@@ -2801,7 +2801,7 @@
     {
      "id": "E8",
      "url": "https://www.youneedtovisit.co.uk/brooklands-hotel-review",
-     "title": "Review: Brooklands Hotel Surrey \u2013 You need to visit | Family Travel Blog",
+     "title": "Review: Brooklands Hotel Surrey – You need to visit | Family Travel Blog",
      "domain": "youneedtovisit.co.uk",
      "publisher": "You need to visit | Family Travel Blog",
      "publisher_key": "youneedtovisit.co.uk",
@@ -2822,9 +2822,9 @@
      "text_len": 8258,
      "substance": "feature",
      "windows": [
-      "For our weekend family break in Surrey we were looking for a hotel that was close to both Legoland Windsor and Thorpe Park and the Brooklands hotel ticked all the right boxes. This is our family review of the Brooklands Hotel. Opened in 2010 and built on the site of the world\u2019s first purpose-built race track this luxurious, modern and contemporary four star hotel has 131 bedrooms and suites. Even though the original race track had disappeared we caught our first glimpse of",
-      "for the perfect night\u2019s sleep. The four white waffle bathrobes and slippers left at the bottom of our beds were a lovely addition. The girls in particular loved relaxing in their robes after their shower before getting dressed for our evening meal. A sign of a good hotel is when the girls start making themselves at home, which they did at the Brooklands hotel \u2013 and covered their beds with some of the favourite toys from home. Waiting for us in our room were chocolates, chilled bottled water and a hand written note from the hotel which was a lovely welcoming gesture. The large floor to ceiling windows offered panoramic views overlooking the Mercedes-Benz World track. The windows were",
-      "had a great range of equipment available. There were lots of beautiful communal spaces to relax in, with a stylish bar and a lounge area off the lobby with lots of comfortable seating areas. Location Located in Weybridge, Surrey the hotel was just 10 minutes from the M25. Car parking was complimentary with lots of spaces available. Overall The Brooklands Hotel is an excellent family friendly luxury hotel and is highly recommended. We had such a wonderful stay and it was the perfect location for us to explore the great family attractions of Mercedes-Benz World and Brooklands Museum. Three of the UK\u2019s best family theme parks, Legoland, Chessington and Thorpe Park are also just a short",
+      "For our weekend family break in Surrey we were looking for a hotel that was close to both Legoland Windsor and Thorpe Park and the Brooklands hotel ticked all the right boxes. This is our family review of the Brooklands Hotel. Opened in 2010 and built on the site of the world’s first purpose-built race track this luxurious, modern and contemporary four star hotel has 131 bedrooms and suites. Even though the original race track had disappeared we caught our first glimpse of",
+      "for the perfect night’s sleep. The four white waffle bathrobes and slippers left at the bottom of our beds were a lovely addition. The girls in particular loved relaxing in their robes after their shower before getting dressed for our evening meal. A sign of a good hotel is when the girls start making themselves at home, which they did at the Brooklands hotel – and covered their beds with some of the favourite toys from home. Waiting for us in our room were chocolates, chilled bottled water and a hand written note from the hotel which was a lovely welcoming gesture. The large floor to ceiling windows offered panoramic views overlooking the Mercedes-Benz World track. The windows were",
+      "had a great range of equipment available. There were lots of beautiful communal spaces to relax in, with a stylish bar and a lounge area off the lobby with lots of comfortable seating areas. Location Located in Weybridge, Surrey the hotel was just 10 minutes from the M25. Car parking was complimentary with lots of spaces available. Overall The Brooklands Hotel is an excellent family friendly luxury hotel and is highly recommended. We had such a wonderful stay and it was the perfect location for us to explore the great family attractions of Mercedes-Benz World and Brooklands Museum. Three of the UK’s best family theme parks, Legoland, Chessington and Thorpe Park are also just a short",
       "the London Bus museum was made even more interesting for the girls as they had a minions treasure hunt to follow. Right next to the hotel was the impressive three-storey Mercedes-Benz World, showcasing the history of Mercedes-Benz cars. There was also a range of on and off-road driving experiences for adults and younger children to take part in. Brooklands Hotel Brooklands Drive, Weybridge, Surrey, KT13 0SL 01932 335710 www.brooklandshotelsurrey.com Previous Article Flying BA World Traveller Plus / Premium Economy - is it worth the upgrade? Next Article Lego Ninjago World at Legoland Windsor - how to become a true ninja"
      ],
      "fingerprint": "for our weekend family break in surrey we were looking for a hotel that was close to both legoland windsor and thorpe park and the brooklands hotel ticked all the right boxes this is our family review of the brooklands hotel opened in 2010 and built on the site of the world s first purpose built race track this luxurious modern and contemporary four star hotel has 131 bedrooms and suites even though the original race track had disappeared we caught our first glimpse of motor sports on our drive to the hotel with the mercedes benz world track directly opposite the closest we had come to a race track before was watching formula one on the television so we were really looking forward to our stay at the 4 star brooklands hotel during our visit to surrey the lobby was large bright and airy and had a really sleek and modern feel to it providing a great first impression to the hotel on the floor of the lobby was the curved path of the solomon straight which we later found out from our visit to the brooklands musuem was part of the old brooklands race track that the hotel is now built on we had a lovely warm welcome from the reception staff and the check in process was very quick and efficient because of its unique setting and our race track view room this added an extra touch of excitement compared to most other hotels our executive family room we stayed in an executive family room which at 48 sq metres offered more than enough space for our stay our spacious fam",
@@ -2858,10 +2858,10 @@
      "text_len": 10332,
      "substance": "feature",
      "windows": [
-      "Sometimes a hotel break seems almost to have been designed perfectly for you. That\u2019s what I always think about Brooklands Hotel in Surrey \u2013 on the site of the UK\u2019s oldest purpose-built race track, next door to Mercedes Benz World, it\u2019s the ultimate place to stay for my car-mad husband. review stay * Then the Brooklands Museum next door has one of the few remaining Concordes which you can tour\u2026 so basically that\u2019s perfect for me. Throw in a spa, a promise",
-      "home for a short break, and all our boxes are well and truly ticked. We visited Brooklands Hotel once years ago, staying in one of the incredible suites with their huge balconies. So when we were invited back again with Minnie, there were only two questions \u2013 how soon could we arrange a date and could my husband take a fast car out on the track? Brooklands Hotel, Surrey: Vital statistics We stayed in one of the four track-facing suites, which look out (as you\u2019d expect) over the Mercedes Benz world track. There\u2019s also a panoramic suite with wrap-around balcony, while the remainder of the rooms (over 120) are split between Executive and Deluxe. The smallest Deluxe room starts at 31 square",
-      "check-in \u2013 the highest bid gets informed as you arrive. We reviewed the car and spa package . The hotel has its own restaurant \u2013 1907 Bar and grill \u2013 along with room service, plus treatments and a hot tub in the Bspa spa. The Brooklands Museum and Mercedes Benz World are both walking distance away (or the museum has its own car park as well). Brooklands hotel review: The good The room If you\u2019ve watched the video, you\u2019ll have seen just how amazing our suite was. For starters, it\u2019s huge \u2013 bigger than some places I\u2019ve lived in \u2013 and you\u2019ve got all the facilities you might want, from the enormously comfy bed, to a shower and bath, a big sitting room to lounge in (and for Minnie\u2019s bed), the",
-      "and be seen, and there\u2019s still an atmosphere of art deco glamour as you walk into the imposing lobby to discover a line showing where part of the circuit used to be. In the restaurant and bar, you\u2019ll find framed race flags and propellers too and doubtless plenty of other things I missed. The service Just faultless. If you\u2019re considering a stay at Brooklands Hotel with kids, Minnie was made hugely welcome (and we weren\u2019t the only family in the restaurant that night) \u2013 they even whisked our dessert upstairs when she finally started to flag and needed her bed. Everything was all set up for our arrival too, from the bed to the colouring laid out, which always beats having to chase it once you"
+      "Sometimes a hotel break seems almost to have been designed perfectly for you. That’s what I always think about Brooklands Hotel in Surrey – on the site of the UK’s oldest purpose-built race track, next door to Mercedes Benz World, it’s the ultimate place to stay for my car-mad husband. review stay * Then the Brooklands Museum next door has one of the few remaining Concordes which you can tour… so basically that’s perfect for me. Throw in a spa, a promise",
+      "home for a short break, and all our boxes are well and truly ticked. We visited Brooklands Hotel once years ago, staying in one of the incredible suites with their huge balconies. So when we were invited back again with Minnie, there were only two questions – how soon could we arrange a date and could my husband take a fast car out on the track? Brooklands Hotel, Surrey: Vital statistics We stayed in one of the four track-facing suites, which look out (as you’d expect) over the Mercedes Benz world track. There’s also a panoramic suite with wrap-around balcony, while the remainder of the rooms (over 120) are split between Executive and Deluxe. The smallest Deluxe room starts at 31 square",
+      "check-in – the highest bid gets informed as you arrive. We reviewed the car and spa package . The hotel has its own restaurant – 1907 Bar and grill – along with room service, plus treatments and a hot tub in the Bspa spa. The Brooklands Museum and Mercedes Benz World are both walking distance away (or the museum has its own car park as well). Brooklands hotel review: The good The room If you’ve watched the video, you’ll have seen just how amazing our suite was. For starters, it’s huge – bigger than some places I’ve lived in – and you’ve got all the facilities you might want, from the enormously comfy bed, to a shower and bath, a big sitting room to lounge in (and for Minnie’s bed), the",
+      "and be seen, and there’s still an atmosphere of art deco glamour as you walk into the imposing lobby to discover a line showing where part of the circuit used to be. In the restaurant and bar, you’ll find framed race flags and propellers too and doubtless plenty of other things I missed. The service Just faultless. If you’re considering a stay at Brooklands Hotel with kids, Minnie was made hugely welcome (and we weren’t the only family in the restaurant that night) – they even whisked our dessert upstairs when she finally started to flag and needed her bed. Everything was all set up for our arrival too, from the bed to the colouring laid out, which always beats having to chase it once you"
      ],
      "fingerprint": "sometimes a hotel break seems almost to have been designed perfectly for you that s what i always think about brooklands hotel in surrey on the site of the uk s oldest purpose built race track next door to mercedes benz world it s the ultimate place to stay for my car mad husband review stay then the brooklands museum next door has one of the few remaining concordes which you can tour so basically that s perfect for me throw in a spa a promise that it s just as family friendly as it is luxurious and the fact it s not too far from home for a short break and all our boxes are well and truly ticked we visited brooklands hotel once years ago staying in one of the incredible suites with their huge balconies so when we were invited back again with minnie there were only two questions how soon could we arrange a date and could my husband take a fast car out on the track brooklands hotel surrey vital statistics we stayed in one of the four track facing suites which look out as you d expect over the mercedes benz world track there s also a panoramic suite with wrap around balcony while the remainder of the rooms over 120 are split between executive and deluxe the smallest deluxe room starts at 31 square metres which is almost 20 bigger than the average uk hotel including 6ft king sized bed and walk in rain shower in the bathroom they can add extra rollaway beds for kids along with children s amenity packs colouring you can also bid to upgrade your r",
      "author": "mummytravels",
@@ -3115,7 +3115,7 @@
    "unread": [
     {
      "url": "https://www.thesun.ie/travel/17651747/ultimate-guide-spa-breaks-girly-days-free-prosecco",
-     "title": "The best bargain spa days & stays from just \u00a328pp - 50 min treatments, three course dinners and FREE prosecco",
+     "title": "The best bargain spa days & stays from just £28pp - 50 min treatments, three course dinners and FREE prosecco",
      "domain": "thesun.ie",
      "why_unread": "robots.txt asks automated tools not to read this page",
      "date": "2026-09-21"
@@ -3137,7 +3137,7 @@
        "id": "E5",
        "publisher": "Surrey Live",
        "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/three-surrey-spas-running-crowned-34375898",
-       "text": "with three sites in Surrey among the hopefuls eager to crowned the winner of the Good Spa Guide Awards 2026. \u200c \u200c The Spa at Pennyhill Park in Bagshot, The Spa at Runnymede in Egham and BSpa at Brooklands",
+       "text": "with three sites in Surrey among the hopefuls eager to crowned the winner of the Good Spa Guide Awards 2026. ‌ ‌ The Spa at Pennyhill Park in Bagshot, The Spa at Runnymede in Egham and BSpa at Brooklands",
        "year": "2026",
        "date": "2026-08-02"
       },
@@ -3145,7 +3145,7 @@
        "id": "E5",
        "publisher": "Surrey Live",
        "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/three-surrey-spas-running-crowned-34375898",
-       "text": "just over the Surrey border in Horsham, was crowned Best Spa in the South-East at the Good Spa Guide Awards 2025. \u200c It returns as a finalist this year, competing once again for the region's top spa title. View",
+       "text": "just over the Surrey border in Horsham, was crowned Best Spa in the South-East at the Good Spa Guide Awards 2025. ‌ It returns as a finalist this year, competing once again for the region's top spa title. View",
        "year": "2025",
        "date": "2026-08-02"
       }
@@ -3181,7 +3181,7 @@
        "id": "E5",
        "publisher": "Surrey Live",
        "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/three-surrey-spas-running-crowned-34375898",
-       "text": "crowned Best Spa in the South-East at the Good Spa Guide Awards 2025. \u200c It returns as a finalist this year, competing once again for the region's top spa title. View 2 Images The outdoor hydrotherapy hot",
+       "text": "crowned Best Spa in the South-East at the Good Spa Guide Awards 2025. ‌ It returns as a finalist this year, competing once again for the region's top spa title. View 2 Images The outdoor hydrotherapy hot",
        "year": "2025",
        "date": "2026-08-02"
       },
@@ -3239,7 +3239,7 @@
         "publisher_key": "Reach plc",
         "url": "https://www.getsurrey.co.uk/lifestyle/food-drink/new-italian-restaurant-opens-weybridge-33561483",
         "date": "2026-03-11",
-        "text": "\u200c The bright, elegant space is ideal for casual lunches, intimate dinners and stylish evening gatherings."
+        "text": "‌ The bright, elegant space is ideal for casual lunches, intimate dinners and stylish evening gatherings."
        }
       ],
       "other_extracts": [
@@ -3280,7 +3280,7 @@
         "publisher_key": "Reach plc",
         "url": "https://www.getsurrey.co.uk/lifestyle/food-drink/new-italian-restaurant-opens-weybridge-33561483",
         "date": "2026-03-11",
-        "text": "\u200c \u200c Offering delicious Italian cuisine, VETRO will be located within a stunning 1907 glasshouse at Brooklands Hotel in Weybridge, where the world\u2019s first purpose built by the warmth and simplicity of traditional Italian dining and opening to the public on Wedn"
+        "text": "‌ ‌ Offering delicious Italian cuisine, VETRO will be located within a stunning 1907 glasshouse at Brooklands Hotel in Weybridge, where the world’s first purpose built by the warmth and simplicity of traditional Italian dining and opening to the public on Wedn"
        },
        {
         "id": "E4",
@@ -3355,7 +3355,7 @@
         "publisher_key": "mummytravels.com",
         "url": "https://www.mummytravels.com/car-spa-brooklands-hotel-surrey",
         "date": "2016-11-13",
-        "text": "The hotel has its own restaurant \u2013 1907 Bar and grill \u2013 along with room service, plus treatments and a hot tub in the Bspa spa."
+        "text": "The hotel has its own restaurant – 1907 Bar and grill – along with room service, plus treatments and a hot tub in the Bspa spa."
        }
       ]
      },
@@ -3386,7 +3386,7 @@
         "publisher_key": "my-travelmonkey.com",
         "url": "https://www.my-travelmonkey.com/reviewed-pampering-stay-brooklands-hotel-spa-surrey",
         "date": "2018-06-10",
-        "text": "The Rooms at Brooklands Hotel & Spa With rooms starting at the deluxe tier and rising to track-facing suites \u2013 there\u2019s definitely an element of space and luxury to them all \u2013 with each room kitted out with the latest gadgets including a 42in flat-screen TV, iP"
+        "text": "The Rooms at Brooklands Hotel & Spa With rooms starting at the deluxe tier and rising to track-facing suites – there’s definitely an element of space and luxury to them all – with each room kitted out with the latest gadgets including a 42in flat-screen TV, iP"
        }
       ],
       "other_extracts": []
@@ -3410,7 +3410,7 @@
         "publisher_key": "Reach plc",
         "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/three-surrey-spas-running-crowned-34375898",
         "date": "2026-08-02",
-        "text": "View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists \u200c BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton U"
+        "text": "View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists ‌ BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton U"
        },
        {
         "id": "E3",
@@ -3451,7 +3451,7 @@
         "publisher_key": "my-travelmonkey.com",
         "url": "https://www.my-travelmonkey.com/reviewed-pampering-stay-brooklands-hotel-spa-surrey",
         "date": "2018-06-10",
-        "text": "This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users \u2013 would you believe Brooklands Hotel Spa also has hordes of guests looking for a speci"
+        "text": "This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users – would you believe Brooklands Hotel Spa also has hordes of guests looking for a speci"
        }
       ],
       "other_extracts": []
@@ -3467,7 +3467,7 @@
         "publisher_key": "aladyofleisure.com",
         "url": "https://www.aladyofleisure.com/brooklands-hotel-review-weybridge-surrey",
         "date": "2026-09-17",
-        "text": "The Brooklands hotel, Weybridge, has 131 bedrooms and isn\u2019t short on space While the original track closed in 1938, the vast rooms and suites at Brooklands hotel have great views of the lively Mercedes-Benz racetrack which is at the front of the hotel."
+        "text": "The Brooklands hotel, Weybridge, has 131 bedrooms and isn’t short on space While the original track closed in 1938, the vast rooms and suites at Brooklands hotel have great views of the lively Mercedes-Benz racetrack which is at the front of the hotel."
        },
        {
         "id": "E3",
@@ -3501,7 +3501,7 @@
         "publisher_key": "mummytravels.com",
         "url": "https://www.mummytravels.com/car-spa-brooklands-hotel-surrey",
         "date": "2016-11-13",
-        "text": "If you\u2019re considering a stay at Brooklands Hotel with kids, Minnie was made hugely welcome (and we weren\u2019t the only family in the restaurant that night) \u2013 they even whisked our dessert upstairs when she finally started to flag and needed her bed."
+        "text": "If you’re considering a stay at Brooklands Hotel with kids, Minnie was made hugely welcome (and we weren’t the only family in the restaurant that night) – they even whisked our dessert upstairs when she finally started to flag and needed her bed."
        }
       ]
      },
@@ -3516,7 +3516,7 @@
         "publisher_key": "Reach plc",
         "url": "https://www.getsurrey.co.uk/lifestyle/food-drink/new-italian-restaurant-opens-weybridge-33561483",
         "date": "2026-03-11",
-        "text": "\u200c The bright, elegant space is ideal for casual lunches, intimate dinners and stylish evening gatherings."
+        "text": "‌ The bright, elegant space is ideal for casual lunches, intimate dinners and stylish evening gatherings."
        }
       ],
       "other_extracts": []
@@ -3532,7 +3532,7 @@
         "publisher_key": "Reach plc",
         "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/three-surrey-spas-running-crowned-34375898",
         "date": "2026-08-02",
-        "text": "View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists \u200c BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton U"
+        "text": "View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists ‌ BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton U"
        }
       ],
       "other_extracts": []
@@ -3564,7 +3564,7 @@
         "publisher_key": "my-travelmonkey.com",
         "url": "https://www.my-travelmonkey.com/reviewed-pampering-stay-brooklands-hotel-spa-surrey",
         "date": "2018-06-10",
-        "text": "This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users \u2013 would you believe Brooklands Hotel Spa also has hordes of guests looking for a speci"
+        "text": "This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users – would you believe Brooklands Hotel Spa also has hordes of guests looking for a speci"
        }
       ],
       "other_extracts": [
@@ -3574,7 +3574,7 @@
         "publisher_key": "visitsurrey.com",
         "url": "https://www.visitsurrey.com/blog/post/a-stay-at-brooklands-hotel-near-weybridge-vs-review",
         "date": "2025-03-09",
-        "text": "A quick pitstop and we're off to the BSpa, the floral delights of RHS Wisley are only a 15-minute journey away; the majestic Painshill landscape garden about the same\u2026 and that\u2019s just a start."
+        "text": "A quick pitstop and we're off to the BSpa, the floral delights of RHS Wisley are only a 15-minute journey away; the majestic Painshill landscape garden about the same… and that’s just a start."
        },
        {
         "id": "E10",
@@ -3613,7 +3613,7 @@
         "publisher_key": "Reach plc",
         "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/surrey-estate-home-race-track-33409442",
         "date": "2026-02-15",
-        "text": "\u200c The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day."
+        "text": "‌ The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day."
        }
       ],
       "other_extracts": []
@@ -3685,7 +3685,7 @@
    "roundups": [
     {
      "url": "https://www.thesun.ie/travel/17651747/ultimate-guide-spa-breaks-girly-days-free-prosecco",
-     "title": "The best bargain spa days & stays from just \u00a328pp - 50 min treatments, three course dinners and FREE prosecco",
+     "title": "The best bargain spa days & stays from just £28pp - 50 min treatments, three course dinners and FREE prosecco",
      "publisher": "thesun.ie",
      "domain": "thesun.ie",
      "date": "2026-09-21",
@@ -3768,7 +3768,7 @@
      "name": "thesun.ie",
      "domain": "thesun.ie",
      "url": "https://www.thesun.ie/travel/17651747/ultimate-guide-spa-breaks-girly-days-free-prosecco",
-     "page_title": "The best bargain spa days & stays from just \u00a328pp - 50 min treatments, three course dinners and FREE prosecco",
+     "page_title": "The best bargain spa days & stays from just £28pp - 50 min treatments, three course dinners and FREE prosecco",
      "date": "2026-09-21",
      "kind": "editorial guide or roundup",
      "audience_fit": "spa hotel",
@@ -3832,7 +3832,7 @@
    "angles": [
     {
      "angle": "Accessibility features",
-     "fact": "and public areas. Do you have accessible facilities? Yes, the hotel is equipped with accessible facilities, including accessible bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night. Please",
+     "fact": "and public areas. Do you have accessible facilities? Yes, the hotel is equipped with accessible facilities, including accessible bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking is available at £14 per vehicle, per night. Please",
      "source_url": "https://brooklandshotelsurrey.com/about-us/faqs/",
      "evidence_id": "E22",
      "status": "candidate - supported by a page on the hotel's own site, not yet by anything independent",
@@ -3844,7 +3844,7 @@
     },
     {
      "angle": "Local partnership or destination link",
-     "fact": "Focus on our people: Provide our people with opportunities to succeed and grow. Luxury skincare brand [comfort zone] partnered with us in BSpa, who are a certified B Corp\u00ae. Serious Tissues in all guest areas. At least 10 million trees are cut down every year for toilet paper and Serious",
+     "fact": "Focus on our people: Provide our people with opportunities to succeed and grow. Luxury skincare brand [comfort zone] partnered with us in BSpa, who are a certified B Corp®. Serious Tissues in all guest areas. At least 10 million trees are cut down every year for toilet paper and Serious",
      "source_url": "https://brooklandshotelsurrey.com/sustainability-policy/",
      "evidence_id": "E23",
      "status": "candidate - supported by a page on the hotel's own site, not yet by anything independent",
@@ -3901,7 +3901,7 @@
        "publisher_key": "Reach plc",
        "url": "https://www.getsurrey.co.uk/lifestyle/food-drink/new-italian-restaurant-opens-weybridge-33561483",
        "date": "2026-03-11",
-       "text": "\u200c The bright, elegant space is ideal for casual lunches, intimate dinners and stylish evening gatherings."
+       "text": "‌ The bright, elegant space is ideal for casual lunches, intimate dinners and stylish evening gatherings."
       },
       {
        "id": "E5",
@@ -3909,7 +3909,7 @@
        "publisher_key": "Reach plc",
        "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/three-surrey-spas-running-crowned-34375898",
        "date": "2026-08-02",
-       "text": "View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists \u200c BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton U"
+       "text": "View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists ‌ BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton U"
       }
      ],
      "open_data": [],
@@ -3940,7 +3940,7 @@
        "publisher_key": "my-travelmonkey.com",
        "url": "https://www.my-travelmonkey.com/reviewed-pampering-stay-brooklands-hotel-spa-surrey",
        "date": "2018-06-10",
-       "text": "This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users \u2013 would you believe Brooklands Hotel Spa also has hordes of guests looking for a speci"
+       "text": "This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users – would you believe Brooklands Hotel Spa also has hordes of guests looking for a speci"
       }
      ],
      "open_data": [
@@ -4126,7 +4126,7 @@
        "publisher_key": "Reach plc",
        "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/three-surrey-spas-running-crowned-34375898",
        "date": "2026-08-02",
-       "text": "View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists \u200c BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton U"
+       "text": "View 2 Images The outdoor hydrotherapy hot tub overlooks Mercedes Benz World and its amazing race track (Image: Brooklands Hotel) Best spa in the South East finalists ‌ BSpa at Brooklands Hotel Champneys Tring Wellness Spa Coworth Park Spa eforea Spa, Hilton U"
       }
      ],
      "open_data": [],
@@ -4147,7 +4147,7 @@
        "publisher_key": "my-travelmonkey.com",
        "url": "https://www.my-travelmonkey.com/reviewed-pampering-stay-brooklands-hotel-spa-surrey",
        "date": "2018-06-10",
-       "text": "This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users \u2013 would you believe Brooklands Hotel Spa also has hordes of guests looking for a speci"
+       "text": "This modern and sleek hotel, with its monochrome exterior and contemporary art deco interior, has no outside grounds to speak of and appeals to conference and business users – would you believe Brooklands Hotel Spa also has hordes of guests looking for a speci"
       }
      ],
      "open_data": [
@@ -4385,7 +4385,7 @@
        "publisher_key": "aladyofleisure.com",
        "url": "https://www.aladyofleisure.com/brooklands-hotel-review-weybridge-surrey",
        "date": "2026-09-17",
-       "text": "The Brooklands hotel, Weybridge, has 131 bedrooms and isn\u2019t short on space While the original track closed in 1938, the vast rooms and suites at Brooklands hotel have great views of the lively Mercedes-Benz racetrack which is at the front of the hotel."
+       "text": "The Brooklands hotel, Weybridge, has 131 bedrooms and isn’t short on space While the original track closed in 1938, the vast rooms and suites at Brooklands hotel have great views of the lively Mercedes-Benz racetrack which is at the front of the hotel."
       }
      }
     ],
@@ -4577,20 +4577,20 @@
      "platform": "YouTube",
      "url": "https://www.youtube.com/watch?v=u9RbYcYCG6o",
      "title": "70.How To Change Part Unit or Unit convert in #NX#3D#TUTORIAL -...",
-     "snippet": "Jun 28, 2026 \u00b7 RADHA RADHA \ud83c\udf3870. How To Change Part Unit or Convert Units in NX 3D Tutorial | Siemens NX | JATAV GROUPWelcome to JATAV GROUP \ud83d\ude80In this SUPER ULTRA POWER tut",
+     "snippet": "Jun 28, 2026 · RADHA RADHA 🌸70. How To Change Part Unit or Convert Units in NX 3D Tutorial | Siemens NX | JATAV GROUPWelcome to JATAV GROUP 🚀In this SUPER ULTRA POWER tut",
      "note": "found in a search index; content not read"
     },
     {
      "platform": "TikTok",
      "url": "https://www.tiktok.com/@brooklandshotel/video/7686597226079997206",
-     "title": "Who are you checking in with? \ud83d\udc40 \ud83d\udccd Brooklands Hotel, ...",
+     "title": "Who are you checking in with? 👀 📍 Brooklands Hotel, ...",
      "snippet": "Ideal for unwinding while taking in motorsport views, the hot tub adds a memorable touch to stays that combine leisure and atmosphere. Gym with",
      "note": "found in a search index; content not read"
     },
     {
      "platform": "Instagram",
      "url": "https://www.instagram.com/brooklands_hotel?hl=en",
-     "title": "Brooklands Hotel (@brooklands_hotel) \u2022 Instagram photos and videos",
+     "title": "Brooklands Hotel (@brooklands_hotel) • Instagram photos and videos",
      "snippet": "brooklands_hotel's highlight story picture\nbrooklands_hotel's highlight story picture\nbrooklands_hotel's highlight story picture\nbrooklands_hotel's highlight story picture\nbrooklands_hotel's highlight story picture\nbrooklands_hotel's highlight story picture\nbrooklands_hotel's hig",
      "note": "found in a search index; content not read"
     },
@@ -4842,7 +4842,7 @@
       "publisher_key": "aladyofleisure.com",
       "url": "https://www.aladyofleisure.com/brooklands-hotel-review-weybridge-surrey",
       "date": "2026-09-17",
-      "text": "The Brooklands hotel, Weybridge, has 131 bedrooms and isn\u2019t short on space While the original track closed in 1938, the vast rooms and suites at Brooklands hotel have great views of the lively Mercedes-Benz racetrack which is at the front of the hotel."
+      "text": "The Brooklands hotel, Weybridge, has 131 bedrooms and isn’t short on space While the original track closed in 1938, the vast rooms and suites at Brooklands hotel have great views of the lively Mercedes-Benz racetrack which is at the front of the hotel."
      },
      "action_hint": "If true and useful to guests, say so plainly on a page that covers it."
     },
@@ -4855,7 +4855,7 @@
       "publisher_key": "Reach plc",
       "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/surrey-estate-home-race-track-33409442",
       "date": "2026-02-15",
-      "text": "\u200c The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day."
+      "text": "‌ The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day."
      },
      "action_hint": "If true and useful to guests, say so plainly on a page that covers it."
     },
@@ -4866,7 +4866,7 @@
       "id": "E5",
       "publisher": "Surrey Live",
       "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/three-surrey-spas-running-crowned-34375898",
-      "text": "with three sites in Surrey among the hopefuls eager to crowned the winner of the Good Spa Guide Awards 2026. \u200c \u200c The Spa at Pennyhill Park in Bagshot, The Spa at Runnymede in Egham and BSpa at Brooklands",
+      "text": "with three sites in Surrey among the hopefuls eager to crowned the winner of the Good Spa Guide Awards 2026. ‌ ‌ The Spa at Pennyhill Park in Bagshot, The Spa at Runnymede in Egham and BSpa at Brooklands",
       "year": "2026",
       "date": "2026-08-02"
      },
@@ -4906,7 +4906,7 @@
     "success_check": "The next audit no longer lists it.",
     "basis": "observation",
     "basis_note": "",
-    "example": "<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Hotel\",\n  \"name\": \"Brooklands Hotel\",\n  \"url\": \"https://brooklandshotelsurrey.com/\",\n  \"telephone\": \"+441932335700\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"Brooklands Dr\",\n    \"addressLocality\": \"Weybridge\",\n    \"postalCode\": \"KT13 0SL\",\n    \"addressCountry\": \"[Country code, e.g. GB]\"\n  },\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": 51.3531863,\n    \"longitude\": -0.4733129\n  },\n  \"checkinTime\": \"15:00\",\n  \"checkoutTime\": \"11:00\",\n  \"priceRange\": \"[\u00a3\u00a3\u00a3]\",\n  \"sameAs\": [\n    \"https://www.facebook.com/BHSurrey\",\n    \"https://www.instagram.com/brooklands_hotel\",\n    \"https://www.tiktok.com/@brooklandshotel\",\n    \"https://www.openstreetmap.org/way/1001475344\",\n    \"https://www.wikidata.org/wiki/Q137806771\"\n  ],\n  \"amenityFeature\": [\n    {\n      \"@type\": \"LocationFeatureSpecification\",\n      \"name\": \"Free Wi-Fi\",\n      \"value\": true\n    }\n  ],\n  \"petsAllowed\": false\n}\n</script>\n\nFill the [bracketed] parts - the rest was read from your own site. Test it at https://validator.schema.org/ before publishing."
+    "example": "<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Hotel\",\n  \"name\": \"Brooklands Hotel\",\n  \"url\": \"https://brooklandshotelsurrey.com/\",\n  \"telephone\": \"+441932335700\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"Brooklands Dr\",\n    \"addressLocality\": \"Weybridge\",\n    \"postalCode\": \"KT13 0SL\",\n    \"addressCountry\": \"[Country code, e.g. GB]\"\n  },\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": 51.3531863,\n    \"longitude\": -0.4733129\n  },\n  \"checkinTime\": \"15:00\",\n  \"checkoutTime\": \"11:00\",\n  \"priceRange\": \"[£££]\",\n  \"sameAs\": [\n    \"https://www.facebook.com/BHSurrey\",\n    \"https://www.instagram.com/brooklands_hotel\",\n    \"https://www.tiktok.com/@brooklandshotel\",\n    \"https://www.openstreetmap.org/way/1001475344\",\n    \"https://www.wikidata.org/wiki/Q137806771\"\n  ],\n  \"amenityFeature\": [\n    {\n      \"@type\": \"LocationFeatureSpecification\",\n      \"name\": \"Free Wi-Fi\",\n      \"value\": true\n    }\n  ],\n  \"petsAllowed\": false\n}\n</script>\n\nFill the [bracketed] parts - the rest was read from your own site. Test it at https://validator.schema.org/ before publishing."
    },
    {
     "id": "F1-2",
@@ -5028,7 +5028,7 @@
     "success_check": "The next audit no longer lists it.",
     "basis": "observation",
     "basis_note": "",
-    "example": "Breakfast is served [Mon\u2013Fri 7:00\u201310:00, weekends 7:30\u201310:30] in [location]. It is [included in the room rate / \u00a3[amount] per person]."
+    "example": "Breakfast is served [Mon–Fri 7:00–10:00, weekends 7:30–10:30] in [location]. It is [included in the room rate / £[amount] per person]."
    },
    {
     "id": "S-guest_partial:parking",
@@ -5036,7 +5036,7 @@
     "title": "Parking: add whether you can or must reserve",
     "problem": "Parking: add whether you can or must reserve",
     "evidence_ids": [],
-    "why_it_matters": "Your site covers this (https://brooklandshotelsurrey.com/about-us/faqs/) but leaves out details a guest or AI assistant would need. It currently says: \"Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night.\"",
+    "why_it_matters": "Your site covers this (https://brooklandshotelsurrey.com/about-us/faqs/) but leaves out details a guest or AI assistant would need. It currently says: \"Is parking available at the hotel? Overnight parking is available at £14 per vehicle, per night.\"",
     "action": "Parking: add whether you can or must reserve (page: https://brooklandshotelsurrey.com/about-us/faqs/)",
     "team": "web",
     "priority": "medium",
@@ -5044,7 +5044,7 @@
     "success_check": "The next audit no longer lists it.",
     "basis": "observation",
     "basis_note": "",
-    "example": "Parking: we have [on-site / nearby] parking for guests. It costs \u00a3[amount] per [night / 24 hours]. Spaces [can be reserved in advance by \u2026] / [are first come, first served]."
+    "example": "Parking: we have [on-site / nearby] parking for guests. It costs £[amount] per [night / 24 hours]. Spaces [can be reserved in advance by …] / [are first come, first served]."
    },
    {
     "id": "S-social_sameas",
@@ -5128,7 +5128,7 @@
     "success_check": "The next audit no longer lists it.",
     "basis": "observation",
     "basis_note": "",
-    "example": "EV charging:\nWe have [number] [type, e.g. 7kW Type 2] EV charging points [in the car park]. Charging [is free / costs \u00a3[amount] per kWh]; pay via [app/network]."
+    "example": "EV charging:\nWe have [number] [type, e.g. 7kW Type 2] EV charging points [in the car park]. Charging [is free / costs £[amount] per kWh]; pay via [app/network]."
    },
    {
     "id": "S-guest_partial:family",
@@ -5144,7 +5144,7 @@
     "success_check": "The next audit no longer lists it.",
     "basis": "observation",
     "basis_note": "",
-    "example": "Our family rooms sleep up to [number] ([2 adults and 2 children]). Connecting rooms are [available on request]. Cots and extra beds are [free / \u00a3[amount]]."
+    "example": "Our family rooms sleep up to [number] ([2 adults and 2 children]). Connecting rooms are [available on request]. Cots and extra beds are [free / £[amount]]."
    },
    {
     "id": "T1",
@@ -5819,7 +5819,7 @@
     "platform": "TripAdvisor",
     "url": "https://www.tripadvisor.com/ShowUserReviews-g190763-d1650047-r934697889-Brooklands_Hotel-Weybridge_Surrey_England.html",
     "title": "Wonderful 2 night's stay at the Brooklands Hotel & Spa to celebrate my birthday - Review of Brooklands Hotel, Weybridge, England - Tripadvisor",
-    "snippet": "facing room which was fantastic and we thoroughly enjoyed watching the cars on the track out the window. The massages we had were excellent too. The only downside for myself was the \u00a312 charge for car parking. I think if you go to stay at a hotel the parking should be included in"
+    "snippet": "facing room which was fantastic and we thoroughly enjoyed watching the cars on the track out the window. The massages we had were excellent too. The only downside for myself was the £12 charge for car parking. I think if you go to stay at a hotel the parking should be included in"
    },
    {
     "platform": "Booking.com",
@@ -5857,15 +5857,15 @@
      "confirmed": true,
      "substance": "feature",
      "sentiment": "positive",
-     "excerpt": "the building. From simulators to tours, there's also a cinema which screens a 20-minute film called The World\u2019s Most Valuable that plays throughout the day for free. \u200c The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day. A",
+     "excerpt": "the building. From simulators to tours, there's also a cinema which screens a 20-minute film called The World’s Most Valuable that plays throughout the day for free. ‌ The attraction is an ideal place to visit, especially if you're looking for cheap things to do on a rainy day. A",
      "via": "rule"
     }
    },
    {
     "platform": "www.thesun.ie",
     "url": "https://www.thesun.ie/travel/17651747/ultimate-guide-spa-breaks-girly-days-free-prosecco",
-    "title": "The best bargain spa days & stays from just \u00a328pp - 50 min treatments, three course dinners and FREE prosecco",
-    "snippet": "A couple relaxing in a spa in a hotel.\n\nAnd so you don\u2019t have to do all that searching, we have found the very top offers for you.\n\n## Day spa pass\n\nBrooklands Hotel spa and dining experience\n\nThe Brooklands Hotel in Weybridge offers three hours of spa access from \u00a327pp, or upgra",
+    "title": "The best bargain spa days & stays from just £28pp - 50 min treatments, three course dinners and FREE prosecco",
+    "snippet": "A couple relaxing in a spa in a hotel.\n\nAnd so you don’t have to do all that searching, we have found the very top offers for you.\n\n## Day spa pass\n\nBrooklands Hotel spa and dining experience\n\nThe Brooklands Hotel in Weybridge offers three hours of spa access from £27pp, or upgra",
     "read": {
      "confirmed": true,
      "substance": "substantial mention",
@@ -5880,18 +5880,18 @@
     "platform": "YouTube",
     "url": "https://www.youtube.com/watch?v=u9RbYcYCG6o",
     "title": "70.How To Change Part Unit or Unit convert in #NX#3D#TUTORIAL -...",
-    "snippet": "Jun 28, 2026 \u00b7 RADHA RADHA \ud83c\udf3870. How To Change Part Unit or Convert Units in NX 3D Tutorial | Siemens NX | JATAV GROUPWelcome to JATAV GROUP \ud83d\ude80In this SUPER ULTRA POWER tut"
+    "snippet": "Jun 28, 2026 · RADHA RADHA 🌸70. How To Change Part Unit or Convert Units in NX 3D Tutorial | Siemens NX | JATAV GROUPWelcome to JATAV GROUP 🚀In this SUPER ULTRA POWER tut"
    },
    {
     "platform": "TikTok",
     "url": "https://www.tiktok.com/@brooklandshotel/video/7686597226079997206",
-    "title": "Who are you checking in with? \ud83d\udc40 \ud83d\udccd Brooklands Hotel, ...",
+    "title": "Who are you checking in with? 👀 📍 Brooklands Hotel, ...",
     "snippet": "Ideal for unwinding while taking in motorsport views, the hot tub adds a memorable touch to stays that combine leisure and atmosphere. Gym with"
    },
    {
     "platform": "Instagram",
     "url": "https://www.instagram.com/brooklands_hotel?hl=en",
-    "title": "Brooklands Hotel (@brooklands_hotel) \u2022 Instagram photos and videos",
+    "title": "Brooklands Hotel (@brooklands_hotel) • Instagram photos and videos",
     "snippet": "brooklands_hotel's highlight story picture\nbrooklands_hotel's highlight story picture\nbrooklands_hotel's highlight story picture\nbrooklands_hotel's highlight story picture\nbrooklands_hotel's highlight story picture\nbrooklands_hotel's highlight story picture\nbrooklands_hotel's hig"
    }
   ],
@@ -5900,7 +5900,7 @@
     "platform": "www.getsurrey.co.uk",
     "url": "https://www.getsurrey.co.uk/whats-on/family-kids-news/spectacular-parade-100-grand-prix-33513057",
     "title": "The spectacular parade of 100 Grand Prix cars coming to Weybridge that car fans won't want to miss | Surrey Live",
-    "snippet": "Brooklands was built in the Surrey countryside and was the brainchild of Hugh and Ethel Fortescue Locke King.\n\nWhen it opened in 1907, it was the world\u2019s first purpose-built, banked motor racing circuit. With road racing banned on the British mainland, it quickly became the count",
+    "snippet": "Brooklands was built in the Surrey countryside and was the brainchild of Hugh and Ethel Fortescue Locke King.\n\nWhen it opened in 1907, it was the world’s first purpose-built, banked motor racing circuit. With road racing banned on the British mainland, it quickly became the count",
     "read": {
      "confirmed": false,
      "substance": "passing mention",
@@ -6015,11 +6015,11 @@
     "label": "Luxury",
     "level": "strong",
     "pages": 4,
-    "reason": "Mentioned on 4 pages (/occasions/festive-dining/, /about-us/faqs/, /sustainability-policy/) and it appears in a page title, heading, description or the homepage. Example: \u201clunch and be spoilt by our team. Make Boxing Day a stress free and indulgent day and join us at Brooklands Hotel, Weybridge. Adults: \u00a344.95 per personChildren (3-12 years): \u00a322.50 per person\u201d",
+    "reason": "Mentioned on 4 pages (/occasions/festive-dining/, /about-us/faqs/, /sustainability-policy/) and it appears in a page title, heading, description or the homepage. Example: “lunch and be spoilt by our team. Make Boxing Day a stress free and indulgent day and join us at Brooklands Hotel, Weybridge. Adults: £44.95 per personChildren (3-12 years): £22.50 per person”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/occasions/festive-dining/",
-      "snippet": "lunch and be spoilt by our team. Make Boxing Day a stress free and indulgent day and join us at Brooklands Hotel, Weybridge. Adults: \u00a344.95 per personChildren (3-12 years): \u00a322.50 per person Under"
+      "snippet": "lunch and be spoilt by our team. Make Boxing Day a stress free and indulgent day and join us at Brooklands Hotel, Weybridge. Adults: £44.95 per personChildren (3-12 years): £22.50 per person Under"
      },
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
@@ -6036,7 +6036,7 @@
     "label": "Budget / value",
     "level": "weak",
     "pages": 1,
-    "reason": "Only one passing mention, on /about-us/faqs/: \u201cpackages? Yes, we offer a variety of packages to suit your needs and budget. You can find out more on our wedding packages page . Find out more Find out more\u201d",
+    "reason": "Only one passing mention, on /about-us/faqs/: “packages? Yes, we offer a variety of packages to suit your needs and budget. You can find out more on our wedding packages page . Find out more Find out more”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
@@ -6057,15 +6057,15 @@
     "label": "Families",
     "level": "strong",
     "pages": 2,
-    "reason": "Mentioned on 2 pages (/room/family-rooms/, /about-us/faqs/) and it appears in a page title, heading, description or the homepage. Example: \u201cBright, spacious Family Rooms at our Surrey hotel with flexible beds and lounge space, plus trackside views in a handful \u2013 designed for easy comfort\u201d",
+    "reason": "Mentioned on 2 pages (/room/family-rooms/, /about-us/faqs/) and it appears in a page title, heading, description or the homepage. Example: “Bright, spacious Family Rooms at our Surrey hotel with flexible beds and lounge space, plus trackside views in a handful – designed for easy comfort”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
-      "snippet": "dogs are, of course, welcome. Rooms & suites Do you provide cots or extra beds? We can provide cots or rollaway beds for children upon request. There is a charge of \u00a315 for a rollaway"
+      "snippet": "dogs are, of course, welcome. Rooms & suites Do you provide cots or extra beds? We can provide cots or rollaway beds for children upon request. There is a charge of £15 for a rollaway"
      },
      {
       "url": "https://brooklandshotelsurrey.com/room/family-rooms/",
-      "snippet": "Bright, spacious Family Rooms at our Surrey hotel with flexible beds and lounge space, plus trackside views in a handful \u2013 designed for easy comfort"
+      "snippet": "Bright, spacious Family Rooms at our Surrey hotel with flexible beds and lounge space, plus trackside views in a handful – designed for easy comfort"
      }
     ]
    },
@@ -6074,7 +6074,7 @@
     "label": "Couples / romantic",
     "level": "weak",
     "pages": 1,
-    "reason": "Only one passing mention, on /about-us/faqs/: \u201cCan I visit the venue before booking? Absolutely, we encourage couples to visit the venue. Please contact us on 01932 335720 to schedule a tour. Do you offer wedding packages? Yes, we offer\u201d",
+    "reason": "Only one passing mention, on /about-us/faqs/: “Can I visit the venue before booking? Absolutely, we encourage couples to visit the venue. Please contact us on 01932 335720 to schedule a tour. Do you offer wedding packages? Yes, we offer”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
@@ -6087,7 +6087,7 @@
     "label": "Groups",
     "level": "weak",
     "pages": 1,
-    "reason": "Only one passing mention, on /occasions/festive-dining/: \u201cpre book and pre order and private dining options are available for groups of 24 guests or more. Please call our Events Team on 01932 335720 to book your table. *for two courses. Three courses are\u201d",
+    "reason": "Only one passing mention, on /occasions/festive-dining/: “pre book and pre order and private dining options are available for groups of 24 guests or more. Please call our Events Team on 01932 335720 to book your table. *for two courses. Three courses are”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/occasions/festive-dining/",
@@ -6100,7 +6100,7 @@
     "label": "Meetings and events",
     "level": "strong",
     "pages": 3,
-    "reason": "Mentioned on 3 pages (/eat-drink/private-dining/, /about-us/faqs/, /occasions/festive-dining/) and it appears in a page title, heading, description or the homepage. Example: \u201cto find us Packages For intimate dinners or larger occasions, our private dining rooms offer space with presence. With dedicated service, elegant menus and versatile layouts, they\u2019re designe\u201d",
+    "reason": "Mentioned on 3 pages (/eat-drink/private-dining/, /about-us/faqs/, /occasions/festive-dining/) and it appears in a page title, heading, description or the homepage. Example: “to find us Packages For intimate dinners or larger occasions, our private dining rooms offer space with presence. With dedicated service, elegant menus and versatile layouts, they’re designe”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/occasions/festive-dining/",
@@ -6112,7 +6112,7 @@
      },
      {
       "url": "https://brooklandshotelsurrey.com/eat-drink/private-dining/",
-      "snippet": "to find us Packages For intimate dinners or larger occasions, our private dining rooms offer space with presence. With dedicated service, elegant menus and versatile layouts, they\u2019re designed to make"
+      "snippet": "to find us Packages For intimate dinners or larger occasions, our private dining rooms offer space with presence. With dedicated service, elegant menus and versatile layouts, they’re designed to make"
      }
     ]
    },
@@ -6121,11 +6121,11 @@
     "label": "Weddings",
     "level": "strong",
     "pages": 3,
-    "reason": "Mentioned on 3 pages (the homepage, /about-us/faqs/, /event/) and it appears in a page title, heading, description or the homepage. Example: \u201creset. Discover BSpa Book BSpa Featured Dine from \u00a3184.50 per person Weddings Featured Business Featured Stay from \u00a3169.50 per person 15% off our best rate 15% off your room rate (does not a\u201d",
+    "reason": "Mentioned on 3 pages (the homepage, /about-us/faqs/, /event/) and it appears in a page title, heading, description or the homepage. Example: “reset. Discover BSpa Book BSpa Featured Dine from £184.50 per person Weddings Featured Business Featured Stay from £169.50 per person 15% off our best rate 15% off your room rate (does not a”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/",
-      "snippet": "reset. Discover BSpa Book BSpa Featured Dine from \u00a3184.50 per person Weddings Featured Business Featured Stay from \u00a3169.50 per person 15% off our best rate 15% off your room rate (does not apply"
+      "snippet": "reset. Discover BSpa Book BSpa Featured Dine from £184.50 per person Weddings Featured Business Featured Stay from £169.50 per person 15% off our best rate 15% off your room rate (does not apply"
      },
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
@@ -6142,7 +6142,7 @@
     "label": "Spa and wellness",
     "level": "strong",
     "pages": 6,
-    "reason": "Mentioned on 6 pages (/about-us/faqs/, /bspa/spa-facilities/, the homepage) and it appears in a page title, heading, description or the homepage. Example: \u201cShow all General Rooms & suites Food & drink Spa & wellness Golf Occasions & meetings Weddings Showing All General What is your cancellation policy? Our cancellation\u201d",
+    "reason": "Mentioned on 6 pages (/about-us/faqs/, /bspa/spa-facilities/, the homepage) and it appears in a page title, heading, description or the homepage. Example: “Show all General Rooms & suites Food & drink Spa & wellness Golf Occasions & meetings Weddings Showing All General What is your cancellation policy? Our cancellation”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/",
@@ -6163,7 +6163,7 @@
     "label": "Food and dining",
     "level": "strong",
     "pages": 13,
-    "reason": "Mentioned on 13 pages (/about-us/faqs/, /eat-drink/, the homepage) and it appears in a page title, heading, description or the homepage. Example: \u201call our rooms are equipped with air conditioning. Food & drink What dining options are available at the hotel? We have 1907 restaurant, bar & grill on the ground floor as well as room servic\u201d",
+    "reason": "Mentioned on 13 pages (/about-us/faqs/, /eat-drink/, the homepage) and it appears in a page title, heading, description or the homepage. Example: “all our rooms are equipped with air conditioning. Food & drink What dining options are available at the hotel? We have 1907 restaurant, bar & grill on the ground floor as well as room servic”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/",
@@ -6171,7 +6171,7 @@
      },
      {
       "url": "https://brooklandshotelsurrey.com/eat-drink/dining-offers/",
-      "snippet": "From midweek treats to long, lazy lunches, our dining offers bring more flavour to your day. Explore limited-time menus, seasonal specials and moments made for sharing \u2013 all"
+      "snippet": "From midweek treats to long, lazy lunches, our dining offers bring more flavour to your day. Explore limited-time menus, seasonal specials and moments made for sharing – all"
      },
      {
       "url": "https://brooklandshotelsurrey.com/occasions/festive-dining/",
@@ -6192,11 +6192,11 @@
     "label": "Airport stays",
     "level": "some",
     "pages": 1,
-    "reason": "Mentioned on 1 page (/about-us/contact-us/). Example: \u201cor air \u2013 getting here is refreshingly simple. By car 17 miles from Heathrow and 33 miles from Gatwick. Close to the M25 (exit junction 10 for the A3 and junction 11 for Woking and Weybridge)\u201d",
+    "reason": "Mentioned on 1 page (/about-us/contact-us/). Example: “or air – getting here is refreshingly simple. By car 17 miles from Heathrow and 33 miles from Gatwick. Close to the M25 (exit junction 10 for the A3 and junction 11 for Woking and Weybridge)”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/about-us/contact-us/",
-      "snippet": "or air \u2013 getting here is refreshingly simple. By car 17 miles from Heathrow and 33 miles from Gatwick. Close to the M25 (exit junction 10 for the A3 and junction 11 for Woking and Weybridge)."
+      "snippet": "or air – getting here is refreshingly simple. By car 17 miles from Heathrow and 33 miles from Gatwick. Close to the M25 (exit junction 10 for the A3 and junction 11 for Woking and Weybridge)."
      }
     ]
    },
@@ -6213,11 +6213,11 @@
     "label": "Dog / pet friendly",
     "level": "weak",
     "pages": 1,
-    "reason": "Only one passing mention, on /about-us/faqs/: \u201care available and can be purchased on our website. Is the hotel dog-friendly? We love dogs, but unfortunately, we can\u2019t accommodate them at Brooklands Hotel. Assistance dogs are, of course,\u201d",
+    "reason": "Only one passing mention, on /about-us/faqs/: “are available and can be purchased on our website. Is the hotel dog-friendly? We love dogs, but unfortunately, we can’t accommodate them at Brooklands Hotel. Assistance dogs are, of course,”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
-      "snippet": "are available and can be purchased on our website. Is the hotel dog-friendly? We love dogs, but unfortunately, we can\u2019t accommodate them at Brooklands Hotel. Assistance dogs are, of course,"
+      "snippet": "are available and can be purchased on our website. Is the hotel dog-friendly? We love dogs, but unfortunately, we can’t accommodate them at Brooklands Hotel. Assistance dogs are, of course,"
      }
     ]
    },
@@ -6226,7 +6226,7 @@
     "label": "Sustainability",
     "level": "strong",
     "pages": 2,
-    "reason": "Mentioned on 2 pages (/sustainability-policy/, /accessibility-policy/) and it appears in a page title, heading, description or the homepage. Example: \u201cPrivacy Policy Accessibility Policy Sustainability Policy Modern Slavery Policy Terms & Conditions We are on a journey to achieve rigorous environmental and sustainable\u201d",
+    "reason": "Mentioned on 2 pages (/sustainability-policy/, /accessibility-policy/) and it appears in a page title, heading, description or the homepage. Example: “Privacy Policy Accessibility Policy Sustainability Policy Modern Slavery Policy Terms & Conditions We are on a journey to achieve rigorous environmental and sustainable”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/sustainability-policy/",
@@ -6243,7 +6243,7 @@
     "label": "Accessibility",
     "level": "some",
     "pages": 1,
-    "reason": "Mentioned on 1 page (/about-us/faqs/). Example: \u201cYes, the hotel is equipped with accessible facilities, including accessible bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking \u201d",
+    "reason": "Mentioned on 1 page (/about-us/faqs/). Example: “Yes, the hotel is equipped with accessible facilities, including accessible bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking ”",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
@@ -6394,7 +6394,7 @@
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
-      "snippet": "Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night."
+      "snippet": "Is parking available at the hotel? Overnight parking is available at £14 per vehicle, per night."
      }
     ],
     "where": {
@@ -6408,7 +6408,7 @@
       }
      ]
     },
-    "example": "Parking: we have [on-site / nearby] parking for guests. It costs \u00a3[amount] per [night / 24 hours]. Spaces [can be reserved in advance by \u2026] / [are first come, first served].",
+    "example": "Parking: we have [on-site / nearby] parking for guests. It costs £[amount] per [night / 24 hours]. Spaces [can be reserved in advance by …] / [are first come, first served].",
     "note": ""
    },
    {
@@ -6441,7 +6441,7 @@
       }
      ]
     },
-    "example": "Breakfast is served [Mon\u2013Fri 7:00\u201310:00, weekends 7:30\u201310:30] in [location]. It is [included in the room rate / \u00a3[amount] per person].",
+    "example": "Breakfast is served [Mon–Fri 7:00–10:00, weekends 7:30–10:30] in [location]. It is [included in the room rate / £[amount] per person].",
     "note": ""
    },
    {
@@ -6508,7 +6508,7 @@
       }
      ]
     },
-    "example": "Our family rooms sleep up to [number] ([2 adults and 2 children]). Connecting rooms are [available on request]. Cots and extra beds are [free / \u00a3[amount]].",
+    "example": "Our family rooms sleep up to [number] ([2 adults and 2 children]). Connecting rooms are [available on request]. Cots and extra beds are [free / £[amount]].",
     "note": ""
    },
    {
@@ -6534,7 +6534,7 @@
       }
      ]
     },
-    "example": "We have [number] [type, e.g. 7kW Type 2] EV charging points [in the car park]. Charging [is free / costs \u00a3[amount] per kWh]; pay via [app/network].",
+    "example": "We have [number] [type, e.g. 7kW Type 2] EV charging points [in the car park]. Charging [is free / costs £[amount] per kWh]; pay via [app/network].",
     "note": ""
    },
    {
@@ -6559,7 +6559,7 @@
      },
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
-      "snippet": "early check-in or late check-out, please contact us in advance, and we\u2019ll do our best to accommodate your request (subject to availability). Additional information: Brooklands Hotel is now \u2018Pay As You Go\u2019, where we kindly ask our guests to"
+      "snippet": "early check-in or late check-out, please contact us in advance, and we’ll do our best to accommodate your request (subject to availability). Additional information: Brooklands Hotel is now ‘Pay As You Go’, where we kindly ask our guests to"
      }
     ],
     "where": {
@@ -6573,7 +6573,7 @@
       }
      ]
     },
-    "example": "Weddings: licensed for civil ceremonies for up to [x] guests, with [x] evening guests. [x] bedrooms on site. Packages from [\u00a3x] per head - request the brochure or call [phone].",
+    "example": "Weddings: licensed for civil ceremonies for up to [x] guests, with [x] evening guests. [x] bedrooms on site. Packages from [£x] per head - request the brochure or call [phone].",
     "note": "no dedicated page for this topic was found among the pages read"
    },
    {
@@ -6593,7 +6593,7 @@
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/",
-      "snippet": "our Surrey spa is your space to pause and reset. Discover BSpa Book BSpa Featured Dine from \u00a3184.50 per person Weddings Featured Business Featured Stay from \u00a3169.50 per person 15% off our best rate 15% off your room rate (does not"
+      "snippet": "our Surrey spa is your space to pause and reset. Discover BSpa Book BSpa Featured Dine from £184.50 per person Weddings Featured Business Featured Stay from £169.50 per person 15% off our best rate 15% off your room rate (does not"
      },
      {
       "url": "https://brooklandshotelsurrey.com/",
@@ -6611,7 +6611,7 @@
       }
      ]
     },
-    "example": "Spa open daily [9am-8pm]. Day guest passes from [\u00a3x]. Guests must be [16+]. Book ahead on [phone/link].",
+    "example": "Spa open daily [9am-8pm]. Day guest passes from [£x]. Guests must be [16+]. Book ahead on [phone/link].",
     "note": ""
    },
    {
@@ -6681,7 +6681,7 @@
      "open_data_km": 0.67,
      "hint": "Open map data puts it about 0.67 km away in a straight line - check the real route and time before publishing.",
      "suggestion": "The website doesn't mention Byfleet and New Haw station, which open map data places about 0.67 km from the hotel (straight line). If it is a useful connection for guests, say how to get there.",
-     "example": "\u201cByfleet and New Haw station is a [X]-minute walk from the hotel.\u201d (replace [X] after checking the route)"
+     "example": "“Byfleet and New Haw station is a [X]-minute walk from the hotel.” (replace [X] after checking the route)"
     },
     {
      "category": "transport",
@@ -6691,13 +6691,13 @@
      "evidence": [
       {
        "url": "https://brooklandshotelsurrey.com/about-us/contact-us/",
-       "snippet": "Where to find us Brooklands Hotel, Brooklands Drive, Weybridge, Surrey, KT13 0SL United Kingdom View in Google Maps How to find us Easy to reach by road, rail or air \u2013 getting here is refreshingly simple."
+       "snippet": "Where to find us Brooklands Hotel, Brooklands Drive, Weybridge, Surrey, KT13 0SL United Kingdom View in Google Maps How to find us Easy to reach by road, rail or air – getting here is refreshingly simple."
       }
      ],
      "open_data_km": 1.4,
      "hint": "Open map data puts it about 1.4 km away in a straight line - check the real route and time before publishing.",
      "suggestion": "Weybridge station is described with a distance - good.",
-     "example": "\u201cWeybridge station is a [X]-minute walk from the hotel.\u201d (replace [X] after checking the route)"
+     "example": "“Weybridge station is a [X]-minute walk from the hotel.” (replace [X] after checking the route)"
     },
     {
      "category": "attractions",
@@ -6713,7 +6713,7 @@
      "open_data_km": 0.42,
      "hint": "Open map data puts it about 0.42 km away in a straight line - check the real route and time before publishing.",
      "suggestion": "The website mentions Mercedes-Benz World but doesn't say how far away it is. State the walking or driving time.",
-     "example": "\u201cThe hotel is [X] minutes by [car/taxi] from Mercedes-Benz World.\u201d (replace [X] after checking)"
+     "example": "“The hotel is [X] minutes by [car/taxi] from Mercedes-Benz World.” (replace [X] after checking)"
     }
    ],
    "map_data": true,
@@ -6738,7 +6738,7 @@
      }
     ],
     "detail": "This may be intentional (for example a separate events or spa line). If it isn't, a guest - or an AI assistant quoting your number - may use the wrong one.",
-    "fix": "Label any deliberate second number (\u201cEvents: ...\u201d), and make the main reservations number identical everywhere."
+    "fix": "Label any deliberate second number (“Events: ...”), and make the main reservations number identical everywhere."
    }
   ],
   "hidden": [
@@ -6752,7 +6752,7 @@
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/eat-drink/1907-bar/",
-      "snippet": "\u2013 our menus celebrate good times and great ingredients. Bar Menu Afternoon Tea Menu Drinks Menu Wine Menu Tea & Coffee Menu Intimate rooms and elegant spaces for every occasion. Find out more Find"
+      "snippet": "– our menus celebrate good times and great ingredients. Bar Menu Afternoon Tea Menu Drinks Menu Wine Menu Tea & Coffee Menu Intimate rooms and elegant spaces for every occasion. Find out more Find"
      }
     ],
     "finding": "Afternoon tea is mentioned only once (/eat-drink/1907-bar/), and not on the homepage or in the FAQ.",
@@ -6771,10 +6771,10 @@
     "evidence": [
      {
       "url": "https://hotelcms-production.imgix.net/brooklandshotelsurrey.com/wp-content/uploads/2026/02/Christmas-Day-Childrens-Menu-April-2025-1.pdf?fm=pdf",
-      "snippet": "20 PDF(s) linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/: Sample Menu, Sample Children\u2019s Menu, Sample Menu, Sample Menu, VETRO pizza & pasta menu"
+      "snippet": "20 PDF(s) linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/: Sample Menu, Sample Children’s Menu, Sample Menu, Sample Menu, VETRO pizza & pasta menu"
      }
     ],
-    "finding": "20 menus are published as PDFs rather than page text (Sample Menu, Sample Children\u2019s Menu, Sample Menu...), linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/.",
+    "finding": "20 menus are published as PDFs rather than page text (Sample Menu, Sample Children’s Menu, Sample Menu...), linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/.",
     "suggestion": "Keep the PDFs for guests to download, but also write the essentials as page text: opening times, a few signature dishes and dietary options. PDFs are less reliably indexed and quoted than normal page text."
    },
    {
@@ -6897,7 +6897,7 @@
     "title": "The homepage title names the hotel and its place",
     "status": "ok",
     "severity": "none",
-    "detail": "\u201cBrooklands Hotel | Luxury Spa Hotel | Weybridge, Surrey\u201d",
+    "detail": "“Brooklands Hotel | Luxury Spa Hotel | Weybridge, Surrey”",
     "consequence": "",
     "fix": "",
     "evidence": [],
@@ -6952,7 +6952,7 @@
     "severity": "medium",
     "detail": "This may be intentional (for example a separate events or spa line). If it isn't, a guest - or an AI assistant quoting your number - may use the wrong one.",
     "consequence": "Contradictory facts make a hotel harder to describe correctly.",
-    "fix": "Label any deliberate second number (\u201cEvents: ...\u201d), and make the main reservations number identical everywhere.",
+    "fix": "Label any deliberate second number (“Events: ...”), and make the main reservations number identical everywhere.",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/",
@@ -6987,6 +6987,69 @@
     "consequence": "",
     "fix": "",
     "evidence": [],
+    "confidence": "Established good practice"
+   },
+   {
+    "bucket": "access",
+    "id": "cc_refused",
+    "title": "The website refused Common Crawl's crawler",
+    "status": "issue",
+    "severity": "medium",
+    "detail": "In Common Crawl's latest crawl(s) the site answered its crawler 'forbidden' or 'too many requests' 5 time(s) and gave no readable page(s) (robots.txt itself: HTTP 403).",
+    "consequence": "Common Crawl is a public archive that much AI training data is drawn from, so a site it cannot read is less likely to appear in that data. A firewall that refuses this crawler may refuse other automated visitors too. (Being in the archive does not show what any AI model says about the hotel.)",
+    "fix": "Ask your web supplier whether a firewall or bot-protection rule is refusing automated visitors. If keeping them out is deliberate, no change is needed; if not, allow well-behaved crawlers (CCBot, Googlebot, Bingbot).",
+    "evidence": [
+     {
+      "url": "https://index.commoncrawl.org/CC-MAIN-2026-39-index?url=example.com&matchType=domain&output=json",
+      "snippet": "Common Crawl: 5 refused capture(s); robots.txt HTTP 403"
+     }
+    ],
+    "confidence": "Reasonable inference"
+   },
+   {
+    "bucket": "access",
+    "id": "llms_missing",
+    "title": "No llms.txt (optional)",
+    "status": "info",
+    "severity": "none",
+    "detail": "No llms.txt was found at the usual address.",
+    "consequence": "llms.txt is an informal proposal for giving language models a plain-text summary of a site. It is not a standard, and we found no evidence that the major AI search tools rely on it, so not having one is not a defect.",
+    "fix": "",
+    "evidence": [],
+    "confidence": "Reasonable inference"
+   },
+   {
+    "bucket": "access",
+    "id": "speed",
+    "title": "Mobile speed score 41/100 - slow",
+    "status": "issue",
+    "severity": "medium",
+    "detail": "Google's lab test of the homepage on a simulated phone scored 41/100 (main content shown 5.8 s; time the page is unresponsive 620 ms). One page, one test: scores vary from run to run.",
+    "consequence": "Slow pages frustrate guests booking on a phone and are harder for crawlers to read reliably.",
+    "fix": "Ask your web supplier to act on the main findings in Google's report (typically oversized images and heavy scripts).",
+    "evidence": [
+     {
+      "url": "https://pagespeed.web.dev/analysis?url=https://brooklandshotelsurrey.com/",
+      "snippet": "PageSpeed Insights, mobile: performance 41"
+     }
+    ],
+    "confidence": "Established good practice"
+   },
+   {
+    "bucket": "access",
+    "id": "a11y",
+    "title": "Accessibility score 83/100",
+    "status": "info",
+    "severity": "low",
+    "detail": "Google's automated accessibility checks flagged problems on the homepage (e.g. Serve images in next-gen formats).",
+    "consequence": "Accessibility problems affect guests using screen readers or keyboards and are often legal and reputational issues as well as practical ones. Automated checks catch only some problems.",
+    "fix": "Fix the items listed in Google's report; ask a web supplier to check key pages with a screen reader.",
+    "evidence": [
+     {
+      "url": "https://pagespeed.web.dev/analysis?url=https://brooklandshotelsurrey.com/",
+      "snippet": "PageSpeed Insights, mobile: accessibility 83"
+     }
+    ],
     "confidence": "Established good practice"
    }
   ],
@@ -7133,7 +7196,7 @@
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
-      "snippet": "Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night."
+      "snippet": "Is parking available at the hotel? Overnight parking is available at £14 per vehicle, per night."
      },
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
@@ -7155,7 +7218,7 @@
      "Are there accessible rooms, and what features do they have - add: specific features (bathroom, lift, step-free)",
      "Are there family or connecting rooms, and how many can they sleep - add: how many guests it sleeps"
     ],
-    "example": "Parking: we have [on-site / nearby] parking for guests. It costs \u00a3[amount] per [night / 24 hours]. Spaces [can be reserved in advance by \u2026] / [are first come, first served].\nBreakfast is served [Mon\u2013Fri 7:00\u201310:00, weekends 7:30\u201310:30] in [location]. It is [included in the room rate / \u00a3[amount] per person].\nWe have [number] accessible bedrooms with [step-free access, a wet room, grab rails]. The hotel has [a lift to all floors / ground-floor rooms only]. Call [number] to discuss your needs.",
+    "example": "Parking: we have [on-site / nearby] parking for guests. It costs £[amount] per [night / 24 hours]. Spaces [can be reserved in advance by …] / [are first come, first served].\nBreakfast is served [Mon–Fri 7:00–10:00, weekends 7:30–10:30] in [location]. It is [included in the room rate / £[amount] per person].\nWe have [number] accessible bedrooms with [step-free access, a wet room, grab rails]. The hotel has [a lift to all floors / ground-floor rooms only]. Call [number] to discuss your needs.",
     "technical": "Content-completeness gap. Write each answer as plain text in a clearly headed section so it can be quoted; optionally mark up an FAQ section as FAQPage (see structured data).",
     "priority": "high",
     "effort": "low",
@@ -7243,7 +7306,7 @@
       "snippet": "1932335720"
      }
     ],
-    "action": "Label any deliberate second number (\u201cEvents: ...\u201d), and make the main reservations number identical everywhere.",
+    "action": "Label any deliberate second number (“Events: ...”), and make the main reservations number identical everywhere.",
     "page": {
      "url": "https://brooklandshotelsurrey.com/",
      "label": "/"
@@ -7280,7 +7343,7 @@
     "category": "content",
     "title": "Say how far the hotel is from Mercedes-Benz World",
     "finding": "The website mentions Mercedes-Benz World but doesn't say how far away it is.",
-    "why": "People search by location (\u201chotels near [station]\u201d). A named place without a distance is a much weaker location signal than \u201c8 minutes' walk\u201d.",
+    "why": "People search by location (“hotels near [station]”). A named place without a distance is a much weaker location signal than “8 minutes' walk”.",
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
@@ -7295,7 +7358,7 @@
     "additions": [
      "Mercedes-Benz World: walking/driving time. Open map data puts it about 0.42 km away in a straight line - check the real route and time before publishing."
     ],
-    "example": "\u201cThe hotel is [X] minutes by [car/taxi] from Mercedes-Benz World.\u201d (replace [X] after checking)",
+    "example": "“The hotel is [X] minutes by [car/taxi] from Mercedes-Benz World.” (replace [X] after checking)",
     "technical": "Location relevance. Distances shown as hints are straight-line values from OpenStreetMap, not travel times; verify before publishing.",
     "priority": "medium",
     "effort": "low",
@@ -7464,7 +7527,7 @@
     "additions": [
      "How many points and what type"
     ],
-    "example": "We have [number] [type, e.g. 7kW Type 2] EV charging points [in the car park]. Charging [is free / costs \u00a3[amount] per kWh]; pay via [app/network].",
+    "example": "We have [number] [type, e.g. 7kW Type 2] EV charging points [in the car park]. Charging [is free / costs £[amount] per kWh]; pay via [app/network].",
     "technical": "Content-completeness gap. Write each answer as plain text in a clearly headed section so it can be quoted; optionally mark up an FAQ section as FAQPage (see structured data).",
     "priority": "medium",
     "effort": "low",
@@ -7505,7 +7568,7 @@
      },
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
-      "snippet": "early check-in or late check-out, please contact us in advance, and we\u2019ll do our best to accommodate your request (subject to availability). Additional information: Brooklands Hotel is now \u2018Pay As You Go\u2019, where we kindly ask our guests to"
+      "snippet": "early check-in or late check-out, please contact us in advance, and we’ll do our best to accommodate your request (subject to availability). Additional information: Brooklands Hotel is now ‘Pay As You Go’, where we kindly ask our guests to"
      }
     ],
     "action": "Add the answer to /about-us/faqs/ (your FAQ page - no more specific page was found). Also worth repeating on /about-us/faqs/.",
@@ -7517,7 +7580,7 @@
      "How many guests can a wedding hold, and is the hotel licensed for ceremonies - add: licensed for civil ceremonies",
      "How many rooms does the hotel have - add: total number of rooms"
     ],
-    "example": "Weddings: licensed for civil ceremonies for up to [x] guests, with [x] evening guests. [x] bedrooms on site. Packages from [\u00a3x] per head - request the brochure or call [phone].\nOur [x] bedrooms range from [Classic doubles] to [suites].",
+    "example": "Weddings: licensed for civil ceremonies for up to [x] guests, with [x] evening guests. [x] bedrooms on site. Packages from [£x] per head - request the brochure or call [phone].\nOur [x] bedrooms range from [Classic doubles] to [suites].",
     "technical": "Content-completeness gap. Write each answer as plain text in a clearly headed section so it can be quoted; optionally mark up an FAQ section as FAQPage (see structured data).",
     "priority": "medium",
     "effort": "low",
@@ -7555,7 +7618,7 @@
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/",
-      "snippet": "our Surrey spa is your space to pause and reset. Discover BSpa Book BSpa Featured Dine from \u00a3184.50 per person Weddings Featured Business Featured Stay from \u00a3169.50 per person 15% off our best rate 15% off your room rate (does not"
+      "snippet": "our Surrey spa is your space to pause and reset. Discover BSpa Book BSpa Featured Dine from £184.50 per person Weddings Featured Business Featured Stay from £169.50 per person 15% off our best rate 15% off your room rate (does not"
      },
      {
       "url": "https://brooklandshotelsurrey.com/",
@@ -7570,7 +7633,7 @@
     "additions": [
      "Opening hours"
     ],
-    "example": "Spa open daily [9am-8pm]. Day guest passes from [\u00a3x]. Guests must be [16+]. Book ahead on [phone/link].",
+    "example": "Spa open daily [9am-8pm]. Day guest passes from [£x]. Guests must be [16+]. Book ahead on [phone/link].",
     "technical": "Content-completeness gap. Write each answer as plain text in a clearly headed section so it can be quoted; optionally mark up an FAQ section as FAQPage (see structured data).",
     "priority": "medium",
     "effort": "low",
@@ -7706,7 +7769,7 @@
      "label": "the homepage"
     },
     "additions": [],
-    "example": "<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Hotel\",\n  \"name\": \"Brooklands Hotel\",\n  \"url\": \"https://brooklandshotelsurrey.com/\",\n  \"telephone\": \"+441932335700\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"Brooklands Dr\",\n    \"addressLocality\": \"Weybridge\",\n    \"postalCode\": \"KT13 0SL\",\n    \"addressCountry\": \"[Country code, e.g. GB]\"\n  },\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": 51.3531863,\n    \"longitude\": -0.4733129\n  },\n  \"checkinTime\": \"15:00\",\n  \"checkoutTime\": \"11:00\",\n  \"priceRange\": \"[\u00a3\u00a3\u00a3]\",\n  \"sameAs\": [\n    \"https://www.facebook.com/BHSurrey\",\n    \"https://www.instagram.com/brooklands_hotel\",\n    \"https://www.tiktok.com/@brooklandshotel\",\n    \"https://www.openstreetmap.org/way/1001475344\",\n    \"https://www.wikidata.org/wiki/Q137806771\"\n  ],\n  \"amenityFeature\": [\n    {\n      \"@type\": \"LocationFeatureSpecification\",\n      \"name\": \"Free Wi-Fi\",\n      \"value\": true\n    }\n  ],\n  \"petsAllowed\": false\n}\n</script>\n\nFill the [bracketed] parts - the rest was read from your own site. Test it at https://validator.schema.org/ before publishing.",
+    "example": "<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Hotel\",\n  \"name\": \"Brooklands Hotel\",\n  \"url\": \"https://brooklandshotelsurrey.com/\",\n  \"telephone\": \"+441932335700\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"Brooklands Dr\",\n    \"addressLocality\": \"Weybridge\",\n    \"postalCode\": \"KT13 0SL\",\n    \"addressCountry\": \"[Country code, e.g. GB]\"\n  },\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": 51.3531863,\n    \"longitude\": -0.4733129\n  },\n  \"checkinTime\": \"15:00\",\n  \"checkoutTime\": \"11:00\",\n  \"priceRange\": \"[£££]\",\n  \"sameAs\": [\n    \"https://www.facebook.com/BHSurrey\",\n    \"https://www.instagram.com/brooklands_hotel\",\n    \"https://www.tiktok.com/@brooklandshotel\",\n    \"https://www.openstreetmap.org/way/1001475344\",\n    \"https://www.wikidata.org/wiki/Q137806771\"\n  ],\n  \"amenityFeature\": [\n    {\n      \"@type\": \"LocationFeatureSpecification\",\n      \"name\": \"Free Wi-Fi\",\n      \"value\": true\n    }\n  ],\n  \"petsAllowed\": false\n}\n</script>\n\nFill the [bracketed] parts - the rest was read from your own site. Test it at https://validator.schema.org/ before publishing.",
     "technical": "Add JSON-LD (schema.org Hotel/LodgingBusiness) to the homepage: name, url, telephone, PostalAddress, GeoCoordinates, image, sameAs. This helps systems read the facts accurately; there is no evidence it makes an AI assistant recommend a hotel.",
     "priority": "low",
     "effort": "low",
@@ -7741,7 +7804,7 @@
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/eat-drink/1907-bar/",
-      "snippet": "\u2013 our menus celebrate good times and great ingredients. Bar Menu Afternoon Tea Menu Drinks Menu Wine Menu Tea & Coffee Menu Intimate rooms and elegant spaces for every occasion. Find out more Find"
+      "snippet": "– our menus celebrate good times and great ingredients. Bar Menu Afternoon Tea Menu Drinks Menu Wine Menu Tea & Coffee Menu Intimate rooms and elegant spaces for every occasion. Find out more Find"
      }
     ],
     "action": "Repeat the key facts about afternoon tea on the homepage or a facilities page and in your FAQ.",
@@ -7824,12 +7887,12 @@
     "summary": "",
     "category": "content",
     "title": "Write the essentials of your menus as page text",
-    "finding": "20 menus are published as PDFs rather than page text (Sample Menu, Sample Children\u2019s Menu, Sample Menu...), linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/.",
+    "finding": "20 menus are published as PDFs rather than page text (Sample Menu, Sample Children’s Menu, Sample Menu...), linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/.",
     "why": "A real strength that is hard to find is less likely to be noticed by travellers, and less reliably picked up by systems that read the site.",
     "evidence": [
      {
       "url": "https://hotelcms-production.imgix.net/brooklandshotelsurrey.com/wp-content/uploads/2026/02/Christmas-Day-Childrens-Menu-April-2025-1.pdf?fm=pdf",
-      "snippet": "20 PDF(s) linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/: Sample Menu, Sample Children\u2019s Menu, Sample Menu, Sample Menu, VETRO pizza & pasta menu"
+      "snippet": "20 PDF(s) linked from /occasions/festive-dining/, /eat-drink/1907-glasshouse/, /eat-drink/1907-restaurant/: Sample Menu, Sample Children’s Menu, Sample Menu, Sample Menu, VETRO pizza & pasta menu"
      }
     ],
     "action": "Keep the PDFs for guests to download, but also write the essentials as page text: opening times, a few signature dishes and dietary options. PDFs are less reliably indexed and quoted than normal page text.",
@@ -7917,11 +7980,11 @@
     "evidence": [
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
-      "snippet": "and public areas. Do you have accessible facilities? Yes, the hotel is equipped with accessible facilities, including accessible bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking is available at \u00a3"
+      "snippet": "and public areas. Do you have accessible facilities? Yes, the hotel is equipped with accessible facilities, including accessible bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking is available at £"
      },
      {
       "url": "https://brooklandshotelsurrey.com/sustainability-policy/",
-      "snippet": "Focus on our people: Provide our people with opportunities to succeed and grow. Luxury skincare brand [comfort zone] partnered with us in BSpa, who are a certified B Corp\u00ae. Serious Tissues in all guest areas. At least 10 million trees are cut down every year f"
+      "snippet": "Focus on our people: Provide our people with opportunities to succeed and grow. Luxury skincare brand [comfort zone] partnered with us in BSpa, who are a certified B Corp®. Serious Tissues in all guest areas. At least 10 million trees are cut down every year f"
      }
     ],
     "action": "For each angle, gather the items listed under 'missing evidence' in the pitch table before contacting anyone.",
@@ -7966,7 +8029,7 @@
      },
      {
       "url": "https://www.visitbritain.com/en",
-      "snippet": "Discover the land of Big Ben, Banksy and bangers and mash. From its bustling cities to its blooming beautiful gardens, it doesn\u2019t disappoint.\n\n Plan a trip to England\n\nScotland\n\n## Discover Great Britain\u2019s northern reaches\n\nImagine a country where ancient cast"
+      "snippet": "Discover the land of Big Ben, Banksy and bangers and mash. From its bustling cities to its blooming beautiful gardens, it doesn’t disappoint.\n\n Plan a trip to England\n\nScotland\n\n## Discover Great Britain’s northern reaches\n\nImagine a country where ancient cast"
      }
     ],
     "action": "Read each page in the target table; where the hotel genuinely fits, send a short factual note with the hotel's supporting facts. Skip anything the hotel does not match. Do not use paid or incentivised placement without disclosing it.",
@@ -8101,7 +8164,7 @@
      },
      {
       "url": "https://brooklandshotelsurrey.com/about-us/faqs/",
-      "snippet": "bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking is available at \u00a314 per vehicle, per night. Please ensure you register your"
+      "snippet": "bedrooms. Please let us know your requirements when booking. Is parking available at the hotel? Overnight parking is available at £14 per vehicle, per night. Please ensure you register your"
      }
     ],
     "caveat": "Not a defect. Worth acting on only if this is a segment the hotel wants."
@@ -8174,7 +8237,7 @@
     "url": ""
    },
    {
-    "point": "The homepage title names the hotel and its place: \u201cBrooklands Hotel | Luxury Spa Hotel | Weybridge, Surrey\u201d.",
+    "point": "The homepage title names the hotel and its place: “Brooklands Hotel | Luxury Spa Hotel | Weybridge, Surrey”.",
     "url": ""
    },
    {
@@ -8238,6 +8301,119 @@
     "level": "low",
     "note": "profile links only; activity is not measured"
    }
+  }
+ },
+ "web_signals": {
+  "version": 1,
+  "ai_policy": {
+   "robots_present": true,
+   "blocks_everything": false,
+   "stance": "training_blocked",
+   "summary": "robots.txt asks AI training crawlers to stay away but leaves AI search and live-lookup crawlers alone. That is a common, deliberate choice about content use.",
+   "caveat": "robots.txt is a request that well-behaved crawlers follow, not a lock. A site's firewall can refuse crawlers whatever it says, and it cannot tell us what any assistant actually uses.",
+   "groups": {
+    "training": {
+     "what": "Collects pages to train or improve AI models",
+     "agents": [
+      "GPTBot",
+      "CCBot"
+     ],
+     "blocked": [
+      "GPTBot"
+     ]
+    },
+    "search": {
+     "what": "Builds the index an AI search or assistant answers from",
+     "agents": [
+      "OAI-SearchBot"
+     ],
+     "blocked": []
+    },
+    "user": {
+     "what": "Fetches a page live when a person asks an assistant about it",
+     "agents": [
+      "ChatGPT-User"
+     ],
+     "blocked": []
+    }
+   }
+  },
+  "llms_txt": {
+   "status": "no_results",
+   "present": false,
+   "reason": "No llms.txt was found at the usual address.",
+   "note": "llms.txt is an informal proposal for giving language models a plain-text summary of a site. It is not a standard, and we found no evidence that the major AI search tools rely on it, so not having one is not a defect.",
+   "url": "https://example.com/llms.txt"
+  },
+  "commoncrawl": {
+   "source": "Common Crawl",
+   "status": "ok",
+   "state": "refused",
+   "domain": "example.com",
+   "refused": 5,
+   "pages_captured": 0,
+   "partial": false,
+   "reason": "",
+   "access": "Common Crawl index - free, no key.",
+   "items": [
+    {
+     "crawl": "CC-MAIN-2026-39",
+     "captures": 3,
+     "capped": false,
+     "counts": {
+      "ok": 0,
+      "redirect": 0,
+      "refused": 3,
+      "notfound": 0,
+      "error": 0,
+      "other": 0
+     },
+     "robots_status": "403",
+     "homepage_captured": false,
+     "pages_captured": 0,
+     "latest": "20260912"
+    }
+   ]
+  },
+  "pagespeed": {
+   "source": "PageSpeed Insights",
+   "status": "ok",
+   "reason": "",
+   "url": "https://brooklandshotelsurrey.com/",
+   "final_url": "https://brooklandshotelsurrey.com/",
+   "strategy": "mobile",
+   "scores": {
+    "performance": 41,
+    "accessibility": 83,
+    "seo": 92,
+    "best-practices": 96
+   },
+   "metrics": [
+    {
+     "id": "largest-contentful-paint",
+     "label": "Main content shown",
+     "value": "5.8 s",
+     "score": 0.1
+    },
+    {
+     "id": "total-blocking-time",
+     "label": "Time the page is unresponsive",
+     "value": "620 ms",
+     "score": 0.3
+    }
+   ],
+   "weak": [
+    {
+     "id": "uses-optimized-images",
+     "title": "Serve images in next-gen formats",
+     "group": "",
+     "weight": 1
+    }
+   ],
+   "field_category": null,
+   "fetched": "2026-10-06",
+   "items": [],
+   "access": "Google PageSpeed Insights API (Lighthouse)."
   }
  }
 }
