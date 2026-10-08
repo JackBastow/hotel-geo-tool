@@ -61,6 +61,10 @@ check("a refused crawler is flagged, and the card says presence/absence is not p
       any("forbidden" in w.value for w in at.warning) and "not evidence that any AI model knows" in " ".join(c.value for c in at.caption))
 check("the four PageSpeed scores are shown as metrics", {"Performance", "Accessibility", "SEO", "Best practice"} <= {m.label for m in at.metric}, [m.label for m in at.metric])
 
+_src = open(os.path.join(HERE, "app.py"), encoding="utf8").read()
+check("every download button is set not to re-run the page (a re-run snapped users back to the first tab)",
+      _src.count(".download_button(") == 3 and _src.count('on_click="ignore"') >= 3, _src.count('on_click="ignore"'))
+
 print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
 import sys  # noqa: E402
 import types  # noqa: E402

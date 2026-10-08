@@ -317,20 +317,20 @@ if fa_res:
     if st.session_state.get("pdf_management"):
         d0.download_button("Download management report (PDF)", st.session_state["pdf_management"],
                            file_name=report_pdf.filename(fa_res, "management"), mime="application/pdf",
-                           type="primary", width="stretch",
+                           type="primary", width="stretch", on_click="ignore",
                            help="A short, decision-oriented summary: the score and coverage, the top actions, gaps, risks and a 30/60/90-day plan.")
     else:
         d0.warning("The management report could not be built (" + str(st.session_state.get("pdf_error_management")) + ").")
     if st.session_state.get("pdf_appendix"):
         d1.download_button("Download technical & evidence appendix (PDF)", st.session_state["pdf_appendix"],
-                           file_name=report_pdf.filename(fa_res, "appendix"), mime="application/pdf", width="stretch",
+                           file_name=report_pdf.filename(fa_res, "appendix"), mime="application/pdf", width="stretch", on_click="ignore",
                            help="All the detail behind the management report: findings, quotes, URLs, methodology, structured-data examples.")
     else:
         d1.warning("The appendix could not be built (" + str(st.session_state.get("pdf_error_appendix")) + ").")
     d2.download_button(
         "Download report data (.json)", json_bytes,
         file_name=f"{store.slug(meta['hotel'] or meta['website'])}-audit-{str(meta['run_at'])[:10]}.json",
-        mime="application/json", width="stretch",
+        mime="application/json", width="stretch", on_click="ignore",
         help="Keep it to compare with a future run (Tools tab).")
     st.caption(f"Run {meta['run_at'][:16].replace('T', ' ')} UTC · hotel name {meta['hotel_name_source']}"
                + (f" · location from {loc['source']}" if loc.get("source") else ""))
