@@ -762,6 +762,16 @@ def build_scorecard(site, entities, consistency, location, discovery,
             "Test this yourself: ask ChatGPT, Gemini or another assistant "
             "'best hotels in [city]' and see whether this hotel comes up."))
 
+    # A site that could not be read cannot be scored: 0 or 40 from nothing would read as a verdict on the hotel.
+    if guest_result is not None and guest_result.get("pages_ok", 3) < 3:
+        n = guest_result.get("pages_ok", 0)
+        why = (f"Only {n} page(s) of the website could be read (the site may be blocking automated readers), "
+               "so this was not scored rather than scoring a site we could not see.")
+        how = "Run again if the block was temporary, or ask the web supplier whether a firewall refuses automated visitors."
+        confident = any(e.get("found") and e.get("match_confident") is True for e in entities or [])
+        for i, c in enumerate(cats):
+            if c["key"] in ("website", "social") or (c["key"] == "entity" and not confident):
+                cats[i] = _not_assessed(c["key"], why, how)
     order = {k: i for i, (k, _, _, _) in enumerate(CATEGORIES)}
     cats.sort(key=lambda c: order[c["key"]])
 

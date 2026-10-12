@@ -334,6 +334,11 @@ if fa_res:
         help="Keep it to compare with a future run (Tools tab).")
     st.caption(f"Run {meta['run_at'][:16].replace('T', ' ')} UTC · hotel name {meta['hotel_name_source']}"
                + (f" · location from {loc['source']}" if loc.get("source") else ""))
+    if (fa_res.get("site") or {}).get("meta", {}).get("scope_note"):
+        st.info(fa_res["site"]["meta"]["scope_note"])
+    if not meta.get("hotel"):
+        st.warning("The hotel's name couldn't be worked out from the website, so the outside checks (listings, media coverage, local context, open-data "
+                   "lookups) could not run. Type the hotel name and city in the boxes at the top and run the audit again to include them.")
 
     if intel and not has_intel:
         st.warning("The wider discovery and reputation analysis failed for this run "

@@ -39,6 +39,7 @@ import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from site_check import get
+import urlscope
 import pagesignals
 
 try:
@@ -414,10 +415,11 @@ def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES):
     are used - this never guesses addresses, which would just generate 404s.
     """
     host = _bare(urllib.parse.urlparse(base).netloc)
+    _, scope = urlscope.normalise(base)          # a page inside a chain's website: stay inside this hotel's own pages
     seen, cands = set(), []
     for u in list(sitemap_urls or []) + list(home_links or []):
         p = urllib.parse.urlparse(u)
-        if p.scheme not in ("http", "https") or _bare(p.netloc) != host:
+        if p.scheme not in ("http", "https") or _bare(p.netloc) != host or not urlscope.in_scope(u, scope):
             continue
         clean = urllib.parse.urlunparse((p.scheme, p.netloc, p.path, "", "", ""))
         key = clean.rstrip("/").lower()

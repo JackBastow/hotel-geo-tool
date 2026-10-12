@@ -561,6 +561,47 @@ check("even on an UNREADABLE site, the 'crawler was refused' evidence is kept - 
       any(f["id"] == "cc_refused" for f in GONE3["machine"]) and any(r["id"] == "M-cc_refused" for r in GONE3["recommendations"]))
 json.dumps(res18, default=str)
 
+print("19. a brand's page, a blocked site, an unknown hotel - what a chain hotel's URL used to break")
+import urlscope  # noqa: E402
+import scoring  # noqa: E402
+import guest_questions as gq  # noqa: E402
+HIL = "https://www.hilton.com/en/hotels/lxmhidi-doubletree-luxembourg/?msockid=03f275f1999a6594255962eb98f06461"
+st_, sc_ = urlscope.normalise(HIL)
+check("tracking parameters are dropped and the address is well-formed (it used to end '...?msockid=.../')",
+      st_ == "https://www.hilton.com/en/hotels/lxmhidi-doubletree-luxembourg/" and "?" not in st_)
+check("a page inside a chain's website is scoped to that hotel's own folder", sc_ == "/en/hotels/lxmhidi-doubletree-luxembourg/")
+check("an ordinary hotel site has no scope, and an inner page means the whole site",
+      urlscope.normalise("brooklandshotelsurrey.com") == ("https://brooklandshotelsurrey.com/", None)
+      and urlscope.normalise("https://hotel.example/rooms/spa?x=1") == ("https://hotel.example/", None))
+check("other chains' patterns are scoped too (Marriott /hotels/<code>/, Accor /hotel/<id>/)",
+      urlscope.normalise("https://www.marriott.com/en-us/hotels/lonlm-the-london-edition/overview/")[1] == "/en-us/hotels/lonlm-the-london-edition/"
+      and urlscope.normalise("https://all.accor.com/hotel/1234/index.en.shtml")[1] == "/hotel/1234/")
+sel = gq.select_pages(st_, ["https://www.hilton.com/en/hotels/lxmhidi-doubletree-luxembourg/rooms/", "https://www.hilton.com/en/hotels/other-hotel-paris/rooms/",
+                            "https://www.hilton.com/en/corporate/"], [], 12)
+check("the crawl stays inside this hotel's pages and never wanders into the chain's other hotels",
+      sel == [st_, "https://www.hilton.com/en/hotels/lxmhidi-doubletree-luxembourg/rooms/"], sel)
+check("the visitor is told what happened, in plain words", "page inside a larger website" in urlscope.scope_note(st_, sc_) and "brand's web team" in urlscope.scope_note(st_, sc_))
+
+blocked_pm = [{"url": HIL, "ok": False, "status": 403, "reason": "HTTP 403"}, {"url": BASE + "gone/", "ok": False, "status": 404, "reason": "HTTP 404"}]
+mr = {f["id"]: f for f in it.machine_readiness(ic.Site(site16, BASE, HOTEL, CITY), blocked_pm, {"robots": {"present": True}}, [], None,
+                                              {"hotel_found": None, "items": []}, [], [])}
+check("a 403 is 'the site refused our reader' - an information note, never 'a page that returns an error' to fix",
+      mr["refused"]["status"] == "info" and "bot protection" in mr["refused"]["consequence"] and "403" in mr["refused"]["detail"] and "gone" not in mr["refused"]["detail"])
+check("a genuine 404 is still reported as a broken page", mr["http_errors"]["status"] == "issue" and "404" in mr["http_errors"]["detail"] and "403" not in mr["http_errors"]["detail"])
+mr2 = {f["id"]: f for f in it.machine_readiness(ic.Site(site16, BASE, "", ""), [], {"robots": {"present": True}}, [], None, {"hotel_found": None, "items": []}, [], [])}
+check("with no hotel name nobody claims 'no match in OpenStreetMap or Wikidata': it says no lookup was made",
+      "entity_missing" not in mr2 and mr2["entity_unknown"]["status"] == "info" and "run again" in mr2["entity_unknown"]["consequence"])
+
+unread = {"pages_ok": 0, "pages_attempted": 1, "questions": [], "conflicts": [], "own_facts_node": {}}
+card = scoring.build_scorecard({"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}, [], [], {}, {"profiles": []}, guest_result=unread)
+by = {c["key"]: c for c in card["categories"]}
+check("a site that could not be read is NOT scored (it showed 'Website 40, Social 0, Entity 0' from nothing)",
+      not by["website"]["assessed"] and not by["social"]["assessed"] and not by["entity"]["assessed"] and "could be read" in by["website"]["detail"], by["website"])
+check("so the readiness number has nothing to average and says so", card["coverage_pct"] == 0 or card["overall"] == 0)
+readable = {"pages_ok": 9, "pages_attempted": 10, "questions": [], "conflicts": [], "own_facts_node": {}}
+card2 = scoring.build_scorecard({"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}, [], [], {}, {"profiles": []}, guest_result=readable)
+check("a normally readable site is scored exactly as before", {c["key"]: c for c in card2["categories"]}["website"]["assessed"])
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

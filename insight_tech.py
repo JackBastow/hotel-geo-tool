@@ -214,6 +214,9 @@ def _key_of(u):
 
 # --------------------------------------------------------------- machine readiness
 
+REFUSED_STATUS = (401, 403, 429, 451)       # the site declined our reader; this says nothing about whether the page works for guests
+
+
 def _f(bucket, fid, title, status, severity, detail, consequence, fix="", evd=None, level=BEST):
     return {"bucket": bucket, "id": fid, "title": title, "status": status, "severity": severity, "detail": detail,
             "consequence": consequence, "fix": fix, "evidence": evd or [], "confidence": level}
@@ -264,7 +267,14 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
                       "Crawlers that don't run JavaScript see an almost empty page, so the facts on it may not be picked up by them. (We read the raw HTML and do not run JavaScript, so a page that renders fine in a browser can still look empty here.)",
                       "Make the key content part of the page's HTML (server-side rendering) or provide a text version.",
                       [{"url": r["url"], "snippet": r.get("reason") or "app shell with almost no text"} for r in shells[:3]], level=INFER))
-    errs = [r for r in pm if not r["ok"] and r.get("status") and r["status"] >= 400]
+    refused = [r for r in pm if not r["ok"] and r.get("status") in REFUSED_STATUS]
+    errs = [r for r in pm if not r["ok"] and r.get("status") and r["status"] >= 400 and r.get("status") not in REFUSED_STATUS]
+    if refused:
+        out.append(_f("access", "refused", f"{len(refused)} page(s) refused our reader", "info", "low",
+                      ", ".join(f"{urllib.parse.urlparse(r['url']).path or '/'} (HTTP {r['status']})" for r in refused[:5]),
+                      "The site answered our automated reader with 'forbidden' or 'too many requests'. That is usually bot protection rather than a broken page, "
+                      "so those pages were not assessed. It is worth checking that the same protection is not also turning away search and AI crawlers.",
+                      "", [{"url": r["url"], "snippet": f"HTTP {r['status']}"} for r in refused[:3]], level=INFER))
     if errs:
         out.append(_f("access", "http_errors", f"{len(errs)} linked page(s) returned an error", "issue", "high" if len(errs) > 2 else "medium",
                       ", ".join(f"{urllib.parse.urlparse(r['url']).path or '/'} ({r['status']})" for r in errs[:5]),
@@ -374,7 +384,11 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
     elif imgs:
         out.append(_f("understanding", "alt_ok", "Most images have alt text", "ok", "none", f"{imgs - noalt} of {imgs} images are described.", ""))
     ents = [e for e in entities or [] if e.get("found") and e.get("match_confident") is True]
-    if ents:
+    if not site.hotel:
+        out.append(_f("understanding", "entity_unknown", "The hotel's name could not be determined, so no open-data lookup was made", "info", "none",
+                      "The page could not be read well enough to find the hotel's name.",
+                      "Without a name the hotel cannot be looked up in OpenStreetMap or Wikidata. Type the hotel name and city above and run again.", level=BEST))
+    elif ents:
         out.append(_f("understanding", "entity_ok", "The hotel is recognised in open map/knowledge data", "ok", "none",
                       ", ".join(e["source"] for e in ents) + " lists it, matched to this location.", ""))
     else:

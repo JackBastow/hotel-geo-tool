@@ -32,6 +32,8 @@ import xml.etree.ElementTree as ET
 
 import requests
 
+import urlscope
+
 UA = ("Mozilla/5.0 (compatible; HotelAuditBot/1.0; "
       "+digital visibility audit; contact: site owner)")
 
@@ -323,8 +325,7 @@ def map_topics(urls):
 
 def run_site_check(website, max_pages=12, progress=None):
     """Importable entry point used by the Streamlit app."""
-    base = website if "//" in website else "https://" + website
-    base = base.rstrip("/") + "/"
+    base, scope = urlscope.normalise(website)
 
     if progress:
         progress("Checking robots.txt")
@@ -334,6 +335,7 @@ def run_site_check(website, max_pages=12, progress=None):
         progress("Reading sitemap")
     sitemap = check_sitemap(base, robots.get("sitemaps", []))
 
+    sitemap["urls"] = [u for u in sitemap["urls"] if urlscope.in_scope(u, scope)]     # a chain's sitemap lists every hotel
     topics = map_topics(sitemap["urls"]) if sitemap["urls"] else {}
     covered = [t for t, v in topics.items() if v["page_found"]]
     missing = [t for t, v in topics.items() if not v["page_found"]]
@@ -361,7 +363,7 @@ def run_site_check(website, max_pages=12, progress=None):
                   if r.get("blocked_entirely")]
 
     return {
-        "meta": {"website": website, "base": base,
+        "meta": {"website": website, "base": base, "scope": scope, "scope_note": urlscope.scope_note(base, scope),
                  "pages_analysed": len([p_ for p_ in pages if p_.get("ok")])},
         "robots": robots,
         "ai_crawlers_blocked": blocked_ai,
