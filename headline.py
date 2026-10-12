@@ -71,7 +71,8 @@ def build(rep):
         status = "assessed"
     names = ", ".join(u["label"] for u in sorted(unassessed, key=lambda u: -u["weight"])[:3])
     if status == "withheld" and crawl.get("unreadable"):
-        expl = (f"Only {crawl.get('pages_read', 0)} page(s) of the website could be read, which is too few to give a meaningful readiness "
+        n = crawl.get("pages_read", 0)
+        expl = (("None of the website's pages" if not n else f"Only {n} page(s) of the website") + " could be read, which is too few to give a meaningful readiness "
                 "score: a score on a site we could not read would be misleading. Findings that do not depend on reading the site "
                 "(official registers, open data, outside coverage) are still shown.")
     elif status == "withheld":

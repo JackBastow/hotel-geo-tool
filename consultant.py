@@ -10,6 +10,7 @@ collected, so it adds no requests and little time.
 
 import advice
 import ranking
+import urlscope
 import insight_content as ic
 import insight_tech as it
 
@@ -99,7 +100,7 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None):
         "If our crawler cannot read the site, search engines and AI crawlers may not be able to either - or the site may be refusing automated "
         "visitors on purpose (some firewalls do), in which case the information on it is less reliably discoverable by those systems.",
         evd or [{"url": "", "snippet": "Too few pages could be read to say what the site contains."}],
-        "Ask your web supplier whether a firewall, bot-protection rule or very slow hosting is blocking automated visitors, and check that the "
+        ("Ask the brand's web team" if urlscope.normalise(s.base)[1] else "Ask your web supplier") + " whether a firewall, bot-protection rule or very slow hosting is blocking automated visitors, and check that the "
         "main pages show their text without JavaScript. If the blocking is deliberate, this report cannot assess what is inside the site.",
         "high", "medium", page={"url": s.base, "label": "the website"},
         technical="Crawl returned timeouts/refusals. Could be our fetch (rate limits, user agent) as well as the site; "

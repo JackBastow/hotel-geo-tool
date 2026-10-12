@@ -592,6 +592,14 @@ mr2 = {f["id"]: f for f in it.machine_readiness(ic.Site(site16, BASE, "", ""), [
 check("with no hotel name nobody claims 'no match in OpenStreetMap or Wikidata': it says no lookup was made",
       "entity_missing" not in mr2 and mr2["entity_unknown"]["status"] == "info" and "run again" in mr2["entity_unknown"]["consequence"])
 
+GB = consultant.analyse(own_pages=[], pages_meta=[{"url": st_, "ok": False, "status": 403, "reason": "HTTP 403"}], base=st_, hotel="DoubleTree Luxembourg", city="Luxembourg",
+                        location={}, guest={"questions": [], "conflicts": [], "own_facts_node": {}}, site={"robots": {"present": True}, "sitemap": {}},
+                        entities=[], intel=None, osm_ctx=None)
+r1 = next(r for r in GB["recommendations"] if r["id"] == "READ1")
+check("for a chain's page the 'who fixes it' advice names the brand's web team, not 'your web supplier'",
+      "brand's web team" in r1["action"] and "web supplier" not in r1["action"] and "None of the 1 page(s) we tried could be read" in r1["finding"], r1["action"][:80])
+hz = hl.build({**mkrep(60.0), "consultant": {"coverage": {"unreadable": True, "limited": True, "pages_read": 0}}})
+check("a headline for a site with nothing read never says 'Only 0 page(s)'", "None of the website's pages could be read" in hz["explanation"] and "Only 0" not in hz["explanation"])
 unread = {"pages_ok": 0, "pages_attempted": 1, "questions": [], "conflicts": [], "own_facts_node": {}}
 card = scoring.build_scorecard({"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}, [], [], {}, {"profiles": []}, guest_result=unread)
 by = {c["key"]: c for c in card["categories"]}

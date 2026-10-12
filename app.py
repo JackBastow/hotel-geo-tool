@@ -333,7 +333,7 @@ if fa_res:
         mime="application/json", width="stretch", on_click="ignore",
         help="Keep it to compare with a future run (Tools tab).")
     st.caption(f"Run {meta['run_at'][:16].replace('T', ' ')} UTC · hotel name {meta['hotel_name_source']}"
-               + (f" · location from {loc['source']}" if loc.get("source") else ""))
+               + ((f" · location {loc['source']}" if str(loc["source"]).startswith("provided") else f" · location from {loc['source']}") if loc.get("source") else ""))
     if (fa_res.get("site") or {}).get("meta", {}).get("scope_note"):
         st.info(fa_res["site"]["meta"]["scope_note"])
     if not meta.get("hotel"):
