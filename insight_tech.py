@@ -18,6 +18,8 @@ import re
 from collections import Counter, defaultdict
 import urllib.parse
 
+import urlscope
+
 import evidence
 import media
 
@@ -452,6 +454,8 @@ def web_findings(web, base):
     out = []
     if not web:
         return out
+    brand = urlscope.normalise(base)[1] is not None
+    who = "the brand's web team (this page is run by the brand, not the hotel)" if brand else "your web supplier"
     cc = web.get("commoncrawl") or {}
     ccbot_blocked = "CCBot" in ((web.get("ai_policy") or {}).get("groups", {}).get("training", {}).get("blocked") or [])
     if cc.get("status") == "ok":
@@ -471,7 +475,7 @@ def web_findings(web, base):
                           "Common Crawl is a public archive that much AI training data is drawn from, so a site it cannot read is less likely to appear in "
                           "that data. A firewall that refuses this crawler may refuse other automated visitors too. (Being in the archive does not show "
                           "what any AI model says about the hotel.)",
-                          "Ask your web supplier whether a firewall or bot-protection rule is refusing automated visitors. If keeping them out is deliberate, "
+                          f"Ask {who} whether a firewall or bot-protection rule is refusing automated visitors. If keeping them out is deliberate, "
                           "no change is needed; if not, allow well-behaved crawlers (CCBot, Googlebot, Bingbot).",
                           [{"url": url, "snippet": f"Common Crawl: {refused} refused capture(s)" + (f"; robots.txt HTTP {rs}" if rs else "")}], level=INFER))
         else:
@@ -499,7 +503,7 @@ def web_findings(web, base):
             out.append(_f("access", "speed", f"Mobile speed score {perf}/100" + (" - slow" if perf < 50 else ""), st, sev,
                           f"Google's lab test of the homepage on a simulated phone scored {perf}/100 ({mets}). One page, one test: scores vary from run to run.",
                           "Slow pages frustrate guests booking on a phone and are harder for crawlers to read reliably." if st != "ok" else "",
-                          "Ask your web supplier to act on the main findings in Google's report (typically oversized images and heavy scripts).",
+                          f"Ask {who} to act on the main findings in Google's report (typically oversized images and heavy scripts).",
                           [{"url": link, "snippet": f"PageSpeed Insights, mobile: performance {perf}"}], level=BEST))
         if acc is not None and acc < 90:
             weak = "; ".join(w["title"] for w in ps.get("weak", []) if w.get("group") in A11Y_GROUPS)[:240]
@@ -507,7 +511,7 @@ def web_findings(web, base):
                           "Google's automated accessibility checks flagged problems on the homepage" + (f" (e.g. {weak})" if weak else "") + ".",
                           "Accessibility problems affect guests using screen readers or keyboards and are often legal and reputational issues as well as "
                           "practical ones. Automated checks catch only some problems.",
-                          "Fix the items listed in Google's report; ask a web supplier to check key pages with a screen reader.",
+                          f"Fix the items listed in Google's report; ask {who} to check key pages with a screen reader.",
                           [{"url": link, "snippet": f"PageSpeed Insights, mobile: accessibility {acc}"}], level=BEST))
     return out
 

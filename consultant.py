@@ -27,7 +27,8 @@ def crawl_coverage(pages_read, pages_meta):
     limited = unreadable or pages_read < 8 or ratio < 0.6
     if unreadable:
         found = ("only " + str(attempted) + " page" + ("" if attempted == 1 else "s") + " could be found to read" if attempted <= pages_read
-                 else f"we could only read {pages_read} of {attempted} pages")
+                 else (f"none of the {attempted} page{'' if attempted == 1 else 's'} we tried could be read" if pages_read == 0
+                       else f"we could only read {pages_read} of {attempted} pages"))
         note = (f"{found[0].upper() + found[1:]}, which is too few to say what the site does or doesn't contain. "
                 "Nothing below claims that information is missing.")
     elif limited:
@@ -93,7 +94,8 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None):
     rec = advice._rec(
         "READ1", "access", "Check that the website can be read by automated visitors",
         (f"Only {cov['pages_read']} page(s) of the site could be found and read." if cov["pages_attempted"] <= cov["pages_read"]
-         else f"We could only read {cov['pages_read']} of {cov['pages_attempted']} pages ({reasons})."),
+         else (f"None of the {cov['pages_attempted']} page(s) we tried could be read ({reasons})." if cov["pages_read"] == 0
+               else f"We could only read {cov['pages_read']} of {cov['pages_attempted']} pages ({reasons}).")),
         "If our crawler cannot read the site, search engines and AI crawlers may not be able to either - or the site may be refusing automated "
         "visitors on purpose (some firewalls do), in which case the information on it is less reliably discoverable by those systems.",
         evd or [{"url": "", "snippet": "Too few pages could be read to say what the site contains."}],

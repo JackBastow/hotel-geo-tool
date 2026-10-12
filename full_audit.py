@@ -525,6 +525,10 @@ def _page_links(html, base):
 
 # --------------------------------------------------------------- orchestrator
 
+class _NoName(Exception):
+    """Internal: the hotel's name is unknown, so the outside-evidence analysis is skipped."""
+
+
 def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    tavily_api_key=None, places_api_key=None,
                    amadeus_api_key=None, amadeus_api_secret=None,
@@ -597,7 +601,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     segment_labels = [tavily_check.SEGMENTS[k][0]
                       for k in tavily_check.detect_segments(site.get("topics_covered"))]
     collect_ex = collect_future = None
-    if wider:
+    if wider and hotel:
         collect_ex = ThreadPoolExecutor(max_workers=1)
         collect_future = collect_ex.submit(
             collect.collect, hotel, city, base, location=location, segments=segment_labels,
@@ -640,8 +644,9 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     # ---- join the wider discovery that has been running in the background
     if collect_future is None:
         corpus = {"sources": {}, "queries": [], "candidates": [], "raw_results": [],
-                  "notes": ["The wider discovery (media coverage, listings, awards, local context) was "
-                            "switched off for this run, so those checks are not assessed."],
+                  "notes": ["The wider discovery (media coverage, listings, awards, local context) "
+                            + ("was switched off for this run" if hotel else "could not run because the hotel's name is not known")
+                            + ", so those checks are not assessed."],
                   "tavily_credits": 0, "reads": {}}
     else:
         say("Finishing the wider source checks (media, listings, awards, local context)...")
@@ -663,7 +668,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     # is called from exactly here - the single pipeline - not from a
     # separate tab the user has to remember to visit.
     tavily_result = None
-    if tavily_check.has_key(tavily_api_key):
+    if tavily_check.has_key(tavily_api_key) and hotel:
         say("Checking editorial coverage, OTA presence and social mentions "
             "(Tavily, multi-angle)...")
         try:
@@ -742,12 +747,16 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
 
     say("Analysing coverage, traveller fit and recommendations...")
     try:
+        if not hotel:        # with no name nothing was searched, so there is no outside evidence to analyse (and none to claim is missing)
+            raise _NoName()
         intel_result = intel.build_intel(
             hotel=hotel, city=city, base_url=base, location=location, site=site,
             discovery=discovery, guest=guest, own_pages=own_pages, entities=ext["entities"],
             tavily_result=tavily_result, corpus=corpus, own_facts=own_facts,
             site_links=_page_links(pages_html[0], base) if pages_html else [],
             scorecard_recs=recs_all)
+    except _NoName:
+        intel_result = None
     except Exception as e:  # noqa: BLE001
         intel_result = {"error": f"{type(e).__name__}: {e}"}
 
@@ -786,7 +795,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             "base": base,
             "run_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             "hotel_name_source": "provided by you" if hotel_given
-                                 else "inferred from the site's own markup",
+                                 else ("inferred from the site's own markup" if hotel else "could not be determined"),
             "location": location,
             "keys_used": {
                 "tavily": bool(tavily_result and tavily_result.get("configured")),

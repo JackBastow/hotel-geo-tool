@@ -115,8 +115,19 @@ unread["consultant"] = consultant.analyse(
     base="https://x.com/", hotel="X Hotel", city="Leeds", location={}, guest={"questions": [], "conflicts": [], "own_facts_node": {}},
     site={"robots": {"present": False}, "sitemap": {}}, entities=[], intel=None, osm_ctx=None)
 at7 = run(unread, "unreadable site")
-check("an unreadable site renders, with a clear error banner", not at7.exception and any("Read 0 of 10 pages" in e.value for e in at7.error),
+check("an unreadable site renders, with a clear error banner", not at7.exception and any("None of the 10 pages we tried could be read" in e.value for e in at7.error),
       [e.message for e in at7.exception])
+noname = copy.deepcopy(rep)
+noname["intel"] = None
+noname["meta"]["hotel"] = ""
+noname["meta"]["hotel_name_source"] = "could not be determined"
+noname.setdefault("site", {}).setdefault("meta", {})["scope_note"] = ("You entered a page inside a larger website (www.hilton.com), so only this hotel's own pages were read. "
+                                                                    "robots.txt, the sitemap and other site-wide settings belong to the whole www.hilton.com website.")
+at8 = run(noname, "no hotel name, chain page")
+check("a run with no hotel name and no outside analysis renders", not at8.exception, [e.message for e in at8.exception])
+check("it asks for the hotel name and city instead of silently skipping the outside checks",
+      any("hotel's name couldn't be worked out" in w.value and "run the audit again" in w.value for w in at8.warning))
+check("a chain page explains that site-wide settings belong to the brand", any("page inside a larger website" in i.value for i in at8.info))
 nothing = copy.deepcopy(rep)
 m = nothing["intel"]["media"]
 for k in ("articles", "rejected", "unread", "targets", "angles", "comparison", "awards", "ratings", "roundups", "clusters"):
