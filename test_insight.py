@@ -671,7 +671,7 @@ res20 = consultant.analyse(own_pages=site16, pages_meta=[{"url": p["url"], "ok":
                            entities=[], intel=None, osm_ctx=osm_fail, ai=aienv(0))
 check("through the full analysis it appears in the recommendations and never in the top actions (those are required fixes only)",
       "AI1" in {r["id"] for r in res20["recommendations"]} and "AI1" not in res20["top_actions"])
-check("the monthly budget guard exists and is in thousandths of a dollar", __import__("store").SERVICE_CAPS["claude"] == 40000)
+check("the monthly budget guard exists and is in thousandths of a dollar", __import__("store").SERVICE_CAPS["claude"] == 100000)
 
 print()
 print("FAILURES:", fails if fails else "none")
