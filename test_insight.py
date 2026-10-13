@@ -671,6 +671,18 @@ res20 = consultant.analyse(own_pages=site16, pages_meta=[{"url": p["url"], "ok":
                            entities=[], intel=None, osm_ctx=osm_fail, ai=aienv(0))
 check("through the full analysis it appears in the recommendations and never in the top actions (those are required fixes only)",
       "AI1" in {r["id"] for r in res20["recommendations"]} and "AI1" not in res20["top_actions"])
+sc_ai = scoring.score_ai_sample({**aienv(4, asked=4), "summary": {**aienv(4, asked=4)["summary"], "generic_asked": 4, "generic_named": 4, "direct_known": True}})
+check("AI Visibility is scored from the sample: 4 of 4 named and known directly = 100, flagged partial", sc_ai["assessed"] and sc_ai["score"] == 100 and sc_ai["partial"])
+sc_half = scoring.score_ai_sample({**aienv(2, asked=4), "summary": {**aienv(2, asked=4)["summary"], "generic_asked": 4, "generic_named": 2, "direct_known": False}})
+check("2 of 4 named and not known directly = 35 (70% x 0.5), and the evidence lines say 'one AI model'", sc_half["score"] == 35 and "one AI model" in sc_half["evidence"][0], sc_half)
+check("too few questions, no sample or a failed run give NO score (never a made-up one)",
+      scoring.score_ai_sample(aienv(0, asked=1)) is None and scoring.score_ai_sample(None) is None and scoring.score_ai_sample(aienv(0, status="unavailable")) is None)
+check("the card says what it is: a sample, not a measurement of every assistant", "not a measurement of every assistant" in sc_ai["detail"])
+mk2 = mkrep(60.0)
+mk2["scorecard"]["categories"][0] = {**sc_ai}
+hh = hl.build({**mk2, "ai_sample": aienv(4)})
+check("the headline then names the AI sample as a clue, never as a measurement, and rates its evidence LOW",
+      "clue about visibility" in hh["explanation"] and hh["category_evidence"]["ai_visibility"]["level"] == "low")
 check("the monthly budget guard exists and is in thousandths of a dollar", __import__("store").SERVICE_CAPS["claude"] == 100000)
 
 print()

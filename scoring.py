@@ -612,6 +612,30 @@ def score_editorial(tavily_result):
                f"read and judged rather than just counted.", ev, recs)
 
 
+def score_ai_sample(ai):
+    """
+    AI Visibility from the sampled answers (ai_sample.py). One model, one day, a handful of questions, so it is always
+    labelled low-evidence and 'partial'. Rule (explainable on one line): 70% the share of generic 'where to stay' answers
+    that name the hotel, 30% whether the model knows the hotel when asked directly. None when too little was asked.
+    """
+    if not ai or ai.get("status") != "ok":
+        return None
+    s = ai.get("summary") or {}
+    ga, gn = s.get("generic_asked", 0), s.get("generic_named", 0)
+    if ga < 2:
+        return None
+    share = gn / ga
+    known = s.get("direct_known")
+    direct = share if known is None else (1.0 if known else 0.0)
+    score = 100 * (0.7 * share + 0.3 * direct)
+    ev = [f"Named in {gn} of {ga} generic 'where to stay' answers from one AI model ({ai.get('model', 'unnamed model')}, {ai.get('run_at', '')})",
+          "Known when asked directly: " + {True: "yes", False: "no", None: "not assessed"}[known],
+          "The hotel's own website was " + ("cited" if s.get("own_site_cited") else "not cited") + " in the answers"]
+    return _cat("ai_visibility", score,
+                "A sample, not a measurement of every assistant: one model with web search, asked a few ordinary questions on one day. "
+                "Answers change between runs and between assistants.", ev, partial=True)
+
+
 def score_ai_visibility(audit_payload):
     """
     Scores a (usually reduced) audit.run_full() result. Reused as-is: this

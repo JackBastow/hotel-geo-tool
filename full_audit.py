@@ -740,6 +740,19 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         except Exception as e:  # noqa: BLE001
             amadeus_result = {"configured": True, "found": False, "error": str(e)}
 
+    ai_result = None
+    if ai_future is None:
+        ai_result = ai_sample.run(hotel, city, api_key=anthropic_api_key)      # returns the 'not configured / need a name and town' envelope
+    if ai_future is not None:
+        say("Collecting the sampled AI answers...")
+        try:
+            ai_result = ai_future.result(timeout=180)
+        except Exception as e:  # noqa: BLE001 - an extra; the audit stands without it
+            ai_result = {"source": ai_sample.SOURCE, "status": "unavailable", "items": [], "access": ai_sample.ACCESS,
+                         "reason": f"The sampled AI answers did not finish in time ({type(e).__name__}), so they were not assessed."}
+        finally:
+            ai_ex.shutdown(wait=False, cancel_futures=True)
+
     ai_visibility_cat, ai_visibility_raw = None, None
     if include_ai_visibility and gemini_api_key:
         say("Checking AI visibility (spends Gemini quota)...")
@@ -753,6 +766,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 "ai_visibility", f"Configured but the check failed: {e}",
                 "Check the Gemini API key and that billing is enabled.")
 
+    if ai_visibility_cat is None:
+        ai_visibility_cat = scoring.score_ai_sample(ai_result)       # one model's sample: scored, but always labelled low-evidence
     findings = build_findings(site, ext["entities"], ext["consistency"], discovery,
                               location=location)
 
@@ -804,19 +819,6 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                              "reason": f"Not completed in time ({type(e).__name__}), so this was not assessed."}}
     finally:
         web_ex.shutdown(wait=False, cancel_futures=True)
-
-    ai_result = None
-    if ai_future is None:
-        ai_result = ai_sample.run(hotel, city, api_key=anthropic_api_key)      # returns the 'not configured / need a name and town' envelope
-    if ai_future is not None:
-        say("Collecting the sampled AI answers...")
-        try:
-            ai_result = ai_future.result(timeout=180)
-        except Exception as e:  # noqa: BLE001 - an extra; the audit stands without it
-            ai_result = {"source": ai_sample.SOURCE, "status": "unavailable", "items": [], "access": ai_sample.ACCESS,
-                         "reason": f"The sampled AI answers did not finish in time ({type(e).__name__}), so they were not assessed."}
-        finally:
-            ai_ex.shutdown(wait=False, cancel_futures=True)
 
     # The consultant layer reads pages the crawl already fetched - no further requests.
     say("Working out what AI systems can and can't understand about the hotel...")

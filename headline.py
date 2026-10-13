@@ -45,7 +45,10 @@ def category_evidence(rep):
     pages_ok, pages_att = g.get("pages_ok", 0), g.get("pages_attempted", 0)
     confirmed = sum(1 for h in tav.get("editorial_hits", []) if (h.get("read") or {}).get("confirmed") is True)
     otas = len(tav.get("ota_hits") or [])
+    ai = rep.get("ai_sample") or {}
+    ai_s = ai.get("summary") or {}
     return {
+        "ai_visibility": ("low", f"one AI model, {ai_s.get('asked', 0)} questions, one day"),
         "website": (_lvl(pages_ok, 15, 8), f"{pages_ok} of {pages_att} pages read"),
         "entity": ("high" if confident >= 2 and cmp_n >= 3 else ("medium" if confident >= 1 else "low"),
                    f"{confident} open-data source(s) matched; {cmp_n} fact comparison(s)"),
@@ -84,8 +87,10 @@ def build(rep):
                 "The category results below are shown on their own.")
     else:
         expl = (f"{overall}/100 is the average of the categories that could be assessed, which is {cov:.0f}% of the full model. "
-                f"The other {miss_w:g}% is not measured ({names}). Read it as an indicator of how well the hotel is set up, "
-                "not as a measure of how visible it is to AI assistants.")
+                f"The other {miss_w:g}% is not measured ({names}). Read it as an indicator of how well the hotel is set up"
+                + (". It includes a small sample of one AI assistant's answers, which is a clue about visibility, not a measurement of it."
+                   if any(c.get("key") == "ai_visibility" and c.get("assessed") for c in cats)
+                   else ", not as a measure of how visible it is to AI assistants."))
     return {"title": "AI discoverability readiness (assessed factors)", "score": None if status == "withheld" else overall,
             "coverage_pct": cov, "status": status, "unassessed": unassessed, "unassessed_weight": miss_w,
             "explanation": expl,
