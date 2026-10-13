@@ -103,7 +103,8 @@ def story(rep, H1):
     cov = c.get("coverage") or {}
     if cov.get("limited") or cov.get("text_only"):
         why = "; ".join(f"{n} x {r}" for r, n in (cov.get("failure_reasons") or {}).items())
-        out.append(para(f"Read {cov['pages_read']} of {cov['pages_attempted']} pages. {cov['note']}" + (f" Why pages failed: {why}." if why else ""), "note"))
+        head = "" if str(cov.get("note", "")).startswith(("We could read", "We could only read")) else f"Read {cov['pages_read']} of {cov['pages_attempted']} pages. "
+        out.append(para(f"{head}{cov['note']}" + (f" Why pages failed: {why}." if why else ""), "note"))
 
     # 1 -------------------------------------------------------------- executive summary
     out.append(H1("Executive summary"))
