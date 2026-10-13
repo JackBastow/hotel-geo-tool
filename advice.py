@@ -356,6 +356,36 @@ def _from_ai(ai):
         summary="Not named in a sample of AI hotel-suggestion answers")]
 
 
+def _from_ai_insights(ins):
+    """Two things the sample can support: what the assistant said that differs from the hotel's own record, and sources it leaned on where the hotel is not evidenced."""
+    if not ins or ins.get("status") not in ("ok", "partial"):
+        return []
+    out = []
+    bad = [r for r in (ins.get("accuracy") or {}).get("rows", []) if r["status"] == "differs"]
+    if bad:
+        lines = "; ".join(f"{r['claim']}: the assistant said \"{r['assistant_says']}\" ({r['our_record']})" for r in bad[:3])
+        out.append(_rec(
+            "AI3", "authority", "An AI assistant told travellers something that differs from the hotel's own record",
+            f"In the sampled answers: {lines}.",
+            "Travellers who are told the wrong price, time or policy arrive with the wrong expectation. An assistant takes such details from the pages it finds, "
+            "which may be out of date or ambiguous. This is one model on one day.",
+            [{"url": "", "snippet": f"{r['claim']}: assistant said \"{r['assistant_says']}\"; record: {r['our_record']} ({r['source']})"} for r in bad[:3]],
+            "State the real policy plainly in the first lines of the relevant page on the hotel's site, and check the same detail on the main booking and review "
+            "listings the assistant used (see the source table), so every place a traveller or assistant might read agrees.",
+            "medium", "low", confidence=INFER, team="web", source="ai", tag="AI3", summary="Assistant's statement differs from the hotel's record"))
+    gaps = [s for s in (ins.get("sources") or []) if s["hotel_evidenced"] is False and s["kind"] in ("Booking and comparison site", "Review site")][:4]
+    if gaps:
+        out.append(_rec(
+            "AI2", "authority", "The assistant leaned on sites where the hotel was not found",
+            "Sites the assistant used that this audit did not find the hotel on: " + ", ".join(s["domain"] for s in gaps) + ".",
+            "An assistant can only describe what it finds. If a site it relies on does not list the hotel (or lists it under another name), it may describe competitors instead. "
+            "Not finding a listing through a search index can also be a search gap.",
+            [{"url": "", "snippet": f"{s['domain']} cited in {s['answers']} answer(s); hotel not evidenced there"} for s in gaps[:3]],
+            "Check whether the hotel is listed on each of these sites, under the right name, with current photos and facts; add or claim the listing where it is missing.",
+            "low", "medium", confidence=EXPER, team="distribution", source="ai", tag="AI2", summary="Sources the assistant used without the hotel"))
+    return out
+
+
 def _from_reviews(rs):
     """Reply behaviour seen in public search results. A SAMPLE: worded as 'seen', never as a reply rate, and low-confidence."""
     if not rs or rs.get("status") != "ok":
@@ -424,7 +454,7 @@ def _from_intel(intel):
 
 # ---------------------------------------------------------------------- assemble
 
-def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False):
+def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None):
     coverage = coverage or {}
     recs = []
     recs += _from_questions(questions)
@@ -437,6 +467,7 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
     recs += _from_intel(intel)
     recs += _from_ai(ai)
     recs += _from_reviews(reviews)
+    recs += _from_ai_insights(ai_insights)
     recs = drop_duplicate_entity(recs)
     limited_note = None
     if coverage.get("limited"):

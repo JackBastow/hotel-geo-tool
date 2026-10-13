@@ -8428,7 +8428,7 @@
   "summary": {
    "asked": 3,
    "generic_asked": 2,
-   "generic_named": 0,
+   "generic_named": 1,
    "direct_known": true,
    "own_site_cited": false,
    "top_domains": [
@@ -8442,9 +8442,9 @@
     "id": "best",
     "kind": "generic",
     "text": "What are the best hotels in Weybridge?",
-    "answer": "1. Oatlands Park Hotel\\n2. Brooklands Hotel is a good choice.",
-    "mentioned": false,
-    "position": null,
+    "answer": "1. **Oatlands Park Hotel**: a good all-rounder.\n2. **Brooklands Hotel**: spa and racing heritage.",
+    "mentioned": true,
+    "position": 2,
     "domains": [
      "booking.com",
      "tripadvisor.com"
@@ -8456,7 +8456,7 @@
     "id": "where",
     "kind": "generic",
     "text": "Where should I stay in Weybridge?",
-    "answer": "Try Oatlands Park or the Ship Hotel.",
+    "answer": "Try **Oatlands Park Hotel** or the **Ship Hotel**.",
     "mentioned": false,
     "position": null,
     "domains": [
@@ -8562,5 +8562,249 @@
     "reply_summary": ""
    }
   ]
+ },
+ "ai_insights": {
+  "source": "AI answer insights",
+  "status": "ok",
+  "reason": "",
+  "model": "claude-haiku-5-5",
+  "sources": [
+   {
+    "domain": "booking.com",
+    "kind": "Booking and comparison site",
+    "answers": 2,
+    "questions": [
+     "about",
+     "best"
+    ],
+    "hotel_evidenced": true
+   },
+   {
+    "domain": "tripadvisor.com",
+    "kind": "Review site",
+    "answers": 1,
+    "questions": [
+     "best"
+    ],
+    "hotel_evidenced": true
+   },
+   {
+    "domain": "visitsurrey.com",
+    "kind": "Tourism board",
+    "answers": 1,
+    "questions": [
+     "where"
+    ],
+    "hotel_evidenced": null
+   }
+  ],
+  "cost_usd": 0.0221,
+  "notes": [],
+  "leaderboard": {
+   "rows": [
+    {
+     "name": "Oatlands Park Hotel",
+     "is_target": false,
+     "mentions": 2,
+     "of": 2,
+     "share": 50,
+     "best_rank": 1,
+     "avg_rank": 1.0,
+     "questions": [
+      "best",
+      "where"
+     ],
+     "reasons": [
+      "a good all-rounder",
+      "lake views"
+     ],
+     "ratings": [
+      "8.4 on Booking.com"
+     ]
+    },
+    {
+     "name": "Brooklands Hotel",
+     "is_target": true,
+     "mentions": 1,
+     "of": 2,
+     "share": 25,
+     "best_rank": 2,
+     "avg_rank": 2.0,
+     "questions": [
+      "best"
+     ],
+     "reasons": [
+      "spa and racing heritage"
+     ],
+     "ratings": []
+    },
+    {
+     "name": "Ship Hotel",
+     "is_target": false,
+     "mentions": 1,
+     "of": 2,
+     "share": 25,
+     "best_rank": 2,
+     "avg_rank": 2.0,
+     "questions": [
+      "where"
+     ],
+     "reasons": [
+      "central"
+     ],
+     "ratings": []
+    }
+   ],
+   "questions": 2,
+   "total_mentions": 4
+  },
+  "alternatives": [],
+  "matrix": [
+   {
+    "id": "best",
+    "kind": "generic",
+    "question": "What are the best hotels in Weybridge?",
+    "hotel_named": true,
+    "position": 2,
+    "hotels_named": [
+     "Oatlands Park Hotel",
+     "Brooklands Hotel"
+    ]
+   },
+   {
+    "id": "where",
+    "kind": "generic",
+    "question": "Where should I stay in Weybridge?",
+    "hotel_named": false,
+    "position": null,
+    "hotels_named": [
+     "Oatlands Park Hotel",
+     "Ship Hotel"
+    ]
+   },
+   {
+    "id": "about",
+    "kind": "direct",
+    "question": "Tell me about Brooklands Hotel in Weybridge.",
+    "hotel_named": true,
+    "position": null,
+    "hotels_named": []
+   }
+  ],
+  "about": {
+   "tone": "positive",
+   "strengths": [
+    "spa",
+    "racing heritage"
+   ],
+   "weaknesses": [
+    "parking charges"
+   ],
+   "claims": [
+    {
+     "type": "parking",
+     "value": "free parking",
+     "answer_id": "about"
+    },
+    {
+     "type": "star_rating",
+     "value": "4-star",
+     "answer_id": "about"
+    }
+   ]
+  },
+  "perception": {
+   "site_emphasises": [
+    "Weddings",
+    "Spa and wellness"
+   ],
+   "not_in_assistant_description": [
+    "Weddings"
+   ]
+  },
+  "accuracy": {
+   "rows": [
+    {
+     "claim": "Parking",
+     "assistant_says": "free parking",
+     "our_record": "the hotel's page mentions a parking charge",
+     "status": "differs",
+     "source": "the hotel's own pages"
+    }
+   ],
+   "unchecked": 1
+  },
+  "scoreboard": {
+   "questions": 2,
+   "named": 1,
+   "avg_rank": 2.0,
+   "share": 25,
+   "rank_in_table": 2,
+   "table_size": 3,
+   "top_competitor": "Oatlands Park Hotel"
+  },
+  "ledger": [
+   {
+    "id": "E1",
+    "text": "'Oatlands Park Hotel' was named in 2 of 2 generic questions (best rank 1). Reasons given: a good all-rounder; lake views. Ratings quoted: 8.4 on Booking.com."
+   },
+   {
+    "id": "E2",
+    "text": "The hotel was named in 1 of 2 generic questions. Best rank 2."
+   },
+   {
+    "id": "E3",
+    "text": "'Ship Hotel' was named in 1 of 2 generic questions (best rank 2). Reasons given: central."
+   },
+   {
+    "id": "E4",
+    "text": "Sources the assistant leaned on most: booking.com (2), tripadvisor.com (1), visitsurrey.com (1)."
+   },
+   {
+    "id": "E5",
+    "text": "When asked directly the assistant described the hotel as: positives - spa; racing heritage; drawbacks - parking charges. Overall tone: positive."
+   },
+   {
+    "id": "E6",
+    "text": "The hotel's own website emphasises: Weddings, Spa and wellness."
+   },
+   {
+    "id": "E7",
+    "text": "Not mentioned in the assistant's description of the hotel despite being emphasised on its site: Weddings."
+   },
+   {
+    "id": "E8",
+    "text": "The hotel was found listed on: Booking.com, TripAdvisor."
+   },
+   {
+    "id": "E9",
+    "text": "The hotel does not have a confirmed Wikidata entry."
+   },
+   {
+    "id": "E10",
+    "text": "The hotel's own website was not among the sources the assistant used."
+   }
+  ],
+  "explanation": {
+   "summary": "The hotel was named in one of two questions; the other time a competitor with clearer framing was named instead.",
+   "hypotheses": [
+    {
+     "text": "It may be that Oatlands Park Hotel is framed around a clear reason in the answers.",
+     "evidence": [
+      "E1",
+      "E2"
+     ],
+     "action": "Check how the hotel's own listing opens."
+    }
+   ]
+  },
+  "head_to_head": {
+   "rival": "Oatlands Park Hotel",
+   "question": "Brooklands Hotel or Oatlands Park Hotel in Weybridge?",
+   "answer": "Oatlands Park Hotel is quieter; Brooklands Hotel is livelier and has a spa.",
+   "domains": [],
+   "searches": 2,
+   "both_named": true
+  }
  }
 }

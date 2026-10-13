@@ -184,8 +184,8 @@ def review_section(rs):
     return out
 
 
-def ai_section(ai):
-    """The sampled assistant answers, with their limits. Never scored."""
+def ai_section(ai, ins=None):
+    """The sampled assistant answers and what they mean, with their limits. Never scored."""
     if not ai:
         return []
     out = [para("What an AI assistant said: a sample", "h2")]
@@ -198,15 +198,49 @@ def ai_section(ai):
                     f"Named in {s['generic_named']} of {s['generic_asked']} generic 'where to stay' answers; "
                     f"{'known' if s['direct_known'] else 'not known' if s['direct_known'] is False else 'not assessed'} when asked directly; "
                     f"own website {'cited' if s['own_site_cited'] else 'not cited'}.", "tiny"))
+    if ins and ins.get("status") in ("ok", "partial") and ins.get("leaderboard"):
+        lb, sb = ins["leaderboard"], ins["scoreboard"]
+        out.append(para(f"Who the assistant recommended instead. The hotel's share of the hotel names given was {sb['share']}% (place {sb['rank_in_table']} of "
+                        f"{sb['table_size']} in the table). Counts are arithmetic on this one sample.", "tiny"))
+        rows = [["Hotel", "Named in", "Avg position", "Why the assistant gave it"]]
+        for r in lb["rows"][:8]:
+            rows.append([("YOU: " if r["is_target"] else "") + r["name"], f"{r['mentions']} of {r['of']}", "-" if r["avg_rank"] is None else r["avg_rank"],
+                         "; ".join(r["reasons"]) or "-"])
+        out.append(table(rows, [0.3, 0.12, 0.13, 0.45]))
+        if ins.get("alternatives"):
+            out.append(para("Its view of the competitive set (asked which hotels are similar): " + ", ".join(h["name"] for h in ins["alternatives"]) + ".", "tiny"))
+    if ins and ins.get("sources"):
+        rows = [["Site the assistant used", "Type", "Used in", "Hotel there?"]]
+        for x in ins["sources"][:8]:
+            rows.append([x["domain"], x["kind"], f"{x['answers']} answers", {True: "found", False: "not found", None: "not checked"}[x["hotel_evidenced"]]])
+        out.append(table(rows, [0.34, 0.3, 0.16, 0.2]))
+    exp = (ins or {}).get("explanation")
+    if exp and exp.get("hypotheses"):
+        out.append(para("Why the hotel may not be named: hypotheses. The assistant cannot show its reasoning and neither can we; these are differences visible in the "
+                        "audit's evidence, offered to be checked, not causes.", "tiny"))
+        out += R.bullets([h["text"] + f" (evidence {', '.join(h['evidence'])})" + (f" Worth checking: {h['action']}" if h.get("action") else "") for h in exp["hypotheses"]])
+    ab = (ins or {}).get("about")
+    if ab and (ab.get("strengths") or ab.get("weaknesses")):
+        out.append(para("What the assistant says about the hotel. Positives: " + ("; ".join(ab["strengths"][:6]) or "none") + ". Drawbacks: "
+                        + ("; ".join(ab["weaknesses"][:6]) or "none") + f". Tone: {ab.get('tone', 'unclear')} (an AI's reading).", "tiny"))
+    acc = (ins or {}).get("accuracy")
+    if acc and acc["rows"]:
+        rows = [["Detail", "The assistant said", "Our record", "Result"]]
+        for r in acc["rows"]:
+            rows.append([r["claim"], r["assistant_says"], f"{r['our_record']} ({r['source']})" if r["source"] else r["our_record"], r["status"]])
+        out.append(table(rows, [0.16, 0.26, 0.42, 0.16]))
     rows = [["Question asked", "Hotel", "What it answered", "Sources it used"]]
     for i in ai["items"]:
         rows.append([i["text"], {True: "named", False: "not named", None: "no answer"}[i["mentioned"]] + (f" (#{i['position']})" if i.get("position") else ""),
                      (i["answer"] or "(no answer text)")[:420], ", ".join(i["domains"][:6])])
     out.append(table(rows, [0.22, 0.1, 0.46, 0.22]))
+    h2h = (ins or {}).get("head_to_head")
+    if h2h:
+        out.append(para(f"Head to head with {h2h['rival']}: " + h2h["answer"][:700], "tiny"))
     return out
 
 
-def sections(c, H1, web=None, ai=None, reviews=None):
+def sections(c, H1, web=None, ai=None, reviews=None, ins=None):
     """The dedicated consultant sections, in reading order."""
     recs = {r["id"]: r for r in c["recommendations"]}
     out = []
@@ -302,7 +336,7 @@ def sections(c, H1, web=None, ai=None, reviews=None):
             rows.append([f["title"], R.coloured(st, col), body])
         out.append(table(rows, [0.28, 0.12, 0.6]))
     out += web_section(web)
-    out += ai_section(ai)
+    out += ai_section(ai, ins)
     out += review_section(reviews)
     sd = c["structured"]
     out.append(para("Structured data: what it says, not just whether it exists", "h2"))

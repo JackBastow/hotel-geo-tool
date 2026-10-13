@@ -103,6 +103,28 @@ def _facts(report):
     return out
 
 
+def _ai_trend(old, new):
+    """Named-in-answers and who the assistant recommended, then against now. None unless both runs have a sample. One model, one day each."""
+    def side(rep):
+        a = rep.get("ai_sample")
+        if not isinstance(a, dict) or a.get("status") != "ok" or not isinstance(a.get("summary"), dict):
+            return None
+        s = a["summary"]
+        ins = rep.get("ai_insights") if isinstance(rep.get("ai_insights"), dict) else {}
+        rows = ((ins.get("leaderboard") or {}).get("rows")) or []
+        return {"date": str(a.get("run_at", ""))[:10], "named": s.get("generic_named"), "asked": s.get("generic_asked"), "known": s.get("direct_known"),
+                "share": (ins.get("scoreboard") or {}).get("share"), "avg_rank": (ins.get("scoreboard") or {}).get("avg_rank"),
+                "competitors": [r["name"] for r in rows if not r.get("is_target")][:8], "domains": list(s.get("top_domains") or [])[:8]}
+    o, n = side(old), side(new)
+    if not o or not n:
+        return None
+    return {"old": o, "new": n,
+            "new_competitors": [c for c in n["competitors"] if c not in o["competitors"]],
+            "dropped_competitors": [c for c in o["competitors"] if c not in n["competitors"]],
+            "new_sources": [d for d in n["domains"] if d not in o["domains"]],
+            "note": "Each side is one model's answers to a few questions on one day, so small changes are noise; look for a sustained move over several runs."}
+
+
 def compare_reports(old, new):
     old, new = validate(old), validate(new)
     res = {"warnings": []}
@@ -188,6 +210,9 @@ def compare_reports(old, new):
     of, nf = _facts(old), _facts(new)
     res["facts"] = [{"fact": k, "old": of.get(k, "—"), "new": nf.get(k, "—")}
                     for k in dict.fromkeys(list(nf) + list(of)) if of.get(k) != nf.get(k)]
+
+    # --- the sampled AI answers, run against run (a sample: wording says so)
+    res["ai"] = _ai_trend(old, new)
 
     better = (sum(1 for r in rows if r["status"] == "improved")
               + sum(1 for g in grows if g["status"] == "improved")

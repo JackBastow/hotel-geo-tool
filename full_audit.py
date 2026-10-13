@@ -65,6 +65,7 @@ import urllib.parse
 import requests
 from concurrent.futures import ThreadPoolExecutor
 
+import ai_insights
 import ai_sample
 import amadeus_check
 import claude_reader
@@ -842,6 +843,23 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     finally:
         web_ex.shutdown(wait=False, cancel_futures=True)
 
+    # What the sampled answers mean: who is recommended instead, which sources were used, is it right, why the hotel may not be named.
+    ai_insight_result = None
+    if ai_result and ai_result.get("status") == "ok" and anthropic_api_key:
+        say("Analysing what the assistant said...")
+        try:
+            import insight_content as _ic
+            strong = [r["label"] for r in _ic.intents(_ic.Site(own_pages, base, hotel, city)) if r["level"] == "strong"] if own_pages else []
+            footprint = ((intel_result or {}).get("identity") or {}).get("footprint") if isinstance(intel_result, dict) and "error" not in intel_result else None
+            host = urllib.parse.urlparse(base).netloc.lower()
+            host = host[4:] if host.startswith("www.") else host
+            ai_insight_result = ai_insights.run(
+                ai_result, {"hotel": hotel, "city": city, "guest": guest, "entities": ext["entities"], "footprint": footprint, "snapshot": review_result,
+                            "strong_intents": strong, "own_domain": host, "brand_domains": (host,) if site["meta"].get("scope") else ()},
+                api_key=anthropic_api_key, model=anthropic_model)
+        except Exception as e:  # noqa: BLE001 - an extra; the sample itself still shows
+            ai_insight_result = {"source": ai_insights.SOURCE, "status": "unavailable", "reason": f"The analysis of the answers failed ({type(e).__name__}).", "cost_usd": 0.0}
+
     # The consultant layer reads pages the crawl already fetched - no further requests.
     say("Working out what AI systems can and can't understand about the hotel...")
     try:
@@ -850,7 +868,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         consult_result = consultant.analyse(
             own_pages=own_pages, pages_meta=guest.get("pages_meta", []), base=base, hotel=hotel, city=city,
             location=location, guest=guest, site=site, entities=ext["entities"], intel=intel_result,
-            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, text_only=bool(guest.get("read_via")),
+            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, text_only=bool(guest.get("read_via")),
             jsonld_example=fixes.hotel_jsonld({"base": base, "hotel": hotel, "location": location, "guest": guest,
                                                "discovery": discovery, "entities": ext["entities"], "site": site,
                                                "tavily": tavily_result}))
@@ -896,6 +914,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "consultant": consult_result,
         "web_signals": web,
         "ai_sample": ai_result,
+        "ai_insights": ai_insight_result,
         "review_snapshot": review_result,
         "tavily_result": tavily_result,
         "places_result": places_result,

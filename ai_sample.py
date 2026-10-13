@@ -51,7 +51,7 @@ SYSTEM = ("You are a travel assistant answering a traveller's question. Search t
           "When you recommend hotels, name them in a short list, most suitable first, and say in a few words why. "
           "Only state facts you found; say so when you could not find something.")
 
-_GENERIC = {"hotel", "hotels", "the", "by", "and", "spa", "resort", "at", "of", "&", "inn", "suites", "collection"}
+_GENERIC = {"hotel", "hotels", "the", "by", "and", "spa", "resort", "resorts", "at", "of", "&", "inn", "suites", "collection"}
 
 
 # ----------------------------------------------------------------- questions

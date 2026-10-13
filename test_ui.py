@@ -82,6 +82,15 @@ at_tx = run(tx, "text-only")
 check("a report built from the fallback reader renders and tells the reader how the pages were read",
       not at_tx.exception and any("read through Anthropic's page reader" in i.value for i in at_tx.info), [e.message for e in at_tx.exception])
 
+check("the AI analysis is shown: who is recommended instead, the question matrix, sources, hypotheses, perception, accuracy and head to head",
+      all(w in text for w in ("Who the assistant recommends instead", "Question by question", "Where the assistant got its information", "Why the hotel may not be named: hypotheses",
+                              "What the assistant says about the hotel", "Is what it said correct?", "Oatlands Park Hotel")), [w for w in ("Who the assistant recommends instead", "Question by question", "Why the hotel may not be named: hypotheses", "Is what it said correct?") if w not in text])
+check("hypotheses are labelled as hypotheses, not causes, and cite their evidence", any("not as causes" in w.value for w in at.warning) and "evidence E1, E2" in text)
+_tables = " ".join(str(d.value.to_dict()) for d in at.dataframe)
+check("the mismatch is shown plainly: free parking said, a charge in the hotel's own record", "free parking" in _tables and "differs" in _tables and "parking charge" in _tables)
+check("the share of names, the place in the table and the average position are shown as figures",
+      {"Share of the names given", "Your place in that table", "Average position when named"} <= {m.label for m in at.metric})
+
 print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
 import sys  # noqa: E402
 import types  # noqa: E402

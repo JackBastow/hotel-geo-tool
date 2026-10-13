@@ -36,6 +36,8 @@ def df(rows, link_cols=(), widths=None, height=None):
         for c in link_cols:
             if c in r:
                 r[c] = safe_url(r[c]) or None
+        # one type per column (a number in one row and "-" in the next makes Streamlit's table fail to convert)
+        r = {k: (v if v is None or isinstance(v, bool) or k in link_cols else str(v)) for k, v in r.items()}
         clean.append(r)
     cfg = {c: st.column_config.LinkColumn(c, display_text="open") for c in link_cols}
     kw = {"height": height} if height else {}

@@ -259,7 +259,87 @@ def review_card(rs):
         st.caption(f"{rs['dropped']} item(s) the assistant reported were dropped because their pages were not among the search results.")
 
 
-def ai_sample_card(ai):
+def _ins_sections(ai, ins):
+    """The analysis of the sampled answers: competitors, prompts, sources, why, perception, accuracy, head-to-head."""
+    if not ins or ins.get("status") not in ("ok", "partial"):
+        if ins and ins.get("reason"):
+            st.caption(md_safe(ins["reason"]))
+        return
+    if ins.get("status") == "partial":
+        st.caption(md_safe(ins.get("reason", "")))
+    lb, sb = ins.get("leaderboard"), ins.get("scoreboard")
+    if lb and sb:
+        st.markdown("###### Who the assistant recommends instead")
+        st.caption("Hotels named across the generic 'where to stay' questions, with the reason the assistant gave. Counts are plain arithmetic on this one sample; "
+                   "'share' is each hotel's part of all the hotel names given.")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Share of the names given", f"{sb['share']}%", help="the hotel's mentions as a share of every hotel mention in the generic answers")
+        c2.metric("Your place in that table", f"{sb['rank_in_table']} of {sb['table_size']}")
+        c3.metric("Average position when named", "-" if sb["avg_rank"] is None else sb["avg_rank"])
+        df([{"": "YOU" if r["is_target"] else "", "Hotel": r["name"], "Named in": f"{r['mentions']} of {r['of']}", "Share": f"{r['share']}%",
+             "Average position": "-" if r["avg_rank"] is None else r["avg_rank"], "Why the assistant gave it": "; ".join(r["reasons"]) or "-"}
+            for r in lb["rows"][:12]])
+        try:
+            import pandas as pd
+            top = lb["rows"][:10]
+            st.bar_chart(pd.DataFrame({"Times named": [r["mentions"] for r in top]}, index=[("→ " if r["is_target"] else "") + r["name"][:34] for r in top]))
+        except Exception:  # noqa: BLE001 - a chart is a nicety
+            pass
+    if ins.get("alternatives"):
+        st.markdown("**The assistant's view of your competitive set** *(asked which hotels are similar)*: " + ", ".join(md_safe(h["name"]) for h in ins["alternatives"]))
+    if ins.get("matrix"):
+        st.markdown("###### Question by question")
+        df([{"Question": m["question"], "Hotel named": {True: "yes", False: "no", None: "n/a"}[m["hotel_named"]] if m["kind"] == "generic" else "(asked about it)",
+             "Position": m["position"] or "-", "Hotels it named": ", ".join(m["hotels_named"][:4]) or "-"} for m in ins["matrix"]])
+    if ins.get("sources"):
+        st.markdown("###### Where the assistant got its information")
+        st.caption("The sites it used, how often, and whether this audit found the hotel there. 'Not found' can also be a search gap.")
+        icon = {True: "🟢 found", False: "🔴 not found", None: "⚪ not checked"}
+        df([{"Site": s["domain"], "Type": s["kind"], "Used in": f"{s['answers']} answers", "Hotel there?": icon[s["hotel_evidenced"]]} for s in ins["sources"][:12]])
+    exp = ins.get("explanation")
+    if exp and exp.get("hypotheses"):
+        st.markdown("###### Why the hotel may not be named: hypotheses")
+        st.warning("The assistant cannot show its reasoning and neither can we. These are differences visible in the evidence below, offered as hypotheses to check, "
+                   "not as causes.")
+        st.markdown(md_safe(exp.get("summary", "")))
+        for h in exp["hypotheses"]:
+            st.markdown(f"- {md_safe(h['text'])} *(evidence {', '.join(h['evidence'])})*" + (f"  \n  **Worth checking:** {md_safe(h['action'])}" if h.get("action") else ""))
+        with st.expander("The evidence these rest on"):
+            for e in ins.get("ledger", []):
+                st.markdown(f"**{e['id']}** {md_safe(e['text'])}")
+    ab, pc = ins.get("about"), ins.get("perception")
+    if ab and (ab.get("strengths") or ab.get("weaknesses")):
+        st.markdown("###### What the assistant says about the hotel")
+        a, b = st.columns(2)
+        with a:
+            st.markdown("**Positives it gave**")
+            for x in ab["strengths"][:6] or ["(none)"]:
+                st.markdown("- " + md_safe(x))
+        with b:
+            st.markdown("**Drawbacks it gave**")
+            for x in ab["weaknesses"][:6] or ["(none)"]:
+                st.markdown("- " + md_safe(x))
+        st.caption(f"Overall tone of its description: {ab.get('tone', 'unclear')} (an AI's reading).")
+        if pc and pc.get("not_in_assistant_description"):
+            st.info("Emphasised on your website but not in the assistant's description: " + ", ".join(md_safe(x) for x in pc["not_in_assistant_description"]) + ".")
+    acc = ins.get("accuracy")
+    if acc and (acc["rows"] or acc["unchecked"]):
+        st.markdown("###### Is what it said correct?")
+        if acc["rows"]:
+            df([{"Detail": r["claim"], "The assistant said": r["assistant_says"], "Our record": r["our_record"], "Source of our record": r["source"] or "-",
+                 "Result": {"matches": "🟢 matches", "differs": "🟠 differs"}[r["status"]]} for r in acc["rows"]])
+        st.caption(f"{acc['unchecked']} other statement(s) could not be checked against anything we hold, which is not the same as being wrong.")
+    h2h = ins.get("head_to_head")
+    if h2h:
+        with st.expander(f"Head to head: the hotel against {h2h['rival']}"):
+            st.markdown(md_safe(h2h["answer"]))
+            if h2h.get("domains"):
+                st.caption("Sources: " + ", ".join(md_safe(d) for d in h2h["domains"][:8]))
+    for n in ins.get("notes") or []:
+        st.caption(md_safe(n))
+
+
+def ai_sample_card(ai, ins=None):
     """What one AI model said when asked ordinary traveller questions. A sample with its limits stated, never a score."""
     st.markdown("##### What an AI assistant said (a sample)")
     if not ai:
@@ -279,6 +359,8 @@ def ai_sample_card(ai):
         st.markdown("**Sources the assistant relied on:** " + ", ".join(md_safe(d) for d in s["top_domains"]))
     if ai.get("partial"):
         st.caption(md_safe(ai.get("reason", "")))
+    _ins_sections(ai, ins)
+    st.markdown("###### All the answers")
     for i in ai["items"]:
         mark = {True: "named", False: "not named", None: "no answer"}[i["mentioned"]]
         with st.expander(f"{i['text']} - hotel {mark}" + (f" (#{i['position']} in the list)" if i.get("position") else "")):
@@ -287,8 +369,8 @@ def ai_sample_card(ai):
                 st.caption("Sources: " + ", ".join(md_safe(d) for d in i["domains"][:8]))
 
 
-def ai_view(c, ai=None):
-    ai_sample_card(ai)
+def ai_view(c, ai=None, ins=None):
+    ai_sample_card(ai, ins)
     u = c["understanding"]
     st.caption("What automated systems could learn from this hotel's own pages, where they may be less certain, and where each gap should be fixed. "
                "Built only from wording found on the pages read.")

@@ -119,6 +119,21 @@ Cost is estimated from the usage the API reports (a few tens of cents an audit);
 (`store.SERVICE_CAPS["claude"]`) stops calls when it is reached, and the workspace spend limit in the Anthropic
 Console is the hard stop. Without an `ANTHROPIC_API_KEY` secret the section says it was not run.
 
+**What the sampled answers mean (`ai_insights.py`, same Anthropic credit, about 2-3 cents an audit).** Modelled on
+what AI-visibility tools (Otterly, Peec, Profound, Ahrefs Brand Radar) report, but built to be honest about one
+engine and one sample: *who the assistant recommends instead* (a leaderboard with each hotel's share of the names
+given, average position and the reason the assistant gave, plus its view of the competitive set), *question by
+question*, *where it got its information* (sources typed as booking sites, review sites, tourism boards and so on, with
+whether this audit found the hotel there), *what it says about the hotel* against what the site emphasises, *is it
+right* (phone, check-in/out, address and parking checked against facts we hold; anything uncheckable is "could not
+check", never "wrong"), a *head-to-head* with the top competitor, and **hypotheses for why the hotel may not be named**.
+The hypotheses are the careful part: the model is shown a numbered evidence ledger built from this audit and may cite
+only those ids, any hypothesis without a valid id is dropped, it is told it cannot see the assistant's reasoning, and
+the report says they are things to check, not causes. Hotel names are kept only if they appear in the answer text. Two
+low-priority recommendations can follow (a statement that differs from the hotel's own record; sources used without the
+hotel). The Tools-tab comparison also shows this month's sample against last month's. Only Claude is asked; other
+assistants (ChatGPT, Gemini, Perplexity, Google AI Overviews) are not.
+
 **Reviews and replies snapshot (optional, same Anthropic credit).** `review_replies.py` asks the model to look at
 the review pages that appear in public search results and report ratings, review counts and, above all, whether
 the hotel replied to each review it could see, by which role, in what tone, with a paraphrase. A model can invent,

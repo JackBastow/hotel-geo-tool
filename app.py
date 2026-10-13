@@ -187,6 +187,19 @@ def render_comparison(cmp):
             + [{"Status": "New", "Recommendation": a} for a in rc["new"]]
             + [{"Status": "Still open", "Recommendation": a} for a in rc["still_open"]],
             width="stretch", hide_index=True)
+    ai = cmp.get("ai")
+    if ai:
+        st.markdown("**What an AI assistant said (a sample each time)**")
+        o, n = ai["old"], ai["new"]
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Named in generic answers", f"{n['named']} of {n['asked']}", delta=(None if o["named"] is None or n["named"] is None else n["named"] - o["named"]))
+        c2.metric("Share of the names given", "-" if n["share"] is None else f"{n['share']}%", delta=(None if o["share"] is None or n["share"] is None else n["share"] - o["share"]))
+        c3.metric("Earlier run", f"{o['named']} of {o['asked']}")
+        if ai["new_competitors"]:
+            st.caption("Newly recommended instead: " + ", ".join(_md_safe(x) for x in ai["new_competitors"][:6]))
+        if ai["new_sources"]:
+            st.caption("Newly relied on: " + ", ".join(_md_safe(x) for x in ai["new_sources"][:6]))
+        st.caption(ai["note"])
     if cmp["facts"]:
         st.markdown("**Facts that changed**")
         st.dataframe(cmp["facts"], width="stretch", hide_index=True)
@@ -289,7 +302,7 @@ if fa_go:
         fa_res["ai_sample"] = ai_sample.budget_exhausted()
         fa_res["review_snapshot"] = review_replies.budget_exhausted()
     spent = (((fa_res.get("ai_sample") or {}).get("cost_usd") or 0) + ((fa_res.get("review_snapshot") or {}).get("cost_usd") or 0)
-             + ((fa_res.get("guest_questions") or {}).get("reader_cost_usd") or 0))
+             + ((fa_res.get("guest_questions") or {}).get("reader_cost_usd") or 0) + ((fa_res.get("ai_insights") or {}).get("cost_usd") or 0))
     if spent:
         store.record_usage(max(1, round(spent * 1000)), service="claude")      # estimated spend, in thousandths of a dollar
     # Exact count: only entries actually read via the LLM path count - a
@@ -383,7 +396,7 @@ if fa_res:
                     "The Scorecard tab still has the website results.")
     with tabs[1]:
         if has_consult:
-            ui_consult.ai_view(consult, fa_res.get("ai_sample"))
+            ui_consult.ai_view(consult, fa_res.get("ai_sample"), fa_res.get("ai_insights"))
         else:
             st.info("This section needs the consultant analysis, which did not run for this audit.")
     with tabs[2]:
