@@ -600,6 +600,22 @@ check("for a chain's page the 'who fixes it' advice names the brand's web team, 
       "brand's web team" in r1["action"] and "web supplier" not in r1["action"] and "None of the 1 page(s) we tried could be read" in r1["finding"], r1["action"][:80])
 hz = hl.build({**mkrep(60.0), "consultant": {"coverage": {"unreadable": True, "limited": True, "pages_read": 0}}})
 check("a headline for a site with nothing read never says 'Only 0 page(s)'", "None of the website's pages could be read" in hz["explanation"] and "Only 0" not in hz["explanation"])
+failed_osm = [{"source": "OpenStreetMap", "found": False, "error": "request failed (timeout, DNS, or connection refused)"},
+              {"source": "Wikidata", "found": False, "note": "No Wikidata entity."}]
+mr3 = {f["id"]: f for f in it.machine_readiness(ic.Site(site16, BASE, HOTEL, CITY), [], {"robots": {"present": True}}, failed_osm, None,
+                                               {"hotel_found": None, "items": []}, [], [])}
+check("an open-data lookup that FAILED is 'could not be completed', never 'no match found'",
+      "entity_missing" not in mr3 and mr3["entity_unchecked"]["status"] == "info" and "says nothing about whether the hotel is listed" in mr3["entity_unchecked"]["detail"])
+mr4 = {f["id"]: f for f in it.machine_readiness(ic.Site(site16, BASE, HOTEL, CITY), [], {"robots": {"present": True}},
+                                               [{"source": "OpenStreetMap", "found": False}, {"source": "Wikidata", "found": False}], None,
+                                               {"hotel_found": None, "items": []}, [], [])}
+check("...while a lookup that worked and found nothing is still reported as missing", mr4["entity_missing"]["status"] == "issue")
+sc_err = scoring.score_entity(failed_osm, [], {"postcode": "KT13 0NY"})
+check("a failed lookup is not scored as 'missing' and generates no 'add the hotel to OpenStreetMap' advice",
+      not any(r["code"] == "entity_missing:OpenStreetMap" for r in sc_err["recommendations"]) and any("could not be checked" in e for e in sc_err["evidence"]))
+check("the scorecard reason for an unread site never says 'Only 0 page(s)'",
+      "Only 0" not in scoring.build_scorecard({"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}, [], [], {}, {"profiles": []},
+                                              guest_result={"pages_ok": 0, "pages_attempted": 1, "questions": [], "conflicts": [], "own_facts_node": {}})["categories"][4]["detail"])
 unread = {"pages_ok": 0, "pages_attempted": 1, "questions": [], "conflicts": [], "own_facts_node": {}}
 card = scoring.build_scorecard({"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}, [], [], {}, {"profiles": []}, guest_result=unread)
 by = {c["key"]: c for c in card["categories"]}

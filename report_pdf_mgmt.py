@@ -24,6 +24,8 @@ PRI_COL = {"critical": R.BAD, "high": "#c2570c", "medium": R.WARN, "low": R.GREY
 LEVEL_COL = {"high": R.GOOD, "medium": R.WARN, "low": R.BAD}
 STATUS_COL = {"assessed": R.GOOD, "provisional": R.WARN, "withheld": R.BAD}
 
+NOREAD = "Not assessed: the website could not be read, so nothing can be said about this either way."
+
 
 def short(text, n):
     """Trim to a sentence or word boundary, never mid-word."""
@@ -154,7 +156,7 @@ def story(rep, H1):
             rows.append([r["label"], "Strongly supported" if r["level"] == "strong" else "Some evidence", short(r["reason"], 150)])
         out.append(table(rows, [0.22, 0.18, 0.6]))
     else:
-        out.append(para("No traveller type is strongly supported by the pages read.", "base"))
+        out.append(para(NOREAD if (c.get("coverage") or {}).get("unreadable") else "No traveller type is strongly supported by the pages read.", "base"))
     if c.get("opportunities"):
         out.append(para("Commercial opportunities", "h3"))
         out.append(para("Not defects. Weak signals matter only if the segment is one the hotel wants to attract.", "tiny"))
@@ -173,7 +175,7 @@ def story(rep, H1):
         out.append(table(rows, [0.22, 0.58, 0.1, 0.1]))
         out.append(para("Each gap is listed once here; the quotes, example wording and where each answer belongs are in the appendix.", "tiny"))
     else:
-        out.append(para("The common traveller questions are answered on the pages read.", "base"))
+        out.append(para(NOREAD if (c.get("coverage") or {}).get("unreadable") else "The common traveller questions are answered on the pages read.", "base"))
 
     # 6 -------------------------------------------------------------- reputation and distribution
     out.append(H1("Reputation and distribution risks"))
@@ -190,7 +192,8 @@ def story(rep, H1):
 
     # 7 -------------------------------------------------------------- doing well
     out.append(H1("What the hotel is already doing well"))
-    out += R.bullets([w["point"] for w in c["working"]] or ["Nothing specific stood out in the pages read."])
+    out += R.bullets([w["point"] for w in c["working"]]
+                     or [NOREAD if (c.get("coverage") or {}).get("unreadable") else "Nothing specific stood out in the pages read."])
 
     # 8 -------------------------------------------------------------- 30 / 60 / 90
     out.append(H1("30 / 60 / 90-day plan"))

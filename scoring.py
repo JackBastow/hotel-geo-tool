@@ -273,6 +273,9 @@ def score_entity(entities, consistency, location):
     for e in entities:
         src = e["source"]
         weight = 0.30 if src == "OpenStreetMap" else 0.25
+        if e.get("error") and not e.get("found"):
+            ev.append(f"{src}: could not be checked this run ({e['error']}); not counted either way")
+            continue
         if e.get("found") and e.get("match_confident") is True:
             pts.append((f"{src} verified", 1.0, weight))
             ev.append(f"{src}: verified entry"
@@ -765,7 +768,8 @@ def build_scorecard(site, entities, consistency, location, discovery,
     # A site that could not be read cannot be scored: 0 or 40 from nothing would read as a verdict on the hotel.
     if guest_result is not None and guest_result.get("pages_ok", 3) < 3:
         n = guest_result.get("pages_ok", 0)
-        why = (f"Only {n} page(s) of the website could be read (the site may be blocking automated readers), "
+        why = (("None of the website's pages" if not n else f"Only {n} page(s) of the website")
+               + " could be read (the site may be blocking automated readers), "
                "so this was not scored rather than scoring a site we could not see.")
         how = "Run again if the block was temporary, or ask the web supplier whether a firewall refuses automated visitors."
         confident = any(e.get("found") and e.get("match_confident") is True for e in entities or [])

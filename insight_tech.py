@@ -390,6 +390,11 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
         out.append(_f("understanding", "entity_unknown", "The hotel's name could not be determined, so no open-data lookup was made", "info", "none",
                       "The page could not be read well enough to find the hotel's name.",
                       "Without a name the hotel cannot be looked up in OpenStreetMap or Wikidata. Type the hotel name and city above and run again.", level=BEST))
+    elif not ents and any(e.get("error") and not e.get("found") for e in entities or []):
+        bad = ", ".join(e["source"] for e in entities if e.get("error") and not e.get("found"))
+        out.append(_f("understanding", "entity_unchecked", f"The open-data lookup could not be completed ({bad})", "info", "none",
+                      "The request to the open-data source failed or timed out, which says nothing about whether the hotel is listed there.",
+                      "A failed lookup is not a finding. Running the audit again usually completes it.", level=BEST))
     elif ents:
         out.append(_f("understanding", "entity_ok", "The hotel is recognised in open map/knowledge data", "ok", "none",
                       ", ".join(e["source"] for e in ents) + " lists it, matched to this location.", ""))

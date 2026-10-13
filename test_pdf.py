@@ -134,6 +134,28 @@ try:
 except Exception as e:  # noqa: BLE001
     check("hostile/non-Latin text does not crash the build", False, repr(e))
 
+print("2b. a site that could not be read is never reassured")
+import consultant  # noqa: E402
+unread = copy.deepcopy(rep)
+unread["consultant"] = consultant.analyse(
+    own_pages=[], pages_meta=[{"url": "https://www.hilton.com/en/hotels/x-doubletree/", "ok": False, "reason": "HTTP 403", "status": 403, "title": ""}],
+    base="https://www.hilton.com/en/hotels/x-doubletree/", hotel="DoubleTree", city="Luxembourg", location={},
+    guest={"questions": [], "conflicts": [], "own_facts_node": {}}, site={"robots": {"present": True}, "sitemap": {}},
+    entities=[], intel=None, osm_ctx=None)
+unread["headline"] = None
+try:
+    ub = report_pdf.build_pdf(unread, "management")
+    check("the management report still builds for an unreadable site", ub[:5] == b"%PDF-")
+    if pymupdf:
+        _, ut, _ = inspect(ub)
+        flat = re.sub(r"\s+", " ", ut)
+        check("traveller types, questions and strengths all say 'not assessed' rather than reassuring",
+              flat.count("Not assessed: the website could not be read") >= 3, flat.count("Not assessed: the website could not be read"))
+        check("it never claims the questions are answered or that nothing stood out on pages it did not read",
+              "answered on the pages read" not in flat and "stood out in the pages read" not in flat and "strongly supported by the pages read" not in flat)
+except Exception as e:  # noqa: BLE001
+    check("the management report still builds for an unreadable site", False, repr(e))
+
 print("3. degraded input")
 noi = copy.deepcopy(rep)
 noi["intel"] = {"error": "RuntimeError: boom"}

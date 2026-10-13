@@ -23,7 +23,10 @@ BUCKET = {"access": ("Machine access", "Can AI and search crawlers reach the inf
 
 def _path(u):
     from urllib.parse import urlparse
-    return urlparse(u or "").path or "/"
+    p = urlparse(u or "")
+    if p.netloc.endswith(("pagespeed.web.dev", "commoncrawl.org")):     # outside tools: show the tool, not a meaningless path
+        return p.netloc
+    return p.path or "/"
 
 
 def _evidence(rows):
@@ -251,7 +254,10 @@ def ai_view(c):
     st.markdown("##### Questions AI may struggle to answer")
     st.caption("Traveller questions the pages leave unclear or unanswered - only those that apply to this hotel, with where to add each answer.")
     if not c["questions"]:
-        st.success("Nothing important is unclear: the common traveller questions are answered on the pages read.")
+        if (c.get("coverage") or {}).get("unreadable"):
+            st.info("Not assessed: the website could not be read, so nothing can be said about this either way.")
+        else:
+            st.success("Nothing important is unclear: the common traveller questions are answered on the pages read.")
     for q in c["questions"]:
         with st.expander(f"{STATE_ICON[q['state']]} {q['question']}"):
             st.markdown(f"**Status:** {q['state']}" + (f" - the pages already cover: {md_safe(', '.join(q['found']))}" if q["found"] else ""))

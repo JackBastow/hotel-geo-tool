@@ -21,7 +21,10 @@ SD_COL = {"present": R.GOOD, "could_improve": R.WARN, "missing": R.BAD, "incorre
 
 def _path(u):
     from urllib.parse import urlparse
-    return urlparse(u or "").path or "/"
+    p = urlparse(u or "")
+    if p.netloc.endswith(("pagespeed.web.dev", "commoncrawl.org")):     # outside tools: show the tool, not a meaningless path
+        return p.netloc
+    return p.path or "/"
 
 
 def _ev(evs, n=3):
@@ -187,7 +190,8 @@ def sections(c, H1, web=None):
     out += [PageBreak(), H1("Questions AI may struggle to answer"),
             para("Traveller questions the pages leave unclear or unanswered - only those that apply to this hotel - with the page where each answer belongs.", "muted")]
     if not c["questions"]:
-        out.append(para("Nothing important is unclear: the common traveller questions are answered on the pages read.", "base"))
+        out.append(para("Not assessed: the website could not be read, so nothing can be said about this either way." if (c.get("coverage") or {}).get("unreadable")
+                        else "Nothing important is unclear: the common traveller questions are answered on the pages read.", "base"))
     for q in c["questions"]:
         rows = [[Markup(f"<b>{esc(q['question'])}</b>"), STATE_LABEL[q["state"]]]]
         if q["found"]:
