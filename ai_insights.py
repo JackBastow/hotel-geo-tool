@@ -170,9 +170,9 @@ def extract(client, model, items, hotel, city):
 
 # ------------------------------------------------------------ arithmetic
 
-def leaderboard(extracted, items, hotel):
-    """Who is named most across the GENERIC questions, with the hotel in the same table (a row of zeros if it is never named)."""
-    gen_ids = [i["id"] for i in items if i["kind"] == "generic" and i.get("answer")]
+def leaderboard(extracted, items, hotel, kinds=("generic",)):
+    """Who is named most across the GENERIC questions (or the niche ones), with the hotel in the same table (a row of zeros if it is never named)."""
+    gen_ids = [i["id"] for i in items if i["kind"] in kinds and i.get("answer")]
     rows, total = {}, 0
     for qid in gen_ids:
         for h in (extracted["answers"].get(qid) or []):
@@ -300,7 +300,7 @@ EXPLAIN_SYSTEM = ("You help a hotel understand why an AI assistant did not name 
                   "you can only point out differences visible in the numbered evidence below. Use ONLY that evidence. Every hypothesis must cite the "
                   "evidence ids it rests on. Reply with one JSON object and nothing else.")
 
-EXPLAIN_PROMPT = '''Hotel: {hotel}, {city}. In {missed} of {asked} generic 'where to stay' questions an AI assistant (with web search) did not name this hotel.
+EXPLAIN_PROMPT = '''Hotel: {hotel}, {city}. In {missed} of {asked} questions (general 'where to stay' ones and narrower ones about the markets the hotel is positioned for) an AI assistant (with web search) did not name this hotel.
 
 EVIDENCE (numbered; cite these ids only):
 {ledger}
@@ -310,7 +310,7 @@ Return JSON: {{"summary": "two sentences, hedged, no claim to know the assistant
 At most 5 hypotheses. Prefer differences in sources, ratings, review volume, stated strengths and listings. Do not suggest anything about changing reviews. Never assert facts about competitors (their listings, ratings, content, sources) beyond what the evidence states.'''
 
 
-def build_ledger(lb, sources, perc, about, snapshot, ai, footprint, entities, strong):
+def build_ledger(lb, sources, perc, about, snapshot, ai, footprint, entities, strong, niche=None):
     L = []
     def add(t):
         L.append({"id": f"E{len(L) + 1}", "text": t})
@@ -320,6 +320,10 @@ def build_ledger(lb, sources, perc, about, snapshot, ai, footprint, entities, st
         else:
             add(f"'{r['name']}' was named in {r['mentions']} of {r['of']} generic questions (best rank {r['best_rank']})."
                 + (f" Reasons given: {'; '.join(r['reasons'])}." if r["reasons"] else "") + (f" Ratings quoted: {'; '.join(r['ratings'])}." if r["ratings"] else ""))
+    for n in (niche or [])[:4]:
+        names = ", ".join(n["hotels_named"][:5]) or "no hotels"
+        add(f"In the niche question '{n['question']}' (asked because: {n['why']}) the assistant named: {names}; the hotel was "
+            + ("named" if n["hotel_named"] else "not named") + ".")
     gen_src = [f"{s['domain']} ({s['answers']})" for s in sources[:6]]
     if gen_src:
         add("Sources the assistant leaned on most: " + ", ".join(gen_src) + ".")
@@ -440,7 +444,10 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
     lb = leaderboard(extracted, items, hotel)
     out.update(leaderboard=lb, alternatives=alternatives(extracted, hotel), matrix=[
         {"id": i["id"], "kind": i["kind"], "question": i["text"], "hotel_named": i.get("mentioned"), "position": i.get("position"),
-         "hotels_named": [h["name"] for h in (extracted["answers"].get(i["id"]) or [])][:6]} for i in items])
+         "angle": i.get("angle"), "why": i.get("why"), "hotels_named": [h["name"] for h in (extracted["answers"].get(i["id"]) or [])][:6]} for i in items])
+    niche_rows = [m for m in out["matrix"] if m["kind"] == "niche"]
+    lbn = leaderboard(extracted, items, hotel, kinds=("niche",)) if niche_rows else None
+    out["niche"] = {"questions": niche_rows, "leaderboard": lbn} if niche_rows else None
     about = extracted["about"]
     out["about"] = about
     out["perception"] = perception(about, ctx.get("strong_intents"))
@@ -450,11 +457,15 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
                          "share": me["share"] if me else 0, "rank_in_table": (lb["rows"].index(me) + 1) if me else None, "table_size": len(lb["rows"]),
                          "top_competitor": next((r["name"] for r in lb["rows"] if not r["is_target"]), None)}
 
-    missed = lb["questions"] - (me["mentions"] if me else 0)
-    if lb["questions"] and missed > 0 and cost < budget_usd:
+    me_n = next((r for r in lbn["rows"] if r["is_target"]), None) if lbn else None
+    asked = lb["questions"] + (lbn["questions"] if lbn else 0)
+    missed = (lb["questions"] - (me["mentions"] if me else 0)) + ((lbn["questions"] - (me_n["mentions"] if me_n else 0)) if lbn else 0)
+    out["scoreboard"].update(niche_asked=lbn["questions"] if lbn else 0, niche_named=(me_n["mentions"] if me_n else 0) if lbn else 0)
+    if asked and missed > 0 and cost < budget_usd:
         try:
-            ledger = build_ledger(lb, sources, out["perception"], about, ctx.get("snapshot"), ai, ctx.get("footprint"), ctx.get("entities"), ctx.get("strong_intents"))
-            exp, (tin, tout) = explain(client, model, hotel, city, ledger, lb["questions"], missed)
+            ledger = build_ledger(lb, sources, out["perception"], about, ctx.get("snapshot"), ai, ctx.get("footprint"), ctx.get("entities"), ctx.get("strong_intents"),
+                                  niche=niche_rows)
+            exp, (tin, tout) = explain(client, model, hotel, city, ledger, asked, missed)
             cost += ai_sample.cost_usd(model, tin, tout, 0)
             out["ledger"] = ledger
             out["explanation"] = exp

@@ -119,6 +119,15 @@ Cost is estimated from the usage the API reports (a few tens of cents an audit);
 (`store.SERVICE_CAPS["claude"]`) stops calls when it is reached, and the workspace spend limit in the Anthropic
 Console is the hard stop. Without an `ANTHROPIC_API_KEY` secret the section says it was not run.
 
+**Questions for the markets the hotel actually competes in (`ai_niche.py`).** "Best hotels in Rome" cannot surface a
+mid-range hotel among hundreds, so a second round of up to three questions is written from facts the audit holds: an
+airport the hotel's own pages (or the map) put within 25 km, the neighbourhood the map puts it in, its star rating, and what
+its pages signal strongly (spa, pool, meetings, pets, EV charging, dining...). Each question is ordinary traveller wording,
+never contains the hotel's name, is not so exact that only this hotel fits, and carries *why it was asked*. They are reported
+separately ("named in x of y town-wide questions; a of b in the markets it competes in"), have their own competitor table,
+count equally with the town-wide question in the AI Visibility card, and can raise a recommendation (AI4) when the hotel is
+not named where it is positioned to compete. On a hotel the assistant never named town-wide it was named in 3 of 3 niche markets.
+
 **What the sampled answers mean (`ai_insights.py`, same Anthropic credit, about 2-3 cents an audit).** Modelled on
 what AI-visibility tools (Otterly, Peec, Profound, Ahrefs Brand Radar) report, but built to be honest about one
 engine and one sample: *who the assistant recommends instead* (a leaderboard with each hotel's share of the names

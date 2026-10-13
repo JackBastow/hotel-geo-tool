@@ -335,13 +335,32 @@ def drop_duplicate_entity(recs):
     return recs
 
 
+def _niche_rec(ai):
+    s = (ai or {}).get("summary") or {}
+    if (ai or {}).get("status") != "ok" or s.get("niche_asked", 0) < 2 or s.get("niche_named", 0) > 0:
+        return []
+    angles = [i for i in ai["items"] if i["kind"] == "niche"]
+    lines = "; ".join(f"{i.get('angle', 'niche')}: \"{i['text']}\"" for i in angles[:4])
+    return [_rec(
+        "AI4", "authority", "The hotel was not named in the markets it is positioned for",
+        f"In {s['niche_asked']} narrower questions drawn from what the audit found the hotel is (its location, price level or what it is known for), one AI model with web search "
+        f"did not name it: {lines}.",
+        "A hotel is chosen in its own market (near an airport, in a district, at a price, for a spa or a restaurant), not against every hotel in a city. "
+        "Not being named where it is positioned to compete is a more useful signal than not topping a town-wide list. This is one model on one day.",
+        [{"url": "", "snippet": f"{i.get('angle', 'niche')}: {i['text']} - hotel not named ({i.get('why', '')})"} for i in angles[:3]],
+        "Look at which hotels the assistant did name in each of these questions and which sites it used (the tables above), then make sure the hotel's own pages and its "
+        "main listings state that market plainly in their first lines: the airport distance and transfer, the neighbourhood, the price level, the feature it is known for.",
+        "medium", "medium", confidence=EXPER, team="marketing", source="ai", tag="AI4", summary="Not named in the markets the hotel is positioned for")]
+
+
 def _from_ai(ai):
     """One opportunity, only when the sample is solid enough to say something: an assistant asked for hotel suggestions never named the hotel."""
     if not ai or ai.get("status") != "ok":
         return []
     s = ai.get("summary") or {}
+    niche = _niche_rec(ai)
     if s.get("generic_asked", 0) < 2 or s.get("generic_named", 0) > 0:
-        return []
+        return niche
     doms = ", ".join(s.get("top_domains", [])[:6]) or "(none recorded)"
     return [_rec(
         "AI1", "authority", "The hotel was not named when an AI assistant was asked for hotel suggestions",
@@ -353,7 +372,7 @@ def _from_ai(ai):
         "Check the hotel's entry on the sources above (name, address, photos, current facts) and ask whether the hotel wants to be in the kind of "
         "list the assistant gave. Re-run later to see whether it changes.",
         "low", "medium", confidence=EXPER, team="marketing", source="ai", tag="AI1",
-        summary="Not named in a sample of AI hotel-suggestion answers")]
+        summary="Not named in a sample of AI hotel-suggestion answers")] + niche
 
 
 def _from_ai_insights(ins):

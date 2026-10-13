@@ -285,11 +285,23 @@ def _ins_sections(ai, ins):
             st.bar_chart(pd.DataFrame({"Times named": [r["mentions"] for r in top]}, index=[("→ " if r["is_target"] else "") + r["name"][:34] for r in top]))
         except Exception:  # noqa: BLE001 - a chart is a nicety
             pass
+    nn = ins.get("niche")
+    if nn:
+        st.markdown("###### Where the hotel actually competes")
+        st.caption("A hotel is chosen in its own market, not against every hotel in a city. These narrower questions were written from facts this audit holds about the "
+                   "hotel (its location, price level, what it is known for). None names the hotel.")
+        df([{"Market": m.get("angle") or "-", "Question asked": m["question"], "Why we asked this": m.get("why") or "-",
+             "Hotel named": "yes" if m["hotel_named"] else "no" if m["hotel_named"] is False else "n/a", "Position": m["position"] or "-",
+             "Hotels it named": ", ".join(m["hotels_named"][:4]) or "-"} for m in nn["questions"]])
+        if nn.get("leaderboard"):
+            top = [r for r in nn["leaderboard"]["rows"] if not r["is_target"]][:6]
+            if top:
+                st.markdown("**Who the assistant names in those markets:** " + ", ".join(f"{md_safe(r['name'])} ({r['mentions']} of {r['of']})" for r in top))
     if ins.get("alternatives"):
         st.markdown("**The assistant's view of your competitive set** *(asked which hotels are similar)*: " + ", ".join(md_safe(h["name"]) for h in ins["alternatives"]))
     if ins.get("matrix"):
         st.markdown("###### Question by question")
-        df([{"Question": m["question"], "Hotel named": {True: "yes", False: "no", None: "n/a"}[m["hotel_named"]] if m["kind"] == "generic" else "(asked about it)",
+        df([{"Question": m["question"], "Hotel named": {True: "yes", False: "no", None: "n/a"}[m["hotel_named"]] if m["kind"] in ("generic", "niche") else "(asked about it)",
              "Position": m["position"] or "-", "Hotels it named": ", ".join(m["hotels_named"][:4]) or "-"} for m in ins["matrix"]])
     if ins.get("sources"):
         st.markdown("###### Where the assistant got its information")
@@ -351,10 +363,14 @@ def ai_sample_card(ai, ins=None):
     s = ai["summary"]
     st.caption(f"One model ({md_safe(ai.get('model', ''))}) with live web search was asked {s['asked']} ordinary questions on {md_safe(ai.get('run_at', ''))}. "
                "This is a sample: answers change between runs and between assistants, and it is not a ranking. It is not part of any score.")
-    a, b, c = st.columns(3)
-    a.metric("Named in generic 'where to stay' answers", f"{s['generic_named']} of {s['generic_asked']}")
-    b.metric("Known when asked directly", {True: "Yes", False: "No", None: "n/a"}[s["direct_known"]])
-    c.metric("Own website cited", "Yes" if s["own_site_cited"] else "No")
+    cols = st.columns(4 if s.get("niche_asked") else 3)
+    cols[0].metric("Named in town-wide 'where to stay' answers", f"{s['generic_named']} of {s['generic_asked']}")
+    k = 1
+    if s.get("niche_asked"):
+        cols[1].metric("Named in the markets it competes in", f"{s['niche_named']} of {s['niche_asked']}", help="narrower questions drawn from the hotel's location, price level and what it is known for")
+        k = 2
+    cols[k].metric("Known when asked directly", {True: "Yes", False: "No", None: "n/a"}[s["direct_known"]])
+    cols[k + 1].metric("Own website cited", "Yes" if s["own_site_cited"] else "No")
     if s["top_domains"]:
         st.markdown("**Sources the assistant relied on:** " + ", ".join(md_safe(d) for d in s["top_domains"]))
     if ai.get("partial"):

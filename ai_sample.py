@@ -180,31 +180,22 @@ def budget_exhausted():
 
 # ---------------------------------------------------------------------- run
 
-def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", budget_usd=0.80, client=None, progress=None,
-        max_questions=MAX_QUESTIONS, workers=WORKERS):
-    """Ask the questions. `client` is injectable for tests; otherwise the official SDK is created from `api_key`."""
-    def say(m):
-        if progress:
-            progress(m)
+def _make_client(api_key, timeout=60.0):
+    import anthropic
+    return anthropic.Anthropic(api_key=api_key, max_retries=1, timeout=timeout)
 
-    model = model or MODEL_DEFAULT
-    if not hotel or not (city or "").strip():
-        return _envelope("not_configured", "The hotel's name and town are both needed to ask an assistant about it, so this was not run.")
-    if client is None:
-        if not api_key:
-            return _envelope("not_configured", "No Anthropic API key is configured, so no AI assistant was asked about the hotel.")
-        try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=api_key, max_retries=1, timeout=60.0)
-        except Exception as e:  # noqa: BLE001
-            return _envelope("unavailable", f"The Anthropic library could not be started ({type(e).__name__}), so this was not run.")
 
+def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=0.80, workers=WORKERS, progress=None):
+    """Put the questions to the assistant a few at a time. -> (items in question order, estimated spend, reason it stopped early or '')."""
     import threading
     from concurrent.futures import ThreadPoolExecutor
     own = _host(own_domain)
-    qs = build_questions(hotel, city, segments, max_questions)
     lock = threading.Lock()
     state = {"spent": 0.0, "why": "", "stop": False}
+
+    def say(m):
+        if progress:
+            progress(m)
 
     def ask(q):
         with lock:
@@ -236,21 +227,74 @@ def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", bu
                 "own_site_cited": bool(own and any(d == own or d.endswith("." + own) for d in domains))}
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:      # a few at a time: faster, still gentle on the rate limit
-        items = [r for r in ex.map(ask, qs) if r]
-    spent, why = state["spent"], state["why"]
-    if not items:
-        return _envelope("unavailable", why or "No question could be asked.", model=model, cost_usd=round(spent, 5))
+        items = [r for r in ex.map(ask, questions) if r]
+    return items, state["spent"], state["why"]
+
+
+def summarise(items):
+    """The headline counts. Generic = 'where to stay in the town'; niche = the markets this hotel is positioned for; direct = about the hotel itself."""
     generic = [i for i in items if i["kind"] == "generic" and i["mentioned"] is not None]
+    niche = [i for i in items if i["kind"] == "niche" and i["mentioned"] is not None]
     directs = [i for i in items if i["kind"] == "direct" and i["mentioned"] is not None]
     direct = next((i for i in items if i["id"] == "about"), None) or (directs[0] if directs else None)
     cited = {}
     for i in items:
         for d in i["domains"]:
             cited[d] = cited.get(d, 0) + 1
-    summary = {"asked": len(items), "generic_asked": len(generic), "generic_named": sum(1 for i in generic if i["mentioned"]),
-               "direct_known": None if not direct else bool(direct["mentioned"]),
-               "direct_asked": len(directs), "direct_named": sum(1 for i in directs if i["mentioned"]),
-               "own_site_cited": any(i.get("own_site_cited") for i in items),
-               "top_domains": [d for d, _ in sorted(cited.items(), key=lambda kv: (-kv[1], kv[0]))[:8]]}
-    return _envelope("ok", why, model=model, items=items, summary=summary, cost_usd=round(spent, 5), partial=bool(why),
+    return {"asked": len(items), "generic_asked": len(generic), "generic_named": sum(1 for i in generic if i["mentioned"]),
+            "niche_asked": len(niche), "niche_named": sum(1 for i in niche if i["mentioned"]),
+            "direct_known": None if not direct else bool(direct["mentioned"]),
+            "direct_asked": len(directs), "direct_named": sum(1 for i in directs if i["mentioned"]),
+            "own_site_cited": any(i.get("own_site_cited") for i in items),
+            "top_domains": [d for d, _ in sorted(cited.items(), key=lambda kv: (-kv[1], kv[0]))[:8]]}
+
+
+def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", budget_usd=0.80, client=None, progress=None,
+        max_questions=MAX_QUESTIONS, workers=WORKERS):
+    """Ask the questions. `client` is injectable for tests; otherwise the official SDK is created from `api_key`."""
+    model = model or MODEL_DEFAULT
+    if not hotel or not (city or "").strip():
+        return _envelope("not_configured", "The hotel's name and town are both needed to ask an assistant about it, so this was not run.")
+    if client is None:
+        if not api_key:
+            return _envelope("not_configured", "No Anthropic API key is configured, so no AI assistant was asked about the hotel.")
+        try:
+            client = _make_client(api_key)
+        except Exception as e:  # noqa: BLE001
+            return _envelope("unavailable", f"The Anthropic library could not be started ({type(e).__name__}), so this was not run.")
+    items, spent, why = ask_all(hotel, city, build_questions(hotel, city, segments, max_questions), client=client, model=model, own_domain=own_domain,
+                                budget_usd=budget_usd, workers=workers, progress=progress)
+    if not items:
+        return _envelope("unavailable", why or "No question could be asked.", model=model, cost_usd=round(spent, 5))
+    return _envelope("ok", why, model=model, items=items, summary=summarise(items), cost_usd=round(spent, 5), partial=bool(why),
                      run_at=time.strftime("%Y-%m-%d", time.gmtime()))
+
+
+def run_extra(hotel, city, questions, *, api_key=None, model=None, own_domain="", budget_usd=0.40, client=None, progress=None, workers=WORKERS):
+    """
+    A second round of questions, planned from what the audit learned about the hotel (ai_niche.py). -> {"items", "cost_usd", "reason"}.
+    Never raises; an empty result means the extra questions were not asked.
+    """
+    model = model or MODEL_DEFAULT
+    if not questions or not hotel or not (city or "").strip():
+        return {"items": [], "cost_usd": 0.0, "reason": ""}
+    if client is None:
+        if not api_key:
+            return {"items": [], "cost_usd": 0.0, "reason": "No Anthropic API key is configured."}
+        try:
+            client = _make_client(api_key)
+        except Exception as e:  # noqa: BLE001
+            return {"items": [], "cost_usd": 0.0, "reason": f"The Anthropic library could not be started ({type(e).__name__})."}
+    items, spent, why = ask_all(hotel, city, questions, client=client, model=model, own_domain=own_domain, budget_usd=budget_usd, workers=workers, progress=progress)
+    return {"items": items, "cost_usd": round(spent, 5), "reason": why}
+
+
+def merge(ai, extra):
+    """Add the second round's answers to the sample and recompute the counts. Returns the sample unchanged when there is nothing to add."""
+    if not ai or ai.get("status") != "ok" or not extra or not extra.get("items"):
+        return ai
+    items = ai["items"] + extra["items"]
+    out = {**ai, "items": items, "summary": summarise(items), "cost_usd": round((ai.get("cost_usd") or 0) + (extra.get("cost_usd") or 0), 5)}
+    if extra.get("reason"):
+        out["partial"], out["reason"] = True, (ai.get("reason") or extra["reason"])
+    return out

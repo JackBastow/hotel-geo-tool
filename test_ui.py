@@ -68,7 +68,7 @@ check("every download button is set not to re-run the page (a re-run snapped use
 check("the sampled AI answers are shown, labelled a sample and never a ranking",
       "What an AI assistant said (a sample)" in text and any("not a ranking" in c.value for c in at.caption), [c.value[:60] for c in at.caption][:5])
 check("what it found is stated in numbers a reader can hold (named in 0 of 2, known directly, sources listed)",
-      {"Named in generic 'where to stay' answers", "Known when asked directly", "Own website cited"} <= {m.label for m in at.metric} and "booking.com" in text)
+      {"Named in town-wide 'where to stay' answers", "Known when asked directly", "Own website cited"} <= {m.label for m in at.metric} and "booking.com" in text)
 
 check("the reviews-and-replies snapshot is shown with its limits: seen on examined, never a reply rate, and not part of any score",
       "Reviews and replies: an indicative snapshot" in text and any("not the hotel's reply rate" in c.value for c in at.caption), [c.value[:50] for c in at.caption][:6])
@@ -90,6 +90,12 @@ _tables = " ".join(str(d.value.to_dict()) for d in at.dataframe)
 check("the mismatch is shown plainly: free parking said, a charge in the hotel's own record", "free parking" in _tables and "differs" in _tables and "parking charge" in _tables)
 check("the share of names, the place in the table and the average position are shown as figures",
       {"Share of the names given", "Your place in that table", "Average position when named"} <= {m.label for m in at.metric})
+
+check("the niche markets get their own section, with the reason each question was asked",
+      "Where the hotel actually competes" in text and "None names the hotel" in " ".join(c.value for c in at.caption))
+_tb = " ".join(str(d.value.to_dict()) for d in at.dataframe)
+check("the table shows the market (Airport, Spa), the question, why it was asked and the result", "Airport" in _tb and "Why we asked this" in _tb and "short taxi" not in _tb and "Heathrow" in _tb)
+check("the metrics show both counts: town-wide and the markets it competes in", {"Named in town-wide 'where to stay' answers", "Named in the markets it competes in"} <= {m.label for m in at.metric})
 
 print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
 import sys  # noqa: E402

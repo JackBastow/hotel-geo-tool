@@ -195,7 +195,8 @@ def ai_section(ai, ins=None):
     s = ai["summary"]
     out.append(para(f"One model ({ai.get('model', '')}) with live web search was asked {s['asked']} ordinary questions on {ai.get('run_at', '')}. "
                     "It is a sample: answers change between runs and between assistants, it is not a ranking, and it is not part of any score. "
-                    f"Named in {s['generic_named']} of {s['generic_asked']} generic 'where to stay' answers; "
+                    f"Named in {s['generic_named']} of {s['generic_asked']} town-wide 'where to stay' answers"
+                    + (f" and {s['niche_named']} of {s['niche_asked']} answers about the markets it is positioned for; " if s.get("niche_asked") else "; ") +
                     f"{'known' if s['direct_known'] else 'not known' if s['direct_known'] is False else 'not assessed'} when asked directly; "
                     f"own website {'cited' if s['own_site_cited'] else 'not cited'}.", "tiny"))
     if ins and ins.get("status") in ("ok", "partial") and ins.get("leaderboard"):
@@ -209,6 +210,14 @@ def ai_section(ai, ins=None):
         out.append(table(rows, [0.3, 0.12, 0.13, 0.45]))
         if ins.get("alternatives"):
             out.append(para("Its view of the competitive set (asked which hotels are similar): " + ", ".join(h["name"] for h in ins["alternatives"]) + ".", "tiny"))
+    nn = (ins or {}).get("niche")
+    if nn:
+        out.append(para("Where the hotel actually competes. A hotel is chosen in its own market, so these narrower questions were written from facts the audit holds about "
+                        "the hotel; none names it.", "tiny"))
+        rows = [["Market", "Question asked", "Why we asked", "Hotel", "Hotels it named"]]
+        for m in nn["questions"]:
+            rows.append([m.get("angle") or "-", m["question"], m.get("why") or "-", "named" if m["hotel_named"] else "not named", ", ".join(m["hotels_named"][:4]) or "-"])
+        out.append(table(rows, [0.12, 0.3, 0.24, 0.1, 0.24]))
     if ins and ins.get("sources"):
         rows = [["Site the assistant used", "Type", "Used in", "Hotel there?"]]
         for x in ins["sources"][:8]:

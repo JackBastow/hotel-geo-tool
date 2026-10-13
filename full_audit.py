@@ -66,6 +66,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 
 import ai_insights
+import ai_niche
 import ai_sample
 import amadeus_check
 import claude_reader
@@ -757,6 +758,24 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         except Exception as e:  # noqa: BLE001
             amadeus_result = {"configured": True, "found": False, "error": str(e)}
 
+    # Questions for the markets this hotel actually competes in (airport, district, price level, what it is known for), from facts now in hand.
+    niche_ex = niche_future = None
+    if anthropic_api_key and hotel and city:
+        try:
+            import insight_content as _ic0
+            _osm = ((corpus.get("sources") or {}).get("osm_context") or {})
+            _osm_ctx = (_osm.get("items") or [None])[0] if _osm.get("status") == "ok" else None
+            _site0 = _ic0.Site(own_pages, base, hotel, city) if own_pages else None
+            prof = ai_niche.profile(hotel, city, ext["entities"], _osm_ctx, own_pages, _ic0.features(_site0) if _site0 else [], _ic0.intents(_site0) if _site0 else [])
+            nqs = ai_niche.questions(prof, hotel, city, n=3)
+            if nqs:
+                _host0 = urllib.parse.urlparse(base).netloc.lower()
+                niche_ex = ThreadPoolExecutor(max_workers=1)
+                niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model,
+                                               own_domain=_host0[4:] if _host0.startswith("www.") else _host0)
+        except Exception:  # noqa: BLE001 - the planner is an extra; the standard questions still run
+            niche_future = None
+
     ai_result = review_result = None
     if ai_future is None:
         ai_result = ai_sample.run(hotel, city, api_key=anthropic_api_key)      # returns the 'not configured / need a name and town' envelope
@@ -789,6 +808,13 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 "ai_visibility", f"Configured but the check failed: {e}",
                 "Check the Gemini API key and that billing is enabled.")
 
+    if niche_future is not None:
+        try:
+            ai_result = ai_sample.merge(ai_result, niche_future.result(timeout=150))
+        except Exception:  # noqa: BLE001 - the standard sample stands without the niche round
+            pass
+        finally:
+            niche_ex.shutdown(wait=False, cancel_futures=True)
     if ai_visibility_cat is None:
         ai_visibility_cat = scoring.score_ai_sample(ai_result)       # one model's sample: scored, but always labelled low-evidence
     findings = build_findings(site, ext["entities"], ext["consistency"], discovery,

@@ -627,8 +627,15 @@ def score_ai_sample(ai):
     share = gn / ga
     known = s.get("direct_known")
     direct = share if known is None else (1.0 if known else 0.0)
-    score = 100 * (0.7 * share + 0.3 * direct)
-    ev = [f"Named in {gn} of {ga} generic 'where to stay' answers from one AI model ({ai.get('model', 'unnamed model')}, {ai.get('run_at', '')})",
+    na, nn = s.get("niche_asked", 0), s.get("niche_named", 0)
+    if na >= 1:      # the narrower markets the hotel is positioned for count as much as the town-wide question
+        score = 100 * (0.35 * share + 0.35 * (nn / na) + 0.30 * direct)
+    else:
+        score = 100 * (0.7 * share + 0.3 * direct)
+    ev = [f"Named in {gn} of {ga} generic 'where to stay' answers from one AI model ({ai.get('model', 'unnamed model')}, {ai.get('run_at', '')})"]
+    if na:
+        ev.append(f"Named in {nn} of {na} answers about the markets the hotel is positioned for (airport, district, price level, what it is known for)")
+    ev += [
           "Known when asked directly: " + {True: "yes", False: "no", None: "not assessed"}[known],
           "The hotel's own website was " + ("cited" if s.get("own_site_cited") else "not cited") + " in the answers"]
     return _cat("ai_visibility", score,

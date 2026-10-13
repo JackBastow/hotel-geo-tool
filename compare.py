@@ -113,6 +113,7 @@ def _ai_trend(old, new):
         ins = rep.get("ai_insights") if isinstance(rep.get("ai_insights"), dict) else {}
         rows = ((ins.get("leaderboard") or {}).get("rows")) or []
         return {"date": str(a.get("run_at", ""))[:10], "named": s.get("generic_named"), "asked": s.get("generic_asked"), "known": s.get("direct_known"),
+                "niche_named": s.get("niche_named"), "niche_asked": s.get("niche_asked"),
                 "share": (ins.get("scoreboard") or {}).get("share"), "avg_rank": (ins.get("scoreboard") or {}).get("avg_rank"),
                 "competitors": [r["name"] for r in rows if not r.get("is_target")][:8], "domains": list(s.get("top_domains") or [])[:8]}
     o, n = side(old), side(new)
