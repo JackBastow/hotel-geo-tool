@@ -70,7 +70,7 @@ def build_questions(hotel, city, segments=(), max_questions=MAX_QUESTIONS):
                {"id": "value", "kind": "generic", "text": f"Which hotels in {place} offer good value for money?"},
                {"id": "transport", "kind": "generic", "text": f"Which hotels in {place} are best for getting around, close to the station or airport?"}]
     for i, sg in enumerate(segs):
-        generic.insert(1 + i, {"id": f"segment{i}", "kind": "generic", "text": f"Which hotels in {place} would you recommend for {sg.lower()}?"})
+        generic.insert(1 + i, {"id": f"segment{i}", "kind": "generic", "text": f"I'm interested in {sg.lower()} in {place}. Which hotels would you suggest?"})
     direct = [{"id": "about", "kind": "direct", "text": f"Tell me about {hotel} in {place}. What is it like, and is it a good choice?"},
               {"id": "facilities", "kind": "direct", "text": f"What facilities does {hotel} in {place} have, and what is it known for?"},
               {"id": "reviews", "kind": "direct", "text": f"What do guests say about {hotel} in {place}? What do they like, and what do they complain about?"},
