@@ -216,7 +216,7 @@ def overview(c, h=None):
                 if not plan[key]:
                     st.caption("-")
     if c["working"]:
-        st.markdown("#### What the hotel is already doing well")
+        st.markdown("#### " + ("What we could establish without reading the website" if c.get("working_is_outside") else "What the hotel is already doing well"))
         for w in c["working"]:
             st.markdown("- " + md_safe(w["point"]))
 

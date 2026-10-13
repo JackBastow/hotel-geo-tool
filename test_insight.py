@@ -616,6 +616,26 @@ check("a failed lookup is not scored as 'missing' and generates no 'add the hote
 check("the scorecard reason for an unread site never says 'Only 0 page(s)'",
       "Only 0" not in scoring.build_scorecard({"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}, [], [], {}, {"profiles": []},
                                               guest_result={"pages_ok": 0, "pages_attempted": 1, "questions": [], "conflicts": [], "own_facts_node": {}})["categories"][4]["detail"])
+nm = urlscope.name_from_url(st_, sc_)
+check("a chain page we cannot read still names the hotel from its address (brand expanded, property code dropped)",
+      nm["name"] == "DoubleTree by Hilton Luxembourg" and nm["city_candidates"][0] == "luxembourg", nm)
+check("an address that says nothing gives no guess rather than a wrong one",
+      urlscope.name_from_url("https://x.com/hotel/1234/", "/hotel/1234/")["name"] == "" and urlscope.name_from_url("https://x.com/", None)["name"] == "")
+ents_o = [{"source": "OpenStreetMap", "found": True, "match_confident": True, "url": "https://www.openstreetmap.org/way/1",
+           "facts": {"address": "Rue Jean Engling, Luxembourg, 1466", "telephone": "+352 43 781", "url": "https://www.hilton.com/en/hotels/x/"}},
+          {"source": "Wikidata", "found": False}]
+intel_o = {"identity": {"footprint": [{"platform": "Booking.com", "discovered": True, "type": "OTA"}, {"platform": "OpenStreetMap", "discovered": True, "type": "map / open data"},
+                                       {"platform": "Hotels.com", "discovered": False, "type": "OTA"}]},
+           "media": {"summary": {"independent_publishers": 3, "recent_independent": 1}}}
+op = consultant.outside_points(ents_o, intel_o)
+check("outside evidence states what the world says: the map entry with address and phone, listings found, independent coverage",
+      len(op) == 3 and "Rue Jean Engling" in op[0]["point"] and "+352 43 781" in op[0]["point"] and "Booking.com" in op[1]["point"] and "OpenStreetMap" not in op[1]["point"]
+      and "3 independent publisher" in op[2]["point"], op)
+check("the listing line says it came from a search index, not from the platforms", "search index" in op[1]["point"])
+GB2 = consultant.analyse(own_pages=[], pages_meta=[{"url": st_, "ok": False, "status": 403, "reason": "HTTP 403"}], base=st_, hotel="DoubleTree by Hilton Luxembourg", city="Luxembourg",
+                         location={}, guest={"questions": [], "conflicts": [], "own_facts_node": {}}, site={"robots": {"present": True}, "sitemap": {}},
+                         entities=ents_o, intel=None, osm_ctx=None)
+check("on an unreadable site the outside evidence IS the result (flagged, so the report retitles the section)", GB2["working_is_outside"] and GB2["working"][0]["point"].startswith("Listed in OpenStreetMap"))
 unread = {"pages_ok": 0, "pages_attempted": 1, "questions": [], "conflicts": [], "own_facts_node": {}}
 card = scoring.build_scorecard({"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}, [], [], {}, {"profiles": []}, guest_result=unread)
 by = {c["key"]: c for c in card["categories"]}

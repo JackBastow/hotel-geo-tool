@@ -117,7 +117,7 @@ def summary_parts(c, recs):
             rows.append([r["title"], pg.get("label", ""), r["action"][:170]])
         out.append(table(rows, [0.35, 0.2, 0.45]))
     if c["working"]:
-        out.append(para("What the hotel is already doing well", "h2"))
+        out.append(para("What we could establish without reading the website" if c.get("working_is_outside") else "What the hotel is already doing well", "h2"))
         out += R.bullets([w["point"] for w in c["working"]])
     return out
 

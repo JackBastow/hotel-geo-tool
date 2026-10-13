@@ -336,6 +336,9 @@ if fa_res:
                + ((f" · location {loc['source']}" if str(loc["source"]).startswith("provided") else f" · location from {loc['source']}") if loc.get("source") else ""))
     if (fa_res.get("site") or {}).get("meta", {}).get("scope_note"):
         st.info(fa_res["site"]["meta"]["scope_note"])
+    if str(meta.get("hotel_name_source", "")).startswith("guessed from the web address"):
+        st.info(f"The website could not be read, so the hotel was identified from its web address as \"{meta['hotel']}\""
+                + (f" in {meta['city']}" if meta.get("city") else "") + ". That is a guess: type the exact hotel name and city above and run again if it is wrong.")
     if not meta.get("hotel"):
         st.warning("The hotel's name couldn't be worked out from the website, so the outside checks (listings, media coverage, local context, open-data "
                    "lookups) could not run. Type the hotel name and city in the boxes at the top and run the audit again to include them.")

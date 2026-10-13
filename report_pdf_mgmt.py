@@ -191,7 +191,7 @@ def story(rep, H1):
                     "review profile.", "tiny"))
 
     # 7 -------------------------------------------------------------- doing well
-    out.append(H1("What the hotel is already doing well"))
+    out.append(H1("What we could establish without reading the website" if c.get("working_is_outside") else "What the hotel is already doing well"))
     out += R.bullets([w["point"] for w in c["working"]]
                      or [NOREAD if (c.get("coverage") or {}).get("unreadable") else "Nothing specific stood out in the pages read."])
 

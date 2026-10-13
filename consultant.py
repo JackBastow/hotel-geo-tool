@@ -128,7 +128,31 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None):
             "top_actions": [r["id"] for r in top], "quick_wins": [],
             "required_fixes": [r["id"] for r in recs if r["kind"] == "fix"],
             "opportunity_recs": [r["id"] for r in recs if r["kind"] == "opportunity"],
-            "opportunities": [], "plan": ranking.plan_30_60_90(recs, {r["id"] for r in top}), "working": []}
+            "opportunities": [], "plan": ranking.plan_30_60_90(recs, {r["id"] for r in top}),
+            "working": outside_points(entities, intel), "working_is_outside": True}
+
+
+def outside_points(entities, intel):
+    """What the world outside the hotel's own website says about it - the whole result when the website could not be read."""
+    out = []
+    for e in entities or []:
+        if e.get("source") == "OpenStreetMap" and e.get("found") and e.get("match_confident") is True:
+            f = e.get("facts") or {}
+            bits = [x for x in (f.get("address"), ("tel " + f["telephone"]) if f.get("telephone") else "") if x]
+            out.append({"point": "Listed in OpenStreetMap" + (" at " + "; ".join(bits) if bits else "") +
+                                 (f", pointing to {f['url']}" if f.get("url") else "") + ".", "url": e.get("url", "")})
+        if e.get("source") == "Wikidata" and e.get("found") and e.get("match_confident") is True:
+            out.append({"point": "Has a Wikidata entry (feeds knowledge panels and AI training data).", "url": e.get("url", "")})
+    if intel and "error" not in intel:
+        found = [r["platform"] for r in (intel.get("identity") or {}).get("footprint", [])
+                 if r.get("discovered") and r.get("type") != "map / open data"]      # maps are reported separately above
+        if found:
+            out.append({"point": f"Listings found on {len(found)} platforms: " + ", ".join(found[:8]) + ". (Found through a search index, not read from the platforms themselves.)", "url": ""})
+        md = (intel.get("media") or {}).get("summary") or {}
+        if md.get("independent_publishers"):
+            out.append({"point": f"{md['independent_publishers']} independent publisher(s) cover the hotel"
+                                 f" ({md.get('recent_independent', 0)} in the last 12 months).", "url": ""})
+    return out
 
 
 def what_works(site, guest, intents, feats, loc, sd, machine, cons, intel):

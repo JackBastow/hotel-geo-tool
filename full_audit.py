@@ -61,6 +61,8 @@ import re
 import os
 import sys
 import urllib.parse
+
+import requests
 from concurrent.futures import ThreadPoolExecutor
 
 import amadeus_check
@@ -77,6 +79,7 @@ import sources
 import scoring
 import site_check
 import tavily_check
+import urlscope
 import web_signals
 from site_check import get, _extract_jsonld
 
@@ -223,6 +226,19 @@ def infer_hotel_name(site_payload):
             # (titles arrive HTML-escaped: "Chewton Glen Hotel &amp; Spa")
             return re.split(r"\s*[|\-–—:]\s*", html_lib.unescape(p["title"]))[0].strip()
     return ""
+
+
+def _place_from_text(text):
+    """Is this word a town or city? Asked of OpenStreetMap's own place search (free). '' when it is not, or the service is down."""
+    try:
+        r = requests.get("https://nominatim.openstreetmap.org/search", params={"q": text, "format": "jsonv2", "limit": 1, "addressdetails": 1, "accept-language": "en"},
+                         headers={"User-Agent": sources.UA}, timeout=12)
+        hit = (r.json() or [None])[0] if r.status_code == 200 else None
+    except (requests.RequestException, ValueError):
+        return ""
+    if not hit or hit.get("category") not in ("place", "boundary") or hit.get("type") not in ("city", "town", "village", "administrative", "suburb", "municipality"):
+        return ""
+    return (hit.get("name") or text).strip()
 
 
 _POSTCODE = re.compile(r"\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b")
@@ -572,6 +588,12 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
 
     hotel_given, city_given = bool(hotel), bool(city)
     hotel = hotel or infer_hotel_name(site)
+    # A chain page we could not read still names the hotel in its address: guess from that rather than giving up.
+    slug_guess = {"name": "", "city_candidates": []}
+    if not hotel and site["meta"].get("scope"):
+        slug_guess = urlscope.name_from_url(base, site["meta"]["scope"])
+        hotel = slug_guess["name"]
+    name_from_address = bool(hotel) and not hotel_given and bool(slug_guess["name"])
 
     say("Finding linked profiles...")
     topic_pages = [v["urls"][0] for v in (site.get("topic_coverage") or {}).values()
@@ -593,6 +615,10 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     if city_given:
         location["city"] = city
         location["source"] = "provided by you"
+    elif not location.get("city") and name_from_address:
+        place = next((p for p in (_place_from_text(c) for c in slug_guess["city_candidates"]) if p), "")
+        if place:
+            location["city"], location["source"] = place, "inferred from the web address"
     city = location["city"]
 
     # The wider discovery (other sources, media coverage, listings, awards) needs only
@@ -795,7 +821,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             "base": base,
             "run_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
             "hotel_name_source": "provided by you" if hotel_given
-                                 else ("inferred from the site's own markup" if hotel else "could not be determined"),
+                                 else ("guessed from the web address (the site could not be read)" if name_from_address
+                                       else ("inferred from the site's own markup" if hotel else "could not be determined")),
             "location": location,
             "keys_used": {
                 "tavily": bool(tavily_result and tavily_result.get("configured")),
