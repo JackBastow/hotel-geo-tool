@@ -683,6 +683,29 @@ mk2["scorecard"]["categories"][0] = {**sc_ai}
 hh = hl.build({**mk2, "ai_sample": aienv(4)})
 check("the headline then names the AI sample as a clue, never as a measurement, and rates its evidence LOW",
       "clue about visibility" in hh["explanation"] and hh["category_evidence"]["ai_visibility"]["level"] == "low")
+print("21. pages read as plain text (the fallback reader): say what the pages SAY, claim nothing about markup")
+pm21 = [{"url": p["url"], "ok": True, "title": p["title"], "meta_description": "", "h1_count": 0, "pdfs": []} for p in site16]
+txt = consultant.analyse(own_pages=site16, pages_meta=pm21, base=BASE, hotel=HOTEL, city=CITY, location={}, guest=guest_for(site16),
+                         site={"robots": {"present": True}, "sitemap": {"present": True}}, entities=[], intel=None, osm_ctx=osm_fail, text_only=True)
+html = consultant.analyse(own_pages=site16, pages_meta=pm21, base=BASE, hotel=HOTEL, city=CITY, location={}, guest=guest_for(site16),
+                          site={"robots": {"present": True}, "sitemap": {"present": True}}, entities=[], intel=None, osm_ctx=osm_fail)
+check("the coverage carries the text-only flag and says how the pages were read",
+      txt["coverage"]["text_only"] and "plain text" in txt["coverage"]["note"] and "Anthropic's page reader" in txt["coverage"]["note"] and not html["coverage"].get("text_only"))
+check("no structured-data claim of any kind is made from plain text (no 'no Hotel markup', no items, no SD recommendations)",
+      txt["structured"]["items"] == [] and txt["structured"]["unreadable"] and not any(r["id"].startswith("SD") or r["source"] == "structured" for r in txt["recommendations"]))
+check("none of the HTML-only technical findings appear (titles, descriptions, headings, alt text, noindex, canonical, scripts)",
+      not any(f["id"] in it.HTML_ONLY_FINDINGS for f in txt["machine"]), [f["id"] for f in txt["machine"] if f["id"] in it.HTML_ONLY_FINDINGS])
+check("technical accessibility, structured data and discoverability are NOT ASSESSED rather than scored 100 for 'no problems found'",
+      all((not p["assessed"]) and p["score"] is None for p in txt["profile"] if p["key"] in ("technical", "structured", "discoverability")))
+check("what the pages SAY is still assessed: content, location and traveller-intent components keep their scores",
+      all(p["assessed"] for p in txt["profile"] if p["key"] in ("content", "location", "intent")))
+check("the same pages read normally DO get technical findings (the safeguard is specific to text-only)",
+      any(p["assessed"] for p in html["profile"] if p["key"] == "technical"))
+sc_txt = scoring.build_scorecard({"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}, [], [], {}, {"profiles": []},
+                                 guest_result={"pages_ok": 6, "pages_attempted": 6, "questions": [], "conflicts": [], "own_facts_node": {}, "read_via": "anthropic_page_reader"})
+bx = {c["key"]: c for c in sc_txt["categories"]}
+check("the scorecard does not score Website & Technical or Social from a text-only read, and says why",
+      not bx["website"]["assessed"] and not bx["social"]["assessed"] and "plain text" in bx["website"]["detail"])
 check("the monthly budget guard exists and is in thousandths of a dollar", __import__("store").SERVICE_CAPS["claude"] == 100000)
 
 print()

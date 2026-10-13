@@ -790,6 +790,12 @@ def build_scorecard(site, entities, consistency, location, discovery,
             "'best hotels in [city]' and see whether this hotel comes up."))
 
     # A site that could not be read cannot be scored: 0 or 40 from nothing would read as a verdict on the hotel.
+    if guest_result is not None and guest_result.get("read_via"):
+        why = ("The site refused this tool's own reader, so its pages were read through Anthropic's page reader as plain text. Markup, headings, images "
+               "and the profiles linked from the page cannot be inspected that way, so this was not scored.")
+        for i, c in enumerate(cats):
+            if c["key"] in ("website", "social"):
+                cats[i] = _not_assessed(c["key"], why, "Needs the site's own pages to be readable by this tool (ask the web team about bot protection).")
     if guest_result is not None and guest_result.get("pages_ok", 3) < 3:
         n = guest_result.get("pages_ok", 0)
         why = (("None of the website's pages" if not n else f"Only {n} page(s) of the website")

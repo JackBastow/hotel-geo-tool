@@ -67,6 +67,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import ai_sample
 import amadeus_check
+import claude_reader
 import review_replies
 import audit
 import collect
@@ -659,6 +660,19 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                  "own_facts_node": {}, "pages_attempted": 0, "pages_ok": 0,
                  "pages_failed": [], "evidence_sufficient": False, "sitemap_total": 0}
 
+    # The site refused our reader (a chain's bot protection, say). Fall back to Anthropic's openly identified page reader for the hotel's own
+    # pages: only when our reader got fewer than three, only inside the hotel's own folder, and always reported as such.
+    if anthropic_api_key and hotel and guest.get("pages_ok", 0) < 3:
+        fb = claude_reader.read_hotel_pages(base, api_key=anthropic_api_key, model=anthropic_model, progress=say)
+        if fb["status"] == "ok" and sum(1 for p in fb["pages"] if p["ok"]) >= 1:
+            refused = guest.get("pages_failed") or []
+            guest = guest_questions.run_prefetched(site, base, hotel, fb["pages"], location=location)
+            guest["read_via"] = "anthropic_page_reader"
+            guest["reader_cost_usd"] = fb["cost_usd"]
+            guest["own_reader_refused"] = refused[:3]
+        else:
+            guest["page_reader_note"] = fb.get("reason", "")
+
     own_pages = guest.pop("own_pages", [])     # used by the wider analysis, not stored
 
     # The consistency check needs the hotel's OWN facts to compare against.
@@ -836,7 +850,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         consult_result = consultant.analyse(
             own_pages=own_pages, pages_meta=guest.get("pages_meta", []), base=base, hotel=hotel, city=city,
             location=location, guest=guest, site=site, entities=ext["entities"], intel=intel_result,
-            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result,
+            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, text_only=bool(guest.get("read_via")),
             jsonld_example=fixes.hotel_jsonld({"base": base, "hotel": hotel, "location": location, "guest": guest,
                                                "discovery": discovery, "entities": ext["entities"], "site": site,
                                                "tavily": tavily_result}))

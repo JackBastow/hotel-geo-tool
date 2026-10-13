@@ -128,6 +128,15 @@ dropped and counted**. It is shown as *replies seen on reviews examined*, never 
 with no reply; a defensive tone). The platforms prohibit automated collection by this tool; the searching is done
 by Anthropic's search service, and the report says so. About $0.04 an audit.
 
+**Fallback page reader for sites that refuse this tool (optional, same Anthropic credit).** Chain hotels' pages
+(hilton.com and the like) answer this tool's own reader with HTTP 403. `claude_reader.py` then asks Anthropic's
+openly identified web-fetch tool (it respects robots.txt and is not disguised as a browser) to fetch the hotel's
+own page and up to five sub-pages inside the hotel's own folder, keeps the RAW fetched text, and runs the same
+guest-question, fact, location and consistency analysis on it. Because plain text carries no HTML, markup, titles,
+headings, image text and the site's linked profiles are **not assessed** (the scorecard and the analysis say so)
+and the report states that the pages were read this way. It is used only when our own reader got fewer than
+three pages, and about half a cent an audit.
+
 **Not implemented, deliberately:** any competitor entry (nothing in the main audit needs a competitor)
 and anything that needs a billing account or breaks a platform's terms.
 

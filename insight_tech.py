@@ -216,6 +216,9 @@ def _key_of(u):
 
 # --------------------------------------------------------------- machine readiness
 
+# findings that need the page's HTML (markup, titles, images, scripts); not possible from plain text
+HTML_ONLY_FINDINGS = {"js_booking", "js_empty", "http_errors", "slow_pages", "noindex", "canonical_other", "canonical_missing", "dup_titles", "dup_content", "pdfs",
+                      "home_title", "home_title_ok", "home_meta", "home_meta_ok", "meta_missing", "h1", "alt", "alt_ok", "schema_ok", "schema_incorrect", "refused"}
 REFUSED_STATUS = (401, 403, 429, 451)       # the site declined our reader; this says nothing about whether the page works for guests
 
 

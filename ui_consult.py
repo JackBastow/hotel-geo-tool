@@ -75,12 +75,12 @@ def rec_card(r, nested=False):
 def coverage_banner(c):
     """Say plainly how much of the site was read - every 'missing' finding depends on it."""
     cov = c.get("coverage") or {}
-    if not cov.get("limited"):
+    if not (cov.get("limited") or cov.get("text_only")):
         return
     why = "; ".join(f"{n} × {r}" for r, n in (cov.get("failure_reasons") or {}).items())
     head = "" if cov.get("unreadable") else f"**Read {cov['pages_read']} of {cov['pages_attempted']} pages.** "
     msg = f"{head}{cov['note']}" + (f"  \nWhy pages failed: {why}." if why else "")
-    (st.error if cov.get("unreadable") else st.warning)(msg)
+    (st.error if cov.get("unreadable") else st.warning if cov.get("limited") else st.info)(msg)
 
 
 EVIDENCE_ICON = {"high": "\U0001F7E2", "medium": "\U0001F7E1", "low": "\U0001F534"}

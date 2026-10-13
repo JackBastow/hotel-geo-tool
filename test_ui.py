@@ -75,6 +75,13 @@ check("the reviews-and-replies snapshot is shown with its limits: seen on examin
 check("it states the numbers it found (examined, with a reply, critical with a reply)",
       {"Reviews examined", "With a reply from the hotel", "Critical reviews with a reply"} <= {m.label for m in at.metric})
 
+import copy as _copy  # noqa: E402
+tx = _copy.deepcopy(rep)
+tx["consultant"]["coverage"].update(text_only=True, limited=False, note="These pages were read through Anthropic's page reader as plain text, because the site refused this tool's own reader.")
+at_tx = run(tx, "text-only")
+check("a report built from the fallback reader renders and tells the reader how the pages were read",
+      not at_tx.exception and any("read through Anthropic's page reader" in i.value for i in at_tx.info), [e.message for e in at_tx.exception])
+
 print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
 import sys  # noqa: E402
 import types  # noqa: E402

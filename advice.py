@@ -424,14 +424,14 @@ def _from_intel(intel):
 
 # ---------------------------------------------------------------------- assemble
 
-def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None):
+def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False):
     coverage = coverage or {}
     recs = []
     recs += _from_questions(questions)
     recs += _from_location(location)
     recs += _from_consistency(consistency)
     recs += _from_hidden(hidden)
-    if site.home is not None:        # a "no Hotel markup" claim needs the homepage to have been read
+    if site.home is not None and not text_only:        # a "no Hotel markup" claim needs the homepage to have been read AS HTML
         recs += _from_structured(structured, jsonld_example, site)
     recs += _from_machine(machine)
     recs += _from_intel(intel)

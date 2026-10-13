@@ -83,7 +83,7 @@ def _sentences(c, h, recs, top, hotel):
     s4 = (f"One of them is a reputation risk, not a website issue: {short(risk[0]['title'], 80)}." if risk else "")
     s5 = ("Not measured: " + "; ".join(f"{u_['label']} ({u_['weight']:g}%)" for u_ in h["unassessed"]) + ". This report does not show what "
           "any AI assistant actually says about the hotel.") if h["unassessed"] else ""
-    s6 = c["coverage"]["note"] if c.get("coverage", {}).get("limited") else ""
+    s6 = c["coverage"]["note"] if (c.get("coverage", {}).get("limited") or c.get("coverage", {}).get("text_only")) else ""
     return [x for x in (s1, s2, s3, s4, s5, s6) if x]
 
 
@@ -101,7 +101,7 @@ def story(rep, H1):
                 "doing. Quotes, URLs and method are in the Technical & Evidence Appendix; each action below gives its reference.", "muted")]
 
     cov = c.get("coverage") or {}
-    if cov.get("limited"):
+    if cov.get("limited") or cov.get("text_only"):
         why = "; ".join(f"{n} x {r}" for r, n in (cov.get("failure_reasons") or {}).items())
         out.append(para(f"Read {cov['pages_read']} of {cov['pages_attempted']} pages. {cov['note']}" + (f" Why pages failed: {why}." if why else ""), "note"))
 

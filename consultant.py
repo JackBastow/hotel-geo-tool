@@ -15,6 +15,9 @@ import insight_content as ic
 import insight_tech as it
 
 
+TEXT_ONLY_NOTE = "These pages were read through Anthropic's page reader as plain text, because the site refused this tool's own reader. What the pages SAY was checked (guest questions, facts, location, consistency); markup, page titles, image text and other technical details could not be inspected and are not assessed."
+
+
 def crawl_coverage(pages_read, pages_meta):
     """How much of the site we actually managed to read - every absence-based finding depends on it."""
     attempted = max(len(pages_meta or []), pages_read)
@@ -43,9 +46,12 @@ def crawl_coverage(pages_read, pages_meta):
 
 
 def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, entities, intel,
-            osm_ctx, jsonld_example="", web=None, ai=None, reviews=None):
+            osm_ctx, jsonld_example="", web=None, ai=None, reviews=None, text_only=False):
     s = ic.Site(own_pages, base, hotel, city)
     cov = crawl_coverage(len(s.pages), pages_meta)
+    if text_only:
+        cov["text_only"] = True
+        cov["note"] = (cov["note"] + " " if cov["note"] else "") + TEXT_ONLY_NOTE
     if cov["unreadable"]:
         return _unreadable(s, cov, pages_meta, site, entities, intel, web, ai, reviews)
     feats = ic.features(s)
@@ -56,12 +62,22 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     opps = ic.opportunities(s, intents, feats)
     cons = ic.consistency(s, guest)
     hidden = ic.hidden_strengths(s, feats, pages_meta)
-    sd = it.structured_audit(s, location, guest, intents)
+    if text_only:
+        sd = {"items": [], "node_count": 0, "hotel_found": None, "unreadable": True,
+              "caution": it.CAUTION + " The pages were read as plain text, so any markup they carry could not be inspected."}
+    else:
+        sd = it.structured_audit(s, location, guest, intents)
     machine = it.machine_readiness(s, pages_meta, site, entities, intel, sd, cons, questions, web)
+    if text_only:
+        machine = [f for f in machine if f["id"] not in it.HTML_ONLY_FINDINGS]
     profile = it.readiness_profile(s, guest, intents, loc, sd, machine, cons, intel, coverage=cov,
                                    map_failed=(osm_ctx or {}).get("failed_parts", []) if osm_ctx else ["all (no map data)"])
+    if text_only:
+        for p in profile:
+            if p["key"] in ("technical", "structured", "discoverability"):
+                p.update(score=None, band="not assessed", assessed=False, drivers=["the pages were read as plain text, so this was not assessed"], evidence=None)
     recs = advice.build(questions=questions, location=loc, consistency=cons, hidden=hidden, structured=sd,
-                        machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai, reviews=reviews)
+                        machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai, reviews=reviews, text_only=text_only)
     top = advice.top_actions(recs)
     quick = advice.quick_wins(recs, exclude_ids={r["id"] for r in top})
     plan = ranking.plan_30_60_90(recs, {r["id"] for r in top})

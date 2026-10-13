@@ -841,6 +841,11 @@ def run(site, base, hotel="", location=None, progress=None,
     finally:
         ex.shutdown(wait=False, cancel_futures=True)
 
+    return _finish(pages, home, t0, site, base, hotel, location, sitemap_urls)
+
+
+def _finish(pages, home, t0, site, base, hotel, location, sitemap_urls):
+    """Everything after the pages are in hand: sufficiency, the questions, the fact sheet, the saved shape."""
     ok_pages = [p for p in pages if p["ok"]]
     failed = [p for p in pages if not p["ok"]]
     attempted = len(pages)
@@ -878,6 +883,12 @@ def run(site, base, hotel="", location=None, progress=None,
         # one compact row per page tried (kept in the saved report): what a crawler found
         "pages_meta": [_page_row(p) for p in pages],
     }
+
+
+def run_prefetched(site, base, hotel, pages, location=None):
+    """The same analysis on pages somebody else already read (e.g. through Claude's page reader when the site refuses our reader)."""
+    home = pages[0] if pages else {"ok": False}
+    return _finish(pages, home, time.time(), site, base, hotel, location, site.get("sitemap_urls") or [])
 
 
 def coverage_fraction(guest):
