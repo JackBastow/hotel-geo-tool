@@ -356,6 +356,49 @@ def _from_ai(ai):
         summary="Not named in a sample of AI hotel-suggestion answers")]
 
 
+def _from_reviews(rs):
+    """Reply behaviour seen in public search results. A SAMPLE: worded as 'seen', never as a reply rate, and low-confidence."""
+    if not rs or rs.get("status") != "ok":
+        return []
+    s = rs.get("summary") or {}
+    items = rs.get("items") or []
+    out = []
+    first = lambda pred: [{"url": i["url"], "snippet": f"{i['platform']} review ({i.get('review_date') or 'date not shown'}): " + (i.get("reply_summary") or "no reply seen")}
+                          for i in items if pred(i)][:3]
+    if s.get("negative_examined", 0) >= 2 and s.get("negative_replied", 0) == 0:
+        out.append(_rec(
+            "RV1", "authority", "Critical reviews were visible with no reply from the hotel",
+            f"Of {s['negative_examined']} critical review(s) we could examine in public search results, none showed a reply from the hotel.",
+            "Public replies to critical reviews are read by prospective guests and are part of what a review page says about how a hotel treats guests. "
+            "This is a small sample of what search shows, not a measure of the hotel's reply rate.",
+            first(lambda i: i["sentiment"] == "negative" and i["owner_replied"] is False) or [{"url": "", "snippet": "no reply seen on the critical reviews examined"}],
+            "Check the hotel's recent critical reviews on each platform and reply to the ones still unanswered: thank the guest, address what they raised "
+            "specifically, say what will change, and invite them to contact the hotel. Do not offer anything in return for a changed review.",
+            "medium", "low", confidence=EXPER, team="reputation management", source="reviews", tag="RV1",
+            summary="Critical reviews seen without a reply")),
+    elif s.get("examined", 0) >= 4 and s.get("replied", 0) == 0:
+        out.append(_rec(
+            "RV1", "authority", "No replies from the hotel were visible on the reviews examined",
+            f"Of {s['examined']} reviews we could examine in public search results, none showed a reply from the hotel.",
+            "Guests and review sites notice whether a hotel responds. This is a small sample of what search shows, not a measure of the hotel's reply rate.",
+            first(lambda i: i["owner_replied"] is False) or [{"url": "", "snippet": "no reply seen on the reviews examined"}],
+            "Check whether the hotel replies to reviews on each platform and, if not, set a routine: thank positive reviewers briefly and answer critical "
+            "ones specifically.", "medium", "low", confidence=EXPER, team="reputation management", source="reviews", tag="RV1",
+            summary="No replies seen on the reviews examined"))
+    tones = s.get("tones") or {}
+    if tones.get("defensive", 0) + tones.get("dismissive", 0) >= 1:
+        bad = tones.get("defensive", 0) + tones.get("dismissive", 0)
+        out.append(_rec(
+            "RV2", "authority", "Some replies to critical reviews read as defensive",
+            f"{bad} of the {s.get('replied', 0)} replies we could read were assessed as defensive or dismissive in tone (an AI's reading of a small sample).",
+            "A defensive reply to a critical review is read by every later guest and can weigh more than the complaint itself.",
+            first(lambda i: i["reply_tone"] in ("defensive", "dismissive")),
+            "Have a senior person read those replies against the review. Where the hotel was right, say so calmly; where the guest had a point, "
+            "acknowledge it and say what has changed.", "low", "low", confidence=EXPER, team="reputation management", source="reviews", tag="RV2",
+            summary="Defensive tone in some replies"))
+    return out
+
+
 def _from_intel(intel):
     recs = []
     if not intel or "error" in intel:
@@ -381,7 +424,7 @@ def _from_intel(intel):
 
 # ---------------------------------------------------------------------- assemble
 
-def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None):
+def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None):
     coverage = coverage or {}
     recs = []
     recs += _from_questions(questions)
@@ -393,6 +436,7 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
     recs += _from_machine(machine)
     recs += _from_intel(intel)
     recs += _from_ai(ai)
+    recs += _from_reviews(reviews)
     recs = drop_duplicate_entity(recs)
     limited_note = None
     if coverage.get("limited"):

@@ -59,6 +59,7 @@ F = {
     ("structured", "SD3"): (1, 1, 2, "fix"), ("structured", "SD4"): (1, 1, 2, "opportunity"),
     ("structured", "SD5"): (1, 1, 1, "opportunity"), ("structured", "SD6"): (1, 1, 1, "opportunity"),
     # findings that came from the outside-the-website evidence
+    ("reviews", "RV1"): (3, 4, 2, "fix"), ("reviews", "RV2"): (2, 3, 1, "opportunity"),     # reply behaviour seen in a small search-result sample
     ("ai", "AI1"): (1, 3, 3, "opportunity"),     # one sampled model did not name the hotel: upside to explore, not a defect
     ("intel", "F1"): (5, 5, 2, "fix"),       # official food-hygiene rating below 4
     ("intel", "V1"): (5, 5, 2, "fix"),       # a verified low rating on a review platform

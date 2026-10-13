@@ -161,6 +161,29 @@ def web_section(web):
     return out
 
 
+def review_section(rs):
+    """Reviews and replies as seen in public search results: a sample with its limits, never scored."""
+    if not rs:
+        return []
+    out = [para("Reviews and replies: an indicative snapshot", "h2")]
+    if rs.get("status") != "ok":
+        out.append(para(rs.get("reason", "Not run."), "tiny"))
+        return out
+    s = rs["summary"]
+    out.append(para("One AI model with web search read the review pages that appear in public search results; anything it could not confirm against those "
+                    "results was dropped. This is a small, unrepresentative sample: it shows replies SEEN on reviews EXAMINED, not the hotel's reply rate. "
+                    f"{s['examined']} reviews examined; the hotel replied to {s['replied']}; critical reviews with a reply: {s['negative_replied']} of "
+                    f"{s['negative_examined']}. Reviews are paraphrased, nobody is named, and it is not part of any score.", "tiny"))
+    rows = [["Platform", "Date", "Review", "Replied", "By", "Tone", "What the reply said (paraphrase)"]]
+    for i in rs["items"]:
+        rows.append([i["platform"], i["review_date"] or "-", i["sentiment"] or "-", {True: "yes", False: "no", None: "can't tell"}[i["owner_replied"]],
+                     i["reply_by"] or "-", i["reply_tone"] or "-", i["reply_summary"] or "-"])
+    out.append(table(rows, [0.11, 0.09, 0.09, 0.09, 0.12, 0.14, 0.36]))
+    if rs.get("not_found"):
+        out.append(para("Not found: " + "; ".join(rs["not_found"][:5]), "tiny"))
+    return out
+
+
 def ai_section(ai):
     """The sampled assistant answers, with their limits. Never scored."""
     if not ai:
@@ -183,7 +206,7 @@ def ai_section(ai):
     return out
 
 
-def sections(c, H1, web=None, ai=None):
+def sections(c, H1, web=None, ai=None, reviews=None):
     """The dedicated consultant sections, in reading order."""
     recs = {r["id"]: r for r in c["recommendations"]}
     out = []
@@ -280,6 +303,7 @@ def sections(c, H1, web=None, ai=None):
         out.append(table(rows, [0.28, 0.12, 0.6]))
     out += web_section(web)
     out += ai_section(ai)
+    out += review_section(reviews)
     sd = c["structured"]
     out.append(para("Structured data: what it says, not just whether it exists", "h2"))
     rows = [["Item", "Status", "Detail", "Advice"]]

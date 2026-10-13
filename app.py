@@ -130,7 +130,7 @@ PAGESPEED_KEY = _operator_secret("PAGESPEED_API_KEY")
 # ceiling in store.SERVICE_CAPS["claude"], that section says it wasn't run. ANTHROPIC_MODEL (optional) overrides the cheap default.
 ANTHROPIC_KEY = _operator_secret("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = _operator_secret("ANTHROPIC_MODEL")
-CLAUDE_MILLIDOLLARS_PER_AUDIT = 800       # what one audit's sample is budgeted at ($0.80); the module's own per-audit ceiling matches
+CLAUDE_MILLIDOLLARS_PER_AUDIT = 1000      # what one audit's AI work is budgeted at ($1.00: the sample, up to $0.80, plus the reviews snapshot)
 
 # A full audit runs about a dozen Tavily searches (see collect.search_plan).
 TAVILY_CREDITS_PER_AUDIT = 12
@@ -283,10 +283,12 @@ if fa_go:
         store.record_usage(credits or len(tr.get("queries_run") or []) or 1, service="tavily")
     if (fa_res.get("amadeus_result") or {}).get("configured"):
         store.record_usage(2, service="amadeus")
-    if ANTHROPIC_KEY and not use_anthropic:
+    if ANTHROPIC_KEY and not use_anthropic:      # key configured but this month's allowance is used: say so, rather than silently showing nothing
         import ai_sample
+        import review_replies
         fa_res["ai_sample"] = ai_sample.budget_exhausted()
-    spent = (fa_res.get("ai_sample") or {}).get("cost_usd") or 0
+        fa_res["review_snapshot"] = review_replies.budget_exhausted()
+    spent = ((fa_res.get("ai_sample") or {}).get("cost_usd") or 0) + ((fa_res.get("review_snapshot") or {}).get("cost_usd") or 0)
     if spent:
         store.record_usage(max(1, round(spent * 1000)), service="claude")      # estimated spend, in thousandths of a dollar
     # Exact count: only entries actually read via the LLM path count - a
@@ -393,6 +395,8 @@ if fa_res:
         sub = st.tabs(["Identity & distribution", "Reviews & reputation", "Media & validation", "Traveller fit", "Social & local"])
         for t, fn in zip(sub, ("identity", "reviews", "media", "traveller", "social_local")):
             with t:
+                if fn == "reviews":
+                    ui_consult.review_card(fa_res.get("review_snapshot"))
                 if has_intel:
                     getattr(ui_intel, fn)(intel)
                 else:

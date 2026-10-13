@@ -223,6 +223,42 @@ def overview(c, h=None):
 
 # ------------------------------------------------------------ how AI sees it
 
+def review_card(rs):
+    """An indicative reading of public reviews and the hotel's replies. A sample with its limits stated; never scored."""
+    st.markdown("##### Reviews and replies: an indicative snapshot")
+    if not rs:
+        st.caption("Not run for this report.")
+        return
+    if rs.get("status") != "ok":
+        st.info(md_safe(rs.get("reason", "Not run.")))
+        for n in (rs.get("not_found") or [])[:4]:
+            st.caption("Not found: " + md_safe(n))
+        return
+    s = rs["summary"]
+    st.caption("One AI model with web search read the review pages that appear in public search results. Every item below links to a page that was in "
+               "those results; anything it could not confirm was dropped. This is a small, unrepresentative sample: it shows replies SEEN on reviews "
+               "EXAMINED, not the hotel's reply rate. Reviews are paraphrased and nobody is named. It is not part of any score. "
+               "The platforms prohibit automated collection by this tool; the searching is done by Anthropic's search service.")
+    a, b, c = st.columns(3)
+    a.metric("Reviews examined", s["examined"], help=f"{s['reviews_seen']} seen; {s['unclear']} where it could not tell whether the hotel replied")
+    b.metric("With a reply from the hotel", f"{s['replied']} of {s['examined']}")
+    c.metric("Critical reviews with a reply", f"{s['negative_replied']} of {s['negative_examined']}")
+    if rs.get("platforms"):
+        df([{"Platform": p["platform"], "Rating shown": "-" if p["rating"] is None else p["rating"],
+             "Reviews": "-" if p["review_count"] is None else p["review_count"], "Page": p["url"]} for p in rs["platforms"]], link_cols=("Page",))
+    if s["tones"]:
+        st.markdown("**Tone of the replies (an AI's reading):** " + ", ".join(f"{md_safe(k)} x{v}" for k, v in sorted(s["tones"].items(), key=lambda kv: -kv[1])))
+    with st.expander(f"The {len(rs['items'])} reviews it could see"):
+        df([{"Platform": i["platform"], "Review date": i["review_date"] or "-", "Review": i["sentiment"] or "-",
+             "Hotel replied": {True: "yes", False: "no", None: "can't tell"}[i["owner_replied"]], "By": i["reply_by"] or "-",
+             "Tone": i["reply_tone"] or "-", "What the reply said (paraphrase)": i["reply_summary"] or "-", "Page": i["url"]} for i in rs["items"]],
+           link_cols=("Page",))
+    for n in rs.get("not_found") or []:
+        st.caption("Not found: " + md_safe(n))
+    if rs.get("dropped"):
+        st.caption(f"{rs['dropped']} item(s) the assistant reported were dropped because their pages were not among the search results.")
+
+
 def ai_sample_card(ai):
     """What one AI model said when asked ordinary traveller questions. A sample with its limits stated, never a score."""
     st.markdown("##### What an AI assistant said (a sample)")

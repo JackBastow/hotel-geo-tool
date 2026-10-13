@@ -8479,5 +8479,88 @@
     "cost_usd": 0.03
    }
   ]
+ },
+ "review_snapshot": {
+  "source": "Reviews and replies (AI reading of public search results)",
+  "status": "ok",
+  "reason": "",
+  "model": "claude-haiku-5-5",
+  "run_at": "2026-10-13",
+  "cost_usd": 0.04,
+  "access": "One Claude model with web search reads the review pages that appear in public search results. The figures are replies SEEN on reviews EXAMINED, not the hotel's reply rate.",
+  "dropped": 1,
+  "searches": 3,
+  "not_found": [
+   "Google reviews: none seen"
+  ],
+  "platforms": [
+   {
+    "platform": "Tripadvisor",
+    "rating": 4.0,
+    "review_count": 4189,
+    "url": "https://www.tripadvisor.co.uk/Hotel_Review-g190763-d1650047-Reviews-Brooklands_Hotel-Weybridge_Surrey_England.html"
+   }
+  ],
+  "summary": {
+   "reviews_seen": 4,
+   "examined": 3,
+   "replied": 2,
+   "unclear": 1,
+   "negative_examined": 2,
+   "negative_replied": 1,
+   "tones": {
+    "warm template": 1,
+    "defensive": 1
+   },
+   "platforms_with_replies": [
+    "Tripadvisor"
+   ]
+  },
+  "items": [
+   {
+    "platform": "Tripadvisor",
+    "url": "https://www.tripadvisor.co.uk/Hotel_Review-g190763-d1650047-Reviews-Brooklands_Hotel-Weybridge_Surrey_England.html",
+    "review_date": "2026-08",
+    "sentiment": "positive",
+    "owner_replied": true,
+    "reply_by": "General Manager",
+    "reply_date": "2026-08",
+    "reply_tone": "warm template",
+    "reply_summary": "Thanks the guest and invites them back."
+   },
+   {
+    "platform": "Tripadvisor",
+    "url": "https://www.tripadvisor.co.uk/Hotel_Review-g190763-d1650047-Reviews-Brooklands_Hotel-Weybridge_Surrey_England.html",
+    "review_date": "2026-07",
+    "sentiment": "negative",
+    "owner_replied": true,
+    "reply_by": "General Manager",
+    "reply_date": "2026-07",
+    "reply_tone": "defensive",
+    "reply_summary": "Says the guest declined a room move."
+   },
+   {
+    "platform": "Tripadvisor",
+    "url": "https://www.tripadvisor.co.uk/Hotel_Review-g190763-d1650047-Reviews-Brooklands_Hotel-Weybridge_Surrey_England.html",
+    "review_date": "2026-06",
+    "sentiment": "negative",
+    "owner_replied": false,
+    "reply_by": null,
+    "reply_date": null,
+    "reply_tone": null,
+    "reply_summary": ""
+   },
+   {
+    "platform": "Tripadvisor",
+    "url": "https://www.tripadvisor.co.uk/Hotel_Review-g190763-d1650047-Reviews-Brooklands_Hotel-Weybridge_Surrey_England.html",
+    "review_date": "2026-05",
+    "sentiment": "mixed",
+    "owner_replied": null,
+    "reply_by": null,
+    "reply_date": null,
+    "reply_tone": null,
+    "reply_summary": ""
+   }
+  ]
  }
 }

@@ -187,8 +187,11 @@ def story(rep, H1):
         out.append(table(rows, [0.28, 0.5, 0.1, 0.12]))
     else:
         out.append(para("No reputation or distribution risk was found in the sources checked.", "base"))
-    out.append(para("Guest reviews could not be assessed (no lawful, free source), so the absence of a finding here is not evidence of a healthy "
-                    "review profile.", "tiny"))
+    rs = rep.get("review_snapshot") or {}
+    out.append(para("An indicative snapshot of public reviews and the hotel's replies is in the appendix; it is a small sample, not a reply rate."
+                    if rs.get("status") == "ok" else
+                    "Guest reviews could not be assessed (the platforms prohibit automated collection), so the absence of a finding here is not evidence of a "
+                    "healthy review profile.", "tiny"))
 
     # 7 -------------------------------------------------------------- doing well
     out.append(H1("What we could establish without reading the website" if c.get("working_is_outside") else "What the hotel is already doing well"))

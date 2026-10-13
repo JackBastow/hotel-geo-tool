@@ -25,7 +25,8 @@ SAMPLED_NOTE = ("A small sample of what one AI assistant says was collected for 
 WHY_NOT = {
     "ai_visibility": "What AI assistants actually say about the hotel is not measured by this tool (it needs a paid, grounded search). "
                      "You can sample it yourself in the Tools tab.",
-    "reviews": "Guest reviews have no lawful, free, automated source (review platforms prohibit collection; Google needs a billing account).",
+    "reviews": "Guest reviews are not read from the platforms (their terms prohibit automated collection) and are not scored. "
+               "An indicative snapshot of public reviews and the hotel's replies is shown separately when it could be obtained.",
 }
 
 

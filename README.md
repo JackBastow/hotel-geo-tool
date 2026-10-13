@@ -119,6 +119,15 @@ Cost is estimated from the usage the API reports (a few tens of cents an audit);
 (`store.SERVICE_CAPS["claude"]`) stops calls when it is reached, and the workspace spend limit in the Anthropic
 Console is the hard stop. Without an `ANTHROPIC_API_KEY` secret the section says it was not run.
 
+**Reviews and replies snapshot (optional, same Anthropic credit).** `review_replies.py` asks the model to look at
+the review pages that appear in public search results and report ratings, review counts and, above all, whether
+the hotel replied to each review it could see, by which role, in what tone, with a paraphrase. A model can invent,
+so every item must cite a page and **any item whose page was not among the pages the search actually returned is
+dropped and counted**. It is shown as *replies seen on reviews examined*, never as a reply rate, is paraphrased
+(no reviewer or staff names), is never scored, and can add two low-confidence recommendations (critical reviews
+with no reply; a defensive tone). The platforms prohibit automated collection by this tool; the searching is done
+by Anthropic's search service, and the report says so. About $0.04 an audit.
+
 **Not implemented, deliberately:** any competitor entry (nothing in the main audit needs a competitor)
 and anything that needs a billing account or breaks a platform's terms.
 

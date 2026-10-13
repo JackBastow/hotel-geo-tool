@@ -116,6 +116,10 @@ if pymupdf is not None:
           "What an AI assistant said: a sample" in atext and "not a ranking" in atext and "not named" in atext)
     check("the management report no longer says no assistant was asked, once a sample exists",
           "nothing was asked of an assistant" not in re.sub(r"\s+", " ", mtext) and "sample of one AI assistant" in re.sub(r"\s+", " ", mtext))
+    check("the appendix carries the reviews-and-replies snapshot with its limits",
+          "Reviews and replies: an indicative snapshot" in atext and "not the hotel's reply rate" in re.sub(r"\s+", " ", atext))
+    check("the management report points to it instead of saying reviews cannot be looked at at all",
+          "snapshot of public reviews" in re.sub(r"\s+", " ", mtext) and "could not be assessed (the platforms prohibit" not in re.sub(r"\s+", " ", mtext))
     check("the appendix says what it is and points back to the management report", "Technical & evidence appendix" in atext and "management report" in atext)
     check("the management report links to the evidence by reference, not by repeating it", "Appendix reference" in mtext)
     check("filenames say which document it is", "management-report" in report_pdf.filename(rep, "management") and "appendix" in report_pdf.filename(rep, "appendix"))

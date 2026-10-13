@@ -70,6 +70,11 @@ check("the sampled AI answers are shown, labelled a sample and never a ranking",
 check("what it found is stated in numbers a reader can hold (named in 0 of 2, known directly, sources listed)",
       {"Named in generic 'where to stay' answers", "Known when asked directly", "Own website cited"} <= {m.label for m in at.metric} and "booking.com" in text)
 
+check("the reviews-and-replies snapshot is shown with its limits: seen on examined, never a reply rate, and not part of any score",
+      "Reviews and replies: an indicative snapshot" in text and any("not the hotel's reply rate" in c.value for c in at.caption), [c.value[:50] for c in at.caption][:6])
+check("it states the numbers it found (examined, with a reply, critical with a reply)",
+      {"Reviews examined", "With a reply from the hotel", "Critical reviews with a reply"} <= {m.label for m in at.metric})
+
 print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
 import sys  # noqa: E402
 import types  # noqa: E402
