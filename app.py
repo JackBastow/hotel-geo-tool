@@ -125,6 +125,13 @@ YOUTUBE_KEY = _operator_secret("YOUTUBE_API_KEY")
 # it Google's shared quota is usually used up, so page speed and accessibility scores say they weren't measured.
 PAGESPEED_KEY = _operator_secret("PAGESPEED_API_KEY")
 
+# Optional: an Anthropic API key (from a workspace whose spend limit equals the free credit). With it the audit asks one Claude model a few
+# traveller questions, with web search, and shows what it said as a SAMPLE. Without it, or once this month's estimated spend reaches the
+# ceiling in store.SERVICE_CAPS["claude"], that section says it wasn't run. ANTHROPIC_MODEL (optional) overrides the cheap default.
+ANTHROPIC_KEY = _operator_secret("ANTHROPIC_API_KEY")
+ANTHROPIC_MODEL = _operator_secret("ANTHROPIC_MODEL")
+CLAUDE_MILLIDOLLARS_PER_AUDIT = 300       # what one audit's sample is budgeted at ($0.30); the module's own per-audit ceiling matches
+
 # A full audit runs about a dozen Tavily searches (see collect.search_plan).
 TAVILY_CREDITS_PER_AUDIT = 12
 
@@ -245,6 +252,7 @@ if fa_go:
     use_amadeus_secret = AMADEUS_SECRET if use_amadeus_key else None
     use_gemini_reader = GEMINI_READER_KEY if (
         GEMINI_READER_KEY and _within_quota("gemini_reader")) else None
+    use_anthropic = ANTHROPIC_KEY if (ANTHROPIC_KEY and _within_quota("claude", CLAUDE_MILLIDOLLARS_PER_AUDIT)) else None
     try:
         fa_res = full_audit.run_full_audit(
             fa_website, fa_hotel, fa_city, progress=lambda m: prog.caption(m),
@@ -253,6 +261,7 @@ if fa_go:
             amadeus_api_secret=use_amadeus_secret,
             gemini_reader_key=use_gemini_reader,
             youtube_api_key=YOUTUBE_KEY, wider=fa_wider, pagespeed_api_key=PAGESPEED_KEY,
+            anthropic_api_key=use_anthropic, anthropic_model=ANTHROPIC_MODEL,
         )
     except Exception as e:  # noqa: BLE001 - surface the real error
         prog.empty()
@@ -272,6 +281,12 @@ if fa_go:
         store.record_usage(credits or len(tr.get("queries_run") or []) or 1, service="tavily")
     if (fa_res.get("amadeus_result") or {}).get("configured"):
         store.record_usage(2, service="amadeus")
+    if ANTHROPIC_KEY and not use_anthropic:
+        import ai_sample
+        fa_res["ai_sample"] = ai_sample.budget_exhausted()
+    spent = (fa_res.get("ai_sample") or {}).get("cost_usd") or 0
+    if spent:
+        store.record_usage(max(1, round(spent * 1000)), service="claude")      # estimated spend, in thousandths of a dollar
     # Exact count: only entries actually read via the LLM path count - a
     # fetch that failed or fell back to rule-based judgment used no quota.
     llm_reads = sum(
@@ -361,7 +376,7 @@ if fa_res:
                     "The Scorecard tab still has the website results.")
     with tabs[1]:
         if has_consult:
-            ui_consult.ai_view(consult)
+            ui_consult.ai_view(consult, fa_res.get("ai_sample"))
         else:
             st.info("This section needs the consultant analysis, which did not run for this audit.")
     with tabs[2]:

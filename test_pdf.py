@@ -65,7 +65,7 @@ else:
     check("the readiness profile explains what drove each score", "What drove it" in text)
     check("the media-target table is present with its caveat", "Media and organisation targets" in text)
     check("the guest-review limitation is stated", "0 guest reviews" in text)
-    check("limitations stated: nothing measures what AI recommends", "Nothing here measures what any AI assistant recommends" in text)
+    check("limitations stated: nothing measures what AI recommends", "Nothing here measures what AI assistants recommend in general" in re.sub(r"\s+", " ", text))
     check("no escaping artefacts leaked into the text",
           not any(x in text for x in ("&amp;", "&lt;", "<br", "<b>", "<font", "<link")))
     check("every evidence id used by a recommendation appears in the appendix",
@@ -112,6 +112,10 @@ if pymupdf is not None:
           all(atext.count(e) <= 1 for e in ex_clean), [(e, atext.count(e)) for e in ex_clean if atext.count(e) > 1])
     check("the appendix carries the crawler-access evidence table, with its limits",
           "Crawler access and speed" in atext and "Common Crawl" in atext and "PageSpeed Insights" in atext and "not a lock" in atext)
+    check("the appendix carries the sampled AI answers with their limits",
+          "What an AI assistant said: a sample" in atext and "not a ranking" in atext and "not named" in atext)
+    check("the management report no longer says no assistant was asked, once a sample exists",
+          "nothing was asked of an assistant" not in re.sub(r"\s+", " ", mtext) and "sample of one AI assistant" in re.sub(r"\s+", " ", mtext))
     check("the appendix says what it is and points back to the management report", "Technical & evidence appendix" in atext and "management report" in atext)
     check("the management report links to the evidence by reference, not by repeating it", "Appendix reference" in mtext)
     check("filenames say which document it is", "management-report" in report_pdf.filename(rep, "management") and "appendix" in report_pdf.filename(rep, "appendix"))

@@ -223,7 +223,36 @@ def overview(c, h=None):
 
 # ------------------------------------------------------------ how AI sees it
 
-def ai_view(c):
+def ai_sample_card(ai):
+    """What one AI model said when asked ordinary traveller questions. A sample with its limits stated, never a score."""
+    st.markdown("##### What an AI assistant said (a sample)")
+    if not ai:
+        st.caption("Not run for this report.")
+        return
+    if ai.get("status") != "ok":
+        st.info(md_safe(ai.get("reason", "Not run.")))
+        return
+    s = ai["summary"]
+    st.caption(f"One model ({md_safe(ai.get('model', ''))}) with live web search was asked {s['asked']} ordinary questions on {md_safe(ai.get('run_at', ''))}. "
+               "This is a sample: answers change between runs and between assistants, and it is not a ranking. It is not part of any score.")
+    a, b, c = st.columns(3)
+    a.metric("Named in generic 'where to stay' answers", f"{s['generic_named']} of {s['generic_asked']}")
+    b.metric("Known when asked directly", {True: "Yes", False: "No", None: "n/a"}[s["direct_known"]])
+    c.metric("Own website cited", "Yes" if s["own_site_cited"] else "No")
+    if s["top_domains"]:
+        st.markdown("**Sources the assistant relied on:** " + ", ".join(md_safe(d) for d in s["top_domains"]))
+    if ai.get("partial"):
+        st.caption(md_safe(ai.get("reason", "")))
+    for i in ai["items"]:
+        mark = {True: "named", False: "not named", None: "no answer"}[i["mentioned"]]
+        with st.expander(f"{i['text']} - hotel {mark}" + (f" (#{i['position']} in the list)" if i.get("position") else "")):
+            st.markdown(md_safe(i["answer"] or "(no answer text)"))
+            if i["domains"]:
+                st.caption("Sources: " + ", ".join(md_safe(d) for d in i["domains"][:8]))
+
+
+def ai_view(c, ai=None):
+    ai_sample_card(ai)
     u = c["understanding"]
     st.caption("What automated systems could learn from this hotel's own pages, where they may be less certain, and where each gap should be fixed. "
                "Built only from wording found on the pages read.")

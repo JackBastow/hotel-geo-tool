@@ -65,6 +65,7 @@ import urllib.parse
 import requests
 from concurrent.futures import ThreadPoolExecutor
 
+import ai_sample
 import amadeus_check
 import audit
 import collect
@@ -551,7 +552,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    include_ai_visibility=False, gemini_api_key=None,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
-                   youtube_api_key=None, wider=True, pagespeed_api_key=None):
+                   youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -626,6 +627,12 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     # the background while the website itself is read.
     segment_labels = [tavily_check.SEGMENTS[k][0]
                       for k in tavily_check.detect_segments(site.get("topics_covered"))]
+    # A few real questions put to an AI assistant (needs a name and a town; runs beside everything else).
+    ai_ex = ai_future = None
+    if anthropic_api_key and hotel and city:
+        ai_ex = ThreadPoolExecutor(max_workers=1)
+        ai_future = ai_ex.submit(ai_sample.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model,
+                                 segments=segment_labels, own_domain=base)
     collect_ex = collect_future = None
     if wider and hotel:
         collect_ex = ThreadPoolExecutor(max_workers=1)
@@ -798,6 +805,19 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     finally:
         web_ex.shutdown(wait=False, cancel_futures=True)
 
+    ai_result = None
+    if ai_future is None:
+        ai_result = ai_sample.run(hotel, city, api_key=anthropic_api_key)      # returns the 'not configured / need a name and town' envelope
+    if ai_future is not None:
+        say("Collecting the sampled AI answers...")
+        try:
+            ai_result = ai_future.result(timeout=180)
+        except Exception as e:  # noqa: BLE001 - an extra; the audit stands without it
+            ai_result = {"source": ai_sample.SOURCE, "status": "unavailable", "items": [], "access": ai_sample.ACCESS,
+                         "reason": f"The sampled AI answers did not finish in time ({type(e).__name__}), so they were not assessed."}
+        finally:
+            ai_ex.shutdown(wait=False, cancel_futures=True)
+
     # The consultant layer reads pages the crawl already fetched - no further requests.
     say("Working out what AI systems can and can't understand about the hotel...")
     try:
@@ -806,7 +826,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         consult_result = consultant.analyse(
             own_pages=own_pages, pages_meta=guest.get("pages_meta", []), base=base, hotel=hotel, city=city,
             location=location, guest=guest, site=site, entities=ext["entities"], intel=intel_result,
-            osm_ctx=osm_ctx, web=web,
+            osm_ctx=osm_ctx, web=web, ai=ai_result,
             jsonld_example=fixes.hotel_jsonld({"base": base, "hotel": hotel, "location": location, "guest": guest,
                                                "discovery": discovery, "entities": ext["entities"], "site": site,
                                                "tavily": tavily_result}))
@@ -851,6 +871,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "intel": intel_result,
         "consultant": consult_result,
         "web_signals": web,
+        "ai_sample": ai_result,
         "tavily_result": tavily_result,
         "places_result": places_result,
         "amadeus_result": amadeus_result,

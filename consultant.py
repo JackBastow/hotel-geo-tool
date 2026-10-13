@@ -43,11 +43,11 @@ def crawl_coverage(pages_read, pages_meta):
 
 
 def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, entities, intel,
-            osm_ctx, jsonld_example="", web=None):
+            osm_ctx, jsonld_example="", web=None, ai=None):
     s = ic.Site(own_pages, base, hotel, city)
     cov = crawl_coverage(len(s.pages), pages_meta)
     if cov["unreadable"]:
-        return _unreadable(s, cov, pages_meta, site, entities, intel, web)
+        return _unreadable(s, cov, pages_meta, site, entities, intel, web, ai)
     feats = ic.features(s)
     intents = ic.intents(s)
     understanding = ic.understanding(s, intents, feats, city)
@@ -61,7 +61,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     profile = it.readiness_profile(s, guest, intents, loc, sd, machine, cons, intel, coverage=cov,
                                    map_failed=(osm_ctx or {}).get("failed_parts", []) if osm_ctx else ["all (no map data)"])
     recs = advice.build(questions=questions, location=loc, consistency=cons, hidden=hidden, structured=sd,
-                        machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov)
+                        machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai)
     top = advice.top_actions(recs)
     quick = advice.quick_wins(recs, exclude_ids={r["id"] for r in top})
     plan = ranking.plan_30_60_90(recs, {r["id"] for r in top})
@@ -81,7 +81,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     }
 
 
-def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None):
+def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None, ai=None):
     """
     Too few pages were read to judge the content. Report that plainly, keep only findings that
     come from what actually happened (what the fetches returned, robots.txt, open-data matches),
@@ -106,7 +106,7 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None):
         technical="Crawl returned timeouts/refusals. Could be our fetch (rate limits, user agent) as well as the site; "
                   "verify by loading the pages with a plain HTTP client.", confidence=advice.INFER, team="web", source="machine",
         success="A later audit reads most of the site's pages.")
-    recs = [rec] + advice._from_machine([f for f in machine if f["status"] == "issue"]) + advice._from_intel(intel)
+    recs = [rec] + advice._from_machine([f for f in machine if f["status"] == "issue"]) + advice._from_intel(intel) + advice._from_ai(ai)
     recs = advice.drop_duplicate_entity(recs)
     ranking.annotate(recs, [])
     for r in recs:

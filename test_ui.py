@@ -65,6 +65,11 @@ _src = open(os.path.join(HERE, "app.py"), encoding="utf8").read()
 check("every download button is set not to re-run the page (a re-run snapped users back to the first tab)",
       _src.count(".download_button(") == 3 and _src.count('on_click="ignore"') >= 3, _src.count('on_click="ignore"'))
 
+check("the sampled AI answers are shown, labelled a sample and never a ranking",
+      "What an AI assistant said (a sample)" in text and any("not a ranking" in c.value for c in at.caption), [c.value[:60] for c in at.caption][:5])
+check("what it found is stated in numbers a reader can hold (named in 0 of 2, known directly, sources listed)",
+      {"Named in generic 'where to stay' answers", "Known when asked directly", "Own website cited"} <= {m.label for m in at.metric} and "booking.com" in text)
+
 print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
 import sys  # noqa: E402
 import types  # noqa: E402

@@ -161,7 +161,29 @@ def web_section(web):
     return out
 
 
-def sections(c, H1, web=None):
+def ai_section(ai):
+    """The sampled assistant answers, with their limits. Never scored."""
+    if not ai:
+        return []
+    out = [para("What an AI assistant said: a sample", "h2")]
+    if ai.get("status") != "ok":
+        out.append(para(ai.get("reason", "Not run."), "tiny"))
+        return out
+    s = ai["summary"]
+    out.append(para(f"One model ({ai.get('model', '')}) with live web search was asked {s['asked']} ordinary questions on {ai.get('run_at', '')}. "
+                    "It is a sample: answers change between runs and between assistants, it is not a ranking, and it is not part of any score. "
+                    f"Named in {s['generic_named']} of {s['generic_asked']} generic 'where to stay' answers; "
+                    f"{'known' if s['direct_known'] else 'not known' if s['direct_known'] is False else 'not assessed'} when asked directly; "
+                    f"own website {'cited' if s['own_site_cited'] else 'not cited'}.", "tiny"))
+    rows = [["Question asked", "Hotel", "What it answered", "Sources it used"]]
+    for i in ai["items"]:
+        rows.append([i["text"], {True: "named", False: "not named", None: "no answer"}[i["mentioned"]] + (f" (#{i['position']})" if i.get("position") else ""),
+                     (i["answer"] or "(no answer text)")[:420], ", ".join(i["domains"][:6])])
+    out.append(table(rows, [0.22, 0.1, 0.46, 0.22]))
+    return out
+
+
+def sections(c, H1, web=None, ai=None):
     """The dedicated consultant sections, in reading order."""
     recs = {r["id"]: r for r in c["recommendations"]}
     out = []
@@ -257,6 +279,7 @@ def sections(c, H1, web=None):
             rows.append([f["title"], R.coloured(st, col), body])
         out.append(table(rows, [0.28, 0.12, 0.6]))
     out += web_section(web)
+    out += ai_section(ai)
     sd = c["structured"]
     out.append(para("Structured data: what it says, not just whether it exists", "h2"))
     rows = [["Item", "Status", "Detail", "Advice"]]

@@ -8415,5 +8415,69 @@
    "items": [],
    "access": "Google PageSpeed Insights API (Lighthouse)."
   }
+ },
+ "ai_sample": {
+  "source": "Claude (sampled answers)",
+  "status": "ok",
+  "reason": "",
+  "model": "claude-haiku-5-5",
+  "run_at": "2026-10-13",
+  "cost_usd": 0.09,
+  "partial": false,
+  "access": "Anthropic Claude API with its web-search tool. One model, a sample, not a ranking.",
+  "summary": {
+   "asked": 3,
+   "generic_asked": 2,
+   "generic_named": 0,
+   "direct_known": true,
+   "own_site_cited": false,
+   "top_domains": [
+    "booking.com",
+    "tripadvisor.com",
+    "visitsurrey.com"
+   ]
+  },
+  "items": [
+   {
+    "id": "best",
+    "kind": "generic",
+    "text": "What are the best hotels in Weybridge?",
+    "answer": "1. Oatlands Park Hotel\\n2. Brooklands Hotel is a good choice.",
+    "mentioned": false,
+    "position": null,
+    "domains": [
+     "booking.com",
+     "tripadvisor.com"
+    ],
+    "searches": 2,
+    "cost_usd": 0.03
+   },
+   {
+    "id": "where",
+    "kind": "generic",
+    "text": "Where should I stay in Weybridge?",
+    "answer": "Try Oatlands Park or the Ship Hotel.",
+    "mentioned": false,
+    "position": null,
+    "domains": [
+     "visitsurrey.com"
+    ],
+    "searches": 2,
+    "cost_usd": 0.03
+   },
+   {
+    "id": "about",
+    "kind": "direct",
+    "text": "Tell me about Brooklands Hotel in Weybridge.",
+    "answer": "Brooklands Hotel is a hotel in Weybridge near Brooklands Museum.",
+    "mentioned": true,
+    "position": null,
+    "domains": [
+     "booking.com"
+    ],
+    "searches": 2,
+    "cost_usd": 0.03
+   }
+  ]
  }
 }

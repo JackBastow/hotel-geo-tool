@@ -214,7 +214,9 @@ def story(rep, H1):
                     "Re-run the audit afterwards to check what changed.", "tiny"))
     out.append(para("Limits of this report", "h3"))
     out += R.bullets([
-        "It does not show what any AI assistant actually says about the hotel; nothing was asked of an assistant.",
+        ("A small sample of one AI assistant's answers is in the appendix; it is not a measure of what assistants say in general and is not scored."
+         if (rep.get("ai_sample") or {}).get("status") == "ok"
+         else "It does not show what any AI assistant actually says about the hotel; nothing was asked of an assistant."),
         f"The readiness score rests on {h['coverage_pct']:.0f}% of the full model and is a set-up indicator, not a measure of AI visibility.",
         "Findings come from the hotel's own pages and public sources read during the audit; search results vary between runs.",
         "Recommendations are labelled by confidence. None guarantees that any AI assistant will recommend the hotel."])

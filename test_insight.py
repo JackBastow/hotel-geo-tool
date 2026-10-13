@@ -646,6 +646,33 @@ readable = {"pages_ok": 9, "pages_attempted": 10, "questions": [], "conflicts": 
 card2 = scoring.build_scorecard({"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}, [], [], {}, {"profiles": []}, guest_result=readable)
 check("a normally readable site is scored exactly as before", {c["key"]: c for c in card2["categories"]}["website"]["assessed"])
 
+print("20. the sampled AI answers: one low-priority opportunity, never a fix, never a score")
+import ai_sample as ais  # noqa: E402
+def aienv(named, asked=2, status="ok", direct=True):
+    return {"status": status, "model": "claude-haiku-5-5", "run_at": "2026-10-13", "items": [],
+            "summary": {"asked": asked + 1, "generic_asked": asked, "generic_named": named, "direct_known": direct, "own_site_cited": False,
+                        "top_domains": ["booking.com", "tripadvisor.com"]}}
+r_ai = advice._from_ai(aienv(0))
+check("an assistant that never named the hotel in two suggestion questions yields ONE recommendation, as an opportunity with experimental confidence",
+      len(r_ai) == 1 and r_ai[0]["id"] == "AI1" and r_ai[0]["priority"] == "low" and r_ai[0]["confidence"] == advice.EXPER, r_ai)
+ranking.annotate(r_ai, [])
+check("...ranked as an opportunity (never a required fix), and it admits one sample is not a ranking", r_ai[0]["kind"] == "opportunity" and "not a ranking" in r_ai[0]["why"])
+check("the wording quotes the sources the assistant used, which is the actionable part", "booking.com" in r_ai[0]["finding"])
+check("no recommendation when the hotel WAS named, when too few questions were asked, or when nothing ran",
+      advice._from_ai(aienv(1)) == [] and advice._from_ai(aienv(0, asked=1)) == [] and advice._from_ai(aienv(0, status="unavailable")) == [] and advice._from_ai(None) == [])
+mk = {**mkrep(60.0), "ai_sample": aienv(0)}
+hs = hl.build(mk)
+check("once a sample exists the headline says AI visibility was sampled, not scored, and still gives no AI score",
+      any("not scored" in u["why"] and "sample" in u["why"] for u in hs["unassessed"] if u["key"] == "ai_visibility") and hs["score"] == 83)
+check("without a sample the headline keeps the original 'not measured' wording",
+      any("not measured by this tool" in u["why"] for u in hl.build(mkrep(60.0))["unassessed"] if u["key"] == "ai_visibility"))
+res20 = consultant.analyse(own_pages=site16, pages_meta=[{"url": p["url"], "ok": True, "title": p["title"], "meta_description": "m", "h1_count": 1, "pdfs": []} for p in site16],
+                           base=BASE, hotel=HOTEL, city=CITY, location={}, guest=guest_for(site16), site={"robots": {"present": True}, "sitemap": {"present": True}},
+                           entities=[], intel=None, osm_ctx=osm_fail, ai=aienv(0))
+check("through the full analysis it appears in the recommendations and never in the top actions (those are required fixes only)",
+      "AI1" in {r["id"] for r in res20["recommendations"]} and "AI1" not in res20["top_actions"])
+check("the monthly budget guard exists and is in thousandths of a dollar", __import__("store").SERVICE_CAPS["claude"] == 40000)
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

@@ -40,6 +40,8 @@ SERVICE_CAPS = {
     "tavily": 1000,     # searches/month, Tavily's free tier
     "amadeus": 2000,    # a conservative guess at the self-service test quota -
                         # tighten this once real usage is observed
+    "claude": 40000,    # ESTIMATED spend in thousandths of a US dollar ($40/month). The hard stop is the spend limit on the workspace in
+                        # the Anthropic Console; this is a best-effort second guard (the counter lives on the container's disk).
     "gemini_reader": 500,   # calls/month, for gemini_reader.py's free ungrounded
                             # judging calls. Google does not publish an exact
                             # free-tier requests-per-day figure for this - public

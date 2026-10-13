@@ -215,7 +215,8 @@ def _appendix_story(rep):
                 "holds the detail behind them: the quotes and URLs (each tied to an E-number in the evidence list at the end), the "
                 "methodology, the structured-data examples, platform discovery, media coverage and technical checks. Findings are "
                 "labelled <b>observed</b> (we read it), <b>inferred</b> (a conclusion drawn from observed evidence) or <b>not assessed</b> "
-                "(we could not check it, with the reason). <b>Nothing here measures what any AI assistant recommends</b>; no assistant was asked.", "note")]
+                "(we could not check it, with the reason). <b>Nothing here measures what AI assistants recommend in general</b>; "
+                + ("one assistant was asked a few questions, shown as a labelled sample." if (rep.get("ai_sample") or {}).get("status") == "ok" else "no assistant was asked."), "note")]
 
     # ---- scorecard, coverage and evidence strength (the summary lives in the management report)
     h = rep.get("headline") or headline_mod.build(rep)
@@ -239,7 +240,7 @@ def _appendix_story(rep):
             ("Guest reviews", intel["reviews"]["sample"]["statement"])])]
 
     if has_consult:
-        story += report_pdf_consult.sections(consult, H1, rep.get("web_signals"))
+        story += report_pdf_consult.sections(consult, H1, rep.get("web_signals"), rep.get("ai_sample"))
     elif not has_intel:
         story += [para("The analysis of what AI systems can understand about this hotel did not complete for this run"
                        + (f": {consult.get('error')}" if consult else "") + ".", "note")]

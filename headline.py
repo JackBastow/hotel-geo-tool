@@ -19,6 +19,9 @@ medium / low): a score and the evidence behind it are different things.
 WITHHOLD_BELOW = 30.0
 PROVISIONAL_BELOW = 70.0
 
+SAMPLED_NOTE = ("A small sample of what one AI assistant says was collected for this report (see 'How AI sees your hotel'). "
+                "It is not scored: one model on one day is not a measure of AI visibility.")
+
 WHY_NOT = {
     "ai_visibility": "What AI assistants actually say about the hotel is not measured by this tool (it needs a paid, grounded search). "
                      "You can sample it yourself in the Tools tab.",
@@ -55,12 +58,13 @@ def category_evidence(rep):
 
 
 def build(rep):
+    sampled = (rep.get("ai_sample") or {}).get("status") == "ok"
     sc = rep.get("scorecard") or {}
     overall, cov = sc.get("overall"), sc.get("coverage_pct") or 0.0
     cats = sc.get("categories") or []
     ev = category_evidence(rep)
     unassessed = [{"key": c["key"], "label": c["label"], "weight": c["weight"],
-                   "why": WHY_NOT.get(c["key"], c.get("detail", ""))} for c in cats if not c.get("assessed")]
+                   "why": (SAMPLED_NOTE if sampled and c["key"] == "ai_visibility" else WHY_NOT.get(c["key"], c.get("detail", "")))} for c in cats if not c.get("assessed")]
     miss_w = round(sum(u["weight"] for u in unassessed), 1)
     crawl = (rep.get("consultant") or {}).get("coverage") or {}
     if overall is None or cov < WITHHOLD_BELOW or crawl.get("unreadable"):

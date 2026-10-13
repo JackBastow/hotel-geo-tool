@@ -335,6 +335,27 @@ def drop_duplicate_entity(recs):
     return recs
 
 
+def _from_ai(ai):
+    """One opportunity, only when the sample is solid enough to say something: an assistant asked for hotel suggestions never named the hotel."""
+    if not ai or ai.get("status") != "ok":
+        return []
+    s = ai.get("summary") or {}
+    if s.get("generic_asked", 0) < 2 or s.get("generic_named", 0) > 0:
+        return []
+    doms = ", ".join(s.get("top_domains", [])[:6]) or "(none recorded)"
+    return [_rec(
+        "AI1", "authority", "The hotel was not named when an AI assistant was asked for hotel suggestions",
+        f"In {s['generic_asked']} sampled questions asking for hotels in the town, one AI model (with web search) did not name this hotel. "
+        f"The sources it relied on included: {doms}.",
+        "A single sample from one model is not a ranking and answers change between runs, but the sources it chose show where it looks. "
+        "Accurate, current listings on those sources are one way the hotel can be found when someone asks.",
+        [{"url": "", "snippet": f"Sampled by {ai.get('model', 'one AI model')} on {ai.get('run_at', '')}; the answers are in the report."}],
+        "Check the hotel's entry on the sources above (name, address, photos, current facts) and ask whether the hotel wants to be in the kind of "
+        "list the assistant gave. Re-run later to see whether it changes.",
+        "low", "medium", confidence=EXPER, team="marketing", source="ai", tag="AI1",
+        summary="Not named in a sample of AI hotel-suggestion answers")]
+
+
 def _from_intel(intel):
     recs = []
     if not intel or "error" in intel:
@@ -360,7 +381,7 @@ def _from_intel(intel):
 
 # ---------------------------------------------------------------------- assemble
 
-def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None):
+def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None):
     coverage = coverage or {}
     recs = []
     recs += _from_questions(questions)
@@ -371,6 +392,7 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
         recs += _from_structured(structured, jsonld_example, site)
     recs += _from_machine(machine)
     recs += _from_intel(intel)
+    recs += _from_ai(ai)
     recs = drop_duplicate_entity(recs)
     limited_note = None
     if coverage.get("limited"):
