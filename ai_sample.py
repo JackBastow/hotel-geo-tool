@@ -1,8 +1,8 @@
 """
-A small SAMPLE of what an AI assistant says when asked about the hotel.
+A SAMPLE of what an AI assistant says when asked about the hotel.
 
 The audit measures how well a hotel is set up to be understood. It cannot see what an assistant
-actually answers. This module asks one Claude model a handful of ordinary traveller questions with
+actually answers. This module asks one Claude model about eight ordinary traveller questions with
 live web search switched on, and records:
 
   * whether the hotel is named in the answer (and where in a list),
@@ -10,11 +10,11 @@ live web search switched on, and records:
   * which websites it relied on (the sources worth being accurately listed on).
 
 What this is NOT: a ranking, a measurement of "AI visibility" in general, or what ChatGPT or Gemini
-would say. It is one model, on one day, asked four questions; answers change between runs. It is shown
+would say. It is one model, on one day, asked a few questions; answers change between runs. It is shown
 as a sample, never scored, and always labelled with the model and date.
 
 Cost control (the operator's free credit is the budget):
-  * a fixed, small number of questions, each limited to MAX_SEARCHES web searches and a token cap;
+  * a fixed number of questions (at most MAX_QUESTIONS), each limited to MAX_SEARCHES web searches and a token cap;
   * an estimated cost is computed from the usage the API reports and returned, so the app can keep a
     monthly counter and stop calling when the budget is used up;
   * a per-audit ceiling: once the estimate passes `budget_usd`, remaining questions are skipped;
@@ -31,10 +31,11 @@ import evidence
 
 SOURCE = "Claude (sampled answers)"
 MODEL_DEFAULT = "claude-haiku-5-5"
-SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search", "max_uses": 2}
-MAX_SEARCHES = 2
+MAX_SEARCHES = 3
+SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search", "max_uses": MAX_SEARCHES}
 MAX_TOKENS = 1500
-MAX_QUESTIONS = 4
+MAX_QUESTIONS = 8
+WORKERS = 3
 
 # USD per million tokens (input, output) - Anthropic's published list prices for the models we allow.
 PRICES = {"claude-haiku-5-5": (0.10, 0.50), "claude-haiku-4-5": (1.00, 5.00), "claude-sonnet-5-5": (2.00, 10.00), "claude-opus-5-5": (4.00, 20.00)}
@@ -43,10 +44,10 @@ EFFORT_MODELS = ("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5")
 
 ACCESS = (
     "Anthropic Claude API with its web-search tool. Uses the operator's own free credit, with a monthly budget guard and the "
-    "workspace spend limit as the hard stop. It asks ONE model a few traveller questions: a sample, not a ranking, and not what "
+    "workspace spend limit as the hard stop. It asks ONE model several traveller questions: a sample, not a ranking, and not what "
     "ChatGPT or Gemini would say. Answers differ between runs and between models.")
 
-SYSTEM = ("You are a travel assistant answering a traveller's question. Use web search when it helps. Answer in at most 120 words. "
+SYSTEM = ("You are a travel assistant answering a traveller's question. Search the web, running at least two searches with different wording, before you answer. Answer in at most 150 words. "
           "When you recommend hotels, name them in a short list, most suitable first, and say in a few words why. "
           "Only state facts you found; say so when you could not find something.")
 
@@ -56,25 +57,29 @@ _GENERIC = {"hotel", "hotels", "the", "by", "and", "spa", "resort", "at", "of", 
 # ----------------------------------------------------------------- questions
 
 def build_questions(hotel, city, segments=(), max_questions=MAX_QUESTIONS):
-    """Ordinary things a traveller types. Generic ones test whether the hotel is named unprompted; the last asks about it directly."""
+    """
+    Ordinary things a traveller types. Generic ones test whether the hotel is named unprompted; the direct ones ask about
+    the hotel itself: what it is, what it offers, what guests say, and which hotels the assistant sees as alternatives.
+    """
     place = (city or "").split(",")[0].strip()
     if not place:
         return []
-    seg = next((s for s in segments if s), "")
-    qs = [{"id": "best", "kind": "generic", "text": f"What are the best hotels in {place}?"}]
-    if seg:
-        qs.append({"id": "segment", "kind": "generic", "text": f"Which hotels in {place} would you recommend for {seg.lower()}?"})
-    qs.append({"id": "where", "kind": "generic", "text": f"Where should I stay in {place}? I want somewhere comfortable and well located."})
-    qs.append({"id": "about", "kind": "direct", "text": f"Tell me about {hotel} in {place}. What is it like, and is it a good choice?"})
-    seen, out = set(), []
-    for q in qs:
-        if q["id"] not in seen:
-            seen.add(q["id"])
-            out.append(q)
-    # keep the direct question whatever the cap, drop generic ones from the end first
-    direct = [q for q in out if q["kind"] == "direct"]
-    generic = [q for q in out if q["kind"] == "generic"][: max(0, max_questions - len(direct))]
-    return generic + direct
+    segs = [x for x in segments if x][:2]
+    generic = [{"id": "best", "kind": "generic", "text": f"What are the best hotels in {place}?"},
+               {"id": "where", "kind": "generic", "text": f"Where should I stay in {place}? I want somewhere comfortable and well located."},
+               {"id": "value", "kind": "generic", "text": f"Which hotels in {place} offer good value for money?"},
+               {"id": "transport", "kind": "generic", "text": f"Which hotels in {place} are best for getting around, close to the station or airport?"}]
+    for i, sg in enumerate(segs):
+        generic.insert(1 + i, {"id": f"segment{i}", "kind": "generic", "text": f"Which hotels in {place} would you recommend for {sg.lower()}?"})
+    direct = [{"id": "about", "kind": "direct", "text": f"Tell me about {hotel} in {place}. What is it like, and is it a good choice?"},
+              {"id": "facilities", "kind": "direct", "text": f"What facilities does {hotel} in {place} have, and what is it known for?"},
+              {"id": "reviews", "kind": "direct", "text": f"What do guests say about {hotel} in {place}? What do they like, and what do they complain about?"},
+              {"id": "similar", "kind": "direct", "text": f"Which hotels in {place} are similar to {hotel}, and how do they compare?"}]
+    # the direct questions are the point of the exercise: keep as many as fit, then fill the rest with generic ones in order
+    room = max(0, max_questions - len(direct))
+    if room == 0:
+        return direct[:max_questions]
+    return generic[:room] + direct
 
 
 # ------------------------------------------------------------------ analysis
@@ -93,9 +98,13 @@ def mentioned(text, hotel, city=""):
         return False
     if len(core) >= 2:
         return (h in t) or (" ".join(core) in t)
+    if h != core[0]:
+        # "Brooklands Hotel": the distinctive word alone is also a museum and a racetrack, so it must appear AS a hotel
+        return (h in t) or re.search(r"\b" + re.escape(core[0]) + r"\s+(?:hotel|spa|resort|inn|suites)\b", t) is not None
+    # a bare one-word name: only with the town in the same sentence
     place = evidence.fold((city or "").split(",")[0]).strip()
     sentences = re.split(r"(?<=[.!?\n])\s+", t)
-    return any(core[0] in s and (not place or place in s or "hotel" in s) for s in sentences)
+    return any(core[0] in s and bool(place) and place in s for s in sentences)
 
 
 def list_position(text, hotel):
@@ -171,8 +180,8 @@ def budget_exhausted():
 
 # ---------------------------------------------------------------------- run
 
-def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", budget_usd=0.30, client=None, progress=None,
-        max_questions=MAX_QUESTIONS):
+def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", budget_usd=0.80, client=None, progress=None,
+        max_questions=MAX_QUESTIONS, workers=WORKERS):
     """Ask the questions. `client` is injectable for tests; otherwise the official SDK is created from `api_key`."""
     def say(m):
         if progress:
@@ -190,12 +199,20 @@ def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", bu
         except Exception as e:  # noqa: BLE001
             return _envelope("unavailable", f"The Anthropic library could not be started ({type(e).__name__}), so this was not run.")
 
-    items, spent, why = [], 0.0, ""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
     own = _host(own_domain)
-    for q in build_questions(hotel, city, segments, max_questions):
-        if spent >= budget_usd:
-            why = "Stopped early to stay within the per-audit budget."
-            break
+    qs = build_questions(hotel, city, segments, max_questions)
+    lock = threading.Lock()
+    state = {"spent": 0.0, "why": "", "stop": False}
+
+    def ask(q):
+        with lock:
+            if state["stop"]:
+                return None
+            if state["spent"] >= budget_usd:
+                state["why"] = state["why"] or "Stopped early to stay within the per-audit budget."
+                return None
         say(f"Asking an AI assistant: {q['text']}")
         try:
             extra = {"output_config": {"effort": "low"}} if model in EFFORT_MODELS else {}       # older models reject the effort setting
@@ -203,28 +220,36 @@ def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", bu
                 model=model, max_tokens=MAX_TOKENS, system=SYSTEM, tools=[dict(SEARCH_TOOL)],
                 messages=[{"role": "user", "content": q["text"]}], **extra)
         except Exception as e:  # noqa: BLE001 - never fail the audit
-            why = _reason_for(e)
-            break
+            with lock:
+                state["why"] = state["why"] or _reason_for(e)
+                state["stop"] = True
+            return None
         answer, domains, searches, tin, tout = parse_response(resp)
         c = cost_usd(model, tin, tout, searches)
-        spent += c
+        with lock:
+            state["spent"] += c
         if not answer:
-            items.append({**q, "answer": "", "mentioned": None, "position": None, "domains": domains, "searches": searches, "cost_usd": c,
-                          "note": "The assistant returned no answer text."})
-            continue
-        items.append({**q, "answer": answer, "mentioned": mentioned(answer, hotel, city), "position": list_position(answer, hotel),
-                      "domains": domains, "searches": searches, "cost_usd": c,
-                      "own_site_cited": bool(own and any(d == own or d.endswith("." + own) for d in domains))})
+            return {**q, "answer": "", "mentioned": None, "position": None, "domains": domains, "searches": searches, "cost_usd": c,
+                    "note": "The assistant returned no answer text."}
+        return {**q, "answer": answer, "mentioned": mentioned(answer, hotel, city), "position": list_position(answer, hotel),
+                "domains": domains, "searches": searches, "cost_usd": c,
+                "own_site_cited": bool(own and any(d == own or d.endswith("." + own) for d in domains))}
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:      # a few at a time: faster, still gentle on the rate limit
+        items = [r for r in ex.map(ask, qs) if r]
+    spent, why = state["spent"], state["why"]
     if not items:
         return _envelope("unavailable", why or "No question could be asked.", model=model, cost_usd=round(spent, 5))
     generic = [i for i in items if i["kind"] == "generic" and i["mentioned"] is not None]
-    direct = next((i for i in items if i["kind"] == "direct"), None)
+    directs = [i for i in items if i["kind"] == "direct" and i["mentioned"] is not None]
+    direct = next((i for i in items if i["id"] == "about"), None) or (directs[0] if directs else None)
     cited = {}
     for i in items:
         for d in i["domains"]:
             cited[d] = cited.get(d, 0) + 1
     summary = {"asked": len(items), "generic_asked": len(generic), "generic_named": sum(1 for i in generic if i["mentioned"]),
                "direct_known": None if not direct else bool(direct["mentioned"]),
+               "direct_asked": len(directs), "direct_named": sum(1 for i in directs if i["mentioned"]),
                "own_site_cited": any(i.get("own_site_cited") for i in items),
                "top_domains": [d for d, _ in sorted(cited.items(), key=lambda kv: (-kv[1], kv[0]))[:8]]}
     return _envelope("ok", why, model=model, items=items, summary=summary, cost_usd=round(spent, 5), partial=bool(why),

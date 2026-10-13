@@ -110,11 +110,12 @@ secret; without one it says it wasn't measured. None of this shows what any AI a
 hotel, and presence in Common Crawl is not evidence that any model knows or recommends it.
 
 **Sampled AI answers (optional, uses the operator's free Anthropic credit).** `ai_sample.py` asks one Claude
-model (default `claude-haiku-5-5`, overridable with an `ANTHROPIC_MODEL` secret) three or four ordinary
-traveller questions with web search switched on, then records whether the hotel is named, what the model says
+model (default `claude-haiku-5-5`, overridable with an `ANTHROPIC_MODEL` secret) about eight ordinary
+traveller questions (where to stay, value, getting around, plus what it is, its facilities, what guests say and
+which hotels are similar) with web search switched on (up to three searches each), then records whether the hotel is named, what the model says
 when asked about the hotel directly, and which sites it relied on. It is shown as a labelled **sample**: one
 model on one day, never a score or a ranking, and it adds at most one low-priority opportunity to the plan.
-Cost is estimated from the usage the API reports (about $0.10 an audit); a monthly estimate guard
+Cost is estimated from the usage the API reports (a few tens of cents an audit); a monthly estimate guard
 (`store.SERVICE_CAPS["claude"]`) stops calls when it is reached, and the workspace spend limit in the Anthropic
 Console is the hard stop. Without an `ANTHROPIC_API_KEY` secret the section says it was not run.
 

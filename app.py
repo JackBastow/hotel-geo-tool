@@ -130,7 +130,7 @@ PAGESPEED_KEY = _operator_secret("PAGESPEED_API_KEY")
 # ceiling in store.SERVICE_CAPS["claude"], that section says it wasn't run. ANTHROPIC_MODEL (optional) overrides the cheap default.
 ANTHROPIC_KEY = _operator_secret("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = _operator_secret("ANTHROPIC_MODEL")
-CLAUDE_MILLIDOLLARS_PER_AUDIT = 300       # what one audit's sample is budgeted at ($0.30); the module's own per-audit ceiling matches
+CLAUDE_MILLIDOLLARS_PER_AUDIT = 800       # what one audit's sample is budgeted at ($0.80); the module's own per-audit ceiling matches
 
 # A full audit runs about a dozen Tavily searches (see collect.search_plan).
 TAVILY_CREDITS_PER_AUDIT = 12
