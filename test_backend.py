@@ -85,6 +85,38 @@ check("usage by month counts runs, hotels and estimated cost", st.usage_by_month
       and st.usage_by_month()[1]["month"] == "2026-10")
 check("the city list feeds the filters", st.cities() == ["Luxembourg", "Weybridge"])
 
+print("3b. coverage, sentiment, brand ranking over time, pages, and upgrading an older database")
+check("the run row carries coverage %, net sentiment, the place in the brand ranking and the repeats", (s["ai_coverage_pct"], s["ai_sentiment"], s["ai_place"], s["ai_repeats"]) == (50, 100, 2, 1),
+      (s["ai_coverage_pct"], s["ai_sentiment"], s["ai_place"], s["ai_repeats"]))
+allrows = [c for c in comps if c["kind"] == "all"]
+check("every hotel named, answers combined, is stored with coverage %, sentiment and counts (kind 'all')", allrows and all("coverage_pct" in c for c in allrows)
+      and any(c["is_target"] and c["coverage_pct"] == 50 and c["sentiment"] == 100 for c in allrows))
+check("the exact pages are stored per run", backend.pages(REP) and backend.pages(REP)[0]["url"].startswith("https://www.booking.com/") and backend.pages(REP)[0]["cited"] == 2)
+ch = st.competitor_history("brooklandshotelsurrey.com")
+check("competitors over time: the hotel first, then the rivals named most, one point per run in date order", len(ch["runs"]) == 2 and ch["rows"][0]["is_target"] and ch["rows"][1]["name"] == "Oatlands Park Hotel"
+      and all(len(r["points"]) == 2 for r in ch["rows"]) and ch["rows"][0]["points"][0]["coverage_pct"] == 50, [r["name"] for r in ch["rows"]])
+check("a hotel with no runs has an empty history, never an error", st.competitor_history("nope.example") == {"runs": [], "rows": []})
+check("the pages the assistant used most, summed across audits and narrowed by city",
+      st.pages()[0]["cited"] >= 2 and st.pages()[0]["runs"] == 3 and all(p_["runs"] == 1 for p_ in st.pages(city="Luxembourg")))
+import sqlite3 as _sq
+OLD = os.path.join(tempfile.gettempdir(), "hotel_backend_v1.db")
+if os.path.exists(OLD):
+    os.remove(OLD)
+cx = _sq.connect(OLD)
+cx.execute("CREATE TABLE runs (id INTEGER PRIMARY KEY AUTOINCREMENT, run_at TEXT, hotel TEXT, hotel_key TEXT, city TEXT, ai_share INTEGER, report_json TEXT)")
+cx.execute("CREATE TABLE ai_competitors (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id INTEGER, kind TEXT, competitor TEXT, is_target INTEGER, mentions INTEGER, asked INTEGER, avg_rank REAL)")
+cx.execute("INSERT INTO runs (run_at, hotel, hotel_key, city, ai_share, report_json) VALUES ('2026-09-01', 'Old Hotel', 'old.com', 'Rome', 12, '{}')")
+cx.commit()
+cx.close()
+old = backend.open_store("sqlite:///" + OLD.replace("\\", "/"))
+check("a database made before these columns existed is upgraded in place, keeping its rows", old.count() == 1 and old.list_runs()[0]["hotel"] == "Old Hotel" and old.list_runs()[0]["ai_share"] == 12
+      and old.list_runs()[0]["ai_coverage_pct"] is None)
+rid_old = old.save_run(REP)
+check("and new runs then save into it with the new numbers, and the old row is untouched", old.get_report(rid_old)["meta"]["hotel"] == "Brooklands Hotel" and old.competitor_history("brooklandshotelsurrey.com")["rows"]
+      and old.pages()[0]["cited"] == 2 and old.list_runs(city="rome")[0]["ai_coverage_pct"] is None)
+backend.open_store("sqlite:///" + OLD.replace("\\", "/"))
+check("opening it again is harmless (the upgrade runs once, quietly)", old.count() == 2)
+
 print("4. export")
 rows = st.export_rows()
 csv_text = backend.to_csv(rows)

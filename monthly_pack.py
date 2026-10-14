@@ -22,6 +22,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from ai_insights import sentiment_label
+
 CATEGORY_ORDER = [("ai_visibility", "AI Visibility"), ("otas", "OTAs & Travel Platforms"), ("reviews", "Reviews & Reputation"), ("editorial", "Editorial & Blogs"),
                   ("website", "Website & Technical"), ("social", "Social & UGC"), ("entity", "Entity Consistency"), ("freshness", "Freshness")]
 MEASURE_ORDER = [("discoverability", "Discoverability"), ("intent", "Traveller-intent coverage"), ("entity", "Entity clarity"), ("technical", "Technical accessibility"),
@@ -37,7 +39,9 @@ README = [
     ("Metrics: the same numbers, one row per hotel/run/metric. Best for pivot tables and dashboards.", False),
     ("Scores and why: every score with its status, how strong the evidence behind it is (high / medium / low) and a brief reason.", False),
     ("AI rankings: for each question put to the AI assistant, whether the hotel was named, its position in the list, and the hotels named instead.", False),
+    ("AI brand ranking: for each audit, every hotel the assistant named across all its answers with coverage %, average position and net sentiment; 'Place in top table' is filled for the hotel and the five named most. One row per hotel per run, so it pivots by month into a competitors-over-time view.", False),
     ("AI competitors: the hotels the assistant named most, for each audited hotel, separately for town-wide and niche-market questions.", False),
+    ("AI citations: the exact pages the assistant cited or searched, how many times, and whether the page title or quoted passage names the hotel or a competitor.", False),
     ("AI why: hypotheses for why a hotel may not have been named. They are hypotheses to check, not causes.", False),
     ("Top 3 actions: the three most worthwhile things for each hotel, with why it matters and what to do.", False),
     ("Sources: the websites the assistant relied on and whether the hotel was found on each.", False),
@@ -47,6 +51,9 @@ README = [
     ("AI visibility figures come from a SAMPLE: one AI model (with web search) asked a handful of ordinary traveller questions on one day. Answers change between runs and between assistants. Look for a sustained move over several months, not a single reading.", False),
     ("'Town-wide' questions ask for hotels in the whole town. 'Niche market' questions are narrower (near an airport, in a district, at a price level, for a feature the hotel is known for) and are written from facts the audit holds about the hotel.", False),
     ("'Share of hotel names %' is the hotel's part of all the hotel names the assistant gave across the town-wide questions.", False),
+    ("'Coverage %' is the share of ALL the answers (town-wide and niche) that named the hotel. Town-wide and niche questions are each asked more than once, so one odd answer does not decide it; the 'Answers asked' column says how many.", False),
+    ("'Net sentiment' is % positive minus % negative among the answers that named the hotel (-100 to +100), an AI's reading of how each answer spoke of it. Blank when the hotel was never named.", False),
+    ("In AI citations, 'not seen' means the page title and the short passage the assistant quoted do not name the hotel; we do not read those pages, so it is not a statement that the page leaves the hotel out.", False),
     ("Reviews figures are replies SEEN on reviews EXAMINED in public search results: a small sample, not the hotel's reply rate.", False),
     ("Blank cells mean not assessed or not available, never zero.", False),
 ]
@@ -115,6 +122,8 @@ def run_facts(row, rep, prev):
         "cats": {k: (cats[k].get("score") if k in cats and cats[k].get("assessed") else None) for k, _ in CATEGORY_ORDER},
         "town_named": s.get("generic_named"), "town_asked": s.get("generic_asked"), "town_pct": _pct(s.get("generic_named"), s.get("generic_asked")),
         "niche_named": s.get("niche_named"), "niche_asked": s.get("niche_asked"), "niche_pct": _pct(s.get("niche_named"), s.get("niche_asked")),
+        "cov_ai": sb.get("coverage_pct"), "sentiment": sb.get("sentiment"), "brand_place": sb.get("place"), "answers": sb.get("asked_all") or s.get("asked"),
+        "repeats": sb.get("repeats") or s.get("repeats"),
         "share": _num(sb.get("share")), "place": sb.get("rank_in_table"), "table_size": sb.get("table_size"), "top_competitor": sb.get("top_competitor") or "",
         "known": None if s.get("direct_known") is None else bool(s.get("direct_known")), "own_cited": None if not s else bool(s.get("own_site_cited")),
         "rv_examined": rv.get("examined"), "rv_replied": rv.get("replied"), "rv_neg": rv.get("negative_examined"), "rv_neg_replied": rv.get("negative_replied"),
@@ -126,6 +135,7 @@ def run_facts(row, rep, prev):
     if prev:
         f.update(prev_date=str(prev["run_at"])[:10], d_readiness=_delta(row.get("headline_score"), prev.get("headline_score")),
                  d_share=_delta(row.get("ai_share"), prev.get("ai_share")),
+                 d_cov=_delta(row.get("ai_coverage_pct"), prev.get("ai_coverage_pct"), 0), d_sent=_delta(row.get("ai_sentiment"), prev.get("ai_sentiment"), 0),
                  d_town=_delta(_pct(row.get("ai_generic_named"), row.get("ai_generic_asked")), _pct(prev.get("ai_generic_named"), prev.get("ai_generic_asked")), 0),
                  d_niche=_delta(_pct(row.get("ai_niche_named"), row.get("ai_niche_asked")), _pct(prev.get("ai_niche_named"), prev.get("ai_niche_asked")), 0))
         pc = {}
@@ -136,7 +146,7 @@ def run_facts(row, rep, prev):
             pass
         f["d_ai_score"] = _delta(f["cats"].get("ai_visibility"), pc.get("ai_visibility"), 0)
     else:
-        f.update(prev_date=None, d_readiness=None, d_share=None, d_town=None, d_niche=None, d_ai_score=None)
+        f.update(prev_date=None, d_readiness=None, d_share=None, d_cov=None, d_sent=None, d_town=None, d_niche=None, d_ai_score=None)
     return f
 
 
@@ -210,17 +220,17 @@ def build_workbook(runs, all_rows=None):
     cat_heads = [f"{label} (score)" for _, label in CATEGORY_ORDER]
     heads = (["Month", "Run id", "Run date", "Hotel", "City", "Website", "Latest in month", "Readiness (0-100)", "Headline", "Coverage %", "Pages read", "Read via"] + cat_heads +
              ["Named, town-wide", "Asked, town-wide", "Named % town-wide", "Named, niche", "Asked, niche", "Named % niche", "Share of hotel names %", "Place in competitor table",
-              "Hotels in table", "Top competitor", "Known when asked directly", "Own site cited", "Reviews examined", "Hotel replied", "Critical reviews examined",
+              "Hotels in table", "Top competitor", "Coverage % (all answers)", "Net sentiment", "Place in brand ranking", "Answers asked", "Repeats per question", "Known when asked directly", "Own site cited", "Reviews examined", "Hotel replied", "Critical reviews examined",
               "Critical replied", "Mobile speed", "Accessibility", "Recommendations in plan", "Top action 1", "Top action 2", "Top action 3", "AI cost $",
-              "Previous run", "Readiness change", "AI Visibility score change", "Share of names change (pts)", "Named % town-wide change", "Named % niche change"])
+              "Previous run", "Readiness change", "AI Visibility score change", "Share of names change (pts)", "Named % town-wide change", "Named % niche change", "Coverage change (pts)", "Net sentiment change"])
     rows = []
     for f in facts:
         a = f["acts"] + [None] * (3 - len(f["acts"]))
         rows.append([f["month"], f["run_id"], f["run_at"], f["hotel"], f["city"], f["website"], _yn(f["latest"]), f["readiness"], f["status"], f["coverage"], f["pages"], f["read_via"]]
                     + [f["cats"][k] for k, _ in CATEGORY_ORDER] +
                     [f["town_named"], f["town_asked"], f["town_pct"], f["niche_named"], f["niche_asked"], f["niche_pct"], f["share"], f["place"], f["table_size"],
-                     f["top_competitor"], _yn(f["known"]), _yn(f["own_cited"]), f["rv_examined"], f["rv_replied"], f["rv_neg"], f["rv_neg_replied"], f["speed"], f["a11y"],
-                     f["recs"], a[0], a[1], a[2], f["cost"], f["prev_date"], f["d_readiness"], f["d_ai_score"], f["d_share"], f["d_town"], f["d_niche"]])
+                     f["top_competitor"], f["cov_ai"], f["sentiment"], f["brand_place"], f["answers"], f["repeats"], _yn(f["known"]), _yn(f["own_cited"]), f["rv_examined"], f["rv_replied"], f["rv_neg"], f["rv_neg_replied"], f["speed"], f["a11y"],
+                     f["recs"], a[0], a[1], a[2], f["cost"], f["prev_date"], f["d_readiness"], f["d_ai_score"], f["d_share"], f["d_town"], f["d_niche"], f["d_cov"], f["d_sent"]])
     _sheet(wb, "Hotels", heads, rows, {"Hotel": 30, "Website": 32, "Top action 1": 48, "Top action 2": 48, "Top action 3": 48, "Top competitor": 28, "Run date": 17}, wrap=("Top action 1", "Top action 2", "Top action 3"))
 
     # ---- Metrics (tidy)
@@ -241,6 +251,9 @@ def build_workbook(runs, all_rows=None):
         metric(f, "AI visibility", "Named % niche markets", f["niche_pct"], "%")
         metric(f, "AI visibility", "Share of hotel names", f["share"], "%")
         metric(f, "AI visibility", "Place in competitor table", f["place"], "rank")
+        metric(f, "AI visibility", "Coverage % all answers", f["cov_ai"], "%")
+        metric(f, "AI visibility", "Net sentiment", f["sentiment"], "-100 to +100")
+        metric(f, "AI visibility", "Place in brand ranking", f["brand_place"], "rank")
         metric(f, "AI visibility", "Known when asked directly", None if f["known"] is None else int(f["known"]), "0/1")
         metric(f, "AI visibility", "Own site cited", None if f["own_cited"] is None else int(f["own_cited"]), "0/1")
         metric(f, "Reviews", "Reviews examined", f["rv_examined"], "count")
@@ -280,10 +293,24 @@ def build_workbook(runs, all_rows=None):
                                          "angle": i.get("angle"), "why": i.get("why"), "hotels_named": []} for i in ai.get("items", [])]
         for q in matrix:
             named = q.get("hotel_named") if q["kind"] != "direct" else None
+            of = q.get("of")
             rk.append([f["month"], f["run_id"], f["hotel"], f["city"], KIND_LABEL.get(q["kind"], q["kind"]), q.get("angle") or "", q["question"], _clip(q.get("why"), 200),
-                       _yn(named), q.get("position"), ", ".join(q.get("hotels_named") or [])])
-    _sheet(wb, "AI rankings", ["Month", "Run id", "Hotel", "City", "Question type", "Market", "Question asked", "Why we asked it", "Hotel named", "Position in list", "Hotels named"],
-           rk, {"Hotel": 30, "Question asked": 60, "Why we asked it": 50, "Hotels named": 60, "Question type": 16}, wrap=("Question asked", "Why we asked it", "Hotels named"))
+                       _yn(named), (f"{q['named']} of {of}" if of and q["kind"] != "direct" else None), q.get("position"), ", ".join(q.get("hotels_named") or [])])
+    _sheet(wb, "AI rankings", ["Month", "Run id", "Hotel", "City", "Question type", "Market", "Question asked", "Why we asked it", "Hotel named", "Named in answers", "Position in list", "Hotels named"],
+           rk, {"Hotel": 30, "Question asked": 60, "Why we asked it": 50, "Hotels named": 60, "Question type": 16, "Named in answers": 16}, wrap=("Question asked", "Why we asked it", "Hotels named"))
+
+    # ---- AI brand ranking (long form: one row per hotel per run)
+    bk = []
+    for f in facts:
+        br = (f["rep"].get("ai_insights") or {}).get("brand_ranking") or {}
+        top_names = {r["name"]: r.get("place") for r in br.get("rows", [])}
+        for r in (br.get("all") or br.get("rows") or [])[:25]:
+            bk.append([f["month"], f["run_id"], f["hotel"], f["city"], ("THIS HOTEL: " if r.get("is_target") else "") + r["name"], _yn(bool(r.get("is_target"))), top_names.get(r["name"]),
+                       r.get("mentions"), r.get("of"), r.get("coverage_pct"), r.get("avg_rank"), r.get("sentiment"), sentiment_label(r.get("sentiment")),
+                       r.get("positive"), r.get("neutral"), r.get("negative")])
+    _sheet(wb, "AI brand ranking", ["Month", "Run id", "Hotel", "City", "Hotel named by the assistant", "This hotel", "Place in top table", "Named in answers", "Of answers", "Coverage %",
+                                    "Average position", "Net sentiment", "Sentiment", "Positive", "Neutral", "Negative"],
+           bk, {"Hotel": 30, "Hotel named by the assistant": 36, "Place in top table": 12})
 
     # ---- AI competitors
     cp = []
@@ -295,6 +322,15 @@ def build_workbook(runs, all_rows=None):
                            r.get("avg_rank"), _clip("; ".join(r.get("reasons") or []), 200)])
     _sheet(wb, "AI competitors", ["Month", "Run id", "Hotel", "City", "List", "Hotel named by the assistant", "Named in", "Of questions", "Share of names %", "Average position", "Reason given"],
            cp, {"Hotel": 30, "Hotel named by the assistant": 36, "Reason given": 60}, wrap=("Reason given",))
+
+    # ---- AI citations (pages)
+    ct = []
+    for f in facts:
+        for x in ((f["rep"].get("ai_insights") or {}).get("pages") or [])[:25]:
+            ct.append([f["month"], f["run_id"], f["hotel"], f["city"], x["url"], x["domain"], _clip(x.get("title"), 120), x.get("cited"), x.get("questions"),
+                       "Yes" if x.get("names_hotel") else "Not seen", x.get("names_competitor") or "Not seen", _yn(bool(x.get("own_site"))), _clip(x.get("passage"), 200)])
+    _sheet(wb, "AI citations", ["Month", "Run id", "Hotel", "City", "Page", "Site", "Title", "Times cited", "Used in questions", "Names the hotel", "Names a competitor", "Own site",
+                                "Passage the assistant quoted"], ct, {"Hotel": 30, "Page": 60, "Site": 24, "Title": 40, "Passage the assistant quoted": 60}, wrap=("Passage the assistant quoted",))
 
     # ---- AI why
     wy = []

@@ -143,6 +143,17 @@ low-priority recommendations can follow (a statement that differs from the hotel
 hotel). The Tools-tab comparison also shows this month's sample against last month's. Only Claude is asked; other
 assistants (ChatGPT, Gemini, Perplexity, Google AI Overviews) are not.
 
+**Brand ranking, sentiment, repeated questions and cited pages (the Otterly-style view).** Each town-wide and niche question is
+asked **twice** by default (`ANTHROPIC_REPEATS` secret, 1-3), so one odd answer does not decide the result; questions about the
+hotel itself are asked once. **Coverage %** is the share of all answers that named the hotel; the **brand ranking** shows the
+hotel and the five hotels named most, each with coverage %, average position and **net sentiment** (% positive minus % negative
+across the answers that named it, -100 to +100, an AI's reading of how each answer spoke of that hotel, "not judged" when the
+hotel was never named). The "question by question" table shows "named in 1 of 2 answers". **Cited pages**: every answer keeps the exact
+pages the search returned and the ones the answer cited (with the short passage it used); the "exact pages" table lists them most
+cited first, with whether the page title or the quoted passage names the hotel or a competitor. We do not read those pages, so
+"not seen" means not visible in what we hold, and the report says so. Every figure is a count over this one sample, not a market ranking.
+Extraction now runs in batches of eight answers. Cost is about $0.55-0.60 an audit with two repeats.
+
 **Reviews and replies snapshot (optional, same Anthropic credit).** `review_replies.py` asks the model to look at
 the review pages that appear in public search results and report ratings, review counts and, above all, whether
 the hotel replied to each review it could see, by which role, in what tone, with a paraphrase. A model can invent,
@@ -169,17 +180,18 @@ and anything that needs a billing account or breaks a platform's terms.
 Set a `DATABASE_URL` secret (a Postgres connection string; Neon's free plan needs no card) and **every** finished audit is
 saved: there is no visitor opt-out, and the page tells visitors plainly that runs are saved by the operator and not shown to
 other visitors. `backend.py` keeps one row per run (the headline, every category score, the AI-visibility, niche-market,
-review-reply and speed numbers, cost, and the full report as JSON) plus two market tables (which hotels the assistant named,
-which sites it relied on). Open the app with `?admin=1` and the `ADMIN_PASSWORD` secret to get `ui_admin.py`: Overview, Runs
+review-reply and speed numbers, coverage % and net sentiment, cost, and the full report as JSON) plus market tables (which hotels the assistant named, with
+coverage and sentiment, run by run; which sites and which exact pages it relied on). An older database is upgraded in place when the app first opens it. Open the app with `?admin=1` and the `ADMIN_PASSWORD` secret to get `ui_admin.py`: Overview, Runs
 (filter, reopen, rebuild PDFs, delete), Hotels (one row per hotel with the change since its last run, history charts), Markets
-(who the assistant names most and which sites it relies on, across every hotel or one city), Usage, and Export.
+(who the assistant names most, the exact pages and sites it relies on, across every hotel or one city), Usage, and Export. A hotel's history also charts the
+coverage of the hotel and its top five rivals over time.
 
 **The monthly pack (`monthly_pack.py`).** Export > Monthly pack builds one Excel workbook for a month (or a range of months):
 *Hotels* (one row per audit: readiness, all eight category scores, AI visibility town-wide and in niche markets, share of
 hotel names, place in the competitor table, reviews replied, speed, the top 3 actions, and the change since the hotel's latest
 run in an earlier month), *Metrics* (the same numbers in tidy form, one row per hotel/run/metric, for dashboards and pivots),
-*Scores and why* (every score with its status, evidence strength and a brief reason), *AI rankings* (question by question: named?
-where in the list? who was named instead), *AI competitors*, *AI why* (hypotheses), *Top 3 actions* and *Sources*, plus a *Read me*
+*Scores and why* (every score with its status, evidence strength and a brief reason), *AI rankings* (question by question: named in how many answers? where in the list? who was named instead), *AI brand ranking* (every hotel named in
+each run with coverage %, position and net sentiment; pivot it by month for competitors over time), *AI competitors*, *AI citations* (the exact pages), *AI why* (hypotheses), *Top 3 actions* and *Sources*, plus a *Read me*
 with the caveats (a sample of one model, readiness is an indicator, blank means not assessed). With no `DATABASE_URL` nothing is
 saved and the admin page says so. SQLite (`sqlite:///file.db`) works for development and tests but is not durable on Streamlit
 Community Cloud, whose disk is wiped.

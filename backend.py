@@ -13,6 +13,7 @@ Tables
                  numbers, cost, and the full report as JSON (so any run can be re-opened, compared or turned back into a PDF)
   ai_competitors one row per hotel the assistant named, per run and per kind (generic / niche): the market-level data
   ai_sources     one row per site the assistant used, per run: which sites AI leans on in a market
+  ai_pages       one row per exact page the assistant cited or searched, per run (which name the hotel, which a competitor)
 
 The summary columns exist so questions can be answered with a plain query (or a spreadsheet) without opening the JSON.
 """
@@ -24,12 +25,12 @@ import re
 import sqlite3
 import urllib.parse
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 RUN_COLS = [
     "run_at", "hotel", "hotel_key", "city", "website", "domain", "hotel_name_source", "headline_status", "headline_score", "coverage_pct",
     "read_via", "pages_read", "pages_attempted", "cat_scores", "ai_status", "ai_model", "ai_generic_named", "ai_generic_asked", "ai_niche_named",
-    "ai_niche_asked", "ai_direct_known", "ai_share", "ai_rank_in_table", "ai_table_size", "ai_top_competitor", "reviews_status", "reviews_examined",
+    "ai_niche_asked", "ai_direct_known", "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_place", "ai_repeats", "ai_rank_in_table", "ai_table_size", "ai_top_competitor", "reviews_status", "reviews_examined",
     "reviews_replied", "reviews_neg_examined", "reviews_neg_replied", "pagespeed_perf", "pagespeed_a11y", "commoncrawl_state", "recs_total",
     "top_actions", "ai_cost_usd", "schema_version",
 ]
@@ -83,7 +84,8 @@ def summarise(rep):
         "ai_status": ai.get("status") or "", "ai_model": ai.get("model") or "", "ai_generic_named": s.get("generic_named"), "ai_generic_asked": s.get("generic_asked"),
         "ai_niche_named": s.get("niche_named"), "ai_niche_asked": s.get("niche_asked"),
         "ai_direct_known": None if s.get("direct_known") is None else int(bool(s.get("direct_known"))),
-        "ai_share": sb.get("share"), "ai_rank_in_table": sb.get("rank_in_table"), "ai_table_size": sb.get("table_size"), "ai_top_competitor": sb.get("top_competitor") or "",
+        "ai_share": sb.get("share"), "ai_coverage_pct": sb.get("coverage_pct"), "ai_sentiment": sb.get("sentiment"), "ai_place": sb.get("place"),
+        "ai_repeats": sb.get("repeats") or s.get("repeats"), "ai_rank_in_table": sb.get("rank_in_table"), "ai_table_size": sb.get("table_size"), "ai_top_competitor": sb.get("top_competitor") or "",
         "reviews_status": rv.get("status") or "", "reviews_examined": rs.get("examined"), "reviews_replied": rs.get("replied"),
         "reviews_neg_examined": rs.get("negative_examined"), "reviews_neg_replied": rs.get("negative_replied"),
         "pagespeed_perf": ps.get("performance"), "pagespeed_a11y": ps.get("accessibility"), "commoncrawl_state": (web.get("commoncrawl") or {}).get("state") or "",
@@ -100,9 +102,19 @@ def children(rep):
         for r in (lb or {}).get("rows", []):
             comps.append({"kind": kind, "competitor": r["name"][:120], "is_target": int(bool(r.get("is_target"))), "mentions": r["mentions"], "asked": r["of"],
                           "avg_rank": r.get("avg_rank")})
+    for r in (ins.get("brand_ranking") or {}).get("all", []):                     # every hotel named, answers combined: the dashboard's over-time view
+        comps.append({"kind": "all", "competitor": r["name"][:120], "is_target": int(bool(r.get("is_target"))), "mentions": r["mentions"], "asked": r["of"], "avg_rank": r.get("avg_rank"),
+                      "coverage_pct": r.get("coverage_pct"), "sentiment": r.get("sentiment"), "positive": r.get("positive"), "negative": r.get("negative")})
     srcs = [{"domain": x["domain"][:120], "source_kind": x["kind"], "answers": x["answers"],
              "hotel_evidenced": None if x["hotel_evidenced"] is None else int(bool(x["hotel_evidenced"]))} for x in ins.get("sources", [])]
     return comps, srcs
+
+
+def pages(rep):
+    """Rows for ai_pages: the exact pages behind the assistant's answers."""
+    return [{"url": x["url"][:300], "domain": x["domain"][:120], "title": (x.get("title") or "")[:140], "cited": x.get("cited") or 0, "questions": x.get("questions") or 0,
+             "names_hotel": int(bool(x.get("names_hotel"))), "names_competitor": (x.get("names_competitor") or "")[:120], "own_site": int(bool(x.get("own_site")))}
+            for x in (rep.get("ai_insights") or {}).get("pages", [])]
 
 
 # ------------------------------------------------------------------- the store
@@ -148,6 +160,17 @@ class Store:
         cur = self._run(conn, sql + " RETURNING id", [row[c] for c in cols])
         return cur.fetchone()["id"]
 
+    def _ensure_columns(self, conn, table, cols):
+        """Add columns an older database lacks (existing tables are never rebuilt or emptied). cols: {name: sql type}."""
+        if self.kind == "sqlite":
+            have = {r["name"] for r in self._run(conn, f"PRAGMA table_info({table})").fetchall()}
+            for c, t in cols.items():
+                if c not in have:
+                    self._run(conn, f"ALTER TABLE {table} ADD COLUMN {c} {t}")
+        else:
+            for c, t in cols.items():
+                self._run(conn, f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {c} {t}")
+
     # schema ------------------------------------------------------------------
     def init(self):
         pk = "INTEGER PRIMARY KEY AUTOINCREMENT" if self.kind == "sqlite" else "BIGSERIAL PRIMARY KEY"
@@ -161,8 +184,14 @@ class Store:
             self._run(conn, f"CREATE TABLE IF NOT EXISTS runs (id {pk}, {ddl}, report_json TEXT)")
             self._run(conn, f"CREATE TABLE IF NOT EXISTS ai_competitors (id {pk}, run_id INTEGER, kind TEXT, competitor TEXT, is_target INTEGER, mentions INTEGER, asked INTEGER, avg_rank REAL)")
             self._run(conn, f"CREATE TABLE IF NOT EXISTS ai_sources (id {pk}, run_id INTEGER, domain TEXT, source_kind TEXT, answers INTEGER, hotel_evidenced INTEGER)")
+            self._run(conn, f"CREATE TABLE IF NOT EXISTS ai_pages (id {pk}, run_id INTEGER, url TEXT, domain TEXT, title TEXT, cited INTEGER, questions INTEGER, "
+                            "names_hotel INTEGER, names_competitor TEXT, own_site INTEGER)")
+            self._ensure_columns(conn, "runs", {c: ("TEXT" if c in text_cols else "DOUBLE PRECISION" if (c in real_cols and self.kind != "sqlite") else "REAL" if c in real_cols else "INTEGER")
+                                                for c in RUN_COLS})
+            self._ensure_columns(conn, "ai_competitors", {"coverage_pct": "INTEGER", "sentiment": "INTEGER", "positive": "INTEGER", "negative": "INTEGER"})
             for sql in ("CREATE INDEX IF NOT EXISTS runs_key ON runs (hotel_key, run_at)", "CREATE INDEX IF NOT EXISTS runs_city ON runs (city)",
-                        "CREATE INDEX IF NOT EXISTS comp_run ON ai_competitors (run_id)", "CREATE INDEX IF NOT EXISTS src_run ON ai_sources (run_id)"):
+                        "CREATE INDEX IF NOT EXISTS comp_run ON ai_competitors (run_id)", "CREATE INDEX IF NOT EXISTS src_run ON ai_sources (run_id)",
+                        "CREATE INDEX IF NOT EXISTS page_run ON ai_pages (run_id)"):
                 self._run(conn, sql)
             conn.commit()
         finally:
@@ -181,6 +210,8 @@ class Store:
                 self._insert(conn, "ai_competitors", {"run_id": rid, **c})
             for s in srcs:
                 self._insert(conn, "ai_sources", {"run_id": rid, **s})
+            for pg in pages(rep):
+                self._insert(conn, "ai_pages", {"run_id": rid, **pg})
             conn.commit()
             return rid
         finally:
@@ -189,7 +220,7 @@ class Store:
     def delete_run(self, run_id):
         conn = self._connect()
         try:
-            for t, col in (("ai_competitors", "run_id"), ("ai_sources", "run_id"), ("runs", "id")):
+            for t, col in (("ai_competitors", "run_id"), ("ai_sources", "run_id"), ("ai_pages", "run_id"), ("runs", "id")):
                 self._run(conn, f"DELETE FROM {t} WHERE {col} = ?", (run_id,))
             conn.commit()
         finally:
@@ -253,6 +284,44 @@ class Store:
             "SELECT s.domain AS domain, MAX(s.source_kind) AS kind, SUM(s.answers) AS answers, COUNT(DISTINCT s.run_id) AS runs, "
             "SUM(CASE WHEN s.hotel_evidenced = 0 THEN 1 ELSE 0 END) AS hotel_missing, SUM(CASE WHEN s.hotel_evidenced = 1 THEN 1 ELSE 0 END) AS hotel_found "
             "FROM ai_sources s JOIN runs r ON r.id = s.run_id WHERE " + " AND ".join(where) + " GROUP BY s.domain ORDER BY SUM(s.answers) DESC, s.domain LIMIT ?", args + [int(limit)])
+
+    def competitor_history(self, key, top=5):
+        """
+        How the assistant's naming of this hotel and of its competitors moved from run to run: the hotel plus the `top` rivals named most across its runs.
+        -> {"runs": [{run_id, run_at}], "rows": [{name, is_target, points: [{run_id, coverage_pct, sentiment, avg_rank}]}]}. A run where a rival was not named has coverage 0.
+        """
+        runs = self._rows("SELECT id AS run_id, run_at FROM runs WHERE hotel_key = ? ORDER BY run_at ASC, id ASC", (key,))
+        if not runs:
+            return {"runs": [], "rows": []}
+        data = self._rows("SELECT c.run_id AS run_id, c.competitor AS name, c.is_target AS is_target, c.mentions AS mentions, c.coverage_pct AS coverage_pct, c.sentiment AS sentiment, "
+                          "c.avg_rank AS avg_rank FROM ai_competitors c JOIN runs r ON r.id = c.run_id WHERE r.hotel_key = ? AND c.kind = 'all'", (key,))
+        by = {}
+        for d in data:
+            by.setdefault(d["name"], {"name": d["name"], "is_target": bool(d["is_target"]), "total": 0, "at": {}})
+            by[d["name"]]["total"] += d["mentions"] or 0
+            by[d["name"]]["at"][d["run_id"]] = d
+        me = [v for v in by.values() if v["is_target"]]
+        rivals = sorted((v for v in by.values() if not v["is_target"]), key=lambda v: (-v["total"], v["name"]))[:top]
+        rows = []
+        for v in me + rivals:
+            pts = []
+            for r in runs:
+                d = v["at"].get(r["run_id"])
+                pts.append({"run_id": r["run_id"], "coverage_pct": (d["coverage_pct"] if d and d["coverage_pct"] is not None else 0), "sentiment": d["sentiment"] if d else None,
+                            "avg_rank": d["avg_rank"] if d else None})
+            rows.append({"name": v["name"], "is_target": v["is_target"], "points": pts})
+        return {"runs": runs, "rows": rows}
+
+    def pages(self, city=None, limit=40):
+        """The exact pages AI used most across every audit (optionally in one city)."""
+        where, args = ["1=1"], []
+        if city:
+            where.append("LOWER(r.city) = ?")
+            args.append(city.lower())
+        return self._rows(
+            "SELECT p.url AS url, MAX(p.domain) AS domain, MAX(p.title) AS title, SUM(p.cited) AS cited, SUM(p.questions) AS questions, COUNT(DISTINCT p.run_id) AS runs, "
+            "SUM(p.names_hotel) AS names_hotel, MAX(p.names_competitor) AS names_competitor FROM ai_pages p JOIN runs r ON r.id = p.run_id WHERE " + " AND ".join(where)
+            + " GROUP BY p.url ORDER BY SUM(p.cited) DESC, SUM(p.questions) DESC, p.url LIMIT ?", args + [int(limit)])
 
     def cities(self):
         return [r["city"] for r in self._rows("SELECT DISTINCT city FROM runs WHERE city <> '' ORDER BY city")]

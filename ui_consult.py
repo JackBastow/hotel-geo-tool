@@ -8,6 +8,7 @@ page can inject markup or load an image.
 
 import streamlit as st
 
+from ai_insights import sentiment_label
 from ui_intel import df, md_safe, safe_url
 
 PRI_ICON = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "⚪"}
@@ -268,6 +269,26 @@ def _ins_sections(ai, ins):
     if ins.get("status") == "partial":
         st.caption(md_safe(ins.get("reason", "")))
     lb, sb = ins.get("leaderboard"), ins.get("scoreboard")
+    br = ins.get("brand_ranking")
+    if br and br.get("rows"):
+        st.markdown("###### Brand ranking: the hotel and the hotels named most")
+        st.caption("Across every answer in this sample. Coverage is the share of answers that named the hotel; position is where it appeared in the assistant's list; "
+                   "sentiment is the net of positive minus negative mentions (-100 to +100), an AI's reading of how each answer spoke of that hotel. "
+                   "It describes this one sample, not the market.")
+        if sb and sb.get("coverage_pct") is not None:
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Coverage", f"{sb['coverage_pct']}%", help=f"the hotel was named in {sb.get('named', 0) + sb.get('niche_named', 0)} of {sb.get('asked_all', 0)} answers")
+            m2.metric("Sentiment", "-" if sb.get("sentiment") is None else f"{sb['sentiment']:+d}", help="net positive minus negative, where the hotel was named")
+            m3.metric("Your place", f"{sb['place']} of {len(br['rows'])}" if sb.get("place") else "-", help="among the hotel and the top five named")
+        df([{"Place": r["place"], "": "YOU" if r["is_target"] else "", "Hotel": r["name"], "Coverage": f"{r['coverage_pct']}%",
+             "Average position": "-" if r["avg_rank"] is None else r["avg_rank"],
+             "Sentiment": "-" if r["sentiment"] is None else f"{r['sentiment']:+d} ({sentiment_label(r['sentiment'])})",
+             "Positive / neutral / negative": f"{r['positive']} / {r['neutral']} / {r['negative']}"} for r in br["rows"]])
+        try:
+            import pandas as pd
+            st.bar_chart(pd.DataFrame({"Coverage %": [r["coverage_pct"] for r in br["rows"]]}, index=[("→ " if r["is_target"] else "") + r["name"][:34] for r in br["rows"]]))
+        except Exception:  # noqa: BLE001 - a chart is a nicety
+            pass
     if lb and sb:
         st.markdown("###### Who the assistant recommends instead")
         st.caption("Hotels named across the generic 'where to stay' questions, with the reason the assistant gave. Counts are plain arithmetic on this one sample; "
@@ -276,8 +297,9 @@ def _ins_sections(ai, ins):
         c1.metric("Share of the names given", f"{sb['share']}%", help="the hotel's mentions as a share of every hotel mention in the generic answers")
         c2.metric("Your place in that table", f"{sb['rank_in_table']} of {sb['table_size']}")
         c3.metric("Average position when named", "-" if sb["avg_rank"] is None else sb["avg_rank"])
-        df([{"": "YOU" if r["is_target"] else "", "Hotel": r["name"], "Named in": f"{r['mentions']} of {r['of']}", "Share": f"{r['share']}%",
-             "Average position": "-" if r["avg_rank"] is None else r["avg_rank"], "Why the assistant gave it": "; ".join(r["reasons"]) or "-"}
+        df([{"": "YOU" if r["is_target"] else "", "Hotel": r["name"], "Named in": f"{r['mentions']} of {r['of']} answers", "Share": f"{r['share']}%",
+             "Average position": "-" if r["avg_rank"] is None else r["avg_rank"], "Sentiment": "-" if r.get("sentiment") is None else f"{r['sentiment']:+d}",
+             "Why the assistant gave it": "; ".join(r["reasons"]) or "-"}
             for r in lb["rows"][:12]])
         try:
             import pandas as pd
@@ -291,7 +313,8 @@ def _ins_sections(ai, ins):
         st.caption("A hotel is chosen in its own market, not against every hotel in a city. These narrower questions were written from facts this audit holds about the "
                    "hotel (its location, price level, what it is known for). None names the hotel.")
         df([{"Market": m.get("angle") or "-", "Question asked": m["question"], "Why we asked this": m.get("why") or "-",
-             "Hotel named": "yes" if m["hotel_named"] else "no" if m["hotel_named"] is False else "n/a", "Position": m["position"] or "-",
+             "Hotel named": (f"{m['named']} of {m['of']} answers" if m.get("of", 1) > 1 else "yes" if m["hotel_named"] else "no" if m["hotel_named"] is False else "n/a"),
+             "Best position": m["position"] or "-",
              "Hotels it named": ", ".join(m["hotels_named"][:4]) or "-"} for m in nn["questions"]])
         if nn.get("leaderboard"):
             top = [r for r in nn["leaderboard"]["rows"] if not r["is_target"]][:6]
@@ -301,13 +324,26 @@ def _ins_sections(ai, ins):
         st.markdown("**The assistant's view of your competitive set** *(asked which hotels are similar)*: " + ", ".join(md_safe(h["name"]) for h in ins["alternatives"]))
     if ins.get("matrix"):
         st.markdown("###### Question by question")
-        df([{"Question": m["question"], "Hotel named": {True: "yes", False: "no", None: "n/a"}[m["hotel_named"]] if m["kind"] in ("generic", "niche") else "(asked about it)",
-             "Position": m["position"] or "-", "Hotels it named": ", ".join(m["hotels_named"][:4]) or "-"} for m in ins["matrix"]])
+        def named(m):
+            if m["kind"] not in ("generic", "niche"):
+                return "(asked about it)"
+            if m.get("of", 1) > 1:
+                return f"{m['named']} of {m['of']} answers"
+            return {True: "yes", False: "no", None: "n/a"}[m["hotel_named"]]
+        df([{"Question": m["question"], "Hotel named": named(m), "Best position": m["position"] or "-", "Hotels it named": ", ".join(m["hotels_named"][:4]) or "-"}
+            for m in ins["matrix"]])
     if ins.get("sources"):
         st.markdown("###### Where the assistant got its information")
         st.caption("The sites it used, how often, and whether this audit found the hotel there. 'Not found' can also be a search gap.")
         icon = {True: "🟢 found", False: "🔴 not found", None: "⚪ not checked"}
         df([{"Site": s["domain"], "Type": s["kind"], "Used in": f"{s['answers']} answers", "Hotel there?": icon[s["hotel_evidenced"]]} for s in ins["sources"][:12]])
+    if ins.get("pages"):
+        st.markdown("###### The exact pages the assistant used")
+        st.caption("The pages the assistant cited or searched, most cited first. 'Names the hotel' and 'Names a competitor' are judged only from the page title and the short "
+                   "passage the assistant quoted, because we do not read these pages: 'no' means not visible in what we hold, not that the page leaves the hotel out.")
+        df([{"Page": p["url"], "Site": p["domain"], "Title": p["title"] or "-", "Cited": p["cited"], "Used in": f"{p['questions']} question(s)",
+             "Names the hotel": "yes" if p["names_hotel"] else "not seen", "Names a competitor": p["names_competitor"] or "not seen", "Your own site": "yes" if p["own_site"] else ""}
+            for p in ins["pages"][:15]], link_cols=("Page",))
     exp = ins.get("explanation")
     if exp and exp.get("hypotheses"):
         st.markdown("###### Why the hotel may not be named: hypotheses")
@@ -361,10 +397,12 @@ def ai_sample_card(ai, ins=None):
         st.info(md_safe(ai.get("reason", "Not run.")))
         return
     s = ai["summary"]
-    st.caption(f"One model ({md_safe(ai.get('model', ''))}) with live web search was asked {s['asked']} ordinary questions on {md_safe(ai.get('run_at', ''))}. "
+    reps = s.get("repeats", 1)
+    asked_txt = (f"{s['asked']} questions" if reps <= 1 else f"{s.get('questions', s['asked'])} different questions ({s['asked']} answers, the town-wide and niche ones asked {reps} times each so one odd answer does not decide it)")
+    st.caption(f"One model ({md_safe(ai.get('model', ''))}) with live web search was asked {asked_txt} on {md_safe(ai.get('run_at', ''))}. "
                "This is a sample: answers change between runs and between assistants, and it is not a ranking. It is not part of any score.")
     cols = st.columns(4 if s.get("niche_asked") else 3)
-    cols[0].metric("Named in town-wide 'where to stay' answers", f"{s['generic_named']} of {s['generic_asked']}")
+    cols[0].metric("Named in town-wide 'where to stay' answers", f"{s['generic_named']} of {s['generic_asked']}")        # answers, not questions, once repeats are asked
     k = 1
     if s.get("niche_asked"):
         cols[1].metric("Named in the markets it competes in", f"{s['niche_named']} of {s['niche_asked']}", help="narrower questions drawn from the hotel's location, price level and what it is known for")
@@ -379,10 +417,14 @@ def ai_sample_card(ai, ins=None):
     st.markdown("###### All the answers")
     for i in ai["items"]:
         mark = {True: "named", False: "not named", None: "no answer"}[i["mentioned"]]
-        with st.expander(f"{i['text']} - hotel {mark}" + (f" (#{i['position']} in the list)" if i.get("position") else "")):
+        with st.expander(f"{i['text']}" + (f" (answer {i['repeat']} of {i['repeats']})" if i.get("repeats", 1) > 1 else "") + f" - hotel {mark}"
+                         + (f" (#{i['position']} in the list)" if i.get("position") else "")):
             st.markdown(md_safe(i["answer"] or "(no answer text)"))
             if i["domains"]:
                 st.caption("Sources: " + ", ".join(md_safe(d) for d in i["domains"][:8]))
+            cited = [p for p in i.get("pages") or [] if p.get("cited")][:5]
+            if cited:
+                st.caption("Pages it cited: " + "; ".join(f"[{md_safe(p['title'] or p['url'][:50])}]({safe_url(p['url'])})" for p in cited if safe_url(p["url"])))
 
 
 def ai_view(c, ai=None, ins=None):

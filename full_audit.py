@@ -556,7 +556,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    include_ai_visibility=False, gemini_api_key=None,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
-                   youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None):
+                   youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None,
+                   anthropic_repeats=None):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -635,8 +636,9 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     ai_ex = ai_future = rv_future = None
     if anthropic_api_key and hotel and city:
         ai_ex = ThreadPoolExecutor(max_workers=2)
+        _rep = {} if anthropic_repeats is None else {"repeats": max(1, min(3, int(anthropic_repeats)))}      # how many times each list question is asked (default in ai_sample)
         ai_future = ai_ex.submit(ai_sample.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model,
-                                 segments=segment_labels, own_domain=base)
+                                 segments=segment_labels, own_domain=base, **_rep)
         rv_future = ai_ex.submit(review_replies.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model)
     collect_ex = collect_future = None
     if wider and hotel:
@@ -772,7 +774,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 _host0 = urllib.parse.urlparse(base).netloc.lower()
                 niche_ex = ThreadPoolExecutor(max_workers=1)
                 niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model,
-                                               own_domain=_host0[4:] if _host0.startswith("www.") else _host0)
+                                               own_domain=_host0[4:] if _host0.startswith("www.") else _host0, **({} if anthropic_repeats is None else {"repeats": max(1, min(3, int(anthropic_repeats)))}))
         except Exception:  # noqa: BLE001 - the planner is an extra; the standard questions still run
             niche_future = None
 

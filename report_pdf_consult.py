@@ -6,6 +6,7 @@ PDF sections for the consultant report. Imported lazily by report_pdf.build_stor
 from reportlab.platypus import KeepTogether, PageBreak, Preformatted, Spacer
 
 import report_pdf as R
+from ai_insights import sentiment_label
 from report_pdf import Markup, cat, esc, link, para, table
 
 PRI_COL = {"critical": R.BAD, "high": "#c2570c", "medium": R.WARN, "low": R.GREY}
@@ -193,12 +194,26 @@ def ai_section(ai, ins=None):
         out.append(para(ai.get("reason", "Not run."), "tiny"))
         return out
     s = ai["summary"]
-    out.append(para(f"One model ({ai.get('model', '')}) with live web search was asked {s['asked']} ordinary questions on {ai.get('run_at', '')}. "
+    reps = s.get("repeats", 1)
+    asked_txt = f"{s['asked']} ordinary questions" if reps <= 1 else f"{s.get('questions', s['asked'])} different questions ({s['asked']} answers; the town-wide and niche ones were asked {reps} times each)"
+    out.append(para(f"One model ({ai.get('model', '')}) with live web search was asked {asked_txt} on {ai.get('run_at', '')}. "
                     "It is a sample: answers change between runs and between assistants, it is not a ranking, and it is not part of any score. "
                     f"Named in {s['generic_named']} of {s['generic_asked']} town-wide 'where to stay' answers"
                     + (f" and {s['niche_named']} of {s['niche_asked']} answers about the markets it is positioned for; " if s.get("niche_asked") else "; ") +
                     f"{'known' if s['direct_known'] else 'not known' if s['direct_known'] is False else 'not assessed'} when asked directly; "
                     f"own website {'cited' if s['own_site_cited'] else 'not cited'}.", "tiny"))
+    br = (ins or {}).get("brand_ranking")
+    if br and br.get("rows"):
+        sb0 = ins.get("scoreboard") or {}
+        out.append(para("Brand ranking: the hotel and the hotels the assistant named most. Coverage is the share of answers that named the hotel; sentiment is the net of "
+                        "positive minus negative mentions (-100 to +100), an AI's reading. It describes this one sample, not the market."
+                        + (f" The hotel's coverage was {sb0['coverage_pct']}%" + (f" with a net sentiment of {sb0['sentiment']:+d}." if sb0.get("sentiment") is not None else ".")
+                           if sb0.get("coverage_pct") is not None else ""), "tiny"))
+        rows = [["Place", "Hotel", "Coverage", "Avg position", "Sentiment", "Pos / neutral / neg"]]
+        for r in br["rows"]:
+            rows.append([r["place"], ("YOU: " if r["is_target"] else "") + r["name"], f"{r['coverage_pct']}%", "-" if r["avg_rank"] is None else r["avg_rank"],
+                         "-" if r["sentiment"] is None else f"{r['sentiment']:+d} ({sentiment_label(r['sentiment'])})", f"{r['positive']} / {r['neutral']} / {r['negative']}"])
+        out.append(table(rows, [0.08, 0.34, 0.12, 0.12, 0.2, 0.14]))
     if ins and ins.get("status") in ("ok", "partial") and ins.get("leaderboard"):
         lb, sb = ins["leaderboard"], ins["scoreboard"]
         out.append(para(f"Who the assistant recommended instead. The hotel's share of the hotel names given was {sb['share']}% (place {sb['rank_in_table']} of "
@@ -216,13 +231,21 @@ def ai_section(ai, ins=None):
                         "the hotel; none names it.", "tiny"))
         rows = [["Market", "Question asked", "Why we asked", "Hotel", "Hotels it named"]]
         for m in nn["questions"]:
-            rows.append([m.get("angle") or "-", m["question"], m.get("why") or "-", "named" if m["hotel_named"] else "not named", ", ".join(m["hotels_named"][:4]) or "-"])
+            rows.append([m.get("angle") or "-", m["question"], m.get("why") or "-", (f"named in {m['named']} of {m['of']}" if m.get("of", 1) > 1 else "named" if m["hotel_named"] else "not named"),
+                         ", ".join(m["hotels_named"][:4]) or "-"])
         out.append(table(rows, [0.12, 0.3, 0.24, 0.1, 0.24]))
     if ins and ins.get("sources"):
         rows = [["Site the assistant used", "Type", "Used in", "Hotel there?"]]
         for x in ins["sources"][:8]:
             rows.append([x["domain"], x["kind"], f"{x['answers']} answers", {True: "found", False: "not found", None: "not checked"}[x["hotel_evidenced"]]])
         out.append(table(rows, [0.34, 0.3, 0.16, 0.2]))
+    if ins and ins.get("pages"):
+        out.append(para("The exact pages the assistant used, most cited first. Whether a page names the hotel or a competitor is judged only from its title and the short passage "
+                        "the assistant quoted (we do not read these pages), so 'not seen' is not a statement that the page leaves it out.", "tiny"))
+        rows = [["Page", "Cited", "Names the hotel", "Names a competitor"]]
+        for x in ins["pages"][:10]:
+            rows.append([(x["title"] or x["domain"]) + " (" + x["domain"] + ")", x["cited"], "yes" if x["names_hotel"] else "not seen", x["names_competitor"] or "not seen"])
+        out.append(table(rows, [0.5, 0.1, 0.16, 0.24]))
     exp = (ins or {}).get("explanation")
     if exp and exp.get("hypotheses"):
         out.append(para("Why the hotel may not be named: hypotheses. The assistant cannot show its reasoning and neither can we; these are differences visible in the "
@@ -240,7 +263,8 @@ def ai_section(ai, ins=None):
         out.append(table(rows, [0.16, 0.26, 0.42, 0.16]))
     rows = [["Question asked", "Hotel", "What it answered", "Sources it used"]]
     for i in ai["items"]:
-        rows.append([i["text"], {True: "named", False: "not named", None: "no answer"}[i["mentioned"]] + (f" (#{i['position']})" if i.get("position") else ""),
+        rows.append([i["text"] + (f" (answer {i['repeat']} of {i['repeats']})" if i.get("repeats", 1) > 1 else ""),
+                     {True: "named", False: "not named", None: "no answer"}[i["mentioned"]] + (f" (#{i['position']})" if i.get("position") else ""),
                      (i["answer"] or "(no answer text)")[:420], ", ".join(i["domains"][:6])])
     out.append(table(rows, [0.22, 0.1, 0.46, 0.22]))
     h2h = (ins or {}).get("head_to_head")

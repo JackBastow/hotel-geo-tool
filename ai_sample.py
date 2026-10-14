@@ -36,6 +36,8 @@ SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search", "max_uses": 
 MAX_TOKENS = 1500
 MAX_QUESTIONS = 8
 WORKERS = 3
+REPEATS = 2                       # each list-type question is asked this many times, so coverage is steadier than a single answer
+REPEAT_KINDS = ("generic", "niche")
 
 # USD per million tokens (input, output) - Anthropic's published list prices for the models we allow.
 PRICES = {"claude-haiku-5-5": (0.10, 0.50), "claude-haiku-4-5": (1.00, 5.00), "claude-sonnet-5-5": (2.00, 10.00), "claude-opus-5-5": (4.00, 20.00)}
@@ -151,6 +153,33 @@ def parse_response(resp):
     return "".join(text).strip(), domains, searches, tin, tout
 
 
+def parse_sources(resp, limit=15):
+    """
+    The pages behind an answer: [{url, title, cited, cited_text}]. 'cited' means the assistant's text actually cites the page (with the passage it used);
+    the rest were returned by the search it ran. Cited pages first. No page content is stored beyond that short passage.
+    """
+    pages = {}
+    for b in _get(resp, "content", []) or []:
+        bt = _get(b, "type")
+        if bt == "web_search_tool_result":
+            res = _get(b, "content")
+            if isinstance(res, list):
+                for r in res:
+                    u = _get(r, "url", "") or ""
+                    if u and u not in pages:
+                        pages[u] = {"url": u[:300], "title": (_get(r, "title", "") or "")[:140], "cited": False, "cited_text": ""}
+        elif bt == "text":
+            for c in _get(b, "citations", None) or []:
+                u = _get(c, "url", "") or ""
+                if not u:
+                    continue
+                pg = pages.setdefault(u, {"url": u[:300], "title": (_get(c, "title", "") or "")[:140], "cited": False, "cited_text": ""})
+                pg["cited"] = True
+                pg["cited_text"] = pg["cited_text"] or re.sub(r"\s+", " ", str(_get(c, "cited_text", "") or ""))[:200]
+    ordered = sorted(pages.values(), key=lambda p: (not p["cited"]))
+    return ordered[:limit]
+
+
 def cost_usd(model, tin, tout, searches):
     pin, pout = PRICES.get(model, PRICES["claude-opus-5-5"])        # unknown model: assume the dearest, never under-count
     return round(tin / 1e6 * pin + tout / 1e6 * pout + searches * SEARCH_USD, 5)
@@ -185,7 +214,17 @@ def _make_client(api_key, timeout=60.0):
     return anthropic.Anthropic(api_key=api_key, max_retries=1, timeout=timeout)
 
 
-def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=0.80, workers=WORKERS, progress=None):
+def expand(questions, repeats=REPEATS):
+    """List-type questions (town-wide and niche) are asked `repeats` times; questions about the hotel itself once. Each answer gets its own id: 'best', 'best#2'."""
+    out = []
+    for q in questions:
+        n = repeats if q["kind"] in REPEAT_KINDS else 1
+        for k in range(n):
+            out.append({**q, "qid": q["id"], "id": q["id"] if k == 0 else f"{q['id']}#{k + 1}", "repeat": k + 1, "repeats": n})
+    return out
+
+
+def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=1.60, workers=WORKERS, progress=None, repeats=REPEATS):
     """Put the questions to the assistant a few at a time. -> (items in question order, estimated spend, reason it stopped early or '')."""
     import threading
     from concurrent.futures import ThreadPoolExecutor
@@ -223,11 +262,11 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
             return {**q, "answer": "", "mentioned": None, "position": None, "domains": domains, "searches": searches, "cost_usd": c,
                     "note": "The assistant returned no answer text."}
         return {**q, "answer": answer, "mentioned": mentioned(answer, hotel, city), "position": list_position(answer, hotel),
-                "domains": domains, "searches": searches, "cost_usd": c,
+                "domains": domains, "pages": parse_sources(resp), "searches": searches, "cost_usd": c,
                 "own_site_cited": bool(own and any(d == own or d.endswith("." + own) for d in domains))}
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:      # a few at a time: faster, still gentle on the rate limit
-        items = [r for r in ex.map(ask, questions) if r]
+        items = [r for r in ex.map(ask, expand(questions, repeats)) if r]
     return items, state["spent"], state["why"]
 
 
@@ -241,7 +280,10 @@ def summarise(items):
     for i in items:
         for d in i["domains"]:
             cited[d] = cited.get(d, 0) + 1
-    return {"asked": len(items), "generic_asked": len(generic), "generic_named": sum(1 for i in generic if i["mentioned"]),
+    qids = lambda xs: len({i.get("qid") or i["id"] for i in xs})      # noqa: E731
+    return {"asked": len(items), "questions": qids(items), "repeats": max([i.get("repeats", 1) for i in items] or [1]),
+            "generic_questions": qids(generic), "niche_questions": qids(niche),
+            "generic_asked": len(generic), "generic_named": sum(1 for i in generic if i["mentioned"]),
             "niche_asked": len(niche), "niche_named": sum(1 for i in niche if i["mentioned"]),
             "direct_known": None if not direct else bool(direct["mentioned"]),
             "direct_asked": len(directs), "direct_named": sum(1 for i in directs if i["mentioned"]),
@@ -249,8 +291,8 @@ def summarise(items):
             "top_domains": [d for d, _ in sorted(cited.items(), key=lambda kv: (-kv[1], kv[0]))[:8]]}
 
 
-def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", budget_usd=0.80, client=None, progress=None,
-        max_questions=MAX_QUESTIONS, workers=WORKERS):
+def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", budget_usd=1.60, client=None, progress=None,
+        max_questions=MAX_QUESTIONS, workers=WORKERS, repeats=REPEATS):
     """Ask the questions. `client` is injectable for tests; otherwise the official SDK is created from `api_key`."""
     model = model or MODEL_DEFAULT
     if not hotel or not (city or "").strip():
@@ -263,14 +305,14 @@ def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", bu
         except Exception as e:  # noqa: BLE001
             return _envelope("unavailable", f"The Anthropic library could not be started ({type(e).__name__}), so this was not run.")
     items, spent, why = ask_all(hotel, city, build_questions(hotel, city, segments, max_questions), client=client, model=model, own_domain=own_domain,
-                                budget_usd=budget_usd, workers=workers, progress=progress)
+                                budget_usd=budget_usd, workers=workers, progress=progress, repeats=repeats)
     if not items:
         return _envelope("unavailable", why or "No question could be asked.", model=model, cost_usd=round(spent, 5))
     return _envelope("ok", why, model=model, items=items, summary=summarise(items), cost_usd=round(spent, 5), partial=bool(why),
                      run_at=time.strftime("%Y-%m-%d", time.gmtime()))
 
 
-def run_extra(hotel, city, questions, *, api_key=None, model=None, own_domain="", budget_usd=0.40, client=None, progress=None, workers=WORKERS):
+def run_extra(hotel, city, questions, *, api_key=None, model=None, own_domain="", budget_usd=0.80, client=None, progress=None, workers=WORKERS, repeats=REPEATS):
     """
     A second round of questions, planned from what the audit learned about the hotel (ai_niche.py). -> {"items", "cost_usd", "reason"}.
     Never raises; an empty result means the extra questions were not asked.
@@ -285,8 +327,27 @@ def run_extra(hotel, city, questions, *, api_key=None, model=None, own_domain=""
             client = _make_client(api_key)
         except Exception as e:  # noqa: BLE001
             return {"items": [], "cost_usd": 0.0, "reason": f"The Anthropic library could not be started ({type(e).__name__})."}
-    items, spent, why = ask_all(hotel, city, questions, client=client, model=model, own_domain=own_domain, budget_usd=budget_usd, workers=workers, progress=progress)
+    items, spent, why = ask_all(hotel, city, questions, client=client, model=model, own_domain=own_domain, budget_usd=budget_usd, workers=workers, progress=progress,
+                                repeats=repeats)
     return {"items": items, "cost_usd": round(spent, 5), "reason": why}
+
+
+def by_question(items):
+    """Group answers by the question they answer (repeat runs together): [{qid, kind, text, angle, why, answers, named, of, best_position}] in question order."""
+    out, idx = [], {}
+    for i in items:
+        q = i.get("qid") or i["id"]
+        if q not in idx:
+            idx[q] = {"qid": q, "kind": i["kind"], "text": i["text"], "angle": i.get("angle"), "why": i.get("why"), "answers": []}
+            out.append(idx[q])
+        idx[q]["answers"].append(i)
+    for g in out:
+        judged = [a for a in g["answers"] if a.get("mentioned") is not None]
+        g["of"] = len(judged)
+        g["named"] = sum(1 for a in judged if a["mentioned"])
+        pos = [a["position"] for a in judged if a.get("position")]
+        g["best_position"] = min(pos) if pos else None
+    return out
 
 
 def merge(ai, extra):

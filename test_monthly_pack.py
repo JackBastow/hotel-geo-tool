@@ -54,7 +54,7 @@ check("a month's runs are found by month, oldest first", [r["id"] for r in in_oc
 data = mp.build_workbook([(r, st.get_report(r["id"])) for r in in_oct], st.list_runs(limit=1000))
 wb = load_workbook(io.BytesIO(data))
 check("the workbook has every sheet the dashboard and the reader need",
-      wb.sheetnames == ["Read me", "Hotels", "Metrics", "Scores and why", "AI rankings", "AI competitors", "AI why", "Top 3 actions", "Sources"], wb.sheetnames)
+      wb.sheetnames == ["Read me", "Hotels", "Metrics", "Scores and why", "AI rankings", "AI brand ranking", "AI competitors", "AI citations", "AI why", "Top 3 actions", "Sources"], wb.sheetnames)
 
 
 def table(name):
@@ -120,6 +120,27 @@ for r in acts:
 check("exactly the top three actions per run, ranked 1-3, with why and what to do", all(v == [1, 2, 3] for v in per_run.values()) and len(per_run) == 3 and all(r["Why it matters"] and r["What to do"] and r["Owner"] for r in acts))
 sh2, srcs = table("Sources")
 check("sources show whether the hotel was found there", any(r["Site the assistant used"] == "booking.com" and r["Hotel found there"] == "Yes" for r in srcs))
+
+print("5b. brand ranking over time, sentiment, citations")
+check("the Hotels sheet carries coverage % and net sentiment for all answers, the place in the brand ranking, and how many answers were asked",
+      (last["Coverage % (all answers)"], last["Net sentiment"], last["Place in brand ranking"], last["Answers asked"], last["Repeats per question"]) == (50, 100, 2, 4, 1),
+      (last["Coverage % (all answers)"], last["Net sentiment"], last["Place in brand ranking"], last["Answers asked"], last["Repeats per question"]))
+check("the Metrics sheet has coverage %, net sentiment and the brand-ranking place as numeric dashboard rows", mm[(3, "Coverage % all answers")] == 50 and mm[(3, "Net sentiment")] == 100 and mm[(3, "Place in brand ranking")] == 2)
+bh, brand = table("AI brand ranking")
+b3 = [r for r in brand if r["Run id"] == 3]
+check("one row per hotel per run: the hotel is marked, every row has coverage %, a net sentiment where judged, and the top table places are filled",
+      any(str(r["Hotel named by the assistant"]).startswith("THIS HOTEL: ") and r["This hotel"] == "Yes" for r in b3) and all(r["Coverage %"] is not None for r in b3)
+      and any(r["Sentiment"] == "positive" for r in b3) and any(r["Place in top table"] == 1 for r in b3))
+check("a hotel never judged for sentiment has a blank net sentiment, not zero", all(r["Net sentiment"] in (None, "") for r in b3 if r["Sentiment"] == "not judged"))
+chh, cites = table("AI citations")
+c3 = [r for r in cites if r["Run id"] == 3]
+check("citations list the exact page, the site and how often it was cited, and are honest when the title or passage does not name the hotel",
+      any(r["Site"] == "booking.com" and r["Times cited"] == 2 and r["Names a competitor"] == "Oatlands Park Hotel" and r["Names the hotel"] == "Not seen" for r in c3)
+      and any(r["Names the hotel"] == "Yes" for r in c3))
+check("the AI rankings sheet says how many of the answers named the hotel", any(r.get("Named in answers") == "1 of 1" for r in r3))
+check("the change columns include coverage and sentiment against the previous month", "Coverage change (pts)" in h and "Net sentiment change" in h)
+text2 = " ".join(str(r[0]) for r in wb["Read me"].iter_rows(values_only=True) if r[0])
+check("the Read me explains coverage, net sentiment and that 'not seen' is not a statement about the page", all(w in text2 for w in ("Coverage %", "Net sentiment", "not a statement that the page leaves the hotel out")))
 
 print("6. the Read me and the workbook itself")
 text = " ".join(str(r[0]) for r in wb["Read me"].iter_rows(values_only=True) if r[0])

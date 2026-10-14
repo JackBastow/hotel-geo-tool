@@ -23,6 +23,8 @@ import review_replies
 
 SOURCE = "AI answer insights"
 MAX_TOKENS = 6000
+BATCH = 8                                  # answers per extraction call, so a long set (repeats) never overruns the output cap
+SENTIMENTS = ("positive", "neutral", "negative")
 
 # ------------------------------------------------------------------- sources
 
@@ -108,14 +110,14 @@ EXTRACT_SYSTEM = ("You extract structured facts from answers a travel assistant 
 
 EXTRACT_PROMPT = '''Target hotel: {hotel}, {city}.
 
-Below are an assistant's answers, each with an id. For every answer return the hotels it recommends or compares, in the order given, with a short paraphrase of why (under 15 words), and any rating it states.
+Below are an assistant's answers, each with an id. For every answer return the hotels it recommends or compares, in the order given, with a short paraphrase of why (under 15 words), any rating it states, and the sentiment the answer expresses toward THAT hotel (positive = recommends or praises it, negative = warns against it or lists mainly drawbacks, neutral = just lists or describes it).
 For the answers that are ABOUT the target hotel (ids: {about_ids}) also return how it describes the hotel.
 
 {blocks}
 
 Return JSON in exactly this shape:
 {{
-  "answers": [{{"id": "best", "hotels": [{{"name": "as written", "rank": 1, "reason": "paraphrase", "rating": "e.g. 8.6 on Booking.com or null"}}]}}],
+  "answers": [{{"id": "best", "hotels": [{{"name": "as written", "rank": 1, "reason": "paraphrase", "rating": "e.g. 8.6 on Booking.com or null", "sentiment": "positive|neutral|negative"}}]}}],
   "about": {{"tone": "positive|mixed|negative|unclear",
             "strengths": ["short phrases the assistant gives as positives"], "weaknesses": ["short phrases the assistant gives as drawbacks"],
             "claims": [{{"type": "phone|address|check_in|check_out|star_rating|parking|pets|other", "value": "exactly as stated", "answer_id": "about"}}]}}
@@ -127,19 +129,37 @@ def _blocks(items):
     return "\n\n".join(f"[{i['id']}] ({i['kind']}) Question: {i['text']}\nAnswer: {(i.get('answer') or '')[:1800]}" for i in items if i.get("answer"))
 
 
+def _extract_batch(client, model, batch, hotel, city):
+    """One call for up to BATCH answers -> (parsed dict | None, (tin, tout))."""
+    about_ids = [i["id"] for i in batch if i["kind"] == "direct"]
+    extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
+    resp = client.messages.create(model=model, max_tokens=MAX_TOKENS, system=EXTRACT_SYSTEM, messages=[{"role": "user", "content": EXTRACT_PROMPT.format(
+        hotel=hotel, city=city, about_ids=", ".join(about_ids) or "none", blocks=_blocks(batch))}], **extra)
+    text, _d, _s, tin, tout = ai_sample.parse_response(resp)
+    data = review_replies.parse_json(text)
+    return (data if isinstance(data, dict) else None), (tin, tout)
+
+
 def extract(client, model, items, hotel, city):
-    """-> (validated dict | None, usage). Names are kept only if they appear in that answer's own text."""
+    """-> (validated dict | None, usage). Names are kept only if they appear in that answer's own text. The answers about the hotel go first, in one batch."""
     by_id = {i["id"]: i for i in items if i.get("answer")}
     if not by_id:
         return None, (0, 0)
-    about_ids = [i for i, it in by_id.items() if it["kind"] == "direct"]
-    extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
-    resp = client.messages.create(model=model, max_tokens=MAX_TOKENS, system=EXTRACT_SYSTEM, messages=[{"role": "user", "content": EXTRACT_PROMPT.format(
-        hotel=hotel, city=city, about_ids=", ".join(about_ids) or "none", blocks=_blocks(items))}], **extra)
-    text, _d, _s, tin, tout = ai_sample.parse_response(resp)
-    data = review_replies.parse_json(text)
-    if not isinstance(data, dict):
+    ordered = sorted(by_id.values(), key=lambda i: i["kind"] != "direct")
+    batches = [ordered[k:k + BATCH] for k in range(0, len(ordered), BATCH)]
+    answers_raw, data_about, tin, tout, ok = [], {}, 0, 0, 0
+    for n, batch in enumerate(batches):
+        d, (a, b) = _extract_batch(client, model, batch, hotel, city)
+        tin, tout = tin + a, tout + b
+        if d is None:
+            continue
+        ok += 1
+        answers_raw += [x for x in (d.get("answers") or []) if isinstance(x, dict)]
+        if n == 0 and isinstance(d.get("about"), dict):
+            data_about = d["about"]
+    if not ok:
         return None, (tin, tout)
+    data = {"answers": answers_raw, "about": data_about}
     answers = {}
     for a in data.get("answers") or []:
         if not isinstance(a, dict) or a.get("id") not in by_id:
@@ -153,7 +173,8 @@ def extract(client, model, items, hotel, city):
                 continue                                    # a name the answer never contained is an invention: dropped
             seen.add(canon(nm))
             rank = h.get("rank")
-            keep.append({"name": nm, "rank": rank if isinstance(rank, int) and 1 <= rank <= 30 else None,
+            sent = str(h.get("sentiment") or "").strip().lower()
+            keep.append({"name": nm, "rank": rank if isinstance(rank, int) and 1 <= rank <= 30 else None, "sentiment": sent if sent in SENTIMENTS else "neutral",
                          "reason": re.sub(r"\s+", " ", str(h.get("reason") or "")).strip()[:140],
                          "rating": (str(h.get("rating"))[:40] if h.get("rating") not in (None, "null", "") else None)})
         answers[a["id"]] = keep
@@ -170,6 +191,99 @@ def extract(client, model, items, hotel, city):
 
 # ------------------------------------------------------------ arithmetic
 
+def sentiment_of(labels):
+    """positive / neutral / negative counts and the net sentiment score (% positive minus % negative, -100..+100); None when there is nothing to judge."""
+    labels = [x for x in labels if x in SENTIMENTS]
+    n = len(labels)
+    pos, neg = labels.count("positive"), labels.count("negative")
+    return {"positive": pos, "neutral": labels.count("neutral"), "negative": neg, "sentiment": round(100 * (pos - neg) / n) if n else None}
+
+
+def sentiment_label(v):
+    """A plain word for a net sentiment score."""
+    if v is None:
+        return "not judged"
+    return "positive" if v >= 30 else "negative" if v <= -30 else "mixed" if abs(v) >= 1 else "neutral"
+
+
+def brand_ranking(lbs, hotel, top=5):
+    """
+    Otterly-style 'brand ranking': the hotel plus the `top` hotels the assistant named most, by how many answers named each, with coverage %, average
+    position and net sentiment. lbs = the leaderboards to combine (town-wide, niche). Counts are answers in this one sample, not a market ranking.
+    """
+    rows, asked = {}, 0
+    for lb in lbs:
+        if not lb:
+            continue
+        asked += lb["questions"]
+        for r in lb["rows"]:
+            k = canon(r["name"])
+            a = rows.setdefault(k, {"name": r["name"], "is_target": r["is_target"], "mentions": 0, "ranks": [], "sent": []})
+            a["mentions"] += r["mentions"]
+            a["is_target"] = a["is_target"] or r["is_target"]
+            a["ranks"] += [r["avg_rank"]] * r["mentions"] if r["avg_rank"] else []
+            a["sent"] += ["positive"] * r["positive"] + ["neutral"] * r["neutral"] + ["negative"] * r["negative"]
+    out = []
+    for a in rows.values():
+        out.append({"name": a["name"], "is_target": a["is_target"], "mentions": a["mentions"], "of": asked, "coverage_pct": round(100 * min(a["mentions"], asked) / asked) if asked else 0,
+                    "avg_rank": round(sum(a["ranks"]) / len(a["ranks"]), 1) if a["ranks"] else None, **sentiment_of(a["sent"])})
+    out.sort(key=lambda r: (-r["mentions"], r["avg_rank"] or 99, r["name"]))
+    me = next((r for r in out if r["is_target"]), None)
+    rivals = [r for r in out if not r["is_target"]][:top]
+    table = ([me] if me else []) + rivals
+    for k, r in enumerate(sorted(table, key=lambda r: (-r["mentions"], r["avg_rank"] or 99, r["name"])), 1):
+        r["place"] = k
+    table.sort(key=lambda r: r["place"])
+    return {"rows": table, "all": out, "asked": asked}
+
+
+def page_table(items, hotel, rivals=(), own_domain="", limit=25):
+    """
+    The exact pages the assistant cited or searched, across all answers: [{url, domain, title, answers, cited, names_hotel, names_competitor, own_site, passage}].
+    'names_hotel' / 'names_competitor' are judged only from the page title and the short passage the assistant quoted from it (we do not read the page),
+    so False means 'not visible in what we hold', not 'the page does not mention it'.
+    """
+    pages = {}
+    own = (own_domain or "").lower().removeprefix("www.")
+    for it in items:
+        for pg in it.get("pages") or []:
+            u = pg.get("url") or ""
+            if not u:
+                continue
+            r = pages.setdefault(u, {"url": u, "domain": re.sub(r"^https?://(www\.)?", "", u).split("/")[0].lower(),
+                                     "title": pg.get("title") or "", "answers": set(), "cited": 0, "passage": "", "kinds": set()})
+            r["answers"].add(it.get("qid") or it["id"])
+            r["kinds"].add(it["kind"])
+            if pg.get("cited"):
+                r["cited"] += 1
+                r["passage"] = r["passage"] or pg.get("cited_text") or ""
+            r["title"] = r["title"] or pg.get("title") or ""
+    out = []
+    for r in pages.values():
+        seen = f"{r['title']} {r['passage']} {r['url']}"
+        rival = next((n for n in rivals if n and appears(n, seen)), None)
+        d = r["domain"]
+        out.append({"url": r["url"], "domain": d, "title": r["title"][:120], "questions": len(r["answers"]), "cited": r["cited"], "passage": r["passage"][:200],
+                    "names_hotel": ai_sample.mentioned(seen, hotel), "names_competitor": rival, "own_site": bool(own and (d == own or d.endswith("." + own)))})
+    out.sort(key=lambda r: (-r["cited"], -r["questions"], r["domain"], r["url"]))
+    return out[:limit]
+
+
+def question_rows(items, extracted):
+    """One row per QUESTION (repeats merged): whether the hotel was named and in how many of the answers, the best position, and the hotels named."""
+    out = []
+    for g in ai_sample.by_question(items):
+        names, seen = [], set()
+        for a in g["answers"]:
+            for h in (extracted["answers"].get(a["id"]) or []):
+                if canon(h["name"]) not in seen:
+                    seen.add(canon(h["name"]))
+                    names.append(h["name"])
+        out.append({"id": g["qid"], "kind": g["kind"], "question": g["text"], "angle": g["angle"], "why": g["why"], "named": g["named"], "of": g["of"],
+                    "hotel_named": g["named"] > 0, "position": g["best_position"], "hotels_named": names[:6], "answer_ids": [a["id"] for a in g["answers"]]})
+    return out
+
+
 def leaderboard(extracted, items, hotel, kinds=("generic",)):
     """Who is named most across the GENERIC questions (or the niche ones), with the hotel in the same table (a row of zeros if it is never named)."""
     gen_ids = [i["id"] for i in items if i["kind"] in kinds and i.get("answer")]
@@ -177,8 +291,9 @@ def leaderboard(extracted, items, hotel, kinds=("generic",)):
     for qid in gen_ids:
         for h in (extracted["answers"].get(qid) or []):
             k = canon(h["name"])
-            r = rows.setdefault(k, {"name": h["name"], "key": k, "mentions": 0, "ranks": [], "questions": [], "reasons": [], "ratings": []})
+            r = rows.setdefault(k, {"name": h["name"], "key": k, "mentions": 0, "ranks": [], "questions": [], "reasons": [], "ratings": [], "sent": []})
             r["mentions"] += 1
+            r["sent"].append(h.get("sentiment") or "neutral")
             total += 1
             if h["rank"]:
                 r["ranks"].append(h["rank"])
@@ -198,17 +313,19 @@ def leaderboard(extracted, items, hotel, kinds=("generic",)):
             a["questions"] += b["questions"]
             a["reasons"] += [x for x in b["reasons"] if x not in a["reasons"]]
             a["ratings"] += [x for x in b["ratings"] if x not in a["ratings"]]
+            a["sent"] += b["sent"]
     me = canon(hotel)
     out = []
     for r in rows.values():
         out.append({"name": r["name"], "is_target": ai_sample.mentioned(r["name"], hotel) or r["key"] == me, "mentions": r["mentions"], "of": len(gen_ids),
                     "share": round(100 * r["mentions"] / total) if total else 0, "best_rank": min(r["ranks"]) if r["ranks"] else None,
                     "avg_rank": round(sum(r["ranks"]) / len(r["ranks"]), 1) if r["ranks"] else None, "questions": r["questions"],
-                    "reasons": r["reasons"][:2], "ratings": r["ratings"][:2]})
+                    "reasons": r["reasons"][:2], "ratings": r["ratings"][:2], "coverage_pct": round(100 * len(set(r["questions"])) / len(gen_ids)) if gen_ids else 0,
+                    **sentiment_of(r["sent"])})
     out.sort(key=lambda r: (-r["mentions"], r["avg_rank"] or 99, r["name"]))
     if not any(r["is_target"] for r in out):
         out.append({"name": hotel, "is_target": True, "mentions": 0, "of": len(gen_ids), "share": 0, "best_rank": None, "avg_rank": None, "questions": [],
-                    "reasons": [], "ratings": []})
+                    "reasons": [], "ratings": [], "coverage_pct": 0, **sentiment_of([])})
     return {"rows": out, "questions": len(gen_ids), "total_mentions": total}
 
 
@@ -442,9 +559,7 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
         return {**out, "status": "partial", "reason": "The answers could not be broken down into hotels and claims, so only the source analysis is shown.", "cost_usd": round(cost, 5)}
 
     lb = leaderboard(extracted, items, hotel)
-    out.update(leaderboard=lb, alternatives=alternatives(extracted, hotel), matrix=[
-        {"id": i["id"], "kind": i["kind"], "question": i["text"], "hotel_named": i.get("mentioned"), "position": i.get("position"),
-         "angle": i.get("angle"), "why": i.get("why"), "hotels_named": [h["name"] for h in (extracted["answers"].get(i["id"]) or [])][:6]} for i in items])
+    out.update(leaderboard=lb, alternatives=alternatives(extracted, hotel), matrix=question_rows(items, extracted))
     niche_rows = [m for m in out["matrix"] if m["kind"] == "niche"]
     lbn = leaderboard(extracted, items, hotel, kinds=("niche",)) if niche_rows else None
     out["niche"] = {"questions": niche_rows, "leaderboard": lbn} if niche_rows else None
@@ -453,7 +568,7 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
     out["perception"] = perception(about, ctx.get("strong_intents"))
     out["accuracy"] = accuracy(about.get("claims"), known_facts(ctx.get("guest"), ctx.get("entities")))
     me = next((r for r in lb["rows"] if r["is_target"]), None)
-    out["scoreboard"] = {"questions": lb["questions"], "named": me["mentions"] if me else 0, "avg_rank": me["avg_rank"] if me else None,
+    out["scoreboard"] = {"questions": lb["questions"], "named": me["mentions"] if me else 0, "avg_rank": me["avg_rank"] if me else None, "repeats": ai.get("summary", {}).get("repeats", 1),
                          "share": me["share"] if me else 0, "rank_in_table": (lb["rows"].index(me) + 1) if me else None, "table_size": len(lb["rows"]),
                          "top_competitor": next((r["name"] for r in lb["rows"] if not r["is_target"]), None)}
 
@@ -461,6 +576,11 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
     asked = lb["questions"] + (lbn["questions"] if lbn else 0)
     missed = (lb["questions"] - (me["mentions"] if me else 0)) + ((lbn["questions"] - (me_n["mentions"] if me_n else 0)) if lbn else 0)
     out["scoreboard"].update(niche_asked=lbn["questions"] if lbn else 0, niche_named=(me_n["mentions"] if me_n else 0) if lbn else 0)
+    out["brand_ranking"] = br = brand_ranking([lb, lbn], hotel)
+    me_b = next((r for r in br["rows"] if r["is_target"]), None)
+    out["scoreboard"].update(coverage_pct=me_b["coverage_pct"] if me_b else 0, sentiment=me_b["sentiment"] if me_b else None, place=me_b["place"] if me_b else None,
+                             positive=me_b["positive"] if me_b else 0, negative=me_b["negative"] if me_b else 0, asked_all=br["asked"])
+    out["pages"] = page_table(items, hotel, [r["name"] for r in br["rows"] if not r["is_target"]], ctx.get("own_domain", ""))
     if asked and missed > 0 and cost < budget_usd:
         try:
             ledger = build_ledger(lb, sources, out["perception"], about, ctx.get("snapshot"), ai, ctx.get("footprint"), ctx.get("entities"), ctx.get("strong_intents"),

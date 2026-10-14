@@ -16,10 +16,10 @@ import streamlit as st
 import backend
 
 PUB_COLS = ["id", "run_at", "hotel", "city", "headline_status", "headline_score", "coverage_pct", "ai_generic_named", "ai_generic_asked", "ai_niche_named",
-            "ai_niche_asked", "ai_share", "ai_rank_in_table", "ai_top_competitor", "reviews_replied", "reviews_examined", "pagespeed_perf", "recs_total", "ai_cost_usd"]
-NICE = {"run_at": "Run", "hotel": "Hotel", "city": "City", "headline_status": "Headline", "headline_score": "Readiness", "coverage_pct": "Coverage %",
+            "ai_niche_asked", "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_rank_in_table", "ai_top_competitor", "reviews_replied", "reviews_examined", "pagespeed_perf", "recs_total", "ai_cost_usd"]
+NICE = {"run_at": "Run", "hotel": "Hotel", "city": "City", "headline_status": "Headline", "headline_score": "Readiness", "coverage_pct": "Readiness coverage %",
         "ai_generic_named": "Named (town)", "ai_generic_asked": "of", "ai_niche_named": "Named (niche)", "ai_niche_asked": "of ", "ai_share": "Share of names %",
-        "ai_rank_in_table": "Place in table", "ai_top_competitor": "Top competitor", "reviews_replied": "Replies seen", "reviews_examined": "Reviews examined",
+        "ai_coverage_pct": "Coverage %", "ai_sentiment": "Net sentiment", "ai_rank_in_table": "Place in table", "ai_top_competitor": "Top competitor", "reviews_replied": "Replies seen", "reviews_examined": "Reviews examined",
         "pagespeed_perf": "Mobile speed", "recs_total": "Recommendations", "ai_cost_usd": "AI cost $", "id": "Run id"}
 
 
@@ -145,6 +145,22 @@ def page(database_url, password):
                     pass
             else:
                 st.caption("A trend needs two or more runs of the same hotel.")
+            ch = store.competitor_history(key)
+            if len(ch["runs"]) >= 2 and ch["rows"]:
+                st.markdown("**Coverage over time: this hotel and the hotels the assistant names most alongside it**")
+                st.caption("The share of all answers that named each hotel, run by run. A rival not named in a run counts as 0% for that run. One model, one day per run: look for sustained moves.")
+                try:
+                    import pandas as pd
+                    idx = [f"{str(r['run_at'])[:10]} #{r['run_id']}" for r in ch["runs"]]
+                    st.line_chart(pd.DataFrame({("→ " if r["is_target"] else "") + r["name"][:34]: [p["coverage_pct"] for p in r["points"]] for r in ch["rows"]}, index=idx))
+                    sent = {r["name"][:34]: [p["sentiment"] for p in r["points"]] for r in ch["rows"] if any(p["sentiment"] is not None for p in r["points"])}
+                    if sent:
+                        st.markdown("**Net sentiment over time (-100 to +100, where named)**")
+                        st.line_chart(pd.DataFrame(sent, index=idx))
+                except Exception:  # noqa: BLE001
+                    pass
+            elif ch["rows"]:
+                st.caption("The competitors-over-time view appears once this hotel has two or more runs.")
             _table(list(reversed(hist)), PUB_COLS)
 
     with tabs[3]:
@@ -157,6 +173,10 @@ def page(database_url, password):
         with b:
             st.markdown("**Hotels named most in niche markets**")
             _table(store.competitors(city or None, "niche"), ["competitor", "mentions", "runs", "avg_rank"], {"competitor": "Hotel", "mentions": "Mentions", "runs": "Audits", "avg_rank": "Avg position"})
+        st.markdown("**Pages the assistant used most (exact pages)**")
+        _table(store.pages(city or None), ["url", "domain", "cited", "questions", "runs", "names_hotel", "names_competitor"],
+               {"url": "Page", "domain": "Site", "cited": "Times cited", "questions": "Question uses", "runs": "Audits", "names_hotel": "Audits where it names a hotel audited",
+                "names_competitor": "A competitor it names"})
         st.markdown("**Sites the assistant relies on**")
         _table(store.sources(city or None), ["domain", "kind", "answers", "runs", "hotel_found", "hotel_missing"],
                {"domain": "Site", "kind": "Type", "answers": "Used in answers", "runs": "Audits", "hotel_found": "Hotel found there", "hotel_missing": "Hotel not found there"})
@@ -172,6 +192,7 @@ def page(database_url, password):
         st.download_button(f"All {len(rows)} runs, summary table (.csv)", backend.to_csv(rows), file_name="hotel-audit-runs.csv", mime="text/csv", on_click="ignore")
         st.download_button("Hotels named by the assistant, all audits (.csv)", backend.to_csv(store.competitors(None, "generic", limit=100000) + store.competitors(None, "niche", limit=100000)),
                            file_name="hotel-audit-competitors.csv", mime="text/csv", on_click="ignore")
+        st.download_button("Pages the assistant used (.csv)", backend.to_csv(store.pages(None, limit=100000)), file_name="hotel-audit-pages.csv", mime="text/csv", on_click="ignore")
         st.download_button("Sites the assistant relies on (.csv)", backend.to_csv(store.sources(None, limit=100000)), file_name="hotel-audit-sources.csv", mime="text/csv", on_click="ignore")
         st.markdown("##### Monthly pack (Excel)")
         st.caption("One workbook with every audit in the period: scores and why, AI rankings and competitors, the top 3 actions per hotel, and the change since each hotel's "

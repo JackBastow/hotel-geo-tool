@@ -131,6 +131,11 @@ PAGESPEED_KEY = _operator_secret("PAGESPEED_API_KEY")
 # ceiling in store.SERVICE_CAPS["claude"], that section says it wasn't run. ANTHROPIC_MODEL (optional) overrides the cheap default.
 ANTHROPIC_KEY = _operator_secret("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = _operator_secret("ANTHROPIC_MODEL")
+# Optional: how many times each town-wide and niche question is asked (1-3, default 2). More repeats make the coverage % steadier and cost more.
+try:
+    ANTHROPIC_REPEATS = int(_operator_secret("ANTHROPIC_REPEATS")) if _operator_secret("ANTHROPIC_REPEATS") else None
+except (TypeError, ValueError):
+    ANTHROPIC_REPEATS = None
 
 # Optional back end: a Postgres connection string (Neon's free plan needs no card). With it, finished audits are saved for the operator, and the
 # admin page (?admin=1, behind ADMIN_PASSWORD) can show and export them. Without it the app behaves exactly as before and saves nothing.
@@ -140,7 +145,7 @@ if st.query_params.get("admin") is not None:
     import ui_admin
     ui_admin.page(DATABASE_URL, ADMIN_PASSWORD)
     st.stop()
-CLAUDE_MILLIDOLLARS_PER_AUDIT = 1000      # what one audit's AI work is budgeted at ($1.00: the sample, up to $0.80, plus the reviews snapshot)
+CLAUDE_MILLIDOLLARS_PER_AUDIT = 1500      # what one audit's AI work is reserved at ($1.50: the repeated sample, the niche round, the reviews snapshot and the analysis; about $0.60 in practice)
 
 # A full audit runs about a dozen Tavily searches (see collect.search_plan).
 TAVILY_CREDITS_PER_AUDIT = 12
@@ -205,6 +210,12 @@ def render_comparison(cmp):
         c1.metric("Named in generic answers", f"{n['named']} of {n['asked']}", delta=(None if o["named"] is None or n["named"] is None else n["named"] - o["named"]))
         c2.metric("Share of the names given", "-" if n["share"] is None else f"{n['share']}%", delta=(None if o["share"] is None or n["share"] is None else n["share"] - o["share"]))
         c3.metric("Earlier run", f"{o['named']} of {o['asked']}")
+        if n.get("coverage_pct") is not None and o.get("coverage_pct") is not None:
+            d1, d2 = st.columns(2)
+            d1.metric("Coverage (share of all answers naming the hotel)", f"{n['coverage_pct']}%", delta=n["coverage_pct"] - o["coverage_pct"],
+                      help="Compare this rather than the counts above when the two runs asked a different number of answers")
+            if n.get("sentiment") is not None and o.get("sentiment") is not None:
+                d2.metric("Net sentiment where named", f"{n['sentiment']:+d}", delta=n["sentiment"] - o["sentiment"])
         if ai["new_competitors"]:
             st.caption("Newly recommended instead: " + ", ".join(_md_safe(x) for x in ai["new_competitors"][:6]))
         if ai["new_sources"]:
@@ -289,7 +300,7 @@ if fa_go:
             amadeus_api_secret=use_amadeus_secret,
             gemini_reader_key=use_gemini_reader,
             youtube_api_key=YOUTUBE_KEY, wider=fa_wider, pagespeed_api_key=PAGESPEED_KEY,
-            anthropic_api_key=use_anthropic, anthropic_model=ANTHROPIC_MODEL,
+            anthropic_api_key=use_anthropic, anthropic_model=ANTHROPIC_MODEL, anthropic_repeats=ANTHROPIC_REPEATS,
         )
     except Exception as e:  # noqa: BLE001 - surface the real error
         prog.empty()

@@ -97,6 +97,12 @@ _tb = " ".join(str(d.value.to_dict()) for d in at.dataframe)
 check("the table shows the market (Airport, Spa), the question, why it was asked and the result", "Airport" in _tb and "Why we asked this" in _tb and "short taxi" not in _tb and "Heathrow" in _tb)
 check("the metrics show both counts: town-wide and the markets it competes in", {"Named in town-wide 'where to stay' answers", "Named in the markets it competes in"} <= {m.label for m in at.metric})
 
+check("the brand ranking shows the hotel and the top named hotels with coverage, position and sentiment, and says it describes this one sample",
+      "Brand ranking: the hotel and the hotels named most" in text and {"Coverage", "Sentiment", "Your place"} <= {m.label for m in at.metric}
+      and "Positive / neutral / negative" in _tb and any("not the market" in c.value for c in at.caption))
+check("the exact pages are listed, with the caveat that they are judged only from the title and the quoted passage",
+      "The exact pages the assistant used" in text and "booking.com/hotel/gb/oatlands-park.html" in _tb and any("we do not read these pages" in c.value for c in at.caption))
+
 print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
 import sys  # noqa: E402
 import types  # noqa: E402

@@ -114,6 +114,7 @@ def _ai_trend(old, new):
         rows = ((ins.get("leaderboard") or {}).get("rows")) or []
         return {"date": str(a.get("run_at", ""))[:10], "named": s.get("generic_named"), "asked": s.get("generic_asked"), "known": s.get("direct_known"),
                 "niche_named": s.get("niche_named"), "niche_asked": s.get("niche_asked"),
+                "coverage_pct": (ins.get("scoreboard") or {}).get("coverage_pct"), "sentiment": (ins.get("scoreboard") or {}).get("sentiment"),
                 "share": (ins.get("scoreboard") or {}).get("share"), "avg_rank": (ins.get("scoreboard") or {}).get("avg_rank"),
                 "competitors": [r["name"] for r in rows if not r.get("is_target")][:8], "domains": list(s.get("top_domains") or [])[:8]}
     o, n = side(old), side(new)

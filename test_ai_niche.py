@@ -79,7 +79,7 @@ base = {"status": "ok", "model": "claude-haiku-5-5", "run_at": "2026-10-14", "co
 base["summary"] = ai.summarise(base["items"])
 check("the standard summary has no niche counts until a second round is added", base["summary"]["niche_asked"] == 0)
 fake = Fake([resp("1. Hotel Santa Maria: near the river.\n2. Hotel Trastevere."), resp("1. Hotel Aurora: simple.\n2. Hotel Bianco.")])
-extra = ai.run_extra(HOTEL, "Rome", qs[:2], client=fake)
+extra = ai.run_extra(HOTEL, "Rome", qs[:2], client=fake, repeats=1)
 check("each niche question is asked once with the web-search tool, and the answers keep the market and the reason",
       len(fake.calls) == 2 and len(extra["items"]) == 2 and extra["items"][0]["angle"] == "Airport" and extra["items"][0]["why"] and extra["cost_usd"] > 0)
 check("the hotel being named in the first niche answer, but not the second, is recorded per question", [i["mentioned"] for i in extra["items"]] == [True, False])

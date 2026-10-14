@@ -125,6 +125,9 @@ if pymupdf is not None:
                                                          "cannot show its reasoning", "Oatlands Park Hotel", "Head to head with")))
     check("the appendix carries the niche markets with the reason each was asked",
           "Where the hotel actually competes" in re.sub(r"\s+", " ", atext) and "Heathrow" in atext)
+    check("the appendix carries the brand ranking (coverage, sentiment) and the exact pages, each with its limits",
+          all(w in re.sub(r"\s+", " ", atext) for w in ("Brand ranking: the hotel and the hotels the assistant named most", "describes this one sample, not the market", "The exact pages the assistant used",
+                                                           "we do not read these pages", "Oatlands Park Hotel - Booking.com")))
     check("the appendix says what it is and points back to the management report", "Technical & evidence appendix" in atext and "management report" in atext)
     check("the management report links to the evidence by reference, not by repeating it", "Appendix reference" in mtext)
     check("filenames say which document it is", "management-report" in report_pdf.filename(rep, "management") and "appendix" in report_pdf.filename(rep, "appendix"))

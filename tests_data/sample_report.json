@@ -8439,7 +8439,11 @@
     "booking.com",
     "tripadvisor.com",
     "visitsurrey.com"
-   ]
+   ],
+   "questions": 5,
+   "repeats": 1,
+   "generic_questions": 2,
+   "niche_questions": 2
   },
   "items": [
    {
@@ -8454,7 +8458,11 @@
      "tripadvisor.com"
     ],
     "searches": 2,
-    "cost_usd": 0.03
+    "cost_usd": 0.03,
+    "qid": "best",
+    "repeat": 1,
+    "repeats": 1,
+    "pages": []
    },
    {
     "id": "where",
@@ -8467,7 +8475,11 @@
      "visitsurrey.com"
     ],
     "searches": 2,
-    "cost_usd": 0.03
+    "cost_usd": 0.03,
+    "qid": "where",
+    "repeat": 1,
+    "repeats": 1,
+    "pages": []
    },
    {
     "id": "about",
@@ -8480,7 +8492,11 @@
      "booking.com"
     ],
     "searches": 2,
-    "cost_usd": 0.03
+    "cost_usd": 0.03,
+    "qid": "about",
+    "repeat": 1,
+    "repeats": 1,
+    "pages": []
    },
    {
     "id": "niche_airport",
@@ -8495,7 +8511,11 @@
      "booking.com"
     ],
     "searches": 2,
-    "cost_usd": 0.02
+    "cost_usd": 0.02,
+    "qid": "niche_airport",
+    "repeat": 1,
+    "repeats": 1,
+    "pages": []
    },
    {
     "id": "niche_feature_spa",
@@ -8510,7 +8530,11 @@
      "tripadvisor.com"
     ],
     "searches": 2,
-    "cost_usd": 0.02
+    "cost_usd": 0.02,
+    "qid": "niche_feature_spa",
+    "repeat": 1,
+    "repeats": 1,
+    "pages": []
    }
   ]
  },
@@ -8656,7 +8680,12 @@
      ],
      "ratings": [
       "8.4 on Booking.com"
-     ]
+     ],
+     "positive": 2,
+     "neutral": 0,
+     "negative": 0,
+     "sentiment": 100,
+     "coverage_pct": 100
     },
     {
      "name": "Brooklands Hotel",
@@ -8672,7 +8701,12 @@
      "reasons": [
       "spa and racing heritage"
      ],
-     "ratings": []
+     "ratings": [],
+     "positive": 1,
+     "neutral": 0,
+     "negative": 0,
+     "sentiment": 100,
+     "coverage_pct": 50
     },
     {
      "name": "Ship Hotel",
@@ -8688,7 +8722,12 @@
      "reasons": [
       "central"
      ],
-     "ratings": []
+     "ratings": [],
+     "positive": 0,
+     "neutral": 1,
+     "negative": 0,
+     "sentiment": 0,
+     "coverage_pct": 50
     }
    ],
    "questions": 2,
@@ -8707,6 +8746,11 @@
     "hotels_named": [
      "Oatlands Park Hotel",
      "Brooklands Hotel"
+    ],
+    "named": 1,
+    "of": 1,
+    "answer_ids": [
+     "best"
     ]
    },
    {
@@ -8720,6 +8764,11 @@
     "hotels_named": [
      "Oatlands Park Hotel",
      "Ship Hotel"
+    ],
+    "named": 0,
+    "of": 1,
+    "answer_ids": [
+     "where"
     ]
    },
    {
@@ -8730,7 +8779,12 @@
     "position": null,
     "angle": null,
     "why": null,
-    "hotels_named": []
+    "hotels_named": [],
+    "named": 1,
+    "of": 1,
+    "answer_ids": [
+     "about"
+    ]
    },
    {
     "id": "niche_airport",
@@ -8743,6 +8797,11 @@
     "hotels_named": [
      "Sofitel Heathrow",
      "Brooklands Hotel"
+    ],
+    "named": 1,
+    "of": 1,
+    "answer_ids": [
+     "niche_airport"
     ]
    },
    {
@@ -8756,6 +8815,11 @@
     "hotels_named": [
      "Oatlands Park Hotel",
      "Grove Spa"
+    ],
+    "named": 0,
+    "of": 1,
+    "answer_ids": [
+     "niche_feature_spa"
     ]
    }
   ],
@@ -8772,6 +8836,11 @@
      "hotels_named": [
       "Sofitel Heathrow",
       "Brooklands Hotel"
+     ],
+     "named": 1,
+     "of": 1,
+     "answer_ids": [
+      "niche_airport"
      ]
     },
     {
@@ -8785,6 +8854,11 @@
      "hotels_named": [
       "Oatlands Park Hotel",
       "Grove Spa"
+     ],
+     "named": 0,
+     "of": 1,
+     "answer_ids": [
+      "niche_feature_spa"
      ]
     }
    ],
@@ -8804,7 +8878,12 @@
       "reasons": [
        "spa"
       ],
-      "ratings": []
+      "ratings": [],
+      "positive": 1,
+      "neutral": 0,
+      "negative": 0,
+      "sentiment": 100,
+      "coverage_pct": 50
      },
      {
       "name": "Sofitel Heathrow",
@@ -8820,7 +8899,12 @@
       "reasons": [
        "on site"
       ],
-      "ratings": []
+      "ratings": [],
+      "positive": 1,
+      "neutral": 0,
+      "negative": 0,
+      "sentiment": 100,
+      "coverage_pct": 50
      },
      {
       "name": "Brooklands Hotel",
@@ -8836,7 +8920,12 @@
       "reasons": [
        "a short taxi ride"
       ],
-      "ratings": []
+      "ratings": [],
+      "positive": 1,
+      "neutral": 0,
+      "negative": 0,
+      "sentiment": 100,
+      "coverage_pct": 50
      },
      {
       "name": "Grove Spa",
@@ -8852,7 +8941,12 @@
       "reasons": [
        "day spa"
       ],
-      "ratings": []
+      "ratings": [],
+      "positive": 0,
+      "neutral": 1,
+      "negative": 0,
+      "sentiment": 0,
+      "coverage_pct": 50
      }
     ],
     "questions": 2,
@@ -8911,7 +9005,14 @@
    "table_size": 3,
    "top_competitor": "Oatlands Park Hotel",
    "niche_asked": 2,
-   "niche_named": 1
+   "niche_named": 1,
+   "repeats": 1,
+   "coverage_pct": 50,
+   "sentiment": 100,
+   "place": 2,
+   "positive": 2,
+   "negative": 0,
+   "asked_all": 4
   },
   "ledger": [
    {
@@ -8983,6 +9084,178 @@
    "domains": [],
    "searches": 2,
    "both_named": true
-  }
+  },
+  "brand_ranking": {
+   "rows": [
+    {
+     "name": "Oatlands Park Hotel",
+     "is_target": false,
+     "mentions": 3,
+     "of": 4,
+     "coverage_pct": 75,
+     "avg_rank": 1.0,
+     "positive": 3,
+     "neutral": 0,
+     "negative": 0,
+     "sentiment": 100,
+     "place": 1
+    },
+    {
+     "name": "Brooklands Hotel",
+     "is_target": true,
+     "mentions": 2,
+     "of": 4,
+     "coverage_pct": 50,
+     "avg_rank": 2.0,
+     "positive": 2,
+     "neutral": 0,
+     "negative": 0,
+     "sentiment": 100,
+     "place": 2
+    },
+    {
+     "name": "Sofitel Heathrow",
+     "is_target": false,
+     "mentions": 1,
+     "of": 4,
+     "coverage_pct": 25,
+     "avg_rank": 1.0,
+     "positive": 1,
+     "neutral": 0,
+     "negative": 0,
+     "sentiment": 100,
+     "place": 3
+    },
+    {
+     "name": "Grove Spa",
+     "is_target": false,
+     "mentions": 1,
+     "of": 4,
+     "coverage_pct": 25,
+     "avg_rank": 2.0,
+     "positive": 0,
+     "neutral": 1,
+     "negative": 0,
+     "sentiment": 0,
+     "place": 4
+    },
+    {
+     "name": "Ship Hotel",
+     "is_target": false,
+     "mentions": 1,
+     "of": 4,
+     "coverage_pct": 25,
+     "avg_rank": 2.0,
+     "positive": 0,
+     "neutral": 1,
+     "negative": 0,
+     "sentiment": 0,
+     "place": 5
+    }
+   ],
+   "all": [
+    {
+     "name": "Oatlands Park Hotel",
+     "is_target": false,
+     "mentions": 3,
+     "of": 4,
+     "coverage_pct": 75,
+     "avg_rank": 1.0,
+     "positive": 3,
+     "neutral": 0,
+     "negative": 0,
+     "sentiment": 100,
+     "place": 1
+    },
+    {
+     "name": "Brooklands Hotel",
+     "is_target": true,
+     "mentions": 2,
+     "of": 4,
+     "coverage_pct": 50,
+     "avg_rank": 2.0,
+     "positive": 2,
+     "neutral": 0,
+     "negative": 0,
+     "sentiment": 100,
+     "place": 2
+    },
+    {
+     "name": "Sofitel Heathrow",
+     "is_target": false,
+     "mentions": 1,
+     "of": 4,
+     "coverage_pct": 25,
+     "avg_rank": 1.0,
+     "positive": 1,
+     "neutral": 0,
+     "negative": 0,
+     "sentiment": 100,
+     "place": 3
+    },
+    {
+     "name": "Grove Spa",
+     "is_target": false,
+     "mentions": 1,
+     "of": 4,
+     "coverage_pct": 25,
+     "avg_rank": 2.0,
+     "positive": 0,
+     "neutral": 1,
+     "negative": 0,
+     "sentiment": 0,
+     "place": 4
+    },
+    {
+     "name": "Ship Hotel",
+     "is_target": false,
+     "mentions": 1,
+     "of": 4,
+     "coverage_pct": 25,
+     "avg_rank": 2.0,
+     "positive": 0,
+     "neutral": 1,
+     "negative": 0,
+     "sentiment": 0,
+     "place": 5
+    }
+   ],
+   "asked": 4
+  },
+  "pages": [
+   {
+    "url": "https://www.booking.com/hotel/gb/oatlands-park.html",
+    "domain": "booking.com",
+    "title": "Oatlands Park Hotel - Booking.com",
+    "questions": 2,
+    "cited": 2,
+    "passage": "Oatlands Park Hotel is a 4-star hotel in Weybridge",
+    "names_hotel": false,
+    "names_competitor": "Oatlands Park Hotel",
+    "own_site": false
+   },
+   {
+    "url": "https://www.tripadvisor.co.uk/Hotel_Review-Brooklands.html",
+    "domain": "tripadvisor.co.uk",
+    "title": "Brooklands Hotel - Tripadvisor",
+    "questions": 1,
+    "cited": 1,
+    "passage": "Brooklands Hotel spa and racing heritage",
+    "names_hotel": true,
+    "names_competitor": null,
+    "own_site": false
+   },
+   {
+    "url": "https://www.visitsurrey.com/stay/weybridge",
+    "domain": "visitsurrey.com",
+    "title": "Where to stay in Weybridge",
+    "questions": 1,
+    "cited": 0,
+    "passage": "",
+    "names_hotel": false,
+    "names_competitor": null,
+    "own_site": false
+   }
+  ]
  }
 }

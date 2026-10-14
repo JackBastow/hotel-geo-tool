@@ -196,7 +196,52 @@ tr = compare._ai_trend(mk(1, 5, ["A", "B"], ["booking.com"]), mk(3, 12, ["A", "C
 check("this month against last: named 1 -> 3 of 4, new competitor C, dropped B, a newly relied-on source", tr["old"]["named"] == 1 and tr["new"]["named"] == 3 and tr["new_competitors"] == ["C"]
       and tr["dropped_competitors"] == ["B"] and tr["new_sources"] == ["tripadvisor.com"])
 check("it says small changes are noise", "noise" in tr["note"])
+o_ = mk(1, 5, ["A"], []); n_ = mk(3, 12, ["A"], [])
+o_["ai_insights"]["scoreboard"].update(coverage_pct=25, sentiment=0); n_["ai_insights"]["scoreboard"].update(coverage_pct=60, sentiment=50)
+tr2 = compare._ai_trend(o_, n_)
+check("the trend carries coverage % and net sentiment, so runs that asked a different number of answers can still be compared",
+      (tr2["old"]["coverage_pct"], tr2["new"]["coverage_pct"], tr2["old"]["sentiment"], tr2["new"]["sentiment"]) == (25, 60, 0, 50))
 check("no trend unless both runs have a sample", compare._ai_trend({"ai_sample": None}, mk(1, 1, [], [])) is None)
+
+print("11. sentiment, batching, brand ranking, pages, repeated answers")
+SENT = {"answers": [{"id": "best", "hotels": [{"name": "Le Royal Hotels & Resorts", "rank": 1, "reason": "spa", "rating": None, "sentiment": "positive"},
+                                              {"name": "Park Inn by Radisson", "rank": 3, "reason": "budget", "rating": None, "sentiment": "negative"}]},
+                    {"id": "where", "hotels": [{"name": "Le Royal Hotels & Resorts", "rank": 1, "reason": "luxury", "rating": None, "sentiment": "positive"},
+                                               {"name": "Hotel Grey", "rank": 3, "reason": "station", "rating": None, "sentiment": "banana"}]}],
+        "about": {"tone": "mixed", "strengths": [], "weaknesses": [], "claims": []}}
+exs, _u = ins.extract(Fake([resp(json.dumps(SENT)), resp(json.dumps({"answers": [], "about": {}}))]), "claude-haiku-5-5", ITEMS, HOTEL, CITY)
+check("sentiment is kept per hotel, and an unknown label becomes neutral", exs["answers"]["best"][0]["sentiment"] == "positive" and exs["answers"]["where"][1]["sentiment"] == "neutral")
+lbs = ins.leaderboard(exs, ITEMS, HOTEL)
+royal = next(r for r in lbs["rows"] if r["name"].startswith("Le Royal"))
+check("net sentiment = % positive minus % negative: 2 positive of 2 -> +100; one negative of one -> -100; nothing judged -> None",
+      royal["sentiment"] == 100 and next(r for r in lbs["rows"] if r["name"].startswith("Park Inn"))["sentiment"] == -100 and next(r for r in lbs["rows"] if r["is_target"])["sentiment"] is None)
+check("coverage % is the share of answers that named the hotel", royal["coverage_pct"] == 100 and next(r for r in lbs["rows"] if r["is_target"])["coverage_pct"] == 0)
+many = [{**ITEMS[0], "id": f"q{k}", "kind": "generic"} for k in range(10)] + [ITEMS[2]]
+fk = Fake([resp(json.dumps({"answers": [], "about": {"tone": "positive", "strengths": [], "weaknesses": [], "claims": []}})), resp(json.dumps({"answers": [], "about": {}})),
+           resp(json.dumps({"answers": [], "about": {}}))])
+ins.extract(fk, "claude-haiku-5-5", many, HOTEL, CITY)
+check("11 answers go in 2 calls of at most 8, the answers about the hotel first so its description is read once", len(fk.calls) == 2 and "[about]" in fk.calls[0]["messages"][0]["content"]
+      and "[about]" not in fk.calls[1]["messages"][0]["content"])
+br = ins.brand_ranking([lbs], HOTEL)
+check("the brand ranking is the hotel plus the top competitors, each with coverage, position and sentiment, and the hotel is always in it",
+      any(r["is_target"] for r in br["rows"]) and br["rows"][0]["name"].startswith("Le Royal") and {"coverage_pct", "avg_rank", "sentiment", "place"} <= set(br["rows"][0]) and len(br["rows"]) <= 6)
+pg = [{**ITEMS[0], "pages": [{"url": "https://www.booking.com/hotel/a.html", "title": "Le Royal Hotels - Booking.com", "cited": True, "cited_text": "Le Royal is a 5-star"},
+                              {"url": "https://www.hilton.com/en/hotels/x/", "title": "DoubleTree by Hilton Luxembourg", "cited": False, "cited_text": ""}]},
+      {**ITEMS[1], "qid": "where", "pages": [{"url": "https://www.booking.com/hotel/a.html", "title": "Le Royal Hotels - Booking.com", "cited": True, "cited_text": "Le Royal"}]}]
+pt = ins.page_table(pg, HOTEL, ["Le Royal Hotels & Resorts"], own_domain="hilton.com")
+top = pt[0]
+check("pages are listed most-cited first with how many questions used them, and which name the hotel or a competitor",
+      top["url"].endswith("a.html") and top["cited"] == 2 and top["questions"] == 2 and top["names_competitor"] and not top["names_hotel"]
+      and next(p for p in pt if "hilton.com" in p["url"])["names_hotel"] and next(p for p in pt if "hilton.com" in p["url"])["own_site"])
+rep_items = [{**ITEMS[0], "id": "best", "qid": "best", "repeat": 1, "mentioned": False}, {**ITEMS[0], "id": "best#2", "qid": "best", "repeat": 2, "mentioned": True, "position": 2}]
+qr = ins.question_rows(rep_items, {"answers": {"best": [{"name": "Le Royal Hotels & Resorts"}], "best#2": [{"name": "Hotel Grey"}]}})
+check("repeated answers collapse to ONE question row: named in 1 of 2, best position 2, hotels from both answers", len(qr) == 1 and qr[0]["named"] == 1 and qr[0]["of"] == 2
+      and qr[0]["position"] == 2 and qr[0]["hotels_named"] == ["Le Royal Hotels & Resorts", "Hotel Grey"] and qr[0]["answer_ids"] == ["best", "best#2"])
+fk = Fake([resp(json.dumps(SENT)), resp(json.dumps({"answers": [], "about": {}})), resp(json.dumps({"summary": "s", "hypotheses": []})), resp("x")])
+rr = ins.run({**AI, "summary": {**AI["summary"], "repeats": 2}}, ctx, client=fk, do_head_to_head=False)
+check("the run carries a brand ranking, the pages, the hotel's coverage %, sentiment and place into the scoreboard",
+      rr["brand_ranking"]["rows"] and "pages" in rr and {"coverage_pct", "sentiment", "place", "repeats"} <= set(rr["scoreboard"]) and rr["scoreboard"]["repeats"] == 2, rr["scoreboard"])
+json.dumps(rr)
 
 print()
 print("FAILURES:", fails if fails else "none")
