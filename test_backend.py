@@ -120,6 +120,7 @@ at.text_input[0].set_value("open-sesame").run()
 check("the right password opens the admin page with its tabs", {"Overview", "Runs", "Hotels", "Markets", "Usage", "Export"} <= {t.label for t in at.tabs} and not at.exception,
       [e.message for e in at.exception])
 check("it shows the saved runs and totals", any(m.label == "Audits saved" and str(m.value) == "2" for m in at.metric) and len(at.dataframe) >= 3)
+check("the Export tab offers the monthly Excel pack", any("Build the monthly pack" in x.label for x in at.button) and any("From month" in x.label for x in at.selectbox), [x.label for x in at.button])
 at2 = admin(ADMIN_PASSWORD="pw", DATABASE_URL="")
 at2.text_input[0].set_value("pw").run()
 check("with a password but no database it says nothing is being saved", any("No database is connected" in w.value for w in at2.warning))
@@ -127,10 +128,10 @@ check("the public page is unchanged for visitors: no admin query, no admin conte
 pub = AppTest.from_file(os.path.join(HERE, "app.py"), default_timeout=60)
 pub.secrets["DATABASE_URL"] = URL
 pub.run()
-check("with a database connected the visitor is offered the choice to keep their run out", any("Save this run" in c.label for c in pub.checkbox), [c.label for c in pub.checkbox])
+check("with a database connected EVERY run is saved: there is no option to opt out, and the visitor is told plainly that runs are saved by the operator and not shown to others", not any("Save this run" in c.label for c in pub.checkbox) and any("Every audit run here is saved by the operator" in c.value and "not shown to other visitors" in c.value for c in pub.caption), [c.value[:60] for c in pub.caption])
 pub2 = AppTest.from_file(os.path.join(HERE, "app.py"), default_timeout=60)
 pub2.run()
-check("with no database there is no save option and no promise about saving", not any("Save this run" in c.label for c in pub2.checkbox))
+check("with no database nothing is saved and nothing is said about saving", not any("saved by the operator" in c.value for c in pub2.caption) and not any("Save this run" in c.label for c in pub2.checkbox))
 
 print()
 print("FAILURES:", fails if fails else "none")

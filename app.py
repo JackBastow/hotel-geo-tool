@@ -260,11 +260,10 @@ with st.form("full_audit_form"):
     fa_wider = st.checkbox(
         "Include the wider discovery (media coverage, listings, awards, local context)", value=True,
         help="Adds roughly 1-2 minutes. Untick for the quicker website-only audit.")
-    fa_save = st.checkbox(
-        "Save this run so the hotel can be tracked over time", value=True,
-        help="The operator of this service keeps saved runs (the hotel, the address you typed and the results, all from public sources) to track how hotels "
-             "are doing. Untick to keep this run out.") if DATABASE_URL else False
     fa_go = st.form_submit_button("Run audit", type="primary")
+    if DATABASE_URL:
+        st.caption("Every audit run here is saved by the operator of this service (the hotel, the address you typed and the results, all from public sources) so hotels "
+                   "can be tracked over time. Saved audits are not shown to other visitors.")
 
 if fa_go:
     if not fa_website:
@@ -336,7 +335,7 @@ if fa_go:
         st.session_state["ai_records"] = []
     st.session_state["fa_res"] = fa_res
     st.session_state["save_status"] = None
-    if DATABASE_URL and fa_save:
+    if DATABASE_URL:
         try:
             import backend
             st.session_state["save_status"] = f"saved #{backend.open_store(DATABASE_URL).save_run(fa_res)}"

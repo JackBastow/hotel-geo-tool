@@ -164,18 +164,25 @@ three pages, and about half a cent an audit.
 **Not implemented, deliberately:** any competitor entry (nothing in the main audit needs a competitor)
 and anything that needs a billing account or breaks a platform's terms.
 
-## Back end: saved audits and the admin page
+## Back end: saved audits, the admin page and the monthly pack
 
-Set a `DATABASE_URL` secret (a Postgres connection string; Neon's free plan needs no card) and every finished audit is
-also saved (unless the visitor unticks "Save this run"). `backend.py` keeps one row per run with the headline, every
-category score, the AI-visibility, niche-market, review-reply and speed numbers and the full report as JSON, plus two
-market tables (which hotels the assistant named, which sites it relied on). Open the app with `?admin=1` and the
-`ADMIN_PASSWORD` secret to get `ui_admin.py`: Overview, Runs (filter, reopen a run, download its JSON or rebuild its
-PDFs, delete), Hotels (one row per hotel with the change since its last run, and history charts), Markets (who the
-assistant names most, and which sites it relies on, across every hotel or one city), Usage (runs and estimated AI cost
-by month) and Export (CSV of every run, of competitors and of sources, and a zip of full reports). Visitors cannot read
-any of it. With no `DATABASE_URL` nothing is saved and the app behaves as before. SQLite (`sqlite:///file.db`) works for
-development and tests, but is not durable on Streamlit Community Cloud, whose disk is wiped.
+Set a `DATABASE_URL` secret (a Postgres connection string; Neon's free plan needs no card) and **every** finished audit is
+saved: there is no visitor opt-out, and the page tells visitors plainly that runs are saved by the operator and not shown to
+other visitors. `backend.py` keeps one row per run (the headline, every category score, the AI-visibility, niche-market,
+review-reply and speed numbers, cost, and the full report as JSON) plus two market tables (which hotels the assistant named,
+which sites it relied on). Open the app with `?admin=1` and the `ADMIN_PASSWORD` secret to get `ui_admin.py`: Overview, Runs
+(filter, reopen, rebuild PDFs, delete), Hotels (one row per hotel with the change since its last run, history charts), Markets
+(who the assistant names most and which sites it relies on, across every hotel or one city), Usage, and Export.
+
+**The monthly pack (`monthly_pack.py`).** Export > Monthly pack builds one Excel workbook for a month (or a range of months):
+*Hotels* (one row per audit: readiness, all eight category scores, AI visibility town-wide and in niche markets, share of
+hotel names, place in the competitor table, reviews replied, speed, the top 3 actions, and the change since the hotel's latest
+run in an earlier month), *Metrics* (the same numbers in tidy form, one row per hotel/run/metric, for dashboards and pivots),
+*Scores and why* (every score with its status, evidence strength and a brief reason), *AI rankings* (question by question: named?
+where in the list? who was named instead), *AI competitors*, *AI why* (hypotheses), *Top 3 actions* and *Sources*, plus a *Read me*
+with the caveats (a sample of one model, readiness is an indicator, blank means not assessed). With no `DATABASE_URL` nothing is
+saved and the admin page says so. SQLite (`sqlite:///file.db`) works for development and tests but is not durable on Streamlit
+Community Cloud, whose disk is wiped.
 
 ## The discovery & reputation report
 

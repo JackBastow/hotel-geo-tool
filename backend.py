@@ -210,6 +210,11 @@ class Store:
         cols = "id, " + ", ".join(RUN_COLS)
         return self._rows(f"SELECT {cols} FROM runs" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY run_at DESC, id DESC LIMIT ?", args + [int(limit)])
 
+    def runs_in_months(self, start_month, end_month):
+        """Summary rows for every run whose month (YYYY-MM) is between the two, inclusive. Oldest first."""
+        cols = "id, " + ", ".join(RUN_COLS)
+        return self._rows(f"SELECT {cols} FROM runs WHERE SUBSTR(run_at, 1, 7) >= ? AND SUBSTR(run_at, 1, 7) <= ? ORDER BY run_at ASC, id ASC", (start_month, end_month))
+
     def get_report(self, run_id):
         rows = self._rows("SELECT report_json FROM runs WHERE id = ?", (run_id,))
         return json.loads(rows[0]["report_json"]) if rows else None

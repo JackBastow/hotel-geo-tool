@@ -173,6 +173,30 @@ def page(database_url, password):
         st.download_button("Hotels named by the assistant, all audits (.csv)", backend.to_csv(store.competitors(None, "generic", limit=100000) + store.competitors(None, "niche", limit=100000)),
                            file_name="hotel-audit-competitors.csv", mime="text/csv", on_click="ignore")
         st.download_button("Sites the assistant relies on (.csv)", backend.to_csv(store.sources(None, limit=100000)), file_name="hotel-audit-sources.csv", mime="text/csv", on_click="ignore")
+        st.markdown("##### Monthly pack (Excel)")
+        st.caption("One workbook with every audit in the period: scores and why, AI rankings and competitors, the top 3 actions per hotel, and the change since each hotel's "
+                   "previous run. Built for reading, and for feeding to a dashboard.")
+        months = sorted({str(r["run_at"])[:7] for r in rows})
+        if months:
+            a, b = st.columns(2)
+            default = months[-2] if len(months) > 1 and months[-1] == time.strftime("%Y-%m") else months[-1]
+            m_from = a.selectbox("From month", months, index=months.index(default), key="pk_from")
+            m_to = b.selectbox("To month", months, index=months.index(default), key="pk_to")
+            if m_from > m_to:
+                st.warning("The 'to' month is before the 'from' month.")
+            else:
+                in_range = store.runs_in_months(m_from, m_to)
+                st.caption(f"{len(in_range)} audit(s), {len({r['hotel_key'] for r in in_range})} hotel(s).")
+                if in_range and st.button("Build the monthly pack"):
+                    import monthly_pack
+                    with st.spinner("Building the workbook..."):
+                        st.session_state["pack"] = (monthly_pack.filename(m_from, m_to),
+                                                    monthly_pack.build_workbook([(r, store.get_report(r["id"])) for r in in_range if store.get_report(r["id"])], store.list_runs(limit=100000)))
+                if st.session_state.get("pack"):
+                    st.download_button("Download " + st.session_state["pack"][0], st.session_state["pack"][1], file_name=st.session_state["pack"][0],
+                                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", on_click="ignore")
+        else:
+            st.caption("No audits saved yet.")
         st.markdown("##### Full reports")
         n = st.number_input("How many of the latest runs", min_value=1, max_value=500, value=min(50, max(1, len(rows))))
         if st.button("Build a zip of the full reports (.json)"):
