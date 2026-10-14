@@ -77,6 +77,7 @@ import consultant
 import external_check
 import fixes
 import guest_questions
+import listing_lookup
 import headline
 import intel
 import places_check
@@ -633,13 +634,14 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     segment_labels = [tavily_check.SEGMENTS[k][0]
                       for k in tavily_check.detect_segments(site.get("topics_covered"))]
     # A few real questions put to an AI assistant (needs a name and a town; runs beside everything else).
-    ai_ex = ai_future = rv_future = None
+    ai_ex = ai_future = rv_future = ll_future = None
     if anthropic_api_key and hotel and city:
-        ai_ex = ThreadPoolExecutor(max_workers=2)
+        ai_ex = ThreadPoolExecutor(max_workers=3)
         _rep = {} if anthropic_repeats is None else {"repeats": max(1, min(3, int(anthropic_repeats)))}      # how many times each list question is asked (default in ai_sample)
         ai_future = ai_ex.submit(ai_sample.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model,
                                  segments=segment_labels, own_domain=base, **_rep)
         rv_future = ai_ex.submit(review_replies.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model)
+        ll_future = ai_ex.submit(listing_lookup.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model)     # finds the hotel's listing on each major site
     collect_ex = collect_future = None
     if wider and hotel:
         collect_ex = ThreadPoolExecutor(max_workers=1)
@@ -779,6 +781,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             niche_future = None
 
     ai_result = review_result = None
+    listing_result = {"source": listing_lookup.SOURCE, "status": "not_configured", "reason": "", "pages": [], "cost_usd": 0.0}
     if ai_future is None:
         ai_result = ai_sample.run(hotel, city, api_key=anthropic_api_key)      # returns the 'not configured / need a name and town' envelope
         review_result = review_replies.run(hotel, city, api_key=anthropic_api_key)
@@ -794,8 +797,34 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         except Exception as e:  # noqa: BLE001
             review_result = {"source": review_replies.SOURCE, "status": "unavailable", "items": [], "access": review_replies.ACCESS,
                              "reason": f"The reviews snapshot did not finish in time ({type(e).__name__}), so it was not assessed."}
+        try:
+            listing_result = ll_future.result(timeout=120)
+        except Exception as e:  # noqa: BLE001
+            listing_result = {"source": listing_lookup.SOURCE, "status": "unavailable", "reason": f"The listing lookup did not finish in time ({type(e).__name__}).", "pages": [], "cost_usd": 0.0}
         finally:
             ai_ex.shutdown(wait=False, cancel_futures=True)
+    # Listings found by the AI web searches (this lookup, the sampled answers and the review pages) join the candidates the footprint is built from, but only where the
+    # page is on that platform's domain and its address or title names the hotel. They were not opened.
+    try:
+        _pool = list(listing_result.get("pages") or [])
+        for _it in (ai_result or {}).get("items") or []:
+            _pool += [{"url": pg["url"], "title": pg.get("title", "")} for pg in _it.get("pages") or []]
+        _pool += [{"url": pl["url"], "title": pl.get("platform", "")} for pl in ((review_result or {}).get("platforms") or []) if pl.get("url")]
+        _hits = listing_lookup.hits_from_pages(_pool, hotel, city)
+        _known = {c["key"] for c in corpus.get("candidates", [])}
+        _new = [c for c in listing_lookup.as_candidates(_hits, base) if c["key"] not in _known]
+        corpus.setdefault("candidates", []).extend(_new)
+        listing_result["added"] = [{"platform": h["platform"], "url": h["url"]} for h in _hits]
+        if isinstance(tavily_result, dict) and tavily_result.get("configured") and not tavily_result.get("error"):      # the OTA category counts them too
+            _have = {h.get("platform") for h in tavily_result.get("ota_hits") or []}
+            for h in _hits:
+                _label = tavily_check._classify_domain(h["url"])[1]
+                if _label not in _have:
+                    _have.add(_label)
+                    tavily_result.setdefault("ota_hits", []).append({"platform": _label, "url": h["url"], "title": h.get("title", ""),
+                                                                      "snippet": "found by an AI web search; the page was not opened"})
+    except Exception:  # noqa: BLE001 - an extra; the footprint stands without it
+        pass
 
     ai_visibility_cat, ai_visibility_raw = None, None
     if include_ai_visibility and gemini_api_key:
@@ -944,6 +973,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "ai_sample": ai_result,
         "ai_insights": ai_insight_result,
         "review_snapshot": review_result,
+        "listing_lookup": {k: v for k, v in listing_result.items() if k != "pages"},
         "tavily_result": tavily_result,
         "places_result": places_result,
         "amadeus_result": amadeus_result,

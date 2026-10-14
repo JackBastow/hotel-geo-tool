@@ -73,7 +73,7 @@ def summarise(rep):
     recs = cons.get("recommendations") or []
     by_id = {r.get("id"): r.get("title", "") for r in recs}
     cats = {c["key"]: c.get("score") for c in sc.get("categories", []) if c.get("assessed") and c.get("score") is not None}
-    ai_cost = sum(_num(x.get("cost_usd")) or 0 for x in (ai, ins, rv)) + _num((rep.get("guest_questions") or {}).get("reader_cost_usd") or 0)
+    ai_cost = sum(_num(x.get("cost_usd")) or 0 for x in (ai, ins, rv, rep.get("listing_lookup") or {})) + _num((rep.get("guest_questions") or {}).get("reader_cost_usd") or 0)
     return {
         "run_at": str(meta.get("run_at") or dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")),
         "hotel": meta.get("hotel") or "", "hotel_key": hotel_key(rep), "city": meta.get("city") or "", "website": meta.get("website") or "",

@@ -154,6 +154,15 @@ cited first, with whether the page title or the quoted passage names the hotel o
 "not seen" means not visible in what we hold, and the report says so. Every figure is a count over this one sample, not a market ranking.
 Extraction now runs in batches of eight answers. Cost is about $0.55-0.60 an audit with two repeats.
 
+**Finding the hotel's listings (`listing_lookup.py`, same Anthropic credit, about 10 cents an audit).** The wider discovery only keeps
+what a few general searches happened to return, so it could report "not found by our searches" for a hotel that is plainly on
+Expedia. One Claude call with web search now looks for the hotel on Booking.com, Expedia, Hotels.com, TripAdvisor, Trivago, Agoda and
+Trip.com in turn; its words are discarded and a listing is accepted only if a page in the search results (or in the sampled answers
+and review pages already collected) is on that platform's domain and its address or title carries the hotel's name (the full name,
+the name without "hotel"/"spa", or for names of three or more distinctive words all of them in any order; one word alone never
+counts). Found listings join the footprint and the OTA score, marked "found in public search results; page not opened", because the
+platforms prohibit automated reading. A platform still not found says "not found by our searches", never "not listed".
+
 **Reviews and replies snapshot (optional, same Anthropic credit).** `review_replies.py` asks the model to look at
 the review pages that appear in public search results and report ratings, review counts and, above all, whether
 the hotel replied to each review it could see, by which role, in what tone, with a paraphrase. A model can invent,

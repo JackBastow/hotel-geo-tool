@@ -173,12 +173,25 @@ def namesakes(hotel, city, corpus, entities):
 
 # --------------------------------------------------------------- listing footprint
 
+def names_hotel(url, title, snippet, hotel):
+    """
+    Does this page (by its address, title and snippet) belong to the hotel? The full name (as the page writes it), or the name without
+    'hotel'/'spa' etc. when the address carries it ('...Paris-Marriott-Opera-Ambassador.h3309.Hotel-Information'), or - for a name of
+    three or more distinctive words - all those words in any order. One distinctive word alone never counts.
+    """
+    slug = evidence.fold(re.sub(r"[-_/.]+", " ", urlparse(url).path))
+    t = f"{title} {snippet}"
+    if evidence.match_hotel(t, hotel, "", "", "")["level"] in ("high", "medium") or any(v in slug for v in evidence.name_variants(hotel)):
+        return True
+    toks = evidence.distinctive_tokens(hotel)
+    hay = f"{slug} § {evidence.fold(title)}"
+    if len(toks) >= 2 and " ".join(toks) in hay:
+        return True
+    return len(toks) >= 3 and all(re.search(r"(?<![a-z0-9])" + re.escape(tk) + r"(?![a-z0-9])", hay) for tk in toks)
+
+
 def _names_hotel(c, hotel):
-    slug = evidence.fold(re.sub(r"[-_/.]+", " ", urlparse(c["url"]).path))
-    t = f"{c['title']} {c['snippet']}"
-    m = evidence.match_hotel(t, hotel, "", "", "")
-    return (m["level"] in ("high", "medium")
-            or any(v in slug for v in evidence.name_variants(hotel)))
+    return names_hotel(c["url"], c["title"], c["snippet"], hotel)
 
 
 def listing_footprint(corpus, hotel, city, entities, own_site_links=()):
