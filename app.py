@@ -89,9 +89,11 @@ import report_pdf
 import store
 import ui_consult
 import ui_intel
+import ui_theme
 
 st.set_page_config(page_title="Hotel AI Discoverability Audit",
-                   page_icon="H", layout="wide")
+                   page_icon="H", layout="wide", initial_sidebar_state="collapsed")
+ui_theme.inject()
 
 
 def _operator_secret(name):
@@ -226,14 +228,14 @@ def render_comparison(cmp):
         st.dataframe(cmp["facts"], width="stretch", hide_index=True)
 
 
-st.title("Hotel AI Discoverability Audit")
-st.caption(
+_t, _a = st.columns([6, 1], vertical_alignment="bottom")
+_t.title("Hotel AI Discoverability Audit")
+_t.caption(
     "Find the gaps in the information AI search can use about your hotel. "
     "Free, no account, no API keys needed."
 )
 
-st.sidebar.title("About")
-st.sidebar.caption(
+_ABOUT = (
     "This reads your hotel's own website and checks whether it answers the "
     "questions guests (and AI assistants) ask - parking, breakfast, "
     "check-in, pets, accessibility - showing the exact text it relied on. "
@@ -252,7 +254,8 @@ st.sidebar.caption(
     "unreadable - never counted against you)."
 )
 
-with st.form("full_audit_form"):
+_form_host = st.expander("Run another audit", expanded=False) if st.session_state.get("fa_res") else st.container()
+with _form_host, st.form("full_audit_form"):
     fa_website = st.text_input(
         "Website *", placeholder="brooklandshotelsurrey.com",
         help="The only thing that's required.",
@@ -275,6 +278,18 @@ with st.form("full_audit_form"):
     if DATABASE_URL:
         st.caption("Every audit run here is saved by the operator of this service (the hotel, the address you typed and the results, all from public sources) so hotels "
                    "can be tracked over time. Saved audits are not shown to other visitors.")
+
+with _a.popover("About", icon=":material/info:"):
+    st.markdown(_ABOUT)
+if not st.session_state.get("fa_res"):
+    _f1, _f2, _f3 = st.columns(3)
+    for _col, (_h, _p) in zip((_f1, _f2, _f3), (
+            ("Does the website answer guests?", "Parking, breakfast, check-in, pets, accessibility: found on the hotel's own pages, with the exact text relied on."),
+            ("What do AI assistants say?", "A sample of what an AI assistant recommends in the hotel's town and markets, who it names instead, and where it got that."),
+            ("Where is the hotel listed?", "Booking and review sites, maps, open data and press coverage, and where the picture does not agree."))):
+        with _col, st.container(border=True):
+            st.markdown(f"**{_h}**")
+            st.caption(_p)
 
 if fa_go:
     if not fa_website:
@@ -368,6 +383,12 @@ if fa_res:
     json_bytes = json.dumps({**fa_res, "manual_ai_checks": st.session_state.get("ai_records", [])},
                             indent=2, default=str)
     headline.attach(fa_res)       # readiness score, coverage and per-category evidence strength (also for older reports)
+    _chips = [ui_theme.chip(f"Run {meta['run_at'][:16].replace('T', ' ')} UTC", "brand"), ui_theme.chip(f"Name {meta['hotel_name_source']}")]
+    if loc.get("source"):
+        _chips.append(ui_theme.chip(("Location " + str(loc["source"])) if str(loc["source"]).startswith(("provided", "inferred")) else ("Location from " + str(loc["source"]))))
+    if (fa_res.get("guest_questions") or {}).get("read_via"):
+        _chips.append(ui_theme.chip("Read through a fallback reader", "warn"))
+    ui_theme.hero(meta["hotel"] or meta["website"], " · ".join(x for x in (meta.get("city"), meta.get("website")) if x), None, "", chips=_chips)
     d0, d1, d2 = st.columns([2, 2, 2])
     pdf_key = (meta["run_at"], meta["website"])
     if st.session_state.get("pdf_key") != pdf_key:
@@ -397,8 +418,6 @@ if fa_res:
         file_name=f"{store.slug(meta['hotel'] or meta['website'])}-audit-{str(meta['run_at'])[:10]}.json",
         mime="application/json", width="stretch", on_click="ignore",
         help="Keep it to compare with a future run (Tools tab).")
-    st.caption(f"Run {meta['run_at'][:16].replace('T', ' ')} UTC · hotel name {meta['hotel_name_source']}"
-               + ((f" · location {loc['source']}" if str(loc["source"]).startswith(("provided", "inferred")) else f" · location from {loc['source']}") if loc.get("source") else ""))
     _ss = st.session_state.get("save_status")
     if _ss:
         st.caption("This run was saved so the hotel can be tracked over time." if _ss.startswith("saved")

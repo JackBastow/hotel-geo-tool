@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 .streamlit/secrets.toml
 sample_output/
+dev_preview.py
+.claude/launch.json

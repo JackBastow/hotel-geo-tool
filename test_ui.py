@@ -41,8 +41,9 @@ for want in ("Identity & distribution", "Reviews & reputation", "Media & validat
 text = " ".join(m.value for m in at.markdown) + " ".join(s.value for s in at.subheader)
 check("the AI-understanding statement leads the page", "AI currently understands this hotel as" in text)
 check("the readiness profile is shown as separate measures", "Readiness, measure by measure" in text)
-check("the headline metric is labelled readiness, never AI visibility",
-      any(m.label == "AI discoverability readiness" for m in at.metric) and not any("AI visibility score" in m.label for m in at.metric), [m.label for m in at.metric])
+check("the headline score is labelled readiness (never AI visibility), shown as a ring with its measurement coverage and what was not measured",
+      "AI discoverability readiness" in " ".join(m.value for m in at.markdown) and "AI visibility score" not in " ".join(m.value for m in at.markdown)
+      and 'class="hk-ring"' in " ".join(m.value for m in at.markdown) and any("Measurement coverage" in str(p_.text) for p_ in at.get("progress")) and "Not measured" in " ".join(m.value for m in at.markdown))
 check("the explanation says what was not measured", any("not measured" in c.value.lower() for c in at.caption) or "Not measured" in " ".join(m.value for m in at.markdown))
 check("top actions are shown", "things most worth doing" in text)
 check("fixes, opportunities, quick wins and the 30/60/90 plan are separate views",
@@ -68,7 +69,7 @@ check("every download button is set not to re-run the page (a re-run snapped use
 check("the sampled AI answers are shown, labelled a sample and never a ranking",
       "What an AI assistant said (a sample)" in text and any("not a ranking" in c.value for c in at.caption), [c.value[:60] for c in at.caption][:5])
 check("what it found is stated in numbers a reader can hold (named in 0 of 2, known directly, sources listed)",
-      {"Named in town-wide 'where to stay' answers", "Known when asked directly", "Own website cited"} <= {m.label for m in at.metric} and "booking.com" in text)
+      {"Town-wide", "Known directly"} <= {m.label for m in at.metric} and "Own website cited: " in " ".join(m.value for m in at.markdown) and "booking.com" in text)
 
 check("the reviews-and-replies snapshot is shown with its limits: seen on examined, never a reply rate, and not part of any score",
       "Reviews and replies: an indicative snapshot" in text and any("not the hotel's reply rate" in c.value for c in at.caption), [c.value[:50] for c in at.caption][:6])
@@ -88,18 +89,20 @@ check("the AI analysis is shown: who is recommended instead, the question matrix
 check("hypotheses are labelled as hypotheses, not causes, and cite their evidence", any("not as causes" in w.value for w in at.warning) and "evidence E1, E2" in text)
 _tables = " ".join(str(d.value.to_dict()) for d in at.dataframe)
 check("the mismatch is shown plainly: free parking said, a charge in the hotel's own record", "free parking" in _tables and "differs" in _tables and "parking charge" in _tables)
+_md = " ".join(m.value for m in at.markdown)
 check("the share of names, the place in the table and the average position are shown as figures",
-      {"Share of the names given", "Your place in that table", "Average position when named"} <= {m.label for m in at.metric})
+      all(w in _md for w in ("Share of the names given: ", "Your place in that table: ", "Average position when named: ")))
 
 check("the niche markets get their own section, with the reason each question was asked",
       "Where the hotel actually competes" in text and "None names the hotel" in " ".join(c.value for c in at.caption))
 _tb = " ".join(str(d.value.to_dict()) for d in at.dataframe)
-check("the table shows the market (Airport, Spa), the question, why it was asked and the result", "Airport" in _tb and "Why we asked this" in _tb and "short taxi" not in _tb and "Heathrow" in _tb)
-check("the metrics show both counts: town-wide and the markets it competes in", {"Named in town-wide 'where to stay' answers", "Named in the markets it competes in"} <= {m.label for m in at.metric})
+check("each niche question is shown with its market (Airport, Spa), the question, why it was asked and whether the hotel was named, as a dot per answer",
+      all(w in _md for w in ("Airport", "Spa", "Why we asked: ", "Heathrow", "hk-dot y", "hk-dot n")))
+check("the metrics show both counts: town-wide and niche markets", {"Town-wide", "Niche markets"} <= {m.label for m in at.metric})
 
 check("the brand ranking shows the hotel and the top named hotels with coverage, position and sentiment, and says it describes this one sample",
-      "Brand ranking: the hotel and the hotels named most" in text and {"Coverage", "Sentiment", "Your place"} <= {m.label for m in at.metric}
-      and "Positive / neutral / negative" in _tb and any("not the market" in c.value for c in at.caption))
+      "Brand ranking: the hotel and the hotels named most" in text and {"Coverage", "Sentiment"} <= {m.label for m in at.metric} and "Your place: " in _md
+      and "Positive / neutral / negative" in _tb and any("not the market" in c.value for c in at.caption) and "**Coverage** is the share of answers that named the hotel" in _md)
 check("the exact pages are listed, with the caveat that they are judged only from the title and the quoted passage",
       "The exact pages the assistant used" in text and "booking.com/hotel/gb/oatlands-park.html" in _tb and any("we do not read these pages" in c.value for c in at.caption))
 

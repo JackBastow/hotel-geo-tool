@@ -9,6 +9,7 @@ page can inject markup or load an image.
 import streamlit as st
 
 from ai_insights import sentiment_label
+import ui_theme
 from ui_intel import df, md_safe, safe_url
 
 PRI_ICON = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "⚪"}
@@ -90,33 +91,36 @@ EVIDENCE_ICON = {"high": "\U0001F7E2", "medium": "\U0001F7E1", "low": "\U0001F53
 def headline_strip(h):
     """The readiness score, how much of the model it rests on, and what was NOT measured - always together."""
     with st.container(border=True):
-        c1, c2 = st.columns([1, 3])
+        c1, c2 = st.columns([1, 4], vertical_alignment="center")
         with c1:
-            st.metric("AI discoverability readiness", "\u2014" if h["score"] is None else f"{h['score']} / 100",
-                      help="The average of the categories that could be assessed - an indicator of how well the hotel is set up, "
-                           "not a measure of how visible it is to AI assistants.")
-            st.caption(h["badge"].capitalize())
+            st.markdown(ui_theme.ring(h["score"], "of 100", size=124), unsafe_allow_html=True)
         with c2:
+            st.markdown("**AI discoverability readiness** &nbsp;" + ui_theme.chip(h["badge"].capitalize(), "brand"), unsafe_allow_html=True)
             st.progress(min(max(h["coverage_pct"], 0), 100) / 100, text=f"Measurement coverage: {h['coverage_pct']:.0f}% of the full model assessed")
             st.caption(h["explanation"])
             if h["unassessed"]:
-                st.markdown("**Not measured:** " + "; ".join(f"{u['label']} ({u['weight']:g}%)" for u in h["unassessed"]))
+                st.markdown('<span class="hk-label">Not measured</span> &nbsp;' + " ".join(ui_theme.chip(f"{u['label']} · {u['weight']:g}%", "warn") for u in h["unassessed"]),
+                            unsafe_allow_html=True)
+
+
+PRI_CHIP = {"critical": "bad", "high": "bad", "medium": "warn", "low": ""}
 
 
 def top_card(i, r):
-    """A top action, concise: Issue / Why it matters / Evidence / Exact action / Owner / Priority / Effort / Confidence / Expected outcome."""
+    """A top action: the issue and why it matters at a glance, the exact action highlighted, the rest one click away."""
     with st.container(border=True):
-        st.markdown(f"**{i}. {md_safe(r['title'])}**")
-        st.caption(f"{PRI_ICON[r['priority']]} {r['priority'].capitalize()} priority \u00b7 effort: {r['effort']} \u00b7 "
-                   f"confidence: {r['confidence'].lower()} \u00b7 owner: {r['team']} \u00b7 ref {r['ref']}")
-        st.markdown(f"**Issue.** {md_safe(_short(r['finding'], 300))}")
-        st.markdown(f"**Why it matters.** {md_safe(_short(r['why'], 260))}")
-        if r["evidence"]:
-            st.markdown("**Evidence**")
-            _evidence(r["evidence"][:1])
-        st.markdown(f"**Exact action.** {md_safe(_short(r['action'], 320))}")
-        st.markdown(f"**Expected outcome.** {md_safe(_short(r['expected_outcome'], 240))}")
-        with st.expander("Where, what to add, and example wording"):
+        st.markdown(f"##### {i}. {md_safe(r['title'])}")
+        st.markdown(" ".join([ui_theme.chip(f"{r['priority'].capitalize()} priority", PRI_CHIP.get(r["priority"], "")), ui_theme.chip(f"Effort: {r['effort']}"),
+                              ui_theme.chip(f"Owner: {r['team']}"), ui_theme.chip(f"Confidence: {r['confidence'].lower()}"), ui_theme.chip(r["ref"])]), unsafe_allow_html=True)
+        a, b = st.columns(2)
+        a.markdown(f"**Issue.** {md_safe(_short(r['finding'], 300))}")
+        b.markdown(f"**Why it matters.** {md_safe(_short(r['why'], 260))}")
+        st.success(f"**Exact action.** {md_safe(_short(r['action'], 320))}", icon=":material/task_alt:")
+        with st.expander("Evidence, expected outcome and example wording"):
+            if r["evidence"]:
+                st.markdown("**Evidence**")
+                _evidence(r["evidence"][:1])
+            st.markdown(f"**Expected outcome.** {md_safe(_short(r['expected_outcome'], 240))}")
             rec_card(r, nested=True)
 
 
@@ -144,20 +148,18 @@ def overview(c, h=None):
     st.markdown("#### Readiness, measure by measure")
     st.caption("Eight separate measures, deliberately not blended into one score. Each shows how much evidence stands behind it: "
                "a high score on thin evidence is not the same as a high score on solid evidence.")
-    cols = st.columns(4)
-    for i, p in enumerate(c["profile"]):
-        with cols[i % 4]:
-            with st.container(border=True):
-                st.markdown(f"**{p['label']}**")
-                ev = p.get("evidence") or {}
-                if p["assessed"]:
-                    st.progress(p["score"] / 100, text=f"{p['score']} / 100")
-                    st.caption(f"{EVIDENCE_ICON.get(ev.get('level'), '')} {ev.get('level', '?')} evidence"
-                               + (" \u00b7 provisional" if p["band"] == "provisional" else "") + f" \u2014 {md_safe(ev.get('why', ''))}")
-                else:
-                    st.caption("Not assessed this run")
-                for d in p["drivers"][:3]:
-                    st.caption(md_safe(d))
+    ui_theme.bars([{"label": p["label"], "score": p["score"] if p["assessed"] else None,
+                    "note": ((f"{(p.get('evidence') or {}).get('level', '?')} evidence" + (" \u00b7 provisional" if p["band"] == "provisional" else "")) if p["assessed"] else "not assessed this run")}
+                   for p in c["profile"]])
+    with st.expander("What drives each measure, and how sure we are"):
+        for p in c["profile"]:
+            ev = p.get("evidence") or {}
+            st.markdown(f"**{p['label']}** &nbsp; " + (ui_theme.chip(f"{ev.get('level', '?')} evidence", {"high": "good", "medium": "warn", "low": "bad"}.get(ev.get("level"), "")) if p["assessed"] else ui_theme.chip("Not assessed")),
+                        unsafe_allow_html=True)
+            if p["assessed"] and ev.get("why"):
+                st.caption(md_safe(ev["why"]))
+            for d in p["drivers"][:3]:
+                st.caption("\u2022 " + md_safe(d))
 
     recs = {r["id"]: r for r in c["recommendations"]}
     fixes = [recs[i] for i in c.get("required_fixes", [])]
@@ -260,8 +262,52 @@ def review_card(rs):
         st.caption(f"{rs['dropped']} item(s) the assistant reported were dropped because their pages were not among the search results.")
 
 
+def _sentiment_chart(rows):
+    """Net sentiment per hotel as diverging bars (green to the right, red to the left). Hotels never judged are left out."""
+    import altair as alt
+    data = [{"name": str(r["name"])[:34], "value": r["sentiment"], "me": bool(r["is_target"])} for r in rows if r.get("sentiment") is not None]
+    if not data:
+        st.caption("No sentiment could be judged: the hotels were named without enough said about them.")
+        return
+    order = [d["name"] for d in data]
+    for d in data:
+        d["label"] = f"{d['value']:+d}" if d["value"] else "0"
+    base = alt.Chart(alt.Data(values=data)).encode(y=alt.Y("name:N", sort=order, title=None, axis=alt.Axis(labelLimit=240, ticks=False, domain=False, labelFontSize=12, labelColor=ui_theme.INK)))
+    bar = base.mark_bar(cornerRadius=4, size=14).encode(
+        x=alt.X("value:Q", title=None, scale=alt.Scale(domain=[-100, 100]), axis=alt.Axis(grid=True, gridColor="#EEF0F6", domain=False, ticks=False, labelColor=ui_theme.MUTED, values=[-100, 0, 100])),
+        color=alt.condition(alt.datum.value >= 0, alt.value(ui_theme.GOOD), alt.value(ui_theme.BAD)), tooltip=[alt.Tooltip("name:N", title="Hotel"), alt.Tooltip("value:Q", title="Net sentiment")])
+    txt = base.mark_text(align="left", dx=5, fontSize=12, fontWeight=600, color=ui_theme.INK).encode(x=alt.X("value:Q", scale=alt.Scale(domain=[-100, 100])), text=alt.Text("label:N"))
+    for d in data:
+        d["label"] = f"{d['value']:+d}" if d["value"] else "0"
+    st.altair_chart((bar + txt).configure(background="rgba(0,0,0,0)").configure_view(stroke=None).properties(height=34 * len(data) + 28), width="stretch")
+
+
+def _question_grid(rows):
+    """Prompt performance: each question, whether the hotel was named in each answer (filled dot = named), the best position, and who was named."""
+    import html
+    kind = {"generic": ("Town-wide", ""), "niche": ("Niche market", "brand"), "direct": ("About the hotel", "")}
+    out = []
+    for m in rows:
+        k, cls = kind.get(m["kind"], (m["kind"], ""))
+        if m["kind"] in ("generic", "niche") and m.get("of"):
+            res = ui_theme.dots(m["named"], m["of"]) + f'<span class="hk-muted">{m["named"]} of {m["of"]} answer{"" if m["of"] == 1 else "s"}</span>'
+        elif m["kind"] == "direct":
+            res = '<span class="hk-muted">asked about the hotel</span>'
+        else:
+            res = '<span class="hk-muted">n/a</span>'
+        pos = f' &nbsp;<span class="hk-chip">best position {m["position"]}</span>' if m.get("position") else ""
+        who = ", ".join(html.escape(str(h)) for h in (m.get("hotels_named") or [])[:4])
+        why = f'<div class="hk-muted" style="font-size:.78rem;margin-top:.15rem">Why we asked: {html.escape(str(m["why"]))}</div>' if m.get("why") else ""
+        angle = f' {ui_theme.chip(m["angle"])}' if m.get("angle") else ""
+        out.append(f'<div class="hk-row"><div><div style="font-weight:600">{html.escape(str(m["question"]))}</div>{why}'
+                   f'<div style="margin-top:.35rem">{ui_theme.chip(k, cls)}{angle}</div></div>'
+                   f'<div style="white-space:nowrap">{res}{pos}</div>'
+                   f'<div class="hk-muted" style="font-size:.82rem">{("Named: " + who) if who else "No hotels named"}</div></div>')
+    st.markdown(f'<div class="hk-grid">{"".join(out)}</div>', unsafe_allow_html=True)
+
+
 def _ins_sections(ai, ins):
-    """The analysis of the sampled answers: competitors, prompts, sources, why, perception, accuracy, head-to-head."""
+    """The analysis of the sampled answers: brand ranking, prompts, sources, pages, why, perception, accuracy, head-to-head."""
     if not ins or ins.get("status") not in ("ok", "partial"):
         if ins and ins.get("reason"):
             st.caption(md_safe(ins["reason"]))
@@ -272,71 +318,54 @@ def _ins_sections(ai, ins):
     br = ins.get("brand_ranking")
     if br and br.get("rows"):
         st.markdown("###### Brand ranking: the hotel and the hotels named most")
-        st.caption("Across every answer in this sample. Coverage is the share of answers that named the hotel; position is where it appeared in the assistant's list; "
-                   "sentiment is the net of positive minus negative mentions (-100 to +100), an AI's reading of how each answer spoke of that hotel. "
-                   "It describes this one sample, not the market.")
-        if sb and sb.get("coverage_pct") is not None:
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Coverage", f"{sb['coverage_pct']}%", help=f"the hotel was named in {sb.get('named', 0) + sb.get('niche_named', 0)} of {sb.get('asked_all', 0)} answers")
-            m2.metric("Sentiment", "-" if sb.get("sentiment") is None else f"{sb['sentiment']:+d}", help="net positive minus negative, where the hotel was named")
-            m3.metric("Your place", f"{sb['place']} of {len(br['rows'])}" if sb.get("place") else "-", help="among the hotel and the top five named")
-        df([{"Place": r["place"], "": "YOU" if r["is_target"] else "", "Hotel": r["name"], "Coverage": f"{r['coverage_pct']}%",
-             "Average position": "-" if r["avg_rank"] is None else r["avg_rank"],
-             "Sentiment": "-" if r["sentiment"] is None else f"{r['sentiment']:+d} ({sentiment_label(r['sentiment'])})",
-             "Positive / neutral / negative": f"{r['positive']} / {r['neutral']} / {r['negative']}"} for r in br["rows"]])
-        try:
-            import pandas as pd
-            st.bar_chart(pd.DataFrame({"Coverage %": [r["coverage_pct"] for r in br["rows"]]}, index=[("→ " if r["is_target"] else "") + r["name"][:34] for r in br["rows"]]))
-        except Exception:  # noqa: BLE001 - a chart is a nicety
-            pass
+        st.caption("Counts describe this one sample, not the market.")
+        ui_theme.note("Across every answer in this sample. **Coverage** is the share of answers that named the hotel; **position** is where it appeared in the assistant's list; "
+                      "**sentiment** is the net of positive minus negative mentions (-100 to +100), an AI's reading of how each answer spoke of that hotel. "
+                      "It describes this one sample, not the market.")
+        a, b = st.columns(2)
+        with a:
+            st.markdown('<span class="hk-label">Coverage: share of answers naming the hotel</span>', unsafe_allow_html=True)
+            ui_theme.ranked_chart([{"name": r["name"], "value": r["coverage_pct"], "is_target": r["is_target"]} for r in br["rows"]], fmt="{:.0f}%", domain_max=100)
+        with b:
+            st.markdown('<span class="hk-label">Net sentiment where named</span>', unsafe_allow_html=True)
+            _sentiment_chart(br["rows"])
+        with st.expander("Table view"):
+            df([{"Place": r["place"], "": "YOU" if r["is_target"] else "", "Hotel": r["name"], "Coverage": f"{r['coverage_pct']}%",
+                 "Average position": "-" if r["avg_rank"] is None else r["avg_rank"],
+                 "Sentiment": "-" if r["sentiment"] is None else f"{r['sentiment']:+d} ({sentiment_label(r['sentiment'])})",
+                 "Positive / neutral / negative": f"{r['positive']} / {r['neutral']} / {r['negative']}"} for r in br["rows"]])
     if lb and sb:
         st.markdown("###### Who the assistant recommends instead")
-        st.caption("Hotels named across the generic 'where to stay' questions, with the reason the assistant gave. Counts are plain arithmetic on this one sample; "
-                   "'share' is each hotel's part of all the hotel names given.")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Share of the names given", f"{sb['share']}%", help="the hotel's mentions as a share of every hotel mention in the generic answers")
-        c2.metric("Your place in that table", f"{sb['rank_in_table']} of {sb['table_size']}")
-        c3.metric("Average position when named", "-" if sb["avg_rank"] is None else sb["avg_rank"])
+        st.markdown(" ".join([ui_theme.chip(f"Share of the names given: {sb['share']}%", "brand"), ui_theme.chip(f"Your place in that table: {sb['rank_in_table']} of {sb['table_size']}"),
+                              ui_theme.chip("Average position when named: " + ("-" if sb["avg_rank"] is None else str(sb["avg_rank"])))]), unsafe_allow_html=True)
+        st.caption("Hotels named across the generic 'where to stay' questions, with the reason the assistant gave. 'Share' is each hotel's part of all the hotel names given.")
         df([{"": "YOU" if r["is_target"] else "", "Hotel": r["name"], "Named in": f"{r['mentions']} of {r['of']} answers", "Share": f"{r['share']}%",
              "Average position": "-" if r["avg_rank"] is None else r["avg_rank"], "Sentiment": "-" if r.get("sentiment") is None else f"{r['sentiment']:+d}",
-             "Why the assistant gave it": "; ".join(r["reasons"]) or "-"}
-            for r in lb["rows"][:12]])
-        try:
-            import pandas as pd
-            top = lb["rows"][:10]
-            st.bar_chart(pd.DataFrame({"Times named": [r["mentions"] for r in top]}, index=[("→ " if r["is_target"] else "") + r["name"][:34] for r in top]))
-        except Exception:  # noqa: BLE001 - a chart is a nicety
-            pass
+             "Why the assistant gave it": "; ".join(r["reasons"]) or "-"} for r in lb["rows"][:12]])
     nn = ins.get("niche")
     if nn:
         st.markdown("###### Where the hotel actually competes")
         st.caption("A hotel is chosen in its own market, not against every hotel in a city. These narrower questions were written from facts this audit holds about the "
                    "hotel (its location, price level, what it is known for). None names the hotel.")
-        df([{"Market": m.get("angle") or "-", "Question asked": m["question"], "Why we asked this": m.get("why") or "-",
-             "Hotel named": (f"{m['named']} of {m['of']} answers" if m.get("of", 1) > 1 else "yes" if m["hotel_named"] else "no" if m["hotel_named"] is False else "n/a"),
-             "Best position": m["position"] or "-",
-             "Hotels it named": ", ".join(m["hotels_named"][:4]) or "-"} for m in nn["questions"]])
+        _question_grid(nn["questions"])
         if nn.get("leaderboard"):
             top = [r for r in nn["leaderboard"]["rows"] if not r["is_target"]][:6]
             if top:
-                st.markdown("**Who the assistant names in those markets:** " + ", ".join(f"{md_safe(r['name'])} ({r['mentions']} of {r['of']})" for r in top))
+                st.markdown('<span class="hk-label">Who the assistant names in those markets</span><br>' + " ".join(ui_theme.chip(f"{r['name']} · {r['mentions']} of {r['of']}") for r in top),
+                            unsafe_allow_html=True)
     if ins.get("alternatives"):
         st.markdown("**The assistant's view of your competitive set** *(asked which hotels are similar)*: " + ", ".join(md_safe(h["name"]) for h in ins["alternatives"]))
     if ins.get("matrix"):
         st.markdown("###### Question by question")
-        def named(m):
-            if m["kind"] not in ("generic", "niche"):
-                return "(asked about it)"
-            if m.get("of", 1) > 1:
-                return f"{m['named']} of {m['of']} answers"
-            return {True: "yes", False: "no", None: "n/a"}[m["hotel_named"]]
-        df([{"Question": m["question"], "Hotel named": named(m), "Best position": m["position"] or "-", "Hotels it named": ", ".join(m["hotels_named"][:4]) or "-"}
-            for m in ins["matrix"]])
+        st.caption("A filled dot is an answer that named the hotel.")
+        _question_grid([m for m in ins["matrix"] if m["kind"] != "niche"])
     if ins.get("sources"):
         st.markdown("###### Where the assistant got its information")
-        st.caption("The sites it used, how often, and whether this audit found the hotel there. 'Not found' can also be a search gap.")
-        icon = {True: "🟢 found", False: "🔴 not found", None: "⚪ not checked"}
-        df([{"Site": s["domain"], "Type": s["kind"], "Used in": f"{s['answers']} answers", "Hotel there?": icon[s["hotel_evidenced"]]} for s in ins["sources"][:12]])
+        st.caption("The sites it used and how often. Purple: this audit found the hotel there. Grey: not found there, which can also be a search gap.")
+        ui_theme.ranked_chart([{"name": f"{x['domain']}", "value": x["answers"], "is_target": bool(x["hotel_evidenced"])} for x in ins["sources"][:10]], fmt=lambda v: f"{v:.0f} answer" + ("" if v == 1 else "s"))
+        with st.expander("Table view"):
+            icon = {True: "🟢 found", False: "🔴 not found", None: "⚪ not checked"}
+            df([{"Site": x["domain"], "Type": x["kind"], "Used in": f"{x['answers']} answers", "Hotel there?": icon[x["hotel_evidenced"]]} for x in ins["sources"][:12]])
     if ins.get("pages"):
         st.markdown("###### The exact pages the assistant used")
         st.caption("The pages the assistant cited or searched, most cited first. 'Names the hotel' and 'Names a competitor' are judged only from the page title and the short "
@@ -351,7 +380,10 @@ def _ins_sections(ai, ins):
                    "not as causes.")
         st.markdown(md_safe(exp.get("summary", "")))
         for h in exp["hypotheses"]:
-            st.markdown(f"- {md_safe(h['text'])} *(evidence {', '.join(h['evidence'])})*" + (f"  \n  **Worth checking:** {md_safe(h['action'])}" if h.get("action") else ""))
+            with st.container(border=True):
+                st.markdown(f"{md_safe(h['text'])} *(evidence {', '.join(h['evidence'])})*")
+                if h.get("action"):
+                    st.markdown(f"**Worth checking:** {md_safe(h['action'])}")
         with st.expander("The evidence these rest on"):
             for e in ins.get("ledger", []):
                 st.markdown(f"**{e['id']}** {md_safe(e['text'])}")
@@ -360,13 +392,9 @@ def _ins_sections(ai, ins):
         st.markdown("###### What the assistant says about the hotel")
         a, b = st.columns(2)
         with a:
-            st.markdown("**Positives it gave**")
-            for x in ab["strengths"][:6] or ["(none)"]:
-                st.markdown("- " + md_safe(x))
+            st.markdown('<span class="hk-label">Positives it gave</span><br>' + (" ".join(ui_theme.chip(x, "good") for x in ab["strengths"][:6]) or '<span class="hk-muted">none</span>'), unsafe_allow_html=True)
         with b:
-            st.markdown("**Drawbacks it gave**")
-            for x in ab["weaknesses"][:6] or ["(none)"]:
-                st.markdown("- " + md_safe(x))
+            st.markdown('<span class="hk-label">Drawbacks it gave</span><br>' + (" ".join(ui_theme.chip(x, "bad") for x in ab["weaknesses"][:6]) or '<span class="hk-muted">none</span>'), unsafe_allow_html=True)
         st.caption(f"Overall tone of its description: {ab.get('tone', 'unclear')} (an AI's reading).")
         if pc and pc.get("not_in_assistant_description"):
             st.info("Emphasised on your website but not in the assistant's description: " + ", ".join(md_safe(x) for x in pc["not_in_assistant_description"]) + ".")
@@ -401,14 +429,25 @@ def ai_sample_card(ai, ins=None):
     asked_txt = (f"{s['asked']} questions" if reps <= 1 else f"{s.get('questions', s['asked'])} different questions ({s['asked']} answers, the town-wide and niche ones asked {reps} times each so one odd answer does not decide it)")
     st.caption(f"One model ({md_safe(ai.get('model', ''))}) with live web search was asked {asked_txt} on {md_safe(ai.get('run_at', ''))}. "
                "This is a sample: answers change between runs and between assistants, and it is not a ranking. It is not part of any score.")
-    cols = st.columns(4 if s.get("niche_asked") else 3)
-    cols[0].metric("Named in town-wide 'where to stay' answers", f"{s['generic_named']} of {s['generic_asked']}")        # answers, not questions, once repeats are asked
-    k = 1
+    sb = (ins or {}).get("scoreboard") or {}
+    br = (ins or {}).get("brand_ranking") or {}
+    n_cols = 3 + (1 if s.get("niche_asked") else 0) + (1 if sb.get("coverage_pct") is not None else 0)
+    cols = st.columns(n_cols)
+    k = 0
+    if sb.get("coverage_pct") is not None:
+        cols[k].metric("Coverage", f"{sb['coverage_pct']}%", help=f"the hotel was named in {sb.get('named', 0) + sb.get('niche_named', 0)} of {sb.get('asked_all', 0)} answers")
+        k += 1
+    cols[k].metric("Town-wide", f"{s['generic_named']} of {s['generic_asked']}", help="Named in this many of the answers to the general 'where to stay' questions")        # answers, not questions, once repeats are asked
+    k += 1
     if s.get("niche_asked"):
-        cols[1].metric("Named in the markets it competes in", f"{s['niche_named']} of {s['niche_asked']}", help="narrower questions drawn from the hotel's location, price level and what it is known for")
-        k = 2
-    cols[k].metric("Known when asked directly", {True: "Yes", False: "No", None: "n/a"}[s["direct_known"]])
-    cols[k + 1].metric("Own website cited", "Yes" if s["own_site_cited"] else "No")
+        cols[k].metric("Niche markets", f"{s['niche_named']} of {s['niche_asked']}", help="Named in this many answers to narrower questions drawn from the hotel's location, price level and what it is known for")
+        k += 1
+    if sb.get("coverage_pct") is not None:
+        cols[k].metric("Sentiment", "-" if sb.get("sentiment") is None else f"{sb['sentiment']:+d}", help="net positive minus negative, where the hotel was named")
+        k += 1
+    cols[k].metric("Known directly", help="whether the assistant knew the hotel when asked about it by name", value={True: "Yes", False: "No", None: "n/a"}[s["direct_known"]])
+    st.markdown(" ".join([ui_theme.chip("Own website cited: " + ("yes" if s["own_site_cited"] else "no"), "good" if s["own_site_cited"] else ""),
+                          ui_theme.chip(f"Your place: {sb['place']} of {len(br.get('rows', []))}") if sb.get("place") else ""]), unsafe_allow_html=True)
     if s["top_domains"]:
         st.markdown("**Sources the assistant relied on:** " + ", ".join(md_safe(d) for d in s["top_domains"]))
     if ai.get("partial"):

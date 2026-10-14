@@ -14,6 +14,7 @@ import zipfile
 import streamlit as st
 
 import backend
+import ui_theme
 
 PUB_COLS = ["id", "run_at", "hotel", "city", "headline_status", "headline_score", "coverage_pct", "ai_generic_named", "ai_generic_asked", "ai_niche_named",
             "ai_niche_asked", "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_rank_in_table", "ai_top_competitor", "reviews_replied", "reviews_examined", "pagespeed_perf", "recs_total", "ai_cost_usd"]
@@ -136,11 +137,11 @@ def page(database_url, password):
                     import pandas as pd
                     df = pd.DataFrame({"Readiness": [r["headline_score"] for r in hist], "Share of names %": [r["ai_share"] for r in hist]},
                                       index=[str(r["run_at"])[:10] for r in hist])
-                    st.line_chart(df)
+                    ui_theme.lines_chart(df)
                     named = pd.DataFrame({"Named, town-wide %": [100 * r["ai_generic_named"] / r["ai_generic_asked"] if r["ai_generic_asked"] else None for r in hist],
                                           "Named, niche markets %": [100 * r["ai_niche_named"] / r["ai_niche_asked"] if r["ai_niche_asked"] else None for r in hist]},
                                          index=[str(r["run_at"])[:10] for r in hist])
-                    st.line_chart(named)
+                    ui_theme.lines_chart(named)
                 except Exception:  # noqa: BLE001
                     pass
             else:
@@ -152,11 +153,11 @@ def page(database_url, password):
                 try:
                     import pandas as pd
                     idx = [f"{str(r['run_at'])[:10]} #{r['run_id']}" for r in ch["runs"]]
-                    st.line_chart(pd.DataFrame({("→ " if r["is_target"] else "") + r["name"][:34]: [p["coverage_pct"] for p in r["points"]] for r in ch["rows"]}, index=idx))
+                    ui_theme.lines_chart(pd.DataFrame({("→ " if r["is_target"] else "") + r["name"][:34]: [p["coverage_pct"] for p in r["points"]] for r in ch["rows"]}, index=idx))
                     sent = {r["name"][:34]: [p["sentiment"] for p in r["points"]] for r in ch["rows"] if any(p["sentiment"] is not None for p in r["points"])}
                     if sent:
                         st.markdown("**Net sentiment over time (-100 to +100, where named)**")
-                        st.line_chart(pd.DataFrame(sent, index=idx))
+                        ui_theme.lines_chart(pd.DataFrame(sent, index=idx))
                 except Exception:  # noqa: BLE001
                     pass
             elif ch["rows"]:
