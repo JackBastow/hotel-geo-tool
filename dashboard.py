@@ -128,10 +128,10 @@ def guest_html(guest):
 
 
 _CSS = """
-  html, body { margin:0; padding:0; background:#f7f8fa; }
+  html, body { margin:0; padding:0; background:#fbfbfd; }
   @media (prefers-color-scheme: dark) { html, body { background:#15161c; } }
   .dash {
-    --bg:#f7f8fa; --card:#ffffff; --border:#e7e9ee; --ink:#1a1d29; --sub:#6b7280; --accent:#2563eb;
+    --bg:#fbfbfd; --card:#ffffff; --border:#e7e9ee; --ink:#1a1d29; --sub:#6b7280; --accent:#4F46E5;
     font-family:-apple-system,'Segoe UI',system-ui,sans-serif;
     background:var(--bg); color:var(--ink); padding:20px; border-radius:12px;
     margin:0; box-sizing:border-box;
@@ -186,7 +186,7 @@ _CSS = """
   .dash .fmeta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:5px; }
   .dash .pill { font-size:10.5px; padding:2px 8px; border-radius:20px;
                 background:var(--border); color:var(--ink); }
-  .dash .pill.owner { background:#2563eb1f; color:var(--accent); font-weight:600; }
+  .dash .pill.owner { background:#4F46E51f; color:var(--accent); font-weight:600; }
   .dash .fmeta a, .dash .gquote a { font-size:11px; color:var(--accent);
                                     text-decoration:none; white-space:nowrap; }
   .dash details { margin-top:4px; }
