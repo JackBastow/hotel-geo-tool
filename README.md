@@ -164,6 +164,19 @@ three pages, and about half a cent an audit.
 **Not implemented, deliberately:** any competitor entry (nothing in the main audit needs a competitor)
 and anything that needs a billing account or breaks a platform's terms.
 
+## Back end: saved audits and the admin page
+
+Set a `DATABASE_URL` secret (a Postgres connection string; Neon's free plan needs no card) and every finished audit is
+also saved (unless the visitor unticks "Save this run"). `backend.py` keeps one row per run with the headline, every
+category score, the AI-visibility, niche-market, review-reply and speed numbers and the full report as JSON, plus two
+market tables (which hotels the assistant named, which sites it relied on). Open the app with `?admin=1` and the
+`ADMIN_PASSWORD` secret to get `ui_admin.py`: Overview, Runs (filter, reopen a run, download its JSON or rebuild its
+PDFs, delete), Hotels (one row per hotel with the change since its last run, and history charts), Markets (who the
+assistant names most, and which sites it relies on, across every hotel or one city), Usage (runs and estimated AI cost
+by month) and Export (CSV of every run, of competitors and of sources, and a zip of full reports). Visitors cannot read
+any of it. With no `DATABASE_URL` nothing is saved and the app behaves as before. SQLite (`sqlite:///file.db`) works for
+development and tests, but is not durable on Streamlit Community Cloud, whose disk is wiped.
+
 ## The discovery & reputation report
 
 Built around 30 checks. Each is reported as **assessed**, **partial** or **not

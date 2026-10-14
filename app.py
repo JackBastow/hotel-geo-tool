@@ -33,14 +33,15 @@ That public-and-free-to-the-VISITOR design shapes everything here:
     hasn't been made. See full_audit.py and scoring.py's module docstrings for
     what each would take to add, if that decision changes.
 
-  - No server-side history across visitors. store.py's run history writes to
-    one shared folder on disk, which is fine for a single person running it
-    locally, but on a shared public host every visitor's filesystem is the
-    SAME filesystem - saving runs there would let one visitor type in
-    another hotel's name and read a stranger's report. So nothing here calls
-    store.save_run(). A visitor's result lives only in their own browser
-    session (gone on refresh) and in the JSON they can download - never
-    written to a shared file other visitors could read.
+  - No history that visitors can read. store.py's run history writes to one
+    shared folder on disk, which on a public host is the SAME filesystem for every
+    visitor, so nothing here calls store.save_run(): saving there would let one
+    visitor read a stranger's report. A visitor's result lives in their own browser
+    session and the JSON they download.
+  - The operator's back end (backend.py) is different: when a DATABASE_URL secret
+    is set, each finished audit is also saved to that database (unless the visitor
+    unticks "Save this run"), and ONLY the password-protected admin page (?admin=1,
+    ui_admin.py) can read it. Visitors are told this on the page.
 """
 
 import datetime as dt
@@ -130,6 +131,15 @@ PAGESPEED_KEY = _operator_secret("PAGESPEED_API_KEY")
 # ceiling in store.SERVICE_CAPS["claude"], that section says it wasn't run. ANTHROPIC_MODEL (optional) overrides the cheap default.
 ANTHROPIC_KEY = _operator_secret("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = _operator_secret("ANTHROPIC_MODEL")
+
+# Optional back end: a Postgres connection string (Neon's free plan needs no card). With it, finished audits are saved for the operator, and the
+# admin page (?admin=1, behind ADMIN_PASSWORD) can show and export them. Without it the app behaves exactly as before and saves nothing.
+DATABASE_URL = _operator_secret("DATABASE_URL")
+ADMIN_PASSWORD = _operator_secret("ADMIN_PASSWORD")
+if st.query_params.get("admin") is not None:
+    import ui_admin
+    ui_admin.page(DATABASE_URL, ADMIN_PASSWORD)
+    st.stop()
 CLAUDE_MILLIDOLLARS_PER_AUDIT = 1000      # what one audit's AI work is budgeted at ($1.00: the sample, up to $0.80, plus the reviews snapshot)
 
 # A full audit runs about a dozen Tavily searches (see collect.search_plan).
@@ -250,6 +260,10 @@ with st.form("full_audit_form"):
     fa_wider = st.checkbox(
         "Include the wider discovery (media coverage, listings, awards, local context)", value=True,
         help="Adds roughly 1-2 minutes. Untick for the quicker website-only audit.")
+    fa_save = st.checkbox(
+        "Save this run so the hotel can be tracked over time", value=True,
+        help="The operator of this service keeps saved runs (the hotel, the address you typed and the results, all from public sources) to track how hotels "
+             "are doing. Untick to keep this run out.") if DATABASE_URL else False
     fa_go = st.form_submit_button("Run audit", type="primary")
 
 if fa_go:
@@ -321,6 +335,13 @@ if fa_go:
             compare._domain(fa_res["meta"].get("website", "")):
         st.session_state["ai_records"] = []
     st.session_state["fa_res"] = fa_res
+    st.session_state["save_status"] = None
+    if DATABASE_URL and fa_save:
+        try:
+            import backend
+            st.session_state["save_status"] = f"saved #{backend.open_store(DATABASE_URL).save_run(fa_res)}"
+        except Exception as e:  # noqa: BLE001 - saving must never break an audit
+            st.session_state["save_status"] = f"not saved ({type(e).__name__})"
 
 fa_res = st.session_state.get("fa_res")
 if fa_res:
@@ -367,6 +388,10 @@ if fa_res:
         help="Keep it to compare with a future run (Tools tab).")
     st.caption(f"Run {meta['run_at'][:16].replace('T', ' ')} UTC · hotel name {meta['hotel_name_source']}"
                + ((f" · location {loc['source']}" if str(loc["source"]).startswith(("provided", "inferred")) else f" · location from {loc['source']}") if loc.get("source") else ""))
+    _ss = st.session_state.get("save_status")
+    if _ss:
+        st.caption("This run was saved so the hotel can be tracked over time." if _ss.startswith("saved")
+                   else "This run could not be saved for tracking (the audit itself is unaffected).")
     if (fa_res.get("site") or {}).get("meta", {}).get("scope_note"):
         st.info(fa_res["site"]["meta"]["scope_note"])
     if str(meta.get("hotel_name_source", "")).startswith("guessed from the web address"):
@@ -748,8 +773,9 @@ if fa_res:
         st.subheader("Compare with an earlier report")
         st.caption(
             "Run the audit again after making changes, then upload the .json you "
-            "downloaded last time to see what moved. Your reports are never stored "
-            "here — you keep the file."
+            "downloaded last time to see what moved. Nothing you upload here is kept."
+            + (" Audits you choose to save are kept by the operator to track hotels over time; "
+               "they are not shown to other visitors." if DATABASE_URL else " Your reports are not stored here — you keep the file.")
         )
         prev_file = st.file_uploader("Upload an earlier report (.json)", type=["json"],
                                      key="prev_report")
