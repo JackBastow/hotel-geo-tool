@@ -415,6 +415,29 @@ def _ins_sections(ai, ins):
         st.caption(md_safe(n))
 
 
+def market_card(m):
+    """How we read the hotel's market (price level, kind, audiences), which is what decides the questions put to the assistant."""
+    if not m:
+        return
+    with st.container(border=True):
+        st.markdown(f"**How we read this hotel's market:** {md_safe(m['summary'])}")
+        chips = []
+        if m.get("tier"):
+            chips.append(ui_theme.chip(f"Price level: {m['tier']['label']}", "brand"))
+        if m.get("airport"):
+            chips.append(ui_theme.chip(f"{m['airport']['name']} · {m['airport']['km']:g} km"))
+        if m.get("district"):
+            chips.append(ui_theme.chip(f"Neighbourhood: {m['district']}"))
+        for a in m.get("audiences", [])[:8]:
+            chips.append(ui_theme.chip(a["label"], "good" if a["level"] == "stated" else "brand" if a["level"] == "strong" else ""))
+        st.markdown(" ".join(chips), unsafe_allow_html=True)
+        why = [f"{a['label']}: {a['why']}" for a in m.get("audiences", [])[:8]]
+        if m.get("tier"):
+            why.insert(0, f"Price level: {m['tier']['why']}")
+        st.caption("The questions below were written for this market, not for 'the best hotels in town'. Why each applies: " + " · ".join(md_safe(w) for w in why)
+                   + ". Brand level is an inference; correct it with 'Who is the hotel for?' when you run the audit.")
+
+
 def ai_sample_card(ai, ins=None):
     """What one AI model said when asked ordinary traveller questions. A sample with its limits stated, never a score."""
     st.markdown("##### What an AI assistant said (a sample)")
@@ -429,6 +452,7 @@ def ai_sample_card(ai, ins=None):
     asked_txt = (f"{s['asked']} questions" if reps <= 1 else f"{s.get('questions', s['asked'])} different questions ({s['asked']} answers, the town-wide and niche ones asked {reps} times each so one odd answer does not decide it)")
     st.caption(f"One model ({md_safe(ai.get('model', ''))}) with live web search was asked {asked_txt} on {md_safe(ai.get('run_at', ''))}. "
                "This is a sample: answers change between runs and between assistants, and it is not a ranking. It is not part of any score.")
+    market_card(ai.get("market"))
     sb = (ins or {}).get("scoreboard") or {}
     br = (ins or {}).get("brand_ranking") or {}
     n_cols = 3 + (1 if s.get("niche_asked") else 0) + (1 if sb.get("coverage_pct") is not None else 0)

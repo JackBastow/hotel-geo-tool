@@ -40,13 +40,14 @@ class Fake:
 
 print("1. the questions")
 qs = ai.build_questions(HOTEL, CITY, ["Business travel"])
-check("eight ordinary traveller questions: four generic ones first, then four about the hotel itself",
-      [q["kind"] for q in qs] == ["generic"] * 4 + ["direct"] * 4 and all(HOTEL in q["text"] for q in qs[4:]), [q["kind"] for q in qs])
+check("six standard questions: two town-wide ones (the big names are not the test), then four about the hotel itself; the narrower market questions come from ai_niche",
+      [q["kind"] for q in qs] == ["generic"] * 2 + ["direct"] * 4 and all(HOTEL in q["text"] for q in qs[2:]), [q["kind"] for q in qs])
 check("the direct questions cover what it is, its facilities, what guests say, and who it is compared with",
-      [q["id"] for q in qs[4:]] == ["about", "facilities", "reviews", "similar"])
+      [q["id"] for q in qs[2:]] == ["about", "facilities", "reviews", "similar"])
+check("the town-wide questions are the plain ones: best hotels, and where to stay", [q["id"] for q in qs[:2]] == ["best", "where"] and "best hotels" in qs[0]["text"])
 check("without a town no question is built (nothing sensible to ask)", ai.build_questions(HOTEL, "") == [])
 check("a lower cap drops generic questions first and keeps the direct ones",
-      [q["kind"] for q in ai.build_questions(HOTEL, CITY, ["x"], 6)] == ["generic"] * 2 + ["direct"] * 4 and len(ai.build_questions(HOTEL, CITY, ["a", "b", "c"], 8)) == 8)
+      [q["kind"] for q in ai.build_questions(HOTEL, CITY, ["x"], 5)] == ["generic"] + ["direct"] * 4 and [q["kind"] for q in ai.build_questions(HOTEL, CITY, [], 4)] == ["direct"] * 4)
 
 print("2. is the hotel named?")
 check("full name is recognised", ai.mentioned("1. DoubleTree by Hilton Luxembourg - near the airport", HOTEL, CITY))
@@ -65,8 +66,7 @@ check("the place in a list is found", ai.list_position(ans, HOTEL) == 3 and ai.l
 print("3. a run")
 gen = [resp("Top hotels: Le Royal, Sofitel.", ["https://www.tripadvisor.com/x", "https://www.booking.com/y"]),
        resp("Try Le Royal.", ["https://www.booking.com/z"]),
-       resp("Stay at Le Royal or Sofitel.", ["https://www.visitluxembourg.com/a"]),
-       resp("Le Royal, Sofitel.", ["https://www.booking.com/q"])]
+       ]
 dr = [resp("DoubleTree by Hilton Luxembourg is a business hotel in Dommeldange with a spa.", ["https://www.hilton.com/en/hotels/x/"], cites=["https://www.hilton.com/en/hotels/x/"]),
       resp("DoubleTree by Hilton Luxembourg has a gym and a restaurant.", ["https://www.hilton.com/en/hotels/x/"]),
       resp("Guests like the location; some complain about noise.", ["https://www.tripadvisor.com/r"]),
@@ -74,11 +74,11 @@ dr = [resp("DoubleTree by Hilton Luxembourg is a business hotel in Dommeldange w
 fake = Fake(gen + dr)
 r = ai.run(HOTEL, CITY, client=fake, segments=["Business travel"], own_domain="https://www.hilton.com/en/hotels/x/", workers=1, repeats=1)
 check("it asks every question once, each with the web-search tool allowing three searches, a token cap and the cheap model",
-      len(fake.calls) == 8 and all(c["tools"][0]["name"] == "web_search" and c["tools"][0]["max_uses"] == 3 and c["max_tokens"] == 1500 and c["model"] == "claude-haiku-5-5" for c in fake.calls))
+      len(fake.calls) == 6 and all(c["tools"][0]["name"] == "web_search" and c["tools"][0]["max_uses"] == 3 and c["max_tokens"] == 1500 and c["model"] == "claude-haiku-5-5" for c in fake.calls))
 check("effort is set low for the model that supports it", all(c.get("output_config") == {"effort": "low"} for c in fake.calls))
 s_ = r["summary"]
-check("generic answers that never name the hotel are counted honestly (0 of 4), while the direct ones are known (3 of 4 name it)",
-      r["status"] == "ok" and s_["generic_asked"] == 4 and s_["generic_named"] == 0 and s_["direct_known"] is True and s_["direct_asked"] == 4 and s_["direct_named"] == 2, s_)
+check("generic answers that never name the hotel are counted honestly (0 of 2), while the direct ones are known (2 of 4 name it)",
+      r["status"] == "ok" and s_["generic_asked"] == 2 and s_["generic_named"] == 0 and s_["direct_known"] is True and s_["direct_asked"] == 4 and s_["direct_named"] == 2, s_)
 check("the hotel's own website being cited is noticed", s_["own_site_cited"] and any(i.get("own_site_cited") for i in r["items"]))
 check("the sources the assistant relied on are listed, most used first", s_["top_domains"][0] == "booking.com" and "tripadvisor.com" in s_["top_domains"], s_["top_domains"])
 check("cost is estimated from the usage the API reports (tokens plus $0.01 a search) and stays well inside the per-audit budget",
@@ -86,7 +86,7 @@ check("cost is estimated from the usage the API reports (tokens plus $0.01 a sea
 check("it is labelled as a sample with the model, and the wording denies being a ranking", r["model"] == "claude-haiku-5-5" and "not a ranking" in r["access"])
 fake = Fake(gen + dr)
 r = ai.run(HOTEL, CITY, client=fake, segments=["Business travel"], workers=3, repeats=1)
-check("running three at a time returns the same set of answers, in question order", len(r["items"]) == 8 and [i["id"] for i in r["items"]][:2] == ["best", "segment0"])
+check("running three at a time returns the same set of answers, in question order", len(r["items"]) == 6 and [i["id"] for i in r["items"]][:2] == ["best", "where"])
 
 print("4. cost and failure control")
 check("an unknown model is priced as the dearest, never under-counted", ai.cost_usd("some-new-model", 1_000_000, 0, 0) == 4.0)

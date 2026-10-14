@@ -66,13 +66,10 @@ def build_questions(hotel, city, segments=(), max_questions=MAX_QUESTIONS):
     place = (city or "").split(",")[0].strip()
     if not place:
         return []
-    segs = [x for x in segments if x][:2]
+    # Only two town-wide questions: they show whether the big names crowd the hotel out. The questions that test the hotel are the narrower ones (ai_niche.py),
+    # written for its own price level, location and audiences. `segments` is kept for old callers and no longer adds questions.
     generic = [{"id": "best", "kind": "generic", "text": f"What are the best hotels in {place}?"},
-               {"id": "where", "kind": "generic", "text": f"Where should I stay in {place}? I want somewhere comfortable and well located."},
-               {"id": "value", "kind": "generic", "text": f"Which hotels in {place} offer good value for money?"},
-               {"id": "transport", "kind": "generic", "text": f"Which hotels in {place} are best for getting around, close to the station or airport?"}]
-    for i, sg in enumerate(segs):
-        generic.insert(1 + i, {"id": f"segment{i}", "kind": "generic", "text": f"I'm interested in {sg.lower()} in {place}. Which hotels would you suggest?"})
+               {"id": "where", "kind": "generic", "text": f"Where should I stay in {place}? I want somewhere comfortable and well located."}]
     direct = [{"id": "about", "kind": "direct", "text": f"Tell me about {hotel} in {place}. What is it like, and is it a good choice?"},
               {"id": "facilities", "kind": "direct", "text": f"What facilities does {hotel} in {place} have, and what is it known for?"},
               {"id": "reviews", "kind": "direct", "text": f"What do guests say about {hotel} in {place}? What do they like, and what do they complain about?"},

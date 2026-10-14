@@ -106,6 +106,10 @@ check("the brand ranking shows the hotel and the top named hotels with coverage,
 check("the exact pages are listed, with the caveat that they are judged only from the title and the quoted passage",
       "The exact pages the assistant used" in text and "booking.com/hotel/gb/oatlands-park.html" in _tb and any("we do not read these pages" in c.value for c in at.caption))
 
+check("the AI tab says how the hotel's market was read (price level, kind, audiences with their evidence), because that decided the questions",
+      "How we read this hotel's market:" in _md and "Upscale airport hotel" in _md and "Price level: upscale" in _md and "Weddings" in _md and "not for 'the best hotels in town'" in " ".join(c.value for c in at.caption))
+check("the form lets the hotel say who it is for: a price level and the audiences to attract", any(x.label == "Price level" for x in at.selectbox) and any(x.label.startswith("Audiences the hotel wants") for x in at.multiselect),
+      ([x.label for x in at.selectbox], [x.label for x in at.multiselect]))
 print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
 import sys  # noqa: E402
 import types  # noqa: E402

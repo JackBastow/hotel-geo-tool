@@ -202,6 +202,11 @@ def ai_section(ai, ins=None):
                     + (f" and {s['niche_named']} of {s['niche_asked']} answers about the markets it is positioned for; " if s.get("niche_asked") else "; ") +
                     f"{'known' if s['direct_known'] else 'not known' if s['direct_known'] is False else 'not assessed'} when asked directly; "
                     f"own website {'cited' if s['own_site_cited'] else 'not cited'}.", "tiny"))
+    mk = ai.get("market")
+    if mk:
+        out.append(para("How the hotel's market was read, which decided the questions: " + mk["summary"] + ". "
+                        + "; ".join(([f"price level {mk['tier']['label']} ({mk['tier']['why']})"] if mk.get("tier") else [])
+                                    + [f"{a['label']} ({a['why']})" for a in mk.get("audiences", [])[:8]]) + ". Brand level is an inference.", "tiny"))
     br = (ins or {}).get("brand_ranking")
     if br and br.get("rows"):
         sb0 = ins.get("scoreboard") or {}

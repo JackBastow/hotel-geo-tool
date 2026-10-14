@@ -35,24 +35,42 @@ check("the neighbourhood comes from the map, and is ignored when it is just the 
       and nz.district([{**ents[0], "match_confident": False}], "Rome") is None)
 check("the nearest named airport on the map is used when the pages say nothing", nz.airport_from_map({"airports": [{"name": "Far", "km": 24}, {"name": "Ciampino Airport", "km": 9.2}]}) == ("Ciampino Airport", 9.2))
 
-print("2. the questions")
-feat = [{"key": "spa", "level": "strong"}, {"key": "restaurant", "level": "strong"}, {"key": "wifi", "level": "strong"}, {"key": "pets", "level": "some"}]
-prof = nz.profile("Hotel Santa Maria", "Rome", ents, None, [{"text": "A 4-star hotel in Trastevere. Fiumicino Airport is 30 minutes by train, 8 km from Fiumicino Airport."}], feat,
-                  [{"label": "Weddings", "level": "strong"}])
-check("the profile gathers district, airport, stars, strong features first, and segments", prof["district"] == "Trastevere" and prof["stars"] == 4 and prof["features"][:2] == ["spa", "restaurant"]
-      and prof["airport"]["name"] == "Fiumicino Airport" and prof["airport"]["source"] == "the hotel's own pages" and prof["segments"] == ["Weddings"], prof)
-qs = nz.questions(prof, "Hotel Santa Maria", "Rome", n=3)
-check("three questions, in priority order: airport, neighbourhood, price level", [q["angle"] for q in qs] == ["Airport", "Neighbourhood", "Price level"], [q["angle"] for q in qs])
+print("2. what kind of hotel it is, and the questions that follow")
+feat = [{"key": "spa", "level": "strong"}, {"key": "restaurant", "level": "strong"}, {"key": "wifi", "level": "strong"}, {"key": "pets", "level": "some"}, {"key": "meeting_rooms", "level": "strong"}]
+intents = [{"key": "weddings", "label": "Weddings", "level": "strong"}, {"key": "business", "label": "Business travel", "level": "strong"}, {"key": "family", "label": "Families", "level": "some"}]
+prof = nz.profile("Hotel Santa Maria", "Rome", ents, None, [{"text": "A 4-star hotel in Trastevere. Fiumicino Airport is 30 minutes by train, 18 km from Fiumicino Airport."}], feat, intents, domain="santamaria.it")
+check("the profile reads the price level (4-star from its own pages), the neighbourhood and the airport, and is not an airport hotel at 18 km",
+      prof["tier"]["key"] == "upscale" and prof["tier"]["source"] == "pages" and prof["district"] == "Trastevere" and prof["airport"]["name"] == "Fiumicino Airport" and not prof["airport_hotel"], prof["tier"])
+check("audiences come with their evidence, strongest first, in a fixed order (business before spa before weddings)",
+      [a["key"] for a in prof["audiences"]][:4] == ["business", "meetings", "wellness", "weddings"] and all(a["why"] for a in prof["audiences"]), [a["key"] for a in prof["audiences"]])
+qs = nz.questions(prof, "Hotel Santa Maria", "Rome", n=6)
+check("six questions: the price level first, then the neighbourhood, then the audiences", [q["angle"] for q in qs][:3] == ["Price level", "Neighbourhood", "Business travel"] and len(qs) == 6, [q["angle"] for q in qs])
 check("every question is a niche-kind item with a reason drawn from a fact we hold", all(q["kind"] == "niche" and q["id"].startswith("niche_") and q["why"] for q in qs))
-check("none names the hotel, and none is so exact it could only be one hotel (no street, no unique feature)",
-      all("Santa Maria" not in q["text"] and q["text"].endswith("?") and len(q["text"]) < 150 for q in qs), [q["text"] for q in qs])
-check("the airport question asks about the airport market, in ordinary words", "near Fiumicino Airport" in qs[0]["text"] and "early flight" in qs[0]["text"])
-check("with no airport or district the questions come from what it is known for (spa, then dining), not invented",
-      [q["angle"] for q in nz.questions({"district": None, "airport": None, "stars": None, "features": ["spa", "restaurant", "wifi"]}, "H", "Rome", 3)] == ["Spa", "Dining"])
-check("no evidence, no questions: an empty profile asks nothing", nz.questions({"district": None, "airport": None, "stars": None, "features": []}, "H", "Rome") == [] and nz.questions({}, "H", "Rome") == [])
+check("none names the hotel, none is a bare 'best hotels in town', and the 4-star level is in the wording",
+      all("Santa Maria" not in q["text"] and q["text"].endswith("?") and len(q["text"]) < 170 and "best hotels in Rome?" not in q["text"] for q in qs) and "4-star" in qs[0]["text"], [q["text"] for q in qs])
+check("with no evidence of anything the hotel is not asked about invented markets", nz.questions({"district": None, "airport": None, "stars": None, "tier": None, "audiences": []}, "H", "Rome") == [] and nz.questions({}, "H", "Rome") == [])
 check("a district that is just the hotel's own name is not asked (it would name the hotel)",
-      nz.questions({"district": "Airport Inn", "airport": None, "stars": None, "features": []}, "Airport Inn Rome", "Rome") == [])
+      nz.questions({"district": "Airport Inn", "airport": None, "stars": None, "tier": None, "audiences": []}, "Airport Inn Rome", "Rome") == [])
 check("no town, no questions", nz.questions(prof, "H", "") == [])
+
+print("2b. an airport hotel: the case that returned 'Radisson Blu' and 'The Dolder Grand' for every question")
+zi = [{"key": "business", "label": "Business travel", "level": "strong"}, {"key": "meetings", "label": "Meetings", "level": "strong"}, {"key": "pet", "label": "Pets", "level": "strong"},
+      {"key": "airport", "label": "Airport", "level": "strong"}, {"key": "family", "label": "Families", "level": "some"}]
+zp = nz.profile("Hilton Zurich Airport", "Zurich", [], None, [{"text": "Hilton Zurich Airport is a short walk. Zurich Airport is 2 km from the hotel."}], [{"key": "meeting_rooms", "level": "strong"}], zi, domain="hilton.com")
+check("a Hilton with no star rating on its pages is read as upscale by its brand, and said to be an inference", zp["tier"]["key"] == "upscale" and zp["tier"]["source"] == "brand" and "inference" in zp["tier"]["why"])
+check("the airport is the real airport, not the hotel's own name ('Hilton Zurich Airport is a short walk' must not become the airport)", zp["airport"]["name"] == "Zurich Airport" and zp["airport_hotel"])
+zq = nz.questions(zp, "Hilton Zurich Airport", "Zurich")
+check("the questions are about an upscale hotel near the airport: price level, the early flight, business, meetings - not 'best hotels in Zurich'",
+      [q["angle"] for q in zq][:4] == ["Price level", "Airport", "Business travel", "Meetings and events"] and all("near Zurich Airport" in q["text"] or "Zurich Airport" in q["text"] for q in zq[:4]), [q["text"] for q in zq])
+check("the airport question is a traveller's own situation, with the need that matters to them", "flying out" in zq[1]["text"] and "shuttle" in zq[1]["text"])
+check("what the hotel says about itself overrides what we infer: a stated 'luxury' tier and stated audiences come first",
+      nz.profile("Hilton Zurich Airport", "Zurich", [], None, [], [], [], hint={"tier": "luxury", "audiences": ["weddings", "couples"]}, domain="hilton.com")["tier"]["key"] == "luxury"
+      and [a["key"] for a in nz.profile("X", "Zurich", [], None, [], [], zi, hint={"audiences": ["weddings"]})["audiences"]][0] == "weddings")
+check("the reading is described in plain words for the report", nz.describe(zp)["summary"] == "Upscale airport hotel" and nz.describe(None) is None)
+check("brand levels: luxury, budget and midscale brands are told apart and the most specific brand wins",
+      nz.tier_of("Park Hyatt Zurich", "", None, {})["key"] == "luxury" and nz.tier_of("Hyatt Regency", "", None, {})["key"] == "upscale" and nz.tier_of("ibis Zurich", "", None, {})["key"] == "budget"
+      and nz.tier_of("Hilton Garden Inn Zurich", "", None, {})["key"] == "midscale" and nz.tier_of("Brooklands Hotel", "brooklands.com", None, {}) is None)
+check("a word that merely contains a brand is not that brand ('Ibiza' is not 'ibis')", nz.tier_of("Hotel Ibiza Playa", "", None, {}) is None)
 
 print("3. the second round, merged into the sample")
 
@@ -79,7 +97,10 @@ base = {"status": "ok", "model": "claude-haiku-5-5", "run_at": "2026-10-14", "co
 base["summary"] = ai.summarise(base["items"])
 check("the standard summary has no niche counts until a second round is added", base["summary"]["niche_asked"] == 0)
 fake = Fake([resp("1. Hotel Santa Maria: near the river.\n2. Hotel Trastevere."), resp("1. Hotel Aurora: simple.\n2. Hotel Bianco.")])
-extra = ai.run_extra(HOTEL, "Rome", qs[:2], client=fake, repeats=1)
+NQ = [{"id": "niche_airport", "kind": "niche", "angle": "Airport", "text": "Which hotels near Fiumicino Airport would you recommend, for example before an early flight?",
+       "why": "The hotel's own pages put Fiumicino Airport 8 km away."},
+      {"id": "niche_spa", "kind": "niche", "angle": "Spa", "text": "Which hotels in Rome have a good spa and wellness area?", "why": "The hotel's own pages signal spa strongly."}]
+extra = ai.run_extra(HOTEL, "Rome", NQ, client=fake, repeats=1)
 check("each niche question is asked once with the web-search tool, and the answers keep the market and the reason",
       len(fake.calls) == 2 and len(extra["items"]) == 2 and extra["items"][0]["angle"] == "Airport" and extra["items"][0]["why"] and extra["cost_usd"] > 0)
 check("the hotel being named in the first niche answer, but not the second, is recorded per question", [i["mentioned"] for i in extra["items"]] == [True, False])
@@ -88,7 +109,7 @@ s = merged["summary"]
 check("merging recomputes the counts: 0 of 2 town-wide, 1 of 2 niche, asked 5, cost summed",
       s["generic_asked"] == 2 and s["generic_named"] == 0 and s["niche_asked"] == 2 and s["niche_named"] == 1 and s["asked"] == 5 and merged["cost_usd"] > base["cost_usd"], s)
 check("merging nothing changes nothing, and a failed sample is never 'merged'", ai.merge(base, {"items": []}) is base and ai.merge({"status": "unavailable"}, extra)["status"] == "unavailable")
-check("no key and no client: not asked, with the reason; no questions: nothing", ai.run_extra(HOTEL, "Rome", qs)["items"] == [] and ai.run_extra(HOTEL, "Rome", [], api_key="k")["reason"] == "")
+check("no key and no client: not asked, with the reason; no questions: nothing", ai.run_extra(HOTEL, "Rome", NQ)["items"] == [] and ai.run_extra(HOTEL, "Rome", [], api_key="k")["reason"] == "")
 
 print("4. scoring and the plan treat the niche markets as the point")
 sc = scoring.score_ai_sample(merged)
@@ -105,7 +126,7 @@ check("named in a niche question: no such recommendation; the town-wide one (AI1
 
 print("5. the analysis gives niche markets their own table and tells the explanation about them")
 EXTRACTED = {"answers": [{"id": "niche_airport", "hotels": [{"name": "Hotel Santa Maria", "rank": 1, "reason": "near the river", "rating": None}, {"name": "Hotel Trastevere", "rank": 2, "reason": "x", "rating": None}]},
-                         {"id": "niche_district", "hotels": [{"name": "Hotel Aurora", "rank": 1, "reason": "simple", "rating": None}, {"name": "Hotel Bianco", "rank": 2, "reason": "y", "rating": None}]},
+                         {"id": "niche_spa", "hotels": [{"name": "Hotel Aurora", "rank": 1, "reason": "simple", "rating": None}, {"name": "Hotel Bianco", "rank": 2, "reason": "y", "rating": None}]},
                          {"id": "best", "hotels": [{"name": "Hassler", "rank": 1, "reason": "luxury", "rating": None}]},
                          {"id": "where", "hotels": [{"name": "Hassler", "rank": 1, "reason": "luxury", "rating": None}]}],
              "about": {"tone": "positive", "strengths": [], "weaknesses": [], "claims": []}}
@@ -122,6 +143,15 @@ led = ins.build_ledger(lb_g, [], {"site_emphasises": [], "not_in_assistant_descr
 check("the evidence ledger tells the explanation which niche markets the hotel was and was not named in, and why they were asked",
       any("the map places it in Trastevere" in e["text"] and "not named" in e["text"] and "Hotel Aurora" in e["text"] for e in led)
       and any("the pages say it is 8 km away" in e["text"] and "was named" in e["text"] for e in led))
+
+print("6. a typed name is tidied to the site's own spelling")
+import full_audit as fa
+site0 = {"lodging_node": {"name": "Hilton Zurich Airport"}, "pages": [], "meta": {}}
+check("'hiltonzurichairport' typed as one word becomes the site's 'Hilton Zurich Airport', so the questions use the name people use",
+      fa.tidy_typed_name("hiltonzurichairport", site0, "https://www.hilton.com/", None) == ("Hilton Zurich Airport", True))
+check("a name that already has spaces, or that the site does not confirm, is left exactly as typed",
+      fa.tidy_typed_name("Brooklands Hotel", site0, "https://x.com/", None) == ("Brooklands Hotel", False) and fa.tidy_typed_name("brooklandshotel", site0, "https://x.com/", None) == ("brooklandshotel", False)
+      and fa.tidy_typed_name("zurichairportx", {"pages": []}, "https://x.com/", None) == ("zurichairportx", False))
 
 print()
 print("FAILURES:", fails if fails else "none")

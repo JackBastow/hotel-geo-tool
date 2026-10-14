@@ -234,6 +234,27 @@ def infer_hotel_name(site_payload):
     return ""
 
 
+def tidy_typed_name(given, site, base, scope):
+    """
+    A name typed as one run-together word ('hiltonzurichairport') is replaced by the site's own spelling when that is the same name with spaces
+    ('Hilton Zurich Airport'): the direct questions put to an AI assistant are only meaningful with the name people actually use.
+    -> (name, changed).
+    """
+    given = (given or "").strip()
+    squash = lambda t: re.sub(r"[^a-z0-9]", "", (t or "").lower())      # noqa: E731
+    g = squash(given)
+    if " " in given or len(g) < 8:
+        return given, False
+    cands = [infer_hotel_name(site)]
+    if scope:
+        cands.append(urlscope.name_from_url(base, scope).get("name", ""))
+    for c in cands:
+        k = squash(c)
+        if k and len(k) >= 8 and (k == g or k in g or g in k):
+            return c.strip(), True
+    return given, False
+
+
 def _place_from_text(text):
     """Is this word a town or city? Asked of OpenStreetMap's own place search (free). '' when it is not, or the service is down."""
     try:
@@ -558,7 +579,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
                    youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None,
-                   anthropic_repeats=None):
+                   anthropic_repeats=None, market_hint=None):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -594,6 +615,9 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     web_future = web_ex.submit(web_signals.run, base, site.get("robots"), pagespeed_api_key, None)
 
     hotel_given, city_given = bool(hotel), bool(city)
+    name_respelled = False
+    if hotel_given:
+        hotel, name_respelled = tidy_typed_name(hotel, site, base, site["meta"].get("scope"))
     hotel = hotel or infer_hotel_name(site)
     # A chain page we could not read still names the hotel in its address: guess from that rather than giving up.
     slug_guess = {"name": "", "city_candidates": []}
@@ -763,15 +787,18 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             amadeus_result = {"configured": True, "found": False, "error": str(e)}
 
     # Questions for the markets this hotel actually competes in (airport, district, price level, what it is known for), from facts now in hand.
-    niche_ex = niche_future = None
+    niche_ex = niche_future = market_profile = None
     if anthropic_api_key and hotel and city:
         try:
             import insight_content as _ic0
             _osm = ((corpus.get("sources") or {}).get("osm_context") or {})
             _osm_ctx = (_osm.get("items") or [None])[0] if _osm.get("status") == "ok" else None
             _site0 = _ic0.Site(own_pages, base, hotel, city) if own_pages else None
-            prof = ai_niche.profile(hotel, city, ext["entities"], _osm_ctx, own_pages, _ic0.features(_site0) if _site0 else [], _ic0.intents(_site0) if _site0 else [])
-            nqs = ai_niche.questions(prof, hotel, city, n=3)
+            _host1 = urllib.parse.urlparse(base).netloc.lower()
+            prof = ai_niche.profile(hotel, city, ext["entities"], _osm_ctx, own_pages, _ic0.features(_site0) if _site0 else [], _ic0.intents(_site0) if _site0 else [],
+                                    hint=market_hint, domain=_host1)
+            market_profile = ai_niche.describe(prof)
+            nqs = ai_niche.questions(prof, hotel, city, n=6)
             if nqs:
                 _host0 = urllib.parse.urlparse(base).netloc.lower()
                 niche_ex = ThreadPoolExecutor(max_workers=1)
@@ -846,6 +873,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             pass
         finally:
             niche_ex.shutdown(wait=False, cancel_futures=True)
+    if market_profile and isinstance(ai_result, dict) and ai_result.get("status") == "ok":
+        ai_result["market"] = market_profile                         # how the hotel's market was read, shown beside the answers
     if ai_visibility_cat is None:
         ai_visibility_cat = scoring.score_ai_sample(ai_result)       # one model's sample: scored, but always labelled low-evidence
     findings = build_findings(site, ext["entities"], ext["consistency"], discovery,
@@ -939,7 +968,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             "website": website,
             "base": base,
             "run_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
-            "hotel_name_source": "provided by you" if hotel_given
+            "hotel_name_source": ("provided by you, spelled as the site spells it" if name_respelled else "provided by you") if hotel_given
                                  else ("guessed from the web address (the site could not be read)" if name_from_address
                                        else ("inferred from the site's own markup" if hotel else "could not be determined")),
             "location": location,
@@ -971,6 +1000,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "consultant": consult_result,
         "web_signals": web,
         "ai_sample": ai_result,
+        "market_profile": market_profile,
         "ai_insights": ai_insight_result,
         "review_snapshot": review_result,
         "listing_lookup": {k: v for k, v in listing_result.items() if k != "pages"},

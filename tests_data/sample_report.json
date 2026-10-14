@@ -8536,7 +8536,44 @@
     "repeats": 1,
     "pages": []
    }
-  ]
+  ],
+  "market": {
+   "summary": "Upscale airport hotel",
+   "tier": {
+    "key": "upscale",
+    "label": "upscale",
+    "why": "the hotel's own pages say 4-star",
+    "source": "pages"
+   },
+   "kind": "airport hotel",
+   "audiences": [
+    {
+     "key": "airport",
+     "label": "Airport and transit stays",
+     "level": "strong",
+     "why": "the hotel's own pages put Heathrow Airport 12.1 km away"
+    },
+    {
+     "key": "wellness",
+     "label": "Spa and wellness",
+     "level": "strong",
+     "why": "the hotel's own pages signal spa and wellness strongly"
+    },
+    {
+     "key": "weddings",
+     "label": "Weddings",
+     "level": "stated",
+     "why": "stated by whoever ran the audit as an audience the hotel wants to attract"
+    }
+   ],
+   "district": null,
+   "airport": {
+    "name": "Heathrow Airport",
+    "km": 12.1,
+    "source": "the hotel's own pages"
+   },
+   "stars": 4
+  }
  },
  "review_snapshot": {
   "source": "Reviews and replies (AI reading of public search results)",

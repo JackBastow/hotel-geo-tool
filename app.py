@@ -81,6 +81,7 @@ except Exception:  # noqa: BLE001 - if it has been removed, st.iframe is used in
     components = None
 
 import ai_check
+import ai_niche
 import compare
 import dashboard
 import full_audit
@@ -271,6 +272,10 @@ with _form_host, st.form("full_audit_form"):
              "or postcode. Fill it in if the hotel shares its name with one "
              "somewhere else.",
     )
+    with st.expander("Who is the hotel for? (optional, improves the AI questions)"):
+        st.caption("The audit works out the hotel's price level and audiences from its own pages. If you know better, say so and the questions put to the AI assistant will follow.")
+        fa_tier = st.selectbox("Price level", ["Work it out from the pages", "Luxury", "Upscale", "Mid-range", "Budget"])
+        fa_aud = st.multiselect("Audiences the hotel wants to attract", [lbl for _k, lbl, *_r in ai_niche.AUDIENCES])
     fa_wider = st.checkbox(
         "Include the wider discovery (media coverage, listings, awards, local context)", value=True,
         help="Adds roughly 1-2 minutes. Untick for the quicker website-only audit.")
@@ -316,6 +321,8 @@ if fa_go:
             gemini_reader_key=use_gemini_reader,
             youtube_api_key=YOUTUBE_KEY, wider=fa_wider, pagespeed_api_key=PAGESPEED_KEY,
             anthropic_api_key=use_anthropic, anthropic_model=ANTHROPIC_MODEL, anthropic_repeats=ANTHROPIC_REPEATS,
+            market_hint={"tier": {"Luxury": "luxury", "Upscale": "upscale", "Mid-range": "midscale", "Budget": "budget"}.get(fa_tier),
+                         "audiences": [k for k, lbl, *_r in ai_niche.AUDIENCES if lbl in fa_aud]},
         )
     except Exception as e:  # noqa: BLE001 - surface the real error
         prog.empty()

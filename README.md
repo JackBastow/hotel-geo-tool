@@ -128,6 +128,15 @@ separately ("named in x of y town-wide questions; a of b in the markets it compe
 count equally with the town-wide question in the AI Visibility card, and can raise a recommendation (AI4) when the hotel is
 not named where it is positioned to compete. On a hotel the assistant never named town-wide it was named in 3 of 3 niche markets.
 
+**Reading the hotel's market first (`ai_niche.py`).** Asking only "best hotels in Zurich" shows that the big luxury names crowd out everyone else, so the standard set is now just two
+town-wide questions plus four about the hotel itself, and the weight is on up to six questions written for the hotel's own market. The audit first works out *what kind of hotel
+it is*: its **price level** (the star rating on its own pages; failing that the brand's usual level, a stated inference, e.g. Hilton is upscale; failing that its own wording),
+whether it is an **airport hotel**, its neighbourhood, and the **audiences** its pages give evidence for (airport and transit, business, meetings, spa, families, couples,
+weddings, pets, long stays and more), each with the evidence. Questions are then worded as a traveller with that need would write them ("I'm flying out of Zurich Airport early tomorrow. Which
+upscale hotels nearby have a shuttle and an early breakfast?"), include the price level, never name the hotel, and carry why they were asked. The reading is shown at the top of the AI tab
+and in the appendix. Whoever runs the audit can override it in the form ("Who is the hotel for?": a price level and audiences). A hotel name typed as one run-together word
+("hiltonzurichairport") is replaced by the site's own spelling when it is the same name. On a Zurich airport Hilton this moved the hotel from named in 0 of 14 answers to 5 of 12 niche answers.
+
 **What the sampled answers mean (`ai_insights.py`, same Anthropic credit, about 2-3 cents an audit).** Modelled on
 what AI-visibility tools (Otterly, Peec, Profound, Ahrefs Brand Radar) report, but built to be honest about one
 engine and one sample: *who the assistant recommends instead* (a leaderboard with each hotel's share of the names
