@@ -173,6 +173,15 @@ def namesakes(hotel, city, corpus, entities):
 
 # --------------------------------------------------------------- listing footprint
 
+def on_platform(domain, token):
+    """Is this web address on the platform? 'booking.com' matches booking.com and its subdomains; 'expedia.' matches expedia.co.uk, expedia.ca, www.expedia.com - but never
+    'top-paris-hotels.com' for 'hotels.com', or 'expedia-aarp.com' for 'expedia.'."""
+    d = (domain or "").lower().removeprefix("www.")
+    if token.endswith("."):
+        return token[:-1] in d.split(".")[:-1]
+    return d == token or d.endswith("." + token)
+
+
 def names_hotel(url, title, snippet, hotel):
     """
     Does this page (by its address, title and snippet) belong to the hotel? The full name (as the page writes it), or the name without
@@ -200,7 +209,7 @@ def listing_footprint(corpus, hotel, city, entities, own_site_links=()):
     town = evidence.fold((city or "").split(",")[0])
     cands = corpus.get("candidates", [])
     for label, token in KEY_PLATFORMS:
-        hits = [c for c in cands if token in c["domain"] + "/" and _names_hotel(c, hotel)]
+        hits = [c for c in cands if on_platform(c["domain"], token) and _names_hotel(c, hotel)]
         # prefer a hit that also carries the town (the same name is shared by many hotels)
         hits.sort(key=lambda c: town in evidence.fold(c["title"] + " " + c["snippet"] + " " + c["url"]),
                   reverse=True)

@@ -468,8 +468,8 @@ def build_findings(site, entities, consistency, discovery, location=None):
             continue
         add(sev, "Entity presence", f"Not found in {src}",
             e.get("note") or e.get("error", ""),
-            f"Add the hotel to {src}. Both accept contributions and both feed "
-            "systems that answer travel questions.")
+            (f"Search {src} by hand first (our search is by name and can miss an entry mapped under another name); if the hotel is absent, add it. "
+             if src == "OpenStreetMap" else f"Add the hotel to {src}. ") + "Both accept contributions and both feed systems that answer travel questions.")
 
     # --- fact consistency
     sig = [c for c in consistency if c["verdict"] == "significant discrepancy"]

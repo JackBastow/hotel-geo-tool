@@ -19,13 +19,16 @@ import identity
 
 SOURCE = "Listing lookup (AI web search)"
 PLATFORMS = [(label, token) for label, token in identity.KEY_PLATFORMS if label in
-             ("Booking.com", "Expedia", "Hotels.com", "TripAdvisor", "Trivago", "Agoda", "Trip.com")]
+             ("Booking.com", "Expedia", "Hotels.com", "TripAdvisor", "Trivago", "Agoda", "Trip.com", "Kayak")]
 MAX_TOKENS = 1500
 
 SYSTEM = ("You are a research assistant who finds a hotel's own listing page on booking and review websites. Use the web search tool, one search per site, "
           "with the hotel's name, its town and the site's name. You only need to search; when you are done reply with the single word: done.")
 
 PROMPT = "Find the page for the hotel \"{hotel}\" in {city} on each of these websites: {sites}. Search for each site separately."
+
+
+_NOT_A_LISTING = re.compile(r"/(moments|travel-?guides?|blog|articles?|news|posts?)(/|$)", re.I)      # a social post or article on a platform's site is not the hotel's page
 
 
 def _domain(url):
@@ -43,10 +46,13 @@ def hits_from_pages(pages, hotel, city, have=()):
     for label, token in PLATFORMS:
         if label in have:
             continue
-        cands = [p for p in pages if p.get("url") and token in _domain(p["url"]) + "/" and identity.names_hotel(p["url"], p.get("title", ""), "", hotel)]
+        cands = [p for p in pages if p.get("url") and identity.on_platform(_domain(p["url"]), token) and identity.names_hotel(p["url"], p.get("title", ""), "", hotel)]
         if not cands:
             continue
-        cands.sort(key=lambda p: town in evidence.fold(f"{p.get('title', '')} {p['url']}") if town else False, reverse=True)
+        cands = [p for p in cands if not _NOT_A_LISTING.search(urllib.parse.urlparse(p["url"]).path)]
+        if not cands:
+            continue
+        cands.sort(key=lambda p: (town in evidence.fold(f"{p.get('title', '')} {p['url']}") if town else False, "hotel" in urllib.parse.urlparse(p["url"]).path.lower()), reverse=True)
         c = cands[0]
         out[label] = {"platform": label, "url": c["url"], "title": (c.get("title") or "")[:100],
                       "location_confirmed": bool(town and town in evidence.fold(f"{c.get('title', '')} {c['url']}"))}

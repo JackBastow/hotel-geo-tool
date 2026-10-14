@@ -296,8 +296,9 @@ def score_entity(entities, consistency, location):
             recs.append({
                 "code": f"entity_missing:{src}",
                 "priority": "high" if src == "OpenStreetMap" else "medium",
-                "action": f"Add the hotel to {src}",
-                "why": ("OpenStreetMap feeds Apple Maps and many apps and AI tools."
+                "action": (f"Check the hotel is mapped in OpenStreetMap (our search found no entry)" if src == "OpenStreetMap" else f"Add the hotel to {src}"),
+                "why": ("Our search is by name and can miss an entry that is mapped under a shorter or different name: search openstreetmap.org for the hotel first, and add it "
+                        "only if it is truly absent. OpenStreetMap feeds Apple Maps and many apps and AI tools."
                         if src == "OpenStreetMap" else
                         "Wikidata feeds Google's Knowledge Graph and is well "
                         "represented in LLM training data."),

@@ -31,10 +31,18 @@ check("two-word names need the words together, not scattered", not identity.name
 print("2. picking the listing out of search results")
 pages = [{"url": "https://www.tripadvisor.co.uk/Hotel_Review-g187147-d1-Reviews-Paris_Marriott_Opera_Ambassador_Hotel-Paris.html", "title": "Paris Marriott Opera Ambassador Hotel - Tripadvisor"},
          {"url": EXPEDIA, "title": "Paris Marriott Opera Ambassador Hotel"}, {"url": BOOKING, "title": "Paris Marriott Opera Ambassador Hotel, Paris - Booking.com"},
-         {"url": "https://www.expedia.co.uk/Paris-Hotels-Hilton-Paris.h2.Hotel-Information", "title": "Hilton Paris"}, {"url": "https://example.com/blog", "title": "Paris Marriott Opera Ambassador Hotel review"}]
+         {"url": "https://www.expedia.co.uk/Paris-Hotels-Hilton-Paris.h2.Hotel-Information", "title": "Hilton Paris"}, {"url": "https://example.com/blog", "title": "Paris Marriott Opera Ambassador Hotel review"},
+         {"url": "https://www.top-paris-hotels.com/en/property/marriott-opera-ambassador.html", "title": "Hotel Marriott Opera Ambassador Paris, France - book now"}]
 hits = {h["platform"]: h for h in ll.hits_from_pages(pages, HOTEL, CITY)}
 check("Expedia, Booking.com and Tripadvisor are each found, on their own domain", set(hits) == {"Expedia", "Booking.com", "TripAdvisor"}, set(hits))
 check("the Expedia hit is the hotel's page, not the other Paris hotel on the same site", hits["Expedia"]["url"] == EXPEDIA)
+check("an address that merely CONTAINS a platform's name is not the platform ('top-paris-hotels.com' is not Hotels.com; 'expedia-aarp.com' is not 'expedia.')",
+      not identity.on_platform("top-paris-hotels.com", "hotels.com") and identity.on_platform("www.hotels.com", "hotels.com") and identity.on_platform("fi.kayak.com", "kayak.")
+      and identity.on_platform("expedia.co.uk", "expedia.") and not identity.on_platform("expedia-aarp.com", "expedia.") and not identity.on_platform("mytrivago.example.com", "trivago."))
+check("Hotels.com is not 'found' from a look-alike site that names the hotel", "Hotels.com" not in hits and all("top-paris" not in h["url"] for h in hits.values()))
+check("a post or guide on a platform's site (Trip.com 'moments') is not the hotel's listing, and a hotel page is preferred",
+      ll.hits_from_pages([{"url": "https://us.trip.com/moments/detail/paris-308-1", "title": "Paris Marriott Opera Ambassador Hotel"},
+                          {"url": "https://www.trip.com/hotels/paris-hotel-detail-1/paris-marriott-opera-ambassador-hotel/", "title": "Paris Marriott Opera Ambassador Hotel"}], HOTEL, CITY)[0]["url"].endswith("-hotel/"))
 check("a blog that names the hotel is not mistaken for a platform listing", all("example.com" not in h["url"] for h in hits.values()))
 check("the town in the title or address is noted as location confirmed", hits["Booking.com"]["location_confirmed"] and hits["TripAdvisor"]["location_confirmed"])
 check("platforms already found are not looked for again", "Expedia" not in {h["platform"] for h in ll.hits_from_pages(pages, HOTEL, CITY, have=("Expedia",))})
@@ -63,9 +71,9 @@ class Fake:
 fake = Fake([resp([(p["url"], p["title"]) for p in pages])])
 r = ll.run(HOTEL, CITY, client=fake)
 tool = fake.calls[0]["tools"][0]
-check("one call with the web-search tool, allowed a search per site, naming every site, and asking only to search", len(fake.calls) == 1 and tool["name"] == "web_search" and tool["max_uses"] == 8
+check("one call with the web-search tool, allowed a search per site, naming every site, and asking only to search", len(fake.calls) == 1 and tool["name"] == "web_search" and tool["max_uses"] == 9
       and all(w in fake.calls[0]["messages"][0]["content"] for w in ("Expedia", "Booking.com", "Hotels.com", "TripAdvisor")))
-check("it returns the pages the search returned (the model's own words are not used) and the cost", r["status"] == "ok" and len(r["pages"]) == 5 and 0 < r["cost_usd"] < 0.30, r["cost_usd"])
+check("it returns the pages the search returned (the model's own words are not used) and the cost", r["status"] == "ok" and len(r["pages"]) == 6 and 0 < r["cost_usd"] < 0.30, r["cost_usd"])
 check("the platforms already found are left out of the request", "Expedia" not in Fake([resp([])]).calls and
       "Expedia" not in (lambda f: (ll.run(HOTEL, CITY, client=f, have=("Expedia",)), f.calls[0]["messages"][0]["content"])[1])(Fake([resp([])])))
 check("no key and no client: not run, with the reason; no town: not run", ll.run(HOTEL, CITY)["status"] == "not_configured" and ll.run(HOTEL, "", api_key="k")["status"] == "not_configured")
@@ -90,6 +98,38 @@ rows = {x["platform"]: x for x in identity.listing_footprint(corpus, HOTEL, CITY
 check("Expedia is discovered, with its page, location confirmed, and honestly marked as not read", rows["Expedia"]["discovered"] and rows["Expedia"]["url"] == EXPEDIA
       and not rows["Expedia"]["content_assessed"] and "not opened" in rows["Expedia"]["note"], rows["Expedia"])
 check("a platform with no listing found still says 'not found by our searches' and never 'not listed'", not rows["Hotels.com"]["discovered"] and "does not show the hotel is not listed" in rows["Hotels.com"]["note"])
+
+print("5. OpenStreetMap: found under the name a mapper would write")
+import external_check as ec
+import time as _t
+_t.sleep = lambda *_a: None
+calls = []
+ENTRY = {"name": "Marriott Opera Ambassador", "display_name": "Marriott Opera Ambassador, Boulevard Haussmann, Paris, France", "category": "tourism", "type": "hotel",
+         "lat": "48.8731", "lon": "2.3354", "osm_type": "node", "osm_id": 1, "address": {"road": "Boulevard Haussmann", "city": "Paris"}, "extratags": {}}
+
+
+def fake_get(url, params):
+    calls.append(params)
+    if params.get("q", "").lower().startswith("paris marriott"):
+        return [], None                                  # the booking-site name finds nothing, as it did live
+    if "marriott opera ambassador" in params.get("q", "").lower():
+        return [ENTRY, {"name": "Rue de l'Opera", "display_name": "Rue de l'Opera, Paris", "category": "highway", "type": "residential", "lat": "48.87", "lon": "2.33"}], None
+    return [], None
+
+
+ec._get_json = fake_get
+r = ec.check_openstreetmap(HOTEL, CITY, lat=48.8731, lon=2.3354)
+check("a hotel mapped as 'Marriott Opera Ambassador' is found even though the booking sites call it 'Paris Marriott Opera Ambassador Hotel'",
+      r["found"] and r["match_confident"] is True and "0.0km" in r["match_reason"] and len(calls) >= 3, (r.get("note"), len(calls)))
+check("the variants drop the town and the word 'hotel', never reduce the name to one word", all(len(q.replace(",", " ").split()) >= 2 for q in ec._osm_name_variants(HOTEL, CITY)) and "marriott opera ambassador, Paris" in ec._osm_name_variants(HOTEL, CITY))
+check("a result whose own name shares no distinctive word with the hotel (a street) is never taken as its entry", not ec._osm_name_ok({"name": "Rue de l'Opera", "display_name": "Rue de l'Opera, Paris"}, HOTEL, CITY)
+      and ec._osm_name_ok(ENTRY, HOTEL, CITY))
+ec._get_json = lambda url, params: ([], None)
+r = ec.check_openstreetmap(HOTEL, CITY)
+check("when every variant finds nothing it says so, and tells the reader to search by hand before adding anything", not r["found"] and "by hand" in r["note"])
+ec._get_json = lambda url, params: (None, "HTTP 429")
+r = ec.check_openstreetmap(HOTEL, CITY)
+check("a lookup that failed is an error, not 'missing' (so no advice to add the hotel)", r.get("error") == "HTTP 429" and not r["found"])
 
 print()
 print("FAILURES:", fails if fails else "none")

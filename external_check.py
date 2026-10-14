@@ -306,6 +306,59 @@ def _haversine_km(lat1, lon1, lat2, lon2):
     return 2 * r * math.asin(math.sqrt(a))
 
 
+def _osm_name_variants(hotel, city):
+    """
+    The ways the hotel's name is likely to be written in OpenStreetMap. A mapper writes what is on the door ('Marriott Opera Ambassador'), not what a
+    booking site calls it ('Paris Marriott Opera Ambassador Hotel'), and Nominatim finds nothing for a name with extra words.
+    """
+    import evidence
+    town = [t for t in evidence.fold((city or "").split(",")[0]).split() if t]
+    toks = evidence.distinctive_tokens(hotel)
+    core = [t for t in toks if t not in town]
+    seen, out = set(), []
+    for q in (f"{hotel}, {city}", hotel, " ".join(core) + (f", {city}" if city else ""), " ".join(core)):
+        q = q.strip(", ")
+        if q and q.lower() not in seen and (q != " ".join(core) or len(core) >= 2):
+            seen.add(q.lower())
+            out.append(q)
+    return out
+
+
+def _osm_name_ok(h, hotel, city):
+    """A result is only this hotel's entry if its OWN name shares at least two distinctive words with the hotel (one if the name has only one), not counting the town."""
+    import evidence
+    town = set(evidence.fold((city or "").split(",")[0]).split())
+    want = {t for t in evidence.distinctive_tokens(hotel) if t not in town}
+    got = set(evidence.fold(h.get("name") or (h.get("display_name", "").split(",")[0])).split())
+    return len(want & got) >= min(2, len(want)) if want else False
+
+
+def _osm_search(hotel, city, lat=None, lon=None):
+    """-> (hits, error). Tries the hotel's name as written, then the ways a mapper would write it, then (with coordinates) a search inside a small box around
+    the hotel's own location. Stops at the first query that returns a hotel-like entry whose name matches. Nominatim asks for at most one request a second."""
+    import time
+    base = {"format": "jsonv2", "extratags": 1, "addressdetails": 1, "limit": 5}
+    queries = [{"q": q} for q in _osm_name_variants(hotel, city)]
+    if lat is not None and lon is not None:
+        d = 0.006                                       # about 650 m each way
+        queries.append({"q": " ".join(__import__("evidence").distinctive_tokens(hotel)[-2:]) or hotel,
+                        "viewbox": f"{lon - d},{lat + d},{lon + d},{lat - d}", "bounded": 1})
+    first_err, any_ok, last_hits = None, False, []
+    for n, extra in enumerate(queries):
+        if n:
+            time.sleep(1.1)
+        hits, err = _get_json(OSM_ENDPOINT, {**base, **extra})
+        if err:
+            first_err = first_err or err
+            continue
+        any_ok = True
+        good = [h for h in hits or [] if _osm_name_ok(h, hotel, city)]
+        good.sort(key=lambda h: h.get("category") != "tourism")
+        if good:
+            return good[:3], None
+    return [], (None if any_ok else first_err)
+
+
 def check_openstreetmap(hotel, city="", postcode="", lat=None, lon=None):
     """
     Look the hotel up in OpenStreetMap via Nominatim. No key needed.
@@ -320,17 +373,14 @@ def check_openstreetmap(hotel, city="", postcode="", lat=None, lon=None):
     """
     out = {"source": "OpenStreetMap", "found": False, "facts": {},
            "match_confident": None}
-    q = f"{hotel}, {city}".strip(", ")
-    hits, err = _get_json(OSM_ENDPOINT, {
-        "q": q, "format": "jsonv2", "extratags": 1, "addressdetails": 1, "limit": 3,
-    })
+    hits, err = _osm_search(hotel, city, lat, lon)
     if err:
         out["error"] = err
         return out
     if not hits:
         out["note"] = (
-            "Not found in OpenStreetMap. OSM feeds Apple Maps and many apps "
-            "and AI tools; an absent hotel is invisible to all of them."
+            "No entry found in OpenStreetMap by name (the name as given, and the shorter ways a mapper would write it). OSM feeds Apple Maps and many "
+            "apps and AI tools. Search openstreetmap.org by hand to be sure: an entry mapped under an unrelated name would be missed."
         )
         return out
 
