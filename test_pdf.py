@@ -130,6 +130,10 @@ if pymupdf is not None:
                                                            "we do not read these pages", "Oatlands Park Hotel - Booking.com")))
     check("the appendix says how the hotel's market was read, which decided the questions",
           "How the hotel's market was read" in re.sub(r"\s+", " ", atext) and "Upscale airport hotel" in atext)
+    check("the appendix carries how replies were written and what the reviews were about",
+          "How the replies were written" in re.sub(r"\s+", " ", atext) and "Critical or mixed reviews were about" in re.sub(r"\s+", " ", atext))
+    check("the appendix says how often the hotel's own site was behind the answers",
+          "own website was among the sources in 1 of 4 answers" in re.sub(r"\s+", " ", atext))
     check("the appendix says what it is and points back to the management report", "Technical & evidence appendix" in atext and "management report" in atext)
     check("the management report links to the evidence by reference, not by repeating it", "Appendix reference" in mtext)
     check("filenames say which document it is", "management-report" in report_pdf.filename(rep, "management") and "appendix" in report_pdf.filename(rep, "appendix"))

@@ -270,7 +270,8 @@ def _where_to_add(site, slugs, fallback):
 
 
 SHORT = {"meeting_detail": "Meeting rooms", "wedding_detail": "Weddings", "spa_detail": "Spa", "pool_detail": "Pool",
-         "restaurant_detail": "Restaurant", "connecting_rooms": "Family rooms", "room_count": "Number of rooms", "balconies": "Balconies"}
+         "restaurant_detail": "Restaurant", "connecting_rooms": "Family rooms", "room_count": "Number of rooms", "balconies": "Balconies",
+         "rate_inclusions": "What the rate includes", "room_configuration": "Room configurations", "area_guide": "The area around the hotel"}
 
 EXTENDED = [
     # key, question, applies_if feature/intent key, required facts {label: regex}, page slugs, fallback, priority-hint
@@ -317,6 +318,27 @@ EXTENDED = [
          "dietary options": re.compile(r"vegan|vegetarian|gluten|allerg|dietary|halal|kosher", re.I)},
      "example": "[Restaurant name] is open [12-2.30pm and 6-9.30pm] daily. Book online or call [phone]. Vegetarian, vegan and "
                 "gluten-free dishes are always available - tell us about allergies when booking."},
+    # Core hotel information in plain sentences (the 'content hub' a hotel is best placed to write). Asked of every hotel, so they are raised as fixes, not segment opportunities.
+    {"id": "rate_inclusions", "q": "What does the room rate include, and what costs extra?", "applies": None, "core": True, "high_value": True,
+     "slugs": ("rates", "offers", "faq", "policies", "terms", "information", "booking"), "fallback": "your FAQ or Guest information page",
+     "facts": {
+         "what the rate includes": re.compile(r"(?:rate|room|price|stay)s?\s+(?:includes?|inclusive of|are inclusive)|included in (?:the|your) (?:rate|room|price)|rates? (?:include|are)|breakfast (?:is )?included|complimentary (?:wi-?fi|breakfast|water|access)", re.I),
+         "what costs extra": re.compile(r"(?:at )?(?:an )?extra (?:charge|cost|fee)|supplement|additional (?:charge|fee|cost)|surcharge|city tax|tourist tax|tourism tax|resort fee|destination fee|local tax|deposit|not included|charged (?:separately|extra)|per (?:night|person|day) (?:fee|charge)", re.I)},
+     "example": "Your rate includes [breakfast, Wi-Fi, access to the gym]. Not included: parking (\u00a3[x] a night), [city tax of \u00a3[x] per person per night], [late check-out], [spa access]."},
+    {"id": "room_configuration", "q": "Which rooms sleep how many guests, and what is the bed set-up?", "applies": None, "core": True, "high_value": False,
+     "slugs": ("rooms", "accommodation", "suites", "family"), "fallback": "your Rooms page",
+     "facts": {
+         "the room types, named": re.compile(r"\b(?:standard|classic|superior|deluxe|executive|junior suite|suite|twin|double|king|queen|single|family room|studio|apartment)\b", re.I),
+         "how many each sleeps": re.compile(r"sleeps? (?:up to )?\d|(?:up to |max(?:imum)?\.? (?:occupancy )?(?:of )?)\d\s*(?:guests|people|adults|persons)|occupancy[: ]+\d|\b\d\s*adults?\b|\b\d\s*guests?\b", re.I),
+         "the bed set-up": re.compile(r"\b(?:king|queen|double|twin|single|super[- ]king)[- ](?:size[d]? )?beds?\b|\b\d\s*(?:single|double|twin|queen|king) beds\b|bed(?:s)? (?:configuration|type|set-?up)|sofa[- ]?bed|extra bed|rollaway|z[- ]?bed", re.I)},
+     "example": "Classic Double: 1 king bed, sleeps 2. Superior Twin: 2 single beds, sleeps 2. Family Room: 1 double + 1 sofa bed, sleeps up to 4 (2 adults, 2 children). [x] rooms connect: ask when booking."},
+    {"id": "area_guide", "q": "Does the site say what is nearby: where to eat, what to do, and what is open late or when it rains?", "applies": None, "core": True, "high_value": False,
+     "slugs": ("local", "area", "explore", "things to do", "around", "guide", "nearby", "neighbourhood", "visit", "attractions"), "fallback": "an Area guide page",
+     "facts": {
+         "where to eat nearby": re.compile(r"(?:where to eat|places to eat|local (?:restaurants|pubs|cafes|caf\u00e9s|bars|dining)|nearby (?:restaurants|pubs|cafes|caf\u00e9s|bars)|restaurants? (?:nearby|within|close)|within (?:walking distance|\d+\s*(?:minutes?|mins?|km|miles?)) (?:of|from)[^.\n]{0,40}(?:restaurant|pub|cafe|caf\u00e9|bar))", re.I),
+         "things to do nearby": re.compile(r"things to do|nearby attractions|local attractions|what to do|sights?\b|museums?|galleries|explore (?:the )?(?:area|city|town|local)|places to visit|day trips?", re.I),
+         "evening or wet-weather options": re.compile(r"open late|late[- ]night|in the evening|evening (?:entertainment|options)|rainy day|wet weather|when it rains|on a rainy|indoor (?:activities|attractions)", re.I)},
+     "example": "Eating nearby: [Restaurant] (10 min walk, open until 11pm, good on a Tuesday night), [Cafe] (3 min walk, from 7am). When it rains: [museum] (8 min walk), [indoor market]. Walking times are from our front door."},
     {"id": "connecting_rooms", "q": "Does the hotel have connecting or family rooms, and how many people do they sleep?",
      "applies": ("intent", "family"), "slugs": ("family", "rooms", "accommodation"), "fallback": "your Rooms page",
      "facts": {"connecting or family rooms": re.compile(r"connecting|interconnecting|adjoining|family (?:rooms?|suites?)", re.I),
@@ -327,6 +349,8 @@ EXTENDED = [
 
 
 def _applies(rule, intent_rows, feature_rows):
+    if rule is None:
+        return True          # a core question asked of every hotel
     kind, key = rule
     rows = intent_rows if kind == "intent" else feature_rows
     r = next((x for x in rows if x["key"] == key), None)
@@ -382,8 +406,8 @@ def questions(site, guest, intent_rows, feature_rows, location_items):
             w in site.path(p).lower() for w in rule["slugs"])), None)
         ev_rows = [{"url": v["url"], "snippet": v["snippet"]} for v in list(present.values())[:2]]
         state = "partial" if present else "unclear"
-        out.append({"id": rule["id"], "question": rule["q"], "short": SHORT.get(rule["id"], rule["id"]), "state": state, "source": "extended",
-                    "high_value": False, "found": list(present), "missing": missing, "evidence": ev_rows,
+        out.append({"id": rule["id"], "question": rule["q"], "short": SHORT.get(rule["id"], rule["id"]), "state": state, "source": "standard" if rule.get("core") else "extended",
+                    "high_value": bool(rule.get("high_value")), "found": list(present), "missing": missing, "evidence": ev_rows,
                     "where": _where_to_add(site, rule["slugs"], rule["fallback"]),
                     "example": rule["example"], "note": "" if relevant else
                     "no dedicated page for this topic was found among the pages read"})

@@ -110,6 +110,10 @@ check("the AI tab says how the hotel's market was read (price level, kind, audie
       "How we read this hotel's market:" in _md and "Upscale airport hotel" in _md and "Price level: upscale" in _md and "Weddings" in _md and "not for 'the best hotels in town'" in " ".join(c.value for c in at.caption))
 check("the form lets the hotel say who it is for: a price level and the audiences to attract", any(x.label == "Price level" for x in at.selectbox) and any(x.label.startswith("Audiences the hotel wants") for x in at.multiselect),
       ([x.label for x in at.selectbox], [x.label for x in at.multiselect]))
+check("the reviews card shows how replies were written (specific, thanks, action, signed) and what reviews were about",
+      all(w in _md for w in ("How the replies were written", "specific to the guest: 1 of 2", "What positive reviews were about", "breakfast", "What critical or mixed reviews were about", "noise")))
+check("the AI tab says how often the hotel's own site was behind the answers, which sites were cited instead, and why that matters",
+      (lambda t: "Your own website was among the sources in 1 of 4 answers" in t and "booking.com (2)" in t and "finds it elsewhere and cites elsewhere" in t)(" ".join(e.value for e in list(at.info) + list(at.success))))
 print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
 import sys  # noqa: E402
 import types  # noqa: E402

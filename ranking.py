@@ -59,7 +59,7 @@ F = {
     ("structured", "SD3"): (1, 1, 2, "fix"), ("structured", "SD4"): (1, 1, 2, "opportunity"),
     ("structured", "SD5"): (1, 1, 1, "opportunity"), ("structured", "SD6"): (1, 1, 1, "opportunity"),
     # findings that came from the outside-the-website evidence
-    ("reviews", "RV1"): (3, 4, 2, "fix"), ("reviews", "RV2"): (2, 3, 1, "opportunity"),     # reply behaviour seen in a small search-result sample
+    ("reviews", "RV1"): (3, 4, 2, "fix"), ("reviews", "RV2"): (2, 3, 1, "opportunity"), ("reviews", "RV3"): (2, 3, 1, "opportunity"),     # reply behaviour seen in a small search-result sample
     ("ai", "AI4"): (2, 4, 4, "opportunity"),     # not named where the hotel is positioned to compete: more telling than a town-wide list
     ("ai", "AI3"): (3, 4, 3, "fix"), ("ai", "AI2"): (1, 3, 3, "opportunity"),     # AI3: the assistant's statement differs from the hotel's own record
     ("ai", "AI1"): (1, 3, 3, "opportunity"),     # one sampled model did not name the hotel: upside to explore, not a defect

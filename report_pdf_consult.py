@@ -175,6 +175,14 @@ def review_section(rs):
                     "results was dropped. This is a small, unrepresentative sample: it shows replies SEEN on reviews EXAMINED, not the hotel's reply rate. "
                     f"{s['examined']} reviews examined; the hotel replied to {s['replied']}; critical reviews with a reply: {s['negative_replied']} of "
                     f"{s['negative_examined']}. Reviews are paraphrased, nobody is named, and it is not part of any score.", "tiny"))
+    rq = s.get("reply_quality") or {}
+    lab = {"personal": "specific to the guest", "acknowledges": "thanks or apologises", "offers_action": "says what will be done", "signed": "signed by a role or team"}
+    bits = [f"{lab[k]}: {v['yes']} of {v['judged']}" for k, v in rq.items() if v["judged"]]
+    if bits:
+        out.append(para("How the replies were written (an AI's reading of a small sample): " + "; ".join(bits) + ".", "tiny"))
+    if s.get("praised") or s.get("criticised"):
+        out.append(para("Positive reviews were about: " + (", ".join(f"{t['topic']} ({t['reviews']})" for t in s.get("praised", [])) or "-")
+                        + ". Critical or mixed reviews were about: " + (", ".join(f"{t['topic']} ({t['reviews']})" for t in s.get("criticised", [])) or "-") + ".", "tiny"))
     rows = [["Platform", "Date", "Review", "Replied", "By", "Tone", "What the reply said (paraphrase)"]]
     for i in rs["items"]:
         rows.append([i["platform"], i["review_date"] or "-", i["sentiment"] or "-", {True: "yes", False: "no", None: "can't tell"}[i["owner_replied"]],
@@ -207,6 +215,11 @@ def ai_section(ai, ins=None):
         out.append(para("How the hotel's market was read, which decided the questions: " + mk["summary"] + ". "
                         + "; ".join(([f"price level {mk['tier']['label']} ({mk['tier']['why']})"] if mk.get("tier") else [])
                                     + [f"{a['label']} ({a['why']})" for a in mk.get("audiences", [])[:8]]) + ". Brand level is an inference.", "tiny"))
+    osr = (ins or {}).get("own_site")
+    if osr and osr["answers"]:
+        out.append(para(f"The hotel's own website was among the sources in {osr['own_cited']} of {osr['answers']} answers to the town and market questions"
+                        + (", with pages from other sites cited instead: " + ", ".join(f"{x['domain']} ({x['cited']})" for x in osr["instead"][:4]) if osr["instead"] else "")
+                        + ". If an answer is not on the hotel's site in plain language, the assistant finds it elsewhere and cites elsewhere.", "tiny"))
     br = (ins or {}).get("brand_ranking")
     if br and br.get("rows"):
         sb0 = ins.get("scoreboard") or {}

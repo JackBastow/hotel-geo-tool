@@ -249,6 +249,16 @@ def review_card(rs):
     if rs.get("platforms"):
         df([{"Platform": p["platform"], "Rating shown": "-" if p["rating"] is None else p["rating"],
              "Reviews": "-" if p["review_count"] is None else p["review_count"], "Page": p["url"]} for p in rs["platforms"]], link_cols=("Page",))
+    rq = s.get("reply_quality") or {}
+    labels = {"personal": "specific to the guest", "acknowledges": "thanks or apologises", "offers_action": "says what will be done", "signed": "signed by a role or team"}
+    if any(v["judged"] for v in rq.values()):
+        st.markdown('<span class="hk-label">How the replies were written (an AI reading)</span><br>' + " ".join(
+            ui_theme.chip(f"{labels[k]}: {v['yes']} of {v['judged']}", "good" if v["yes"] / v["judged"] >= .6 else "warn" if v["yes"] / v["judged"] >= .34 else "bad")
+            for k, v in rq.items() if v["judged"]), unsafe_allow_html=True)
+    if s.get("praised") or s.get("criticised"):
+        a_, b_ = st.columns(2)
+        a_.markdown('<span class="hk-label">What positive reviews were about</span><br>' + (" ".join(ui_theme.chip(f"{t['topic']} · {t['reviews']}", "good") for t in s.get("praised", [])) or "-"), unsafe_allow_html=True)
+        b_.markdown('<span class="hk-label">What critical or mixed reviews were about</span><br>' + (" ".join(ui_theme.chip(f"{t['topic']} · {t['reviews']}", "bad") for t in s.get("criticised", [])) or "-"), unsafe_allow_html=True)
     if s["tones"]:
         st.markdown("**Tone of the replies (an AI's reading):** " + ", ".join(f"{md_safe(k)} x{v}" for k, v in sorted(s["tones"].items(), key=lambda kv: -kv[1])))
     with st.expander(f"The {len(rs['items'])} reviews it could see"):
@@ -472,6 +482,13 @@ def ai_sample_card(ai, ins=None):
     cols[k].metric("Known directly", help="whether the assistant knew the hotel when asked about it by name", value={True: "Yes", False: "No", None: "n/a"}[s["direct_known"]])
     st.markdown(" ".join([ui_theme.chip("Own website cited: " + ("yes" if s["own_site_cited"] else "no"), "good" if s["own_site_cited"] else ""),
                           ui_theme.chip(f"Your place: {sb['place']} of {len(br.get('rows', []))}") if sb.get("place") else ""]), unsafe_allow_html=True)
+    osr = (ins or {}).get("own_site")
+    if osr and osr["answers"]:
+        inst = ", ".join(f"{md_safe(x['domain'])} ({x['cited']})" for x in osr["instead"][:4])
+        msg = (f"**Your own website was among the sources in {osr['own_cited']} of {osr['answers']} answers** to the town and market questions."
+               + (f" Pages from other sites were cited instead: {inst}." if inst else "")
+               + " If an answer is not on your site in plain language, the assistant finds it elsewhere and cites elsewhere.")
+        (st.success if osr["own_cited"] / osr["answers"] >= 0.5 else st.info)(msg, icon=":material/link:")
     if s["top_domains"]:
         st.markdown("**Sources the assistant relied on:** " + ", ".join(md_safe(d) for d in s["top_domains"]))
     if ai.get("partial"):

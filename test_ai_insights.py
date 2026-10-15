@@ -243,6 +243,16 @@ check("the run carries a brand ranking, the pages, the hotel's coverage %, senti
       rr["brand_ranking"]["rows"] and "pages" in rr and {"coverage_pct", "sentiment", "place", "repeats"} <= set(rr["scoreboard"]) and rr["scoreboard"]["repeats"] == 2, rr["scoreboard"])
 json.dumps(rr)
 
+print("12. does the answer come from the hotel's own site?")
+its = [{"kind": "generic", "answer": "x", "own_site_cited": True}, {"kind": "niche", "answer": "y", "own_site_cited": False}, {"kind": "niche", "answer": "z", "own_site_cited": False},
+       {"kind": "direct", "answer": "about", "own_site_cited": True}, {"kind": "generic", "answer": "", "own_site_cited": False}]
+pgs = [{"domain": "booking.com", "cited": 3, "own_site": False}, {"domain": "hilton.com", "cited": 9, "own_site": True}, {"domain": "tripadvisor.com", "cited": 2, "own_site": False}, {"domain": "x.com", "cited": 0, "own_site": False}]
+o = ins.own_site_reliance(its, pgs)
+check("only the town and market answers count (not the questions about the hotel, not an empty answer): own site cited in 1 of 3", (o["answers"], o["own_cited"]) == (3, 1), o)
+check("the sites cited INSTEAD are listed most cited first, never the hotel's own site and never a page that was only searched", [x["domain"] for x in o["instead"]] == ["booking.com", "tripadvisor.com"], o["instead"])
+rr_ = ins.run(AI, ctx, client=Fake([resp(json.dumps(EXTRACTED)), resp(json.dumps({"summary": "s", "hypotheses": []}))]), do_head_to_head=False)
+check("the run carries it", "own_site" in rr_ and rr_["own_site"]["answers"] == 2, rr_.get("own_site"))
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

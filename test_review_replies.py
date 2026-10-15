@@ -129,6 +129,28 @@ check("a defensive tone gives a low-priority opportunity, described as 'an AI's 
       len(r2) == 1 and r2[0]["id"] == "RV2" and r2[0]["priority"] == "low" and "AI's reading" in r2[0]["finding"])
 check("nothing for a failed or missing snapshot", advice._from_reviews(None) == [] and advice._from_reviews({"status": "unavailable"}) == [])
 
+print("6. how the replies were written, and what the reviews were about")
+u = SEEN[0]
+c = rr.clean_review({"platform": "Tripadvisor", "url": u, "sentiment": "negative", "owner_replied": True, "reply_tone": "brief", "reply_summary": "x",
+                     "reply_quality": {"personal": True, "acknowledges": "yes", "offers_action": False, "signed": None, "invented": True}, "topics": ["Breakfast!", "noise", "parking", "extra"]}, seen=rr.seen_urls(answer({}).content) | {rr.norm_url(u)})
+check("reply quality keeps only the four known flags, as true / false / null; anything else becomes null",
+      c["reply_quality"] == {"personal": True, "acknowledges": None, "offers_action": False, "signed": None}, c["reply_quality"])
+check("topics are tidied to short lowercase words, at most three", c["topics"] == ["breakfast", "noise", "parking"], c["topics"])
+check("a review with no reply has no reply quality (nothing to judge)", rr.clean_review({"platform": "T", "url": u, "owner_replied": False, "reply_quality": {"personal": True}}, seen=rr.seen_urls(answer({}).content) | {rr.norm_url(u)})["reply_quality"] is None)
+mk = lambda rep, sent, q, t: {"owner_replied": rep, "sentiment": sent, "reply_tone": None, "platform": "T", "reply_quality": q, "topics": t}      # noqa: E731
+sm = rr.summarise([mk(True, "positive", {"personal": False, "acknowledges": True, "offers_action": None, "signed": True}, ["staff"]),
+                   mk(True, "negative", {"personal": False, "acknowledges": True, "offers_action": False, "signed": False}, ["noise", "staff"]),
+                   mk(True, "negative", {"personal": True, "acknowledges": False, "offers_action": False, "signed": False}, ["noise"]),
+                   mk(None, "mixed", None, ["parking"])])
+check("quality is counted as yes of judged (a null is not counted as a no)", sm["reply_quality"]["offers_action"] == {"yes": 0, "judged": 2} and sm["reply_quality"]["personal"] == {"yes": 1, "judged": 3})
+check("what positive reviews were about and what critical or mixed ones were about are kept apart, most common first",
+      sm["praised"] == [{"topic": "staff", "reviews": 1}] and sm["criticised"][0] == {"topic": "noise", "reviews": 2} and {"topic": "parking", "reviews": 1} in sm["criticised"])
+items3 = [{**mk(True, "negative", {"personal": False, "acknowledges": True, "offers_action": True, "signed": True}, []), "url": "https://x/1", "review_date": "2026-09", "reply_summary": "Thanks."} for _ in range(3)]
+rv3 = [r_ for r_ in advice._from_reviews({"status": "ok", "summary": rr.summarise(items3), "items": items3}) if r_["id"].endswith("RV3") or r_.get("tag") == "RV3"]
+check("replies that are mostly generic raise a low-priority recommendation to make them specific, worded as a small sample", len(rv3) == 1 and rv3[0]["priority"] == "low" and "small sample" in rv3[0]["finding"])
+items_ok = [{**i, "reply_quality": {"personal": True, "acknowledges": True, "offers_action": True, "signed": True}} for i in items3]
+check("specific replies raise nothing", not [r_ for r_ in advice._from_reviews({"status": "ok", "summary": rr.summarise(items_ok), "items": items_ok}) if r_.get("tag") == "RV3"])
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

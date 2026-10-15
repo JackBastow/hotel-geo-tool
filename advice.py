@@ -445,6 +445,17 @@ def _from_reviews(rs):
             "Have a senior person read those replies against the review. Where the hotel was right, say so calmly; where the guest had a point, "
             "acknowledge it and say what has changed.", "low", "low", confidence=EXPER, team="reputation management", source="reviews", tag="RV2",
             summary="Defensive tone in some replies"))
+    pq = (s.get("reply_quality") or {}).get("personal") or {}
+    if pq.get("judged", 0) >= 3 and pq["yes"] / pq["judged"] <= 0.34:
+        out.append(_rec(
+            "RV3", "authority", "Replies to reviews look generic rather than specific to the guest",
+            f"Of {pq['judged']} replies we could judge, only {pq['yes']} referred to specifics of the guest's stay (an AI's reading of a small sample).",
+            "A reply that could be pasted under any review reads as a template. A specific reply is the one place the hotel's own words sit inside third-party "
+            "evidence that travellers, review sites and AI assistants all read.",
+            first(lambda i: i["owner_replied"] and (i.get("reply_quality") or {}).get("personal") is False),
+            "Reply to each review by naming what the guest raised (the room, the breakfast, the member of staff), thank them for that, and say what was done or "
+            "will change. Keep a short checklist: thank, specifics, action, a named role at the end.", "low", "low", confidence=EXPER,
+            team="reputation management", source="reviews", tag="RV3", summary="Replies read as generic"))
     return out
 
 

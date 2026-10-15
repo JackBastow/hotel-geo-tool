@@ -8462,7 +8462,8 @@
     "qid": "best",
     "repeat": 1,
     "repeats": 1,
-    "pages": []
+    "pages": [],
+    "own_site_cited": true
    },
    {
     "id": "where",
@@ -8479,7 +8480,8 @@
     "qid": "where",
     "repeat": 1,
     "repeats": 1,
-    "pages": []
+    "pages": [],
+    "own_site_cited": false
    },
    {
     "id": "about",
@@ -8496,7 +8498,8 @@
     "qid": "about",
     "repeat": 1,
     "repeats": 1,
-    "pages": []
+    "pages": [],
+    "own_site_cited": false
    },
    {
     "id": "niche_airport",
@@ -8515,7 +8518,8 @@
     "qid": "niche_airport",
     "repeat": 1,
     "repeats": 1,
-    "pages": []
+    "pages": [],
+    "own_site_cited": false
    },
    {
     "id": "niche_feature_spa",
@@ -8534,7 +8538,8 @@
     "qid": "niche_feature_spa",
     "repeat": 1,
     "repeats": 1,
-    "pages": []
+    "pages": [],
+    "own_site_cited": false
    }
   ],
   "market": {
@@ -8597,6 +8602,48 @@
    }
   ],
   "summary": {
+   "reply_quality": {
+    "personal": {
+     "yes": 1,
+     "judged": 2
+    },
+    "acknowledges": {
+     "yes": 2,
+     "judged": 2
+    },
+    "offers_action": {
+     "yes": 1,
+     "judged": 2
+    },
+    "signed": {
+     "yes": 2,
+     "judged": 2
+    }
+   },
+   "praised": [
+    {
+     "topic": "breakfast",
+     "reviews": 1
+    },
+    {
+     "topic": "staff",
+     "reviews": 1
+    }
+   ],
+   "criticised": [
+    {
+     "topic": "location",
+     "reviews": 1
+    },
+    {
+     "topic": "noise",
+     "reviews": 1
+    },
+    {
+     "topic": "parking",
+     "reviews": 1
+    }
+   ],
    "reviews_seen": 4,
    "examined": 3,
    "replied": 2,
@@ -8621,7 +8668,17 @@
     "reply_by": "General Manager",
     "reply_date": "2026-08",
     "reply_tone": "warm template",
-    "reply_summary": "Thanks the guest and invites them back."
+    "reply_summary": "Thanks the guest and invites them back.",
+    "reply_quality": {
+     "personal": true,
+     "acknowledges": true,
+     "offers_action": false,
+     "signed": true
+    },
+    "topics": [
+     "breakfast",
+     "staff"
+    ]
    },
    {
     "platform": "Tripadvisor",
@@ -8632,7 +8689,17 @@
     "reply_by": "General Manager",
     "reply_date": "2026-07",
     "reply_tone": "defensive",
-    "reply_summary": "Says the guest declined a room move."
+    "reply_summary": "Says the guest declined a room move.",
+    "reply_quality": {
+     "personal": false,
+     "acknowledges": true,
+     "offers_action": true,
+     "signed": true
+    },
+    "topics": [
+     "noise",
+     "parking"
+    ]
    },
    {
     "platform": "Tripadvisor",
@@ -8643,7 +8710,11 @@
     "reply_by": null,
     "reply_date": null,
     "reply_tone": null,
-    "reply_summary": ""
+    "reply_summary": "",
+    "reply_quality": null,
+    "topics": [
+     "location"
+    ]
    },
    {
     "platform": "Tripadvisor",
@@ -9293,6 +9364,20 @@
     "names_competitor": null,
     "own_site": false
    }
-  ]
+  ],
+  "own_site": {
+   "answers": 4,
+   "own_cited": 1,
+   "instead": [
+    {
+     "domain": "booking.com",
+     "cited": 2
+    },
+    {
+     "domain": "tripadvisor.co.uk",
+     "cited": 1
+    }
+   ]
+  }
  }
 }

@@ -269,6 +269,20 @@ def page_table(items, hotel, rivals=(), own_domain="", limit=25):
     return out[:limit]
 
 
+def own_site_reliance(items, pages):
+    """
+    How often the hotel's OWN website was among the sources behind the answers to the town and market questions, and which other sites were relied on instead.
+    If the answer is not on the hotel's own site in plain language, the assistant finds it elsewhere and cites elsewhere.
+    """
+    asked = [i for i in items if i.get("kind") in ("generic", "niche") and i.get("answer")]
+    own = [i for i in asked if i.get("own_site_cited")]
+    other = {}
+    for p in pages or []:
+        if not p.get("own_site") and p.get("cited"):
+            other[p["domain"]] = other.get(p["domain"], 0) + p["cited"]
+    return {"answers": len(asked), "own_cited": len(own), "instead": [{"domain": d, "cited": n} for d, n in sorted(other.items(), key=lambda kv: (-kv[1], kv[0]))[:5]]}
+
+
 def question_rows(items, extracted):
     """One row per QUESTION (repeats merged): whether the hotel was named and in how many of the answers, the best position, and the hotels named."""
     out = []
@@ -581,6 +595,7 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
     out["scoreboard"].update(coverage_pct=me_b["coverage_pct"] if me_b else 0, sentiment=me_b["sentiment"] if me_b else None, place=me_b["place"] if me_b else None,
                              positive=me_b["positive"] if me_b else 0, negative=me_b["negative"] if me_b else 0, asked_all=br["asked"])
     out["pages"] = page_table(items, hotel, [r["name"] for r in br["rows"] if not r["is_target"]], ctx.get("own_domain", ""))
+    out["own_site"] = own_site_reliance(items, out["pages"])
     if asked and missed > 0 and cost < budget_usd:
         try:
             ledger = build_ledger(lb, sources, out["perception"], about, ctx.get("snapshot"), ai, ctx.get("footprint"), ctx.get("entities"), ctx.get("strong_intents"),

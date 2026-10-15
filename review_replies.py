@@ -52,12 +52,14 @@ Search for public reviews of this hotel (at least two differently worded searche
     {{"platform": "Tripadvisor", "url": "https://...", "review_date": "2026-08", "sentiment": "positive|mixed|negative",
       "owner_replied": true, "reply_by": "General Manager", "reply_date": "2026-08",
       "reply_tone": "warm template|specific and engaged|brief|defensive|dismissive",
-      "reply_summary": "paraphrase in under 25 words"}}
+      "reply_summary": "paraphrase in under 25 words",
+      "reply_quality": {{"personal": true, "acknowledges": true, "offers_action": false, "signed": true}},
+      "topics": ["breakfast", "noise"]}}
   ],
   "not_found": ["things you looked for and could not find, e.g. Google reviews, replies on Booking.com"]
 }}
 
-Rules: at most {max_items} reviews, mixing recent positive and critical ones where you can see them. Use owner_replied: true only when you saw a reply, false when the page shows the review without one, null when you cannot tell from what you saw. Leave rating/review_count null if not seen. JSON only.'''
+Rules: at most {max_items} reviews, mixing recent positive and critical ones where you can see them. Use owner_replied: true only when you saw a reply, false when the page shows the review without one, null when you cannot tell from what you saw. Leave rating/review_count null if not seen. reply_quality is about the reply you saw, each flag true/false/null: personal = it refers to specifics of that guest's stay rather than a generic thank-you; acknowledges = it thanks the guest or apologises for what went wrong; offers_action = it says what will be done or invites the guest to get in touch; signed = it is signed by a named role or team. topics = up to three one- or two-word subjects the review is about (for example breakfast, noise, staff, location, cleanliness, parking). JSON only.'''
 
 
 # ------------------------------------------------------------------ helpers
@@ -103,6 +105,7 @@ def parse_json(text):
         return None
 
 
+_QUALITY = ("personal", "acknowledges", "offers_action", "signed")
 _TONES = {"warm template", "specific and engaged", "brief", "defensive", "dismissive"}
 _SENT = {"positive", "mixed", "negative"}
 
@@ -115,7 +118,11 @@ def clean_review(r, seen):
     replied = replied if isinstance(replied, bool) else None
     tone = r.get("reply_tone") if r.get("reply_tone") in _TONES else None
     summ = re.sub(r"\s+", " ", str(r.get("reply_summary") or "")).strip()[:220]
+    q = r.get("reply_quality") if isinstance(r.get("reply_quality"), dict) else {}
+    quality = {k: (q.get(k) if isinstance(q.get(k), bool) else None) for k in _QUALITY} if replied else None
+    topics = [re.sub(r"[^a-z &-]", "", str(t).lower()).strip()[:24] for t in (r.get("topics") or [])[:3] if isinstance(t, str)]
     return {"platform": str(r.get("platform") or "")[:30], "url": str(r["url"])[:300], "review_date": str(r.get("review_date") or "")[:10],
+            "reply_quality": quality, "topics": [t for t in topics if t],
             "sentiment": r.get("sentiment") if r.get("sentiment") in _SENT else None, "owner_replied": replied,
             "reply_by": (str(r.get("reply_by") or "")[:40] or None) if replied else None,
             "reply_date": (str(r.get("reply_date") or "")[:10] or None) if replied else None,
@@ -144,7 +151,17 @@ def summarise(reviews):
     for r in replied:
         if r["reply_tone"]:
             tones[r["reply_tone"]] = tones.get(r["reply_tone"], 0) + 1
-    return {"reviews_seen": len(reviews), "examined": len(examined), "replied": len(replied), "unclear": len(reviews) - len(examined),
+    quality = {k: {"yes": sum(1 for r in replied if (r.get("reply_quality") or {}).get(k) is True),
+                   "judged": sum(1 for r in replied if (r.get("reply_quality") or {}).get(k) is not None)} for k in _QUALITY}
+    praised, criticised = {}, {}
+    for r in reviews:
+        for t in r.get("topics") or []:
+            bucket = praised if r["sentiment"] == "positive" else criticised if r["sentiment"] in ("negative", "mixed") else None
+            if bucket is not None:
+                bucket[t] = bucket.get(t, 0) + 1
+    top = lambda d: [{"topic": k, "reviews": v} for k, v in sorted(d.items(), key=lambda kv: (-kv[1], kv[0]))[:6]]      # noqa: E731
+    return {"reply_quality": quality, "praised": top(praised), "criticised": top(criticised),
+            "reviews_seen": len(reviews), "examined": len(examined), "replied": len(replied), "unclear": len(reviews) - len(examined),
             "negative_examined": len(neg), "negative_replied": len(neg_replied), "tones": tones,
             "platforms_with_replies": sorted({r["platform"] for r in replied if r["platform"]})}
 

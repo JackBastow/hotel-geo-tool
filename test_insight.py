@@ -269,7 +269,10 @@ FULL = page("/", HOME["text"] + " Parking is free for guests and cannot be reser
             "We have family rooms that sleep 4 and connecting rooms. EV charging: 2 fast chargers, free for guests. Wi-Fi is free. "
             "Cancel free up to 24 hours before arrival; after that the first night is charged and not refunded. The hotel has 80 bedrooms. "
             "From the M1 junction 46 follow the A58 into Leeds; for sat-nav use LS1 1AA. Leeds station is a 6 minute walk. "
-            "The restaurant is open 6pm - 9pm, book a table online, and caters for vegetarian, vegan and gluten-free diets.",
+            "The restaurant is open 6pm - 9pm, book a table online, and caters for vegetarian, vegan and gluten-free diets. "
+            "The room rate includes breakfast and Wi-Fi; city tax is an extra charge of \u00a32 per person per night. "
+            "Classic Double: 1 king bed, sleeps 2. Family Room: 1 double bed and a sofa bed, sleeps up to 4 guests. "
+            "Where to eat nearby: local restaurants and pubs within walking distance, open late. Things to do: the museum and galleries, with indoor activities for a rainy day.",
             title="Test Hotel | Boutique hotel in Leeds", h1=["Test Hotel"], tels=["0113 111 2222"], links=["/faq/"],
             meta_description="A boutique hotel in Leeds city centre.", structured=[healthy_hotel])
 FILLER = [page(f"/info{i}/", f"Information page number {i}. " + LONG, title=f"Info {i} | Test Hotel Leeds", h1=[f"Info {i}"], meta_description="x", links=["/"]) for i in range(7)]
@@ -707,6 +710,22 @@ bx = {c["key"]: c for c in sc_txt["categories"]}
 check("the scorecard does not score Website & Technical or Social from a text-only read, and says why",
       not bx["website"]["assessed"] and not bx["social"]["assessed"] and "plain text" in bx["website"]["detail"])
 check("the monthly budget guard exists and is in thousandths of a dollar", __import__("store").SERVICE_CAPS["claude"] == 100000)
+
+print("22. the content hub: rate inclusions, room configurations and the area around the hotel")
+ids_quiet = {q["id"] for q in quiet["questions"]}
+check("a site that states what the rate includes, the room set-ups and what is nearby raises none of the three", not ({"rate_inclusions", "room_configuration", "area_guide"} & ids_quiet), ids_quiet)
+BARE = [page("/", HOME["text"], title="Test Hotel | Boutique hotel in Leeds", h1=["Test Hotel"], links=["/rooms/"]), page("/rooms/", "Our rooms are comfortable and well appointed. " + LONG, title="Rooms | Test Hotel Leeds")] + FILLER
+bare = consultant.analyse(own_pages=BARE, pages_meta=[{"url": p_["url"], "ok": True, "title": p_["title"], "meta_description": "x", "h1_count": 1, "pdfs": []} for p_ in BARE], base=BASE, hotel=HOTEL,
+                          city=CITY, location={"lat": 53.8, "lon": -1.5}, guest=guest_for(BARE), site={"robots": {"present": True}, "sitemap": {"present": True, "url_count": 5}},
+                          entities=[], intel=None, osm_ctx=None)
+qs22 = {q["id"]: q for q in bare["questions"]}
+check("a site that says none of it is asked all three, in plain questions", {"rate_inclusions", "room_configuration", "area_guide"} <= set(qs22), set(qs22))
+check("they are raised as guest-information gaps (standard), not as optional segment opportunities, because every hotel needs them", all(qs22[k]["source"] == "standard" for k in ("rate_inclusions", "room_configuration", "area_guide")))
+check("what the rate includes and what costs extra is treated as high value (it decides the price a guest expects)", qs22["rate_inclusions"]["high_value"] and not qs22["area_guide"]["high_value"])
+check("each says exactly what is missing and gives wording to fill in", qs22["rate_inclusions"]["missing"] == ["what the rate includes", "what costs extra"] and "[city tax" in qs22["rate_inclusions"]["example"]
+      and "sleeps" in qs22["room_configuration"]["example"] and "Walking times" in qs22["area_guide"]["example"])
+check("the advice names them among the guest questions to answer, and the area guide asks for a page", any("rate" in r["title"].lower() or "rate" in r["finding"].lower() for r in bare["recommendations"])
+      and "area guide" in qs22["area_guide"]["where"]["label"].lower())
 
 print()
 print("FAILURES:", fails if fails else "none")
