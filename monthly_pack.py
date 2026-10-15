@@ -55,6 +55,7 @@ README = [
     ("'Net sentiment' is % positive minus % negative among the answers that named the hotel (-100 to +100), an AI's reading of how each answer spoke of it. Blank when the hotel was never named.", False),
     ("In AI citations, 'not seen' means the page title and the short passage the assistant quoted do not name the hotel; we do not read those pages, so it is not a statement that the page leaves the hotel out.", False),
     ("'Listing differences' counts facts (check-in and check-out time, star rating, telephone) a travel site shows that differ from the hotel's own site, read from passages quoted in public search results. It is a list of things to check, not proof the listing is wrong; blank means no listing was quoted.", False),
+    ("'Reviews in uploaded export' and the two columns after it come from a review export the hotel uploaded to the audit, for that file only; blank means none was uploaded.", False),
     ("Reviews figures are replies SEEN on reviews EXAMINED in public search results: a small sample, not the hotel's reply rate.", False),
     ("Blank cells mean not assessed or not available, never zero.", False),
 ]
@@ -129,6 +130,7 @@ def run_facts(row, rep, prev):
         "known": None if s.get("direct_known") is None else bool(s.get("direct_known")), "own_cited": None if not s else bool(s.get("own_site_cited")),
         "rv_examined": rv.get("examined"), "rv_replied": rv.get("replied"), "rv_neg": rv.get("negative_examined"), "rv_neg_replied": rv.get("negative_replied"),
         "speed": ps.get("performance"), "a11y": ps.get("accessibility"),
+        "pk_n": (rep.get("review_pack") or {}).get("reviews"), "pk_rate": (rep.get("review_pack") or {}).get("reply_rate"), "pk_unans": (rep.get("review_pack") or {}).get("critical_unanswered"),
         "lc_diff": ((rep.get("listing_checks") or {}).get("summary") or {}).get("differs"), "lc_former": ((rep.get("listing_checks") or {}).get("summary") or {}).get("former_name"), "recs": row.get("recs_total"),
         "acts": [a.get("short_title") or a.get("title") for a in acts], "cost": row.get("ai_cost_usd"),
     }
@@ -223,7 +225,7 @@ def build_workbook(runs, all_rows=None):
     heads = (["Month", "Run id", "Run date", "Hotel", "City", "Website", "Latest in month", "Readiness (0-100)", "Headline", "Coverage %", "Pages read", "Read via"] + cat_heads +
              ["Named, town-wide", "Asked, town-wide", "Named % town-wide", "Named, niche", "Asked, niche", "Named % niche", "Share of hotel names %", "Place in competitor table",
               "Hotels in table", "Top competitor", "Coverage % (all answers)", "Net sentiment", "Place in brand ranking", "Answers asked", "Repeats per question", "Known when asked directly", "Own site cited", "Reviews examined", "Hotel replied", "Critical reviews examined",
-              "Critical replied", "Mobile speed", "Accessibility", "Listing differences", "Former name on listings", "Recommendations in plan", "Top action 1", "Top action 2", "Top action 3", "AI cost $",
+              "Critical replied", "Mobile speed", "Accessibility", "Listing differences", "Former name on listings", "Reviews in uploaded export", "Reply rate % (export)", "Critical reviews unanswered (export)", "Recommendations in plan", "Top action 1", "Top action 2", "Top action 3", "AI cost $",
               "Previous run", "Readiness change", "AI Visibility score change", "Share of names change (pts)", "Named % town-wide change", "Named % niche change", "Coverage change (pts)", "Net sentiment change"])
     rows = []
     for f in facts:
@@ -231,7 +233,7 @@ def build_workbook(runs, all_rows=None):
         rows.append([f["month"], f["run_id"], f["run_at"], f["hotel"], f["city"], f["website"], _yn(f["latest"]), f["readiness"], f["status"], f["coverage"], f["pages"], f["read_via"]]
                     + [f["cats"][k] for k, _ in CATEGORY_ORDER] +
                     [f["town_named"], f["town_asked"], f["town_pct"], f["niche_named"], f["niche_asked"], f["niche_pct"], f["share"], f["place"], f["table_size"],
-                     f["top_competitor"], f["cov_ai"], f["sentiment"], f["brand_place"], f["answers"], f["repeats"], _yn(f["known"]), _yn(f["own_cited"]), f["rv_examined"], f["rv_replied"], f["rv_neg"], f["rv_neg_replied"], f["speed"], f["a11y"], f["lc_diff"], f["lc_former"],
+                     f["top_competitor"], f["cov_ai"], f["sentiment"], f["brand_place"], f["answers"], f["repeats"], _yn(f["known"]), _yn(f["own_cited"]), f["rv_examined"], f["rv_replied"], f["rv_neg"], f["rv_neg_replied"], f["speed"], f["a11y"], f["lc_diff"], f["lc_former"], f["pk_n"], f["pk_rate"], f["pk_unans"],
                      f["recs"], a[0], a[1], a[2], f["cost"], f["prev_date"], f["d_readiness"], f["d_ai_score"], f["d_share"], f["d_town"], f["d_niche"], f["d_cov"], f["d_sent"]])
     _sheet(wb, "Hotels", heads, rows, {"Hotel": 30, "Website": 32, "Top action 1": 48, "Top action 2": 48, "Top action 3": 48, "Top competitor": 28, "Run date": 17}, wrap=("Top action 1", "Top action 2", "Top action 3"))
 
@@ -263,6 +265,9 @@ def build_workbook(runs, all_rows=None):
         metric(f, "Reviews", "Critical reviews replied", f["rv_neg_replied"], "count")
         metric(f, "Web", "Mobile speed", f["speed"], "0-100")
         metric(f, "Web", "Accessibility", f["a11y"], "0-100")
+        metric(f, "Reviews (export)", "Reviews in the export", f["pk_n"], "count")
+        metric(f, "Reviews (export)", "Reply rate", f["pk_rate"], "%")
+        metric(f, "Reviews (export)", "Critical reviews unanswered", f["pk_unans"], "count")
         metric(f, "Listings", "Facts differing from the website", f["lc_diff"], "count")
         metric(f, "Listings", "Listings showing a former name", f["lc_former"], "count")
     _sheet(wb, "Metrics", ["Month", "Run id", "Run date", "Hotel", "City", "Hotel key", "Group", "Metric", "Value", "Unit"], m, {"Hotel": 30, "Metric": 30, "Hotel key": 34, "Group": 20})

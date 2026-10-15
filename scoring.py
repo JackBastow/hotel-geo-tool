@@ -453,6 +453,56 @@ def score_otas(tavily_result):
                "directly.", ev, recs)
 
 
+def score_review_pack(pack):
+    """
+    Reviews & Reputation from the hotel's own review export (review_pack.analyse()['public']). Plain arithmetic on the reviews in the file: reply rate, how critical reviews
+    were answered, how fast, how the replies were written, the rating and how recent the reviews are. A component with too little data is left out and the rest re-weighted.
+    """
+    n = pack.get("reviews", 0)
+    comps, ev, recs = [], [], []
+
+    def add(label, frac, weight, line):
+        comps.append((label, max(0.0, min(1.0, frac)), weight))
+        ev.append(line)
+    if pack.get("reply_rate") is not None:
+        add("reply rate", pack["reply_rate"] / 80.0, 0.30, f"Replied to {pack['replied']} of {n} reviews in the file ({pack['reply_rate']}%)")
+    if pack.get("critical", 0) >= 3 and pack.get("critical_unanswered") is not None:
+        cr = 100 * pack["critical_replied"] / pack["critical"]
+        add("critical reviews answered", cr / 90.0, 0.25, f"Replied to {pack['critical_replied']} of {pack['critical']} critical reviews ({cr:.0f}%)")
+    rt = pack.get("response_time") or {}
+    if rt.get("measured", 0) >= 5 and rt.get("within_3_days_pct") is not None:
+        add("speed", rt["within_3_days_pct"] / 70.0, 0.15, f"{rt['within_3_days_pct']}% of replies within 3 days (median {rt['median_days']} days, {rt['measured']} replies with both dates)")
+    pq = (pack.get("reply_quality") or {}).get("personal") or {}
+    if pq.get("judged", 0) >= 5:
+        add("specific replies", pq["yes"] / pq["judged"] / 0.6, 0.15, f"{pq['yes']} of {pq['judged']} replies refer to specifics of the stay (a rule-based reading)")
+    if pack.get("avg_rating") is not None:
+        add("rating", (pack["avg_rating"] - 3.5) / 1.0, 0.10, f"Average rating {pack['avg_rating']} out of 5")
+    r90 = pack.get("recent_90")
+    if pack.get("last_date"):
+        add("recency", ((r90 or {}).get("reviews", 0)) / 10.0, 0.05, f"{(r90 or {}).get('reviews', 0)} review(s) in the 90 days to the latest in the file ({pack['last_date']})")
+    if not comps:
+        return _not_assessed("reviews", "The file had too little in it to assess reviews and replies (no ratings, replies or dates could be read).", "Upload an export with ratings and, where the platform has them, replies.")
+    tw = sum(w for _, _, w in comps)
+    score = sum(f * w for _, f, w in comps) / tw * 100
+    cat = _cat("reviews", score, f"From the hotel's own review export: {n} review(s). Counted, not sampled; for this file only.", ev, recs)
+    cat["from_review_pack"] = True
+    return cat
+
+
+def apply_review_pack(scorecard, pack):
+    """Replace the (not assessed) Reviews & Reputation category of a finished scorecard with the one worked out from an uploaded review pack, and recompute the totals."""
+    cats = [c for c in scorecard["categories"] if c["key"] != "reviews"] + [score_review_pack(pack)]
+    order = {k: i for i, (k, _, _, _) in enumerate(CATEGORIES)}
+    cats.sort(key=lambda c: order[c["key"]])
+    assessed = [c for c in cats if c["assessed"]]
+    total_weight = sum(c["weight"] for c in assessed)
+    overall = sum(c["score"] * c["weight"] for c in assessed) / total_weight if total_weight else 0
+    missing = [c for c in cats if not c["assessed"]]
+    caveat = (f"Score is {round(overall)} across the {round(total_weight, 1)}% of the model that could be measured. It is NOT a score out of 100 for the whole model - "
+              f"{round(100 - total_weight, 1)}% ({', '.join(c['label'] for c in missing)}) was not assessed." if missing else f"Score is {round(overall)}, assessed across the full model.")
+    return {**scorecard, "overall": round(overall), "coverage_pct": round(total_weight, 1), "assessed_weight": round(total_weight, 1), "categories": cats, "caveat": caveat}
+
+
 def score_reviews(places_result, amadeus_result):
     """
     Reviews & Reputation from whichever of Google Places / Amadeus Hotel

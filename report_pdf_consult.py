@@ -181,6 +181,37 @@ def listing_section(lc):
     return out
 
 
+def pack_section(p):
+    """The analysis of the hotel's own review export: aggregates only (the file's review text is never in the report)."""
+    if not p or not p.get("reviews"):
+        return []
+    out = [para("Reviews and replies from the hotel's own export", "h2"),
+           para(f"Every figure is for the {p['reviews']} review(s) in the file the hotel supplied ({p.get('first_date') or 'dates not found'} to {p.get('last_date') or ''}), not for every review "
+                "the hotel has on every platform. How the replies were written is a rule-based reading. No review text or reviewer name is kept in this report.", "tiny")]
+    rt = p.get("response_time") or {}
+    bits = [f"average rating {p['avg_rating']} out of 5" if p.get("avg_rating") is not None else None,
+            f"reply rate {p['reply_rate']}% ({p['replied']} replies)" if p.get("reply_rate") is not None else "the file has no replies column",
+            f"{p['critical_unanswered']} of {p['critical']} critical reviews without a reply" if p.get("critical_unanswered") is not None else None,
+            f"median time to reply {rt['median_days']:g} days, {rt['within_3_days_pct']}% within 3 days" if rt.get("median_days") is not None else None]
+    out.append(para("; ".join(b for b in bits if b) + ".", "tiny"))
+    if p.get("platforms"):
+        rows = [["Platform", "Reviews", "Replied", "Reply rate"]]
+        for k, v in p["platforms"].items():
+            rows.append([k, v["reviews"], v["replied"], "-" if v["rate"] is None else f"{v['rate']}%"])
+        out.append(table(rows, [0.4, 0.2, 0.2, 0.2]))
+    q = p.get("reply_quality") or {}
+    lab = {"personal": "specific to the guest", "acknowledges": "thanks or apologises", "offers_action": "says what will be done", "signed": "signed by a role or team"}
+    qb = [f"{lab[k]}: {v['yes']} of {v['judged']}" for k, v in q.items() if v["judged"]]
+    t = p.get("templates") or {}
+    if t.get("pct") is not None and t.get("replies_compared"):
+        qb.append(f"in repeated templates: {t['in_repeated_templates']} of {t['replies_compared']} ({t['pct']}%)")
+    if qb:
+        out.append(para("How the replies were written (a rule-based reading): " + "; ".join(qb) + ".", "tiny"))
+    out.append(para("Guests praise: " + (", ".join(f"{r['topic']} ({r['reviews']})" for r in p.get("praised", [])) or "-") + ". Guests criticise: "
+                    + (", ".join(f"{r['topic']} ({r['reviews']})" for r in p.get("criticised", [])) or "-") + ".", "tiny"))
+    return out
+
+
 def review_section(rs):
     """Reviews and replies as seen in public search results: a sample with its limits, never scored."""
     if not rs:
@@ -310,7 +341,7 @@ def ai_section(ai, ins=None):
     return out
 
 
-def sections(c, H1, web=None, ai=None, reviews=None, ins=None, listings=None):
+def sections(c, H1, web=None, ai=None, reviews=None, ins=None, listings=None, pack=None):
     """The dedicated consultant sections, in reading order."""
     recs = {r["id"]: r for r in c["recommendations"]}
     out = []
@@ -407,6 +438,7 @@ def sections(c, H1, web=None, ai=None, reviews=None, ins=None, listings=None):
         out.append(table(rows, [0.28, 0.12, 0.6]))
     out += web_section(web)
     out += ai_section(ai, ins)
+    out += pack_section(pack)
     out += review_section(reviews)
     out += listing_section(listings)
     sd = c["structured"]

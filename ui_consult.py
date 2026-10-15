@@ -250,6 +250,123 @@ def listing_checks_card(lc):
                    "After a rebrand the old name lingers in listings and in AI answers.")
 
 
+def _pack_public(p):
+    """The numbers from a review export: counts and rates only (this is what is saved with the report)."""
+    n = p["reviews"]
+    span = (f"{p['first_date']} to {p['last_date']}" if p.get("first_date") else "dates not found")
+    st.caption(f"Every figure below is for the {n} review(s) in the file supplied ({span}), not for every review the hotel has on every platform.")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Reviews analysed", n, help=f"Average rating {p['avg_rating']} out of 5" if p.get("avg_rating") is not None else None)
+    c2.metric("Reply rate", "-" if p.get("reply_rate") is None else f"{p['reply_rate']}%", help="Reviews in the file with a reply from the hotel" if p.get("has_replies_column") else "The file has no reply column")
+    c3.metric("Critical reviews unanswered", "-" if p.get("critical_unanswered") is None else f"{p['critical_unanswered']} of {p['critical']}", help="Rated 2.5 or below out of 5, with no reply")
+    rt = p.get("response_time") or {}
+    c4.metric("Median time to reply", "-" if rt.get("median_days") is None else f"{rt['median_days']:g} days",
+              help=f"{rt['measured']} replies had both dates" if rt.get("measured") else "Needs a review date and a reply date in the file")
+    if p.get("latest_review_age_days") is not None and p["latest_review_age_days"] > 120:
+        st.info(f"The latest review in this file is {p['latest_review_age_days'] // 30} months old. Recent reviews matter most; check the export covers the latest period.")
+    if p.get("has_replies_column"):
+        a, b = st.columns(2)
+        with a:
+            st.markdown('<span class="hk-label">Reply rate by platform</span>', unsafe_allow_html=True)
+            ui_theme.ranked_chart([{"name": f"{k} ({v['reviews']})", "value": v["rate"] or 0, "is_target": False} for k, v in p["platforms"].items()][:8], fmt="{:.0f}%", domain_max=100)
+        with b:
+            st.markdown('<span class="hk-label">Reply rate by rating</span>', unsafe_allow_html=True)
+            names = {"critical": "Critical (2.5 or below)", "mixed": "Mixed", "positive": "Positive (4 or above)"}
+            ui_theme.ranked_chart([{"name": f"{names[k]} ({v['reviews']})", "value": v["rate"] or 0, "is_target": k == "critical"} for k, v in p["by_rating"].items() if v["reviews"]], fmt="{:.0f}%", domain_max=100)
+        q = p.get("reply_quality") or {}
+        labels = {"personal": "specific to the guest", "acknowledges": "thanks or apologises", "offers_action": "says what will be done", "signed": "signed by a role or team"}
+        chips = [ui_theme.chip(f"{labels[k]}: {v['yes']} of {v['judged']}", "good" if v["yes"] / v["judged"] >= .6 else "warn" if v["yes"] / v["judged"] >= .34 else "bad") for k, v in q.items() if v["judged"]]
+        t = p.get("templates") or {}
+        if t.get("pct") is not None and t.get("replies_compared"):
+            chips.append(ui_theme.chip(f"in repeated templates: {t['in_repeated_templates']} of {t['replies_compared']} ({t['pct']}%)", "bad" if t["pct"] >= 40 else "warn" if t["pct"] >= 20 else "good"))
+        if rt.get("within_3_days_pct") is not None:
+            chips.append(ui_theme.chip(f"within 3 days: {rt['within_3_days_pct']}%", "good" if rt["within_3_days_pct"] >= 70 else "warn"))
+        st.markdown('<span class="hk-label">How the replies were written (a rule-based reading)</span><br>' + " ".join(chips), unsafe_allow_html=True)
+    state = {"answered": "your site states it", "partial": "your site only partly states it", "not_found": "your site does not state it", "needs_checking": "your site only mentions it"}
+    a, b = st.columns(2)
+    for col, rows, label, kind, base in ((a, p.get("praised", []), "What guests praise", "good", p.get("positive_reviews")), (b, p.get("criticised", []), "What guests criticise", "bad", p.get("critical_reviews"))):
+        with col:
+            st.markdown(f'<span class="hk-label">{label} (share of {base or 0} reviews)</span><br>' + (" ".join(
+                ui_theme.chip(f"{r['topic']} · {r['reviews']} ({r['pct']}%)" + (f" · {state[r['site']]}" if r.get("site") in state else ""),
+                              "warn" if kind == "good" and r.get("site") in ("not_found", "partial", "needs_checking") else kind) for r in rows) or "-"), unsafe_allow_html=True)
+    if len(p.get("trend", [])) >= 2:
+        import pandas as pd
+        st.markdown('<span class="hk-label">Average rating by month (out of 5)</span>', unsafe_allow_html=True)
+        ui_theme.lines_chart(pd.DataFrame({"Average rating": [t["avg_rating"] for t in p["trend"]]}, index=[t["month"] for t in p["trend"]]), height=200)
+        st.caption("Reviews per month: " + ", ".join(f"{t['month']} {t['reviews']}" for t in p["trend"]))
+
+
+def review_pack_card(report, on_applied=None):
+    """Upload the hotel's own review export; analyse it, fold the result into the report, and show it."""
+    import hashlib
+    import review_pack as rp
+    st.markdown("##### The hotel's own reviews: upload an export")
+    st.caption("Booking.com, Tripadvisor, Google and Expedia all let the hotel export its reviews. Upload that file and every review and reply in it is analysed, instead of the handful "
+               "that public search shows. Reviewer names are never read. The text of the reviews is analysed in this session and is not saved: only counts and rates are kept with the report.")
+    with st.expander("Where to find the export"):
+        st.markdown("- **Booking.com:** Extranet, Guest reviews, Download (a spreadsheet of review scores, positive and negative comments and your replies).\\n"
+                    "- **Tripadvisor:** Management Center, Reviews, export (or copy the reviews into a spreadsheet).\\n"
+                    "- **Google:** Business Profile, Reviews (export through Google Takeout, or copy into a spreadsheet).\\n"
+                    "- **Expedia:** Partner Central, Guest experience, Reviews, Download.\\n"
+                    "- **Any spreadsheet** works if it has a rating or a review text, and, where you have them, a reply and the dates. Column names are recognised in English.")
+    up = st.file_uploader("Review export (.csv or .xlsx)", type=["csv", "xlsx"], key="rp_upload")
+    plat = st.text_input("Platform, if the file does not say (for example Booking.com)", key="rp_platform")
+    run_key = report["meta"]["run_at"]
+    state = st.session_state.get("rp_state")
+    if up is not None:
+        data = up.getvalue()
+        h = hashlib.sha1(data + plat.strip().encode()).hexdigest()
+        if not state or state["hash"] != h or state["run"] != run_key:
+            rows, err = rp.read_table(data, up.name)
+            if err:
+                st.error(err)
+                return
+            mapping = rp.map_columns(list(rows[0]))
+            if not any(mapping.get(k) for k in ("rating", "text", "reply", "positive", "negative")):
+                st.error("No rating, review or reply column was recognised. The columns in the file are: " + ", ".join(md_safe(c) for c in list(rows[0])[:20]) + ".")
+                return
+            res = rp.analyse(rp.normalise(rows, mapping, plat.strip()), report["meta"]["hotel"], rp.site_states_from(report.get("guest_questions")))
+            if not res:
+                st.error("No reviews could be read from the file.")
+                return
+            rp.apply(report, res["public"])
+            st.session_state["rp_state"] = {"hash": h, "run": run_key, "res": res, "mapping": mapping}
+            if on_applied:
+                on_applied(report)
+            st.rerun()
+        state = st.session_state["rp_state"]
+    res = state["res"] if state and state["run"] == run_key else None
+    if res is None and report.get("review_pack"):
+        _pack_public(report["review_pack"])
+        st.caption("Upload the file again to see the unanswered critical reviews and starting drafts, which are not saved.")
+        return
+    if res is None:
+        return
+    used = ", ".join(f"{k}: '{md_safe(v)}'" for k, v in state["mapping"].items())
+    st.caption("Columns used: " + used + ".")
+    st.success("The Reviews & Reputation score, the plan and the readiness figure now include this file.", icon=":material/check_circle:")
+    _pack_public(res["public"])
+    un = res["private"]["unanswered"]
+    if un:
+        st.markdown(f"###### Critical reviews still unanswered ({res['public']['critical_unanswered']}), newest first")
+        st.caption("Shown only to you, in this session, and not saved. Each draft is a skeleton to finish: it states only what the review raised and leaves the facts in [brackets]. "
+                   "Never offer anything in return for a changed review.")
+        for i, r in enumerate(un):
+            with st.expander(f"{r['date'] or 'undated'} · {r['platform']} · {r['rating']:g} out of 5" + (f" · {', '.join(r['topics'])}" if r["topics"] else "")):
+                st.markdown(md_safe(r["text"] or "(no text)"))
+                st.text_area("Draft reply to finish", r["draft"], height=210, key=f"rp_draft_{i}")
+        import csv
+        import io
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["date", "platform", "rating", "topics", "review", "draft reply"])
+        for r in un:
+            w.writerow([r["date"], r["platform"], r["rating"], "; ".join(r["topics"]), r["text"], r["draft"]])
+        st.download_button("Download the unanswered reviews and drafts (.csv)", buf.getvalue(), file_name="unanswered-critical-reviews.csv", mime="text/csv", on_click="ignore")
+    elif res["public"].get("has_replies_column"):
+        st.success("Every critical review in the file has a reply.")
+
+
 def review_card(rs):
     """An indicative reading of public reviews and the hotel's replies. A sample with its limits stated; never scored."""
     st.markdown("##### Reviews and replies: an indicative snapshot")

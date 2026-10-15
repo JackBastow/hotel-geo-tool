@@ -25,8 +25,8 @@ SAMPLED_NOTE = ("A small sample of what one AI assistant says was collected for 
 WHY_NOT = {
     "ai_visibility": "What AI assistants actually say about the hotel is not measured by this tool (it needs a paid, grounded search). "
                      "You can sample it yourself in the Tools tab.",
-    "reviews": "Guest reviews are not read from the platforms (their terms prohibit automated collection) and are not scored. "
-               "An indicative snapshot of public reviews and the hotel's replies is shown separately when it could be obtained.",
+    "reviews": "Guest reviews are not read from the platforms (their terms prohibit automated collection), so they are not scored unless the hotel uploads its own review export "
+               "(Beyond your website, Reviews & reputation). An indicative snapshot of public reviews and the hotel's replies is shown separately when it could be obtained.",
 }
 
 
@@ -58,6 +58,8 @@ def category_evidence(rep):
         "otas": ("medium" if otas >= 3 else "low", f"{otas} platform(s) seen in search results (platforms themselves are not read)"),
         "editorial": (_lvl(confirmed, 5, 2), f"{confirmed} article(s) read and confirmed"),
         "social": ("low", "profile links only; activity is not measured"),
+        **({"reviews": (_lvl((rep.get("review_pack") or {}).get("reviews", 0), 100, 30),
+                        f"{(rep.get('review_pack') or {}).get('reviews', 0)} review(s) from the hotel's own export, for that file only")} if rep.get("review_pack") else {}),
     }
 
 

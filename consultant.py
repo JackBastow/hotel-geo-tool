@@ -97,6 +97,26 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     }
 
 
+def add_recommendations(c, new, source):
+    """
+    Add recommendations that arrive after the audit (from an uploaded review pack) to a finished consultant block: rank them with everything else and rebuild the top actions,
+    quick wins, fix/opportunity lists and the plan. Earlier recommendations from the same `source` are replaced, so uploading again does not duplicate.
+    """
+    if not c or "recommendations" not in c:
+        return c
+    keep = [r for r in c["recommendations"] if r.get("source") != source]
+    ranking.annotate(new, c.get("questions") or [])
+    for r in new:
+        r["ref"], r["expected_outcome"] = r["id"], ranking.expected_outcome(r)
+        r["score"] = r["rank"]
+    recs = sorted(keep + new, key=lambda r: -r["rank"])
+    top = advice.top_actions(recs)
+    quick = advice.quick_wins(recs, exclude_ids={r["id"] for r in top})
+    c.update(recommendations=recs, top_actions=[r["id"] for r in top], quick_wins=[r["id"] for r in quick], required_fixes=[r["id"] for r in recs if r["kind"] == "fix"],
+             opportunity_recs=[r["id"] for r in recs if r["kind"] == "opportunity"], plan=ranking.plan_30_60_90(recs, {r["id"] for r in top}))
+    return c
+
+
 def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None, ai=None, reviews=None, ai_insights=None, listing_checks=None):
     """
     Too few pages were read to judge the content. Report that plainly, keep only findings that

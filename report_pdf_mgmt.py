@@ -189,7 +189,11 @@ def story(rep, H1):
     else:
         out.append(para("No reputation or distribution risk was found in the sources checked.", "base"))
     rs = rep.get("review_snapshot") or {}
-    out.append(para("An indicative snapshot of public reviews and the hotel's replies is in the appendix; it is a small sample, not a reply rate."
+    rpk = rep.get("review_pack") or {}
+    out.append(para(f"The hotel's own review export ({rpk['reviews']} reviews) was analysed: reply rate {rpk['reply_rate']}%, {rpk['critical_unanswered']} critical review(s) without a reply. "
+                    "These figures are for that file only; the detail is in the appendix."
+                    if rpk.get("reviews") and rpk.get("reply_rate") is not None and rpk.get("critical_unanswered") is not None else
+                    "An indicative snapshot of public reviews and the hotel's replies is in the appendix; it is a small sample, not a reply rate."
                     if rs.get("status") == "ok" else
                     "Guest reviews could not be assessed (the platforms prohibit automated collection), so the absence of a finding here is not evidence of a "
                     "healthy review profile.", "tiny"))

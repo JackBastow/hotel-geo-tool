@@ -459,6 +459,77 @@ def _from_reviews(rs):
     return out
 
 
+def _from_review_pack(p):
+    """Findings from the hotel's own review export. Counts are for the file supplied; the reading of how replies were written is rule-based and said so."""
+    if not p or not p.get("reviews"):
+        return []
+    n, out = p["reviews"], []
+    ev = lambda text: [{"url": "", "snippet": text}]      # noqa: E731
+    cu, ct = p.get("critical_unanswered"), p.get("critical", 0)
+    if cu:
+        out.append(_rec(
+            "RP1", "authority", f"{cu} critical review(s) in the export have no reply",
+            f"Of {ct} critical review(s) (rated 2.5 or below out of 5) in the {n}-review export, {cu} have no reply from the hotel.",
+            "A reply to a critical review is read by every later guest and sets the tone of what the review page says about the hotel. It is also the one place the hotel's own words sit "
+            "inside third-party evidence.", ev(f"{cu} of {ct} critical reviews unanswered in the export supplied"),
+            "Work through the unanswered critical reviews, newest first (the list and starting drafts are under Beyond your website, Reviews & reputation). Thank the guest, address what they "
+            "raised specifically, say what has been done, and give a way to get in touch. Do not offer anything in return for a changed review.",
+            "high" if cu >= 5 or (ct and cu / ct > 0.5) else "medium", "medium", confidence=BEST, team="reputation management", source="review_pack", tag="RP1", summary="Critical reviews without a reply"))
+    rr = p.get("reply_rate")
+    if rr is not None and n >= 30 and rr < 50:
+        out.append(_rec(
+            "RP2", "authority", f"The hotel replied to {rr}% of the reviews in the export",
+            f"{p['replied']} of the {n} reviews in the export have a reply ({rr}%).",
+            "Guests and AI assistants read what a hotel says back as well as what was said about it. A low reply rate leaves most of the review history one-sided.",
+            ev(f"{p['replied']} of {n} reviews replied to, in the export supplied"),
+            "Set a routine: every critical review within three days, and a short specific thank-you for positive reviews that mention something concrete.",
+            "medium", "medium", confidence=BEST, team="reputation management", source="review_pack", tag="RP2", summary="Low reply rate"))
+    t = p.get("templates") or {}
+    if t.get("pct") is not None and t.get("replies_compared", 0) >= 10 and t["pct"] >= 40:
+        out.append(_rec(
+            "RP3", "authority", "Many replies are the same text",
+            f"{t['in_repeated_templates']} of {t['replies_compared']} replies ({t['pct']}%) are identical or near-identical to another once the greeting and sign-off are removed; the largest group is {t['largest_group']} replies.",
+            "A reply that could sit under any review reads as a template, to guests and to anything that reads the page.",
+            ev(f"{t['pct']}% of replies in repeated templates"),
+            "Keep a short structure (thank, one specific detail, what was done, a named role) but write the detail each time.", "low", "low", confidence=EXPER, team="reputation management",
+            source="review_pack", tag="RP3", summary="Replies repeat the same text"))
+    pq = (p.get("reply_quality") or {}).get("personal") or {}
+    if pq.get("judged", 0) >= 10 and pq["yes"] / pq["judged"] <= 0.34 and not (t.get("pct") is not None and t["pct"] >= 40):
+        out.append(_rec(
+            "RP4", "authority", "Replies rarely refer to what the guest said",
+            f"Only {pq['yes']} of {pq['judged']} replies echo specifics from the review (a rule-based reading of the file).",
+            "A specific reply is the one place a hotel's own words sit inside third-party evidence that travellers and AI assistants read.",
+            ev(f"{pq['yes']} of {pq['judged']} replies specific"), "Name what the guest raised (the room, the breakfast, a member of staff), thank them for that, and say what was done.",
+            "low", "low", confidence=EXPER, team="reputation management", source="review_pack", tag="RP4", summary="Replies read as generic"))
+    rt = p.get("response_time") or {}
+    if rt.get("measured", 0) >= 10 and rt.get("median_days") is not None and rt["median_days"] > 7:
+        out.append(_rec(
+            "RP5", "authority", f"Replies take a median of {rt['median_days']:g} days",
+            f"Across {rt['measured']} replies with both dates, the median time to reply was {rt['median_days']:g} days and {rt['within_3_days_pct']}% were within 3 days.",
+            "A late reply to a critical review has already been read many times.", ev(f"median {rt['median_days']} days over {rt['measured']} replies"),
+            "Aim to answer critical reviews within three days; assign one person and a weekly slot.", "low", "low", confidence=EXPER, team="reputation management", source="review_pack", tag="RP5",
+            summary="Slow replies"))
+    gaps = [r for r in p.get("praised", []) if r.get("site") in ("not_found", "partial", "needs_checking") and r["reviews"] >= 3]
+    if gaps:
+        names = ", ".join(r["topic"] for r in gaps[:3])
+        out.append(_rec(
+            "RP6", "content", f"Guests praise {names}, but the website does not state it clearly",
+            "; ".join(f"{r['reviews']} positive review(s) mention {r['topic']}" for r in gaps[:3]) + ", yet the hotel's own pages do not fully state the details a guest looks for.",
+            "What guests praise is what the next guest wants to know. If the website does not say it in plain language, an assistant finds it on a review site and cites that instead.",
+            ev("praised in reviews; not clearly stated on the site"), "State it in plain sentences on the relevant page (times, what is included, the price) and use the guests' own words.",
+            "medium", "low", confidence=INFER, team="web", source="review_pack", tag="RP6", summary="Praised in reviews but not stated on the site"))
+    rec_c = [r for r in p.get("criticised", []) if r["reviews"] >= 3 and (r.get("pct") or 0) >= 15]
+    if rec_c:
+        names = ", ".join(r["topic"] for r in rec_c[:3])
+        out.append(_rec(
+            "RP7", "authority", f"A recurring complaint: {names}",
+            "; ".join(f"{r['topic']} in {r['reviews']} critical or mixed review(s) ({r['pct']}%)" for r in rec_c[:3]) + ".",
+            "A complaint that recurs is both a guest problem to fix and an expectation to set: what the website says about it decides whether the next guest is surprised.",
+            ev("recurring topics in critical and mixed reviews"), "Look at the cause first. Where it cannot be fixed soon, say plainly on the website what guests should expect.",
+            "medium", "medium", confidence=INFER, team="operations", source="review_pack", tag="RP7", summary="Recurring complaint"))
+    return out
+
+
 def _from_listing_checks(lc):
     """Differences between what travel sites show and what the hotel's own site says, and listings that still carry a former name. Worded as 'worth checking'."""
     if not lc:

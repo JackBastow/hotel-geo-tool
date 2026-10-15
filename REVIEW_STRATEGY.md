@@ -27,7 +27,7 @@ Limits, stated in the report: a handful of reviews (the ones search surfaces), n
 ## Recommendation
 
 1. **Now: A, done.** Add **A+** when we want a bigger sample from search.
-2. **Next: B, the review pack.** It is the only free, compliant way to analyse a hotel's *whole* review history, and every platform already lets the hotel export: Booking.com extranet, the Tripadvisor management centre, Google Business Profile, Expedia Partner Central. The hotel is the owner of that data and chooses to share it.
+2. **Built: B, the review pack.** It is the only free, compliant way to analyse a hotel's *whole* review history, and every platform already lets the hotel export: Booking.com extranet, the Tripadvisor management centre, Google Business Profile, Expedia Partner Central. The hotel is the owner of that data and chooses to share it.
 3. **Later, if hotels will connect accounts: C**, for live Google data.
 
 ## What the review pack (B) would do
@@ -53,5 +53,5 @@ Rules we keep:
 
 - **Content hub** (area pages, hotel pages): added as checks. Every audit now asks whether the site states *what the rate includes and what costs extra*, *which rooms sleep how many guests and the bed set-up*, and *where to eat, what to do and what is open late or when it rains*, each with the missing points and wording to fill in. Walking times to stations and venues were already checked.
 - **"If it isn't on your site, AI cites elsewhere"**: the AI tab now says how often the hotel's own website was among the sources behind the answers, and which other sites were cited instead.
-- **Content consistency across OTAs**: next. The plan is to take what each platform's listing states in public search results (check-in time, star rating, address, phone) from the passages the assistant cites, compare with the hotel's own pages, and list differences as "to check". After a rebrand, also flag listings whose title still carries a former name.
+- **Content consistency across OTAs**: built (`listing_facts.py`). It to take what each platform's listing states in public search results (check-in time, star rating, address, phone) from the passages the assistant cites, compare with the hotel's own pages, and list differences as "to check". After a rebrand, also flag listings whose title still carries a former name.
 - **Descriptions and profile completeness** (Google Business Profile, OTA property descriptions): cannot be read directly. The review pack route can include a short "paste your current profile descriptions" box, checked for the facts AI looks for. Until then a checklist in the report is the honest option.

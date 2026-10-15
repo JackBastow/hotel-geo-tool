@@ -172,6 +172,18 @@ the name without "hotel"/"spa", or for names of three or more distinctive words 
 counts). Found listings join the footprint and the OTA score, marked "found in public search results; page not opened", because the
 platforms prohibit automated reading. A platform still not found says "not found by our searches", never "not listed".
 
+**The hotel's own review export (`review_pack.py`, free, no AI).** Platforms prohibit automated collection, but every one lets the hotel export its own reviews. Upload that file
+(Beyond your website, Reviews & reputation; a CSV or Excel file from Booking.com, Tripadvisor, Google or Expedia, or any sheet with a rating or review and, where there is one, a reply and
+dates) and the whole file is analysed: reply rate overall, by platform and by rating, critical reviews still unanswered (listed newest first with a skeleton draft reply to finish, never
+offering anything in return), response time, how the replies were written (specific, thanks or apologises, says what will be done, signed; a rule-based reading), how many replies are
+identical templates, what guests praise and criticise by topic and whether the hotel's own site states it, and the rating by month. It makes the Reviews & Reputation category assessed
+(evidence strength from the number of reviews), adds findings to the plan and updates the saved run. Every figure is for the file supplied. **Privacy:** reviewer names are never read;
+the review text is analysed in the session and never saved; the report, the PDF, the saved run and the monthly pack keep counts and rates only.
+
+**What the travel sites show (`listing_facts.py`).** The listing lookup keeps the passages the search service quoted from each platform's page for the hotel; check-in and check-out time,
+star rating and telephone number are read from those passages by rules (never from the model's words) and compared with the hotel's own pages. A difference is "worth checking" (the
+listing may be right). A listing whose title or quoted passage carries a former name taken from the hotel's own pages, an article or Wikidata, and not the current name, is flagged.
+
 **Reviews and replies snapshot (optional, same Anthropic credit).** `review_replies.py` asks the model to look at
 the review pages that appear in public search results and report ratings, review counts and, above all, whether
 the hotel replied to each review it could see, by which role, in what tone, with a paraphrase. A model can invent,

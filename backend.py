@@ -31,7 +31,7 @@ RUN_COLS = [
     "run_at", "hotel", "hotel_key", "city", "website", "domain", "hotel_name_source", "headline_status", "headline_score", "coverage_pct",
     "read_via", "pages_read", "pages_attempted", "cat_scores", "ai_status", "ai_model", "ai_generic_named", "ai_generic_asked", "ai_niche_named",
     "ai_niche_asked", "ai_direct_known", "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_place", "ai_repeats", "ai_rank_in_table", "ai_table_size", "ai_top_competitor", "reviews_status", "reviews_examined",
-    "reviews_replied", "reviews_neg_examined", "reviews_neg_replied", "pagespeed_perf", "pagespeed_a11y", "commoncrawl_state", "recs_total",
+    "reviews_replied", "reviews_neg_examined", "reviews_neg_replied", "pack_reviews", "pack_reply_rate", "pack_critical_unanswered", "pagespeed_perf", "pagespeed_a11y", "commoncrawl_state", "recs_total",
     "top_actions", "ai_cost_usd", "schema_version",
 ]
 
@@ -88,6 +88,8 @@ def summarise(rep):
         "ai_repeats": sb.get("repeats") or s.get("repeats"), "ai_rank_in_table": sb.get("rank_in_table"), "ai_table_size": sb.get("table_size"), "ai_top_competitor": sb.get("top_competitor") or "",
         "reviews_status": rv.get("status") or "", "reviews_examined": rs.get("examined"), "reviews_replied": rs.get("replied"),
         "reviews_neg_examined": rs.get("negative_examined"), "reviews_neg_replied": rs.get("negative_replied"),
+        "pack_reviews": (rep.get("review_pack") or {}).get("reviews"), "pack_reply_rate": (rep.get("review_pack") or {}).get("reply_rate"),
+        "pack_critical_unanswered": (rep.get("review_pack") or {}).get("critical_unanswered"),
         "pagespeed_perf": ps.get("performance"), "pagespeed_a11y": ps.get("accessibility"), "commoncrawl_state": (web.get("commoncrawl") or {}).get("state") or "",
         "recs_total": len(recs), "top_actions": " | ".join(by_id.get(i, i) for i in (cons.get("top_actions") or []))[:1500],
         "ai_cost_usd": round(ai_cost, 5), "schema_version": SCHEMA_VERSION,
@@ -214,6 +216,28 @@ class Store:
                 self._insert(conn, "ai_pages", {"run_id": rid, **pg})
             conn.commit()
             return rid
+        finally:
+            conn.close()
+
+    def update_run(self, run_id, rep):
+        """Rewrite a saved run after it changed (an uploaded review pack): the summary columns, the full report and the market rows. The run id and date stay."""
+        row = summarise(rep)
+        row.pop("run_at", None)
+        row["report_json"] = json.dumps(rep, default=str)
+        comps, srcs = children(rep)
+        conn = self._connect()
+        try:
+            sets = ", ".join(f"{c} = ?" for c in row)
+            self._run(conn, f"UPDATE runs SET {sets} WHERE id = ?", [row[c] for c in row] + [run_id])
+            for t in ("ai_competitors", "ai_sources", "ai_pages"):
+                self._run(conn, f"DELETE FROM {t} WHERE run_id = ?", (run_id,))
+            for c in comps:
+                self._insert(conn, "ai_competitors", {"run_id": run_id, **c})
+            for s_ in srcs:
+                self._insert(conn, "ai_sources", {"run_id": run_id, **s_})
+            for pg in pages(rep):
+                self._insert(conn, "ai_pages", {"run_id": run_id, **pg})
+            conn.commit()
         finally:
             conn.close()
 

@@ -169,6 +169,18 @@ def _md_safe(s):
     return re.sub(r"([\\`*_{}\[\]()#+!|<>~])", r"\\\1", str(s or ""))
 
 
+def _persist_review_pack(report):
+    """After a review export is applied, rewrite the run that was saved when the audit finished (aggregates only; no review text is in the report)."""
+    import re
+    m = re.match(r"saved #(\d+)", st.session_state.get("save_status") or "")
+    if DATABASE_URL and m:
+        try:
+            import backend
+            backend.open_store(DATABASE_URL).update_run(int(m.group(1)), report)
+        except Exception:  # noqa: BLE001 - never block the analysis on a save
+            pass
+
+
 def render_comparison(cmp):
     """Native Streamlit rendering (plain-text tables) of compare.compare_reports()."""
     for w in cmp["warnings"]:
@@ -474,6 +486,7 @@ if fa_res:
         for t, fn in zip(sub, ("identity", "reviews", "media", "traveller", "social_local")):
             with t:
                 if fn == "reviews":
+                    ui_consult.review_pack_card(fa_res, on_applied=_persist_review_pack)
                     ui_consult.review_card(fa_res.get("review_snapshot"))
                 if fn == "identity":
                     ui_consult.listing_checks_card(fa_res.get("listing_checks"))
