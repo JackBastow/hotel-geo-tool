@@ -114,6 +114,9 @@ check("the reviews card shows how replies were written (specific, thanks, action
       all(w in _md for w in ("How the replies were written", "specific to the guest: 1 of 2", "What positive reviews were about", "breakfast", "What critical or mixed reviews were about", "noise")))
 check("the AI tab says how often the hotel's own site was behind the answers, which sites were cited instead, and why that matters",
       (lambda t: "Your own website was among the sources in 1 of 4 answers" in t and "booking.com (2)" in t and "finds it elsewhere and cites elsewhere" in t)(" ".join(e.value for e in list(at.info) + list(at.success))))
+check("the travel-site comparison is shown: listings quoted, facts compared, the difference, and a former name still on a listing",
+      all(w in text for w in ("What the travel sites show, against your own site",)) and {"Listings quoted", "Facts compared", "Differences"} <= {m.label for m in at.metric}
+      and "14:00" in " ".join(str(d.value.to_dict()) for d in at.dataframe) and any("Brooklands Country Club Hotel" in w.value and "former name" in w.value for w in at.warning))
 print("1b. a redeploy that leaves OLD modules in memory heals itself (seen live)")
 import sys  # noqa: E402
 import types  # noqa: E402

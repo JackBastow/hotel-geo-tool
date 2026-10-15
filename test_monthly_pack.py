@@ -142,6 +142,9 @@ check("the change columns include coverage and sentiment against the previous mo
 text2 = " ".join(str(r[0]) for r in wb["Read me"].iter_rows(values_only=True) if r[0])
 check("the Read me explains coverage, net sentiment and that 'not seen' is not a statement about the page", all(w in text2 for w in ("Coverage %", "Net sentiment", "not a statement that the page leaves the hotel out")))
 
+check("the Hotels sheet counts facts a travel site shows that differ from the website, and listings showing a former name; the Metrics sheet has them too",
+      (last["Listing differences"], last["Former name on listings"]) == (1, 1) and mm[(3, "Facts differing from the website")] == 1 and mm[(3, "Listings showing a former name")] == 1,
+      (last["Listing differences"], last["Former name on listings"]))
 print("6. the Read me and the workbook itself")
 text = " ".join(str(r[0]) for r in wb["Read me"].iter_rows(values_only=True) if r[0])
 check("the Read me states the caveats: a sample of one model, readiness is an indicator, blanks are not zero", all(w in text for w in ("SAMPLE", "one AI model", "indicator", "Blank cells mean not assessed")))

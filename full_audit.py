@@ -77,6 +77,7 @@ import consultant
 import external_check
 import fixes
 import guest_questions
+import listing_facts
 import listing_lookup
 import headline
 import intel
@@ -917,6 +918,13 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     except Exception as e:  # noqa: BLE001
         intel_result = {"error": f"{type(e).__name__}: {e}"}
 
+    # What each travel site shows (from quoted passages in public search results) against the hotel's own site, and any listing still carrying a former name.
+    try:
+        _former = ((intel_result or {}).get("identity") or {}).get("former_names") if isinstance(intel_result, dict) and "error" not in intel_result else []
+        listing_checks = listing_facts.build(listing_result, hotel, guest, own_pages, _former)
+    except Exception:  # noqa: BLE001 - an extra; the audit stands without it
+        listing_checks = None
+
     try:
         web = web_future.result(timeout=120)
     except Exception as e:  # noqa: BLE001 - these are extras; the audit stands without them
@@ -954,7 +962,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         consult_result = consultant.analyse(
             own_pages=own_pages, pages_meta=guest.get("pages_meta", []), base=base, hotel=hotel, city=city,
             location=location, guest=guest, site=site, entities=ext["entities"], intel=intel_result,
-            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, text_only=bool(guest.get("read_via")),
+            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, listing_checks=listing_checks, text_only=bool(guest.get("read_via")),
             jsonld_example=fixes.hotel_jsonld({"base": base, "hotel": hotel, "location": location, "guest": guest,
                                                "discovery": discovery, "entities": ext["entities"], "site": site,
                                                "tavily": tavily_result}))
@@ -1003,7 +1011,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "market_profile": market_profile,
         "ai_insights": ai_insight_result,
         "review_snapshot": review_result,
-        "listing_lookup": {k: v for k, v in listing_result.items() if k != "pages"},
+        "listing_lookup": {k: v for k, v in listing_result.items() if k not in ("pages", "passages")},
+        "listing_checks": listing_checks,
         "tavily_result": tavily_result,
         "places_result": places_result,
         "amadeus_result": amadeus_result,

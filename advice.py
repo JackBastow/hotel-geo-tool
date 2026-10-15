@@ -459,6 +459,38 @@ def _from_reviews(rs):
     return out
 
 
+def _from_listing_checks(lc):
+    """Differences between what travel sites show and what the hotel's own site says, and listings that still carry a former name. Worded as 'worth checking'."""
+    if not lc:
+        return []
+    out = []
+    diff = [r for r in lc.get("rows", []) if r["status"] == "differs"]
+    if diff:
+        names = sorted({r["platform"] for r in diff})
+        out.append(_rec(
+            "LC1", "authority", "A travel site shows different details from the hotel's own site",
+            f"{len(diff)} fact(s) on {', '.join(names)} differ from the hotel's own pages: "
+            + "; ".join(f"{r['platform']} shows {r['fact'].lower()} {r['listing_says']}, the site says {r['site_says']}" for r in diff[:4]) + ".",
+            "Guests and AI assistants meet the same fact in several places. When they disagree, an assistant may repeat the wrong one, and a guest arrives expecting it. "
+            "The listing may be right and the hotel's own site out of date, so the first step is to find out which.",
+            [{"url": r["url"], "snippet": f"{r['platform']}, {r['fact'].lower()}: {r['passage'] or r['listing_says']}"} for r in diff[:3]],
+            "Decide which figure is correct, then correct the other: update the hotel's own pages, or the platform's extranet (check-in and check-out times, star rating and phone "
+            "number are set there). These were read from short passages in public search results, so look at the live listing before changing anything.",
+            "medium", "low", confidence=EXPER, team="distribution", source="listings", tag="LC1", summary="Travel-site details differ from the website"))
+    fn = lc.get("former_name") or []
+    if fn:
+        out.append(_rec(
+            "LC2", "authority", "A listing still shows a former name of the hotel",
+            "; ".join(f"{h['platform']} still shows '{h['name']}' (page title: {h['title'] or 'not shown'})" for h in fn[:4]) + ".",
+            "After a rebrand the old name lingers in listings and then in AI answers for years. A guest or an assistant matching on the old name finds a page that does not "
+            "carry the current one.",
+            [{"url": h["url"], "snippet": f"{h['platform']}: {h['title'] or h['name']}"} for h in fn[:3]],
+            "Ask each platform to update the property name (through the extranet or the platform's support), and use the new name in the property description. "
+            "Keep the former name in the description for a while ('formerly ...') so searches for it still land here.",
+            "medium", "low", confidence=EXPER, team="distribution", source="listings", tag="LC2", summary="Listing shows a former name"))
+    return out
+
+
 def _from_intel(intel):
     recs = []
     if not intel or "error" in intel:
@@ -484,7 +516,7 @@ def _from_intel(intel):
 
 # ---------------------------------------------------------------------- assemble
 
-def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None):
+def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None):
     coverage = coverage or {}
     recs = []
     recs += _from_questions(questions)
@@ -498,6 +530,7 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
     recs += _from_ai(ai)
     recs += _from_reviews(reviews)
     recs += _from_ai_insights(ai_insights)
+    recs += _from_listing_checks(listing_checks)
     recs = drop_duplicate_entity(recs)
     limited_note = None
     if coverage.get("limited"):

@@ -177,6 +177,21 @@ def parse_sources(resp, limit=15):
     return ordered[:limit]
 
 
+def parse_passages(resp, limit=150):
+    """Every passage the model cited, with the page it came from: [{url, title, cited_text}] (the search service's own quotation of the page, not the model's words)."""
+    out, seen = [], set()
+    for b in _get(resp, "content", []) or []:
+        if _get(b, "type") != "text":
+            continue
+        for c in _get(b, "citations", None) or []:
+            u = _get(c, "url", "") or ""
+            t = re.sub(r"\s+", " ", str(_get(c, "cited_text", "") or "")).strip()
+            if u and t and (u, t) not in seen:
+                seen.add((u, t))
+                out.append({"url": u[:300], "title": (_get(c, "title", "") or "")[:140], "cited_text": t[:400]})
+    return out[:limit]
+
+
 def cost_usd(model, tin, tout, searches):
     pin, pout = PRICES.get(model, PRICES["claude-opus-5-5"])        # unknown model: assume the dearest, never under-count
     return round(tin / 1e6 * pin + tout / 1e6 * pout + searches * SEARCH_USD, 5)

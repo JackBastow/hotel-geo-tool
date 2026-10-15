@@ -134,6 +134,8 @@ if pymupdf is not None:
           "How the replies were written" in re.sub(r"\s+", " ", atext) and "Critical or mixed reviews were about" in re.sub(r"\s+", " ", atext))
     check("the appendix says how often the hotel's own site was behind the answers",
           "own website was among the sources in 1 of 4 answers" in re.sub(r"\s+", " ", atext))
+    check("the appendix carries the travel-site comparison and the former-name note",
+          "What the travel sites show, against the hotel's own site" in re.sub(r"\s+", " ", atext) and "still shows a former name" in re.sub(r"\s+", " ", atext))
     check("the appendix says what it is and points back to the management report", "Technical & evidence appendix" in atext and "management report" in atext)
     check("the management report links to the evidence by reference, not by repeating it", "Appendix reference" in mtext)
     check("filenames say which document it is", "management-report" in report_pdf.filename(rep, "management") and "appendix" in report_pdf.filename(rep, "appendix"))

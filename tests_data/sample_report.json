@@ -9379,5 +9379,69 @@
     }
    ]
   }
+ },
+ "listing_checks": {
+  "source": "Listing facts (from quoted passages in public search results)",
+  "listings": {
+   "Booking.com": {
+    "url": "https://www.booking.com/hotel/gb/brooklands.html",
+    "title": "Brooklands Hotel - Booking.com",
+    "check_in": "14:00",
+    "check_out": "11:00",
+    "stars": 4,
+    "phone": null
+   },
+   "Expedia": {
+    "url": "https://www.expedia.co.uk/Weybridge-Hotels-Brooklands.h1.Hotel-Information",
+    "title": "Brooklands Hotel",
+    "check_in": "15:00",
+    "check_out": null,
+    "stars": null,
+    "phone": null
+   }
+  },
+  "rows": [
+   {
+    "platform": "Booking.com",
+    "fact": "Check-in time",
+    "listing_says": "14:00",
+    "site_says": "15:00",
+    "status": "differs",
+    "url": "https://www.booking.com/hotel/gb/brooklands.html",
+    "passage": "Check-in from 14:00 hours"
+   },
+   {
+    "platform": "Booking.com",
+    "fact": "Check-out time",
+    "listing_says": "11:00",
+    "site_says": "11:00",
+    "status": "matches",
+    "url": "https://www.booking.com/hotel/gb/brooklands.html",
+    "passage": "Check-out until 11:00"
+   },
+   {
+    "platform": "Expedia",
+    "fact": "Check-in time",
+    "listing_says": "15:00",
+    "site_says": "15:00",
+    "status": "matches",
+    "url": "https://www.expedia.co.uk/Weybridge-Hotels-Brooklands.h1.Hotel-Information",
+    "passage": "Check-in time starts at 3:00 PM"
+   }
+  ],
+  "former_name": [
+   {
+    "platform": "Hotels.com",
+    "url": "https://www.hotels.com/ho1/old-brooklands",
+    "name": "Brooklands Country Club Hotel",
+    "title": "Brooklands Country Club Hotel, Weybridge"
+   }
+  ],
+  "summary": {
+   "platforms_quoted": 2,
+   "compared": 3,
+   "differs": 1,
+   "former_name": 1
+  }
  }
 }

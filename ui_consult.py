@@ -226,6 +226,30 @@ def overview(c, h=None):
 
 # ------------------------------------------------------------ how AI sees it
 
+def listing_checks_card(lc):
+    """What each travel site shows about the hotel against the hotel's own site, and listings still carrying a former name. Read from quoted passages only."""
+    st.markdown("##### What the travel sites show, against your own site")
+    if not lc:
+        st.caption("Not checked for this report: the listing lookup returned no quoted passages (it needs the AI key and the hotel's name and town).")
+        return
+    st.caption("Read from short passages quoted in public search results, not from the platforms' own pages (their terms prohibit automated reading). A difference is worth "
+               "checking: the listing may be right and your site out of date, or the other way round. A fact a listing does not show is simply not shown here.")
+    sm = lc["summary"]
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Listings quoted", sm["platforms_quoted"])
+    c2.metric("Facts compared", sm["compared"])
+    c3.metric("Differences", sm["differs"])
+    if lc["rows"]:
+        icon = {"matches": "🟢 matches", "differs": "🟠 differs"}
+        df([{"Platform": r["platform"], "Fact": r["fact"], "The listing shows": r["listing_says"], "Your site says": r["site_says"], "Result": icon[r["status"]],
+             "Listing": r["url"]} for r in sorted(lc["rows"], key=lambda r: (r["status"] != "differs", r["platform"]))], link_cols=("Listing",))
+    elif sm["platforms_quoted"]:
+        st.caption("The quoted passages did not show a fact your own site also states, so nothing could be compared.")
+    for h in lc.get("former_name") or []:
+        st.warning(f"**{md_safe(h['platform'])} still shows a former name, '{md_safe(h['name'])}'** (page title: {md_safe(h['title'] or 'not shown')}). "
+                   "After a rebrand the old name lingers in listings and in AI answers.")
+
+
 def review_card(rs):
     """An indicative reading of public reviews and the hotel's replies. A sample with its limits stated; never scored."""
     st.markdown("##### Reviews and replies: an indicative snapshot")

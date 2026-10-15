@@ -162,6 +162,25 @@ def web_section(web):
     return out
 
 
+def listing_section(lc):
+    """What the travel sites show against the hotel's own site, and listings still carrying a former name."""
+    if not lc:
+        return []
+    out = [para("What the travel sites show, against the hotel's own site", "h2"),
+           para("Read from short passages quoted in public search results, not from the platforms' pages. A difference is worth checking: the listing may be right and the hotel's "
+                "own site out of date, or the other way round. A fact a listing does not show is not shown here.", "tiny")]
+    if lc["rows"]:
+        rows = [["Platform", "Fact", "The listing shows", "The site says", "Result"]]
+        for r in sorted(lc["rows"], key=lambda r: (r["status"] != "differs", r["platform"])):
+            rows.append([r["platform"], r["fact"], r["listing_says"], r["site_says"], r["status"]])
+        out.append(table(rows, [0.2, 0.22, 0.2, 0.2, 0.18]))
+    else:
+        out.append(para("The quoted passages did not show a fact the hotel's own site also states, so nothing could be compared.", "tiny"))
+    for h in lc.get("former_name") or []:
+        out.append(para(f"{h['platform']} still shows a former name, '{h['name']}' (page title: {h['title'] or 'not shown'}).", "tiny"))
+    return out
+
+
 def review_section(rs):
     """Reviews and replies as seen in public search results: a sample with its limits, never scored."""
     if not rs:
@@ -291,7 +310,7 @@ def ai_section(ai, ins=None):
     return out
 
 
-def sections(c, H1, web=None, ai=None, reviews=None, ins=None):
+def sections(c, H1, web=None, ai=None, reviews=None, ins=None, listings=None):
     """The dedicated consultant sections, in reading order."""
     recs = {r["id"]: r for r in c["recommendations"]}
     out = []
@@ -389,6 +408,7 @@ def sections(c, H1, web=None, ai=None, reviews=None, ins=None):
     out += web_section(web)
     out += ai_section(ai, ins)
     out += review_section(reviews)
+    out += listing_section(listings)
     sd = c["structured"]
     out.append(para("Structured data: what it says, not just whether it exists", "h2"))
     rows = [["Item", "Status", "Detail", "Advice"]]

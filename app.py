@@ -475,6 +475,8 @@ if fa_res:
             with t:
                 if fn == "reviews":
                     ui_consult.review_card(fa_res.get("review_snapshot"))
+                if fn == "identity":
+                    ui_consult.listing_checks_card(fa_res.get("listing_checks"))
                 if has_intel:
                     getattr(ui_intel, fn)(intel)
                 else:

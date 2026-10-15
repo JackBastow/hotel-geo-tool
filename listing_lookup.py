@@ -20,12 +20,14 @@ import identity
 SOURCE = "Listing lookup (AI web search)"
 PLATFORMS = [(label, token) for label, token in identity.KEY_PLATFORMS if label in
              ("Booking.com", "Expedia", "Hotels.com", "TripAdvisor", "Trivago", "Agoda", "Trip.com", "Kayak")]
-MAX_TOKENS = 1500
+MAX_TOKENS = 3500
 
 SYSTEM = ("You are a research assistant who finds a hotel's own listing page on booking and review websites. Use the web search tool, one search per site, "
-          "with the hotel's name, its town and the site's name. You only need to search; when you are done reply with the single word: done.")
+          "with the hotel's name, its town and the site's name. Then write one short line per site that you found, quoting what that listing itself says about "
+          "check-in time, check-out time, star rating and telephone number. Quote only what the listing shows, and leave out anything it does not show.")
 
-PROMPT = "Find the page for the hotel \"{hotel}\" in {city} on each of these websites: {sites}. Search for each site separately."
+PROMPT = ("Find the page for the hotel \"{hotel}\" in {city} on each of these websites: {sites}. Search for each site separately. "
+          "Then, for each listing you found, write one line quoting its check-in time, check-out time, star rating and telephone number as the listing shows them.")
 
 
 _NOT_A_LISTING = re.compile(r"/(moments|travel-?guides?|blog|articles?|news|posts?)(/|$)", re.I)      # a social post or article on a platform's site is not the hotel's page
@@ -81,12 +83,13 @@ def run(hotel, city, *, api_key=None, model=None, client=None, have=()):
     tool = {**ai_sample.SEARCH_TOOL, "max_uses": len(todo) + 1}
     extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
     messages = [{"role": "user", "content": PROMPT.format(hotel=hotel, city=city.split(",")[0].strip(), sites=", ".join(l for l, _ in todo))}]
-    pages, searches, tin, tout = {}, 0, 0, 0
+    pages, passages, searches, tin, tout = {}, [], 0, 0, 0
     try:
         for _ in range(3):                                   # a long search can pause; continue it up to twice
             resp = client.messages.create(model=model, max_tokens=MAX_TOKENS, system=SYSTEM, tools=[dict(tool)], messages=messages, **extra)
             for p in ai_sample.parse_sources(resp, limit=200):
                 pages.setdefault(p["url"], p)
+            passages += ai_sample.parse_passages(resp)
             _a, _d, s, i, o = ai_sample.parse_response(resp)
             searches, tin, tout = searches + s, tin + i, tout + o
             if ai_sample._get(resp, "stop_reason") == "pause_turn":
@@ -95,7 +98,7 @@ def run(hotel, city, *, api_key=None, model=None, client=None, have=()):
             break
     except Exception as e:  # noqa: BLE001 - never fail the audit
         return env("unavailable", ai_sample._reason_for(e), cost_usd=round(ai_sample.cost_usd(model, tin, tout, searches), 5), searches=searches)
-    return env("ok", "", pages=list(pages.values()), cost_usd=round(ai_sample.cost_usd(model, tin, tout, searches), 5), searches=searches)
+    return env("ok", "", pages=list(pages.values()), passages=passages[:150], cost_usd=round(ai_sample.cost_usd(model, tin, tout, searches), 5), searches=searches)
 
 
 def as_candidates(hits, base_url=""):
