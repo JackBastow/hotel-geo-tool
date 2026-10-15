@@ -20,6 +20,7 @@ import time
 import urllib.parse
 import urllib.robotparser
 
+import netguard
 import requests
 
 try:
@@ -43,8 +44,7 @@ def _robots_for(origin, timeout=8):
         return _robots_cache[origin]
     rp = urllib.robotparser.RobotFileParser()
     try:
-        r = requests.get(origin + "/robots.txt", headers={"User-Agent": UA},
-                         timeout=timeout)
+        r = netguard.get(origin + "/robots.txt", headers={"User-Agent": UA}, timeout=timeout)
         if r.status_code == 200:
             rp.parse(r.text.splitlines())
         elif r.status_code in (401, 403):
@@ -81,8 +81,7 @@ def fetch(url, timeout=15):
         time.sleep(wait)
     _last_hit[host] = time.time()
     try:
-        r = requests.get(url, headers={"User-Agent": UA, "Accept": "text/html,*/*;q=0.5"},
-                         timeout=timeout, stream=True)
+        r = netguard.get(url, headers={"User-Agent": UA, "Accept": "text/html,*/*;q=0.5"}, timeout=timeout, stream=True)
         chunks, size = [], 0
         for chunk in r.iter_content(65536):
             chunks.append(chunk)

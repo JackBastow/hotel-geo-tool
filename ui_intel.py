@@ -8,7 +8,10 @@ read from the web can inject markup or load an image.
 
 import re
 
-import streamlit as st
+try:
+    import streamlit as st
+except ImportError:        # the Flask site draws these screens with htmlst.py instead of Streamlit
+    from htmlst import st
 
 STATUS_LABEL = {"assessed": "Assessed", "partial": "Partial", "not_assessed": "Not assessed"}
 STATUS_ICON = {"assessed": "🟢", "partial": "🟡", "not_assessed": "🔴"}

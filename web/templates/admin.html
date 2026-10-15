@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Admin: {{ title }}{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block nav %}<a href="/">Public page</a><form method="post" action="/admin/logout" style="display:inline"><button class="btn" type="submit" style="margin-left:18px">Sign out</button></form>{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p class="caption">Everything the service has saved. Only people with the password can see this. Hotel data here comes from public sources; the full report for any run can be reopened or exported.</p>
+<div class="admin-nav">{% for key, label in nav %}<a href="/admin/{{ key }}" class="{{ 'on' if key == active else '' }}">{{ label }}</a>{% endfor %}</div>
+{{ content|safe }}
+{% endblock %}

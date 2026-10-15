@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}: AI discoverability audit{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>{{ meta.hotel or meta.website }}</h1>
+    <div class="sub">{{ [meta.city, meta.website]|select|join(' · ') }}</div>
+    <div class="hk-chips">{% for c in chips %}<span class="hk-chip{{ ' brand' if loop.first else '' }}">{{ c }}</span>{% endfor %}</div>
+  </div>
+  <div><a class="btn" href="/">Run another audit</a></div>
+</section>
+<div class="downloads">
+  <a class="btn primary" href="/r/{{ token }}/management.pdf">Download management report (PDF)</a>
+  <a class="btn" href="/r/{{ token }}/appendix.pdf">Download technical &amp; evidence appendix (PDF)</a>
+  <a class="btn" href="/r/{{ token }}/data.json">Download report data (.json)</a>
+</div>
+<p class="caption">{% if saved %}This run was saved so the hotel can be tracked over time. {% endif %}Keep the link to this page to come back to the report; it is private to you.</p>
+{{ body|safe }}
+{% endblock %}

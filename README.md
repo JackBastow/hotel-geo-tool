@@ -226,6 +226,16 @@ with the caveats (a sample of one model, readiness is an indicator, blank means 
 saved and the admin page says so. SQLite (`sqlite:///file.db`) works for development and tests but is not durable on Streamlit
 Community Cloud, whose disk is wiped.
 
+## The Flask site (Render) and the Streamlit app
+
+There are now two front ends over the same Python. **Streamlit** (`app.py`, deployed on Streamlit Community Cloud) is unchanged. The **Flask site** is `server.py`, served by Waitress
+(`python wsgi.py`), with its own HTML, CSS and JavaScript under `web/`: a form that starts a background audit and shows its progress, a private report link for each visitor
+(`/r/<token>`, kept in the database so it survives a restart), PDF and data downloads, the review-export upload, the comparison with an earlier report, and the operator's `/admin` pages
+(password, signed cookie, CSRF on the one destructive action). The report screens are the same code as in Streamlit: `htmlst.py` stands in for the parts of Streamlit's API they use and writes HTML,
+so every sentence and honesty rule is unchanged (`report_view.py`). `netguard.py` stops the audit's fetches reaching private addresses (localhost, cloud metadata, internal ranges), checked on
+every redirect. The monthly free-tier counters now live in the database, so they survive a host that wipes its disk. `DEPLOY.md` has the Render steps and what was checked about free hosting;
+`render.yaml` is the blueprint; `requirements-web.txt` is what the site installs (no Streamlit). Tests: `test_web.py`.
+
 ## The discovery & reputation report
 
 Built around 30 checks. Each is reported as **assessed**, **partial** or **not

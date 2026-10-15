@@ -55,6 +55,7 @@ import sys
 import urllib.parse
 import time
 
+import netguard
 import requests
 
 try:
@@ -200,7 +201,7 @@ _NEGATIVE_WORDS = {"disappointing", "avoid", "overpriced", "dated", "tired",
 
 def _fetch_text(url, timeout=15):
     try:
-        r = requests.get(url, headers={"User-Agent": UA}, timeout=timeout)
+        r = netguard.get(url, headers={"User-Agent": UA}, timeout=timeout)
     except requests.RequestException:
         return None
     if r.status_code != 200 or not r.text:

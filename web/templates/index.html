@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="lead">
+  <h1>Find the gaps in the information AI search can use about your hotel.</h1>
+  <p>Free, no account, no keys. Type the hotel's website and get a plain report: what the hotel's own pages answer, what an AI assistant says about it, and where it is listed.</p>
+</section>
+
+<form class="panel" id="audit-form" autocomplete="off">
+  <label class="field"><span>Website <small>(the only thing that's required)</small></span>
+    <input type="text" name="website" id="f-website" placeholder="brooklandshotelsurrey.com" required maxlength="300"></label>
+  <div class="grid2">
+    <label class="field"><span>Hotel name <small>(optional: read from the site if left blank)</small></span><input type="text" name="hotel" maxlength="120"></label>
+    <label class="field"><span>City <small>(optional: worked out from the address if left blank)</small></span><input type="text" name="city" maxlength="120"></label>
+  </div>
+  <details class="details">
+    <summary>Who is the hotel for? (optional, improves the AI questions)</summary>
+    <div class="details-body">
+      <p class="caption">The audit works out the hotel's price level and audiences from its own pages. If you know better, say so and the questions put to the AI assistant will follow.</p>
+      <label class="field"><span>Price level</span>
+        <select name="tier"><option value="">Work it out from the pages</option><option value="luxury">Luxury</option><option value="upscale">Upscale</option><option value="midscale">Mid-range</option><option value="budget">Budget</option></select></label>
+      <div class="field"><span>Audiences the hotel wants to attract</span><div class="checks">
+        {% for key, label in audiences %}<label><input type="checkbox" name="audiences" value="{{ key }}">{{ label }}</label>{% endfor %}
+      </div></div>
+    </div>
+  </details>
+  <label class="checks" style="margin:14px 0"><span style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" name="wider" value="1" checked> Include the wider discovery (media coverage, listings, awards, local context) <small class="hk-muted">adds about 1-2 minutes</small></span></label>
+  <button class="btn primary" type="submit" id="go">Run audit</button>
+  {% if saves %}<p class="caption" style="margin-top:14px">Every audit run here is saved by the operator of this service (the hotel, the address you typed and the results, all from public sources) so hotels can be tracked over time. Saved audits are not shown to other visitors.</p>{% endif %}
+  <div class="err" id="form-error" hidden></div>
+</form>
+
+<section class="panel progress-card" id="progress" aria-live="polite">
+  <p class="run-title">Running your audit</p>
+  <p class="run-sub">This usually takes two to five minutes. Keep this page open; the report appears here when it is ready.</p>
+  <div class="run-bar"><i></i></div>
+  <p class="run-now" id="run-now">Starting...</p>
+  <div class="run-log" id="run-log"></div>
+  <p class="caption" id="run-queue" hidden></p>
+</section>
+
+<section class="features">
+  <div class="feature"><b>Does the website answer guests?</b><span>Parking, breakfast, check-in, pets, accessibility: found on the hotel's own pages, with the exact text relied on.</span></div>
+  <div class="feature"><b>What do AI assistants say?</b><span>A sample of what an AI assistant recommends in the hotel's town and markets, who it names instead, and where it got that.</span></div>
+  <div class="feature"><b>Where is the hotel listed?</b><span>Booking and review sites, maps, open data and press coverage, and where the picture does not agree.</span></div>
+</section>
+
+<details class="details"><summary>About this tool and how to read the results</summary><div class="details-body md">
+  <p>This reads your hotel's own website and checks whether it answers the questions guests (and AI assistants) ask: parking, breakfast, check-in, pets, accessibility, showing the exact text it relied on. It also checks whether the hotel is a verified entity in open map and data sources, how fresh the content is, and how it appears in search results.</p>
+  <p>It does not read TripAdvisor or Booking.com directly: their terms prohibit automated collection. When the hotel's name and town are known it also asks ONE AI assistant a few ordinary traveller questions and shows what it said as a clearly labelled sample (never a score or a ranking). Anything it can't measure shows as "not assessed", never as a made-up score.</p>
+  <p><b>Three different results you'll see:</b> <i>answered</i> (found it), <i>not found on the pages checked</i> (we looked, nothing there, but we only read some pages), and <i>couldn't check</i> (the page was blocked or unreadable, never counted against you).</p>
+</div></details>
+{% endblock %}

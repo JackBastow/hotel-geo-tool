@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block nav %}<a href="/">Public page</a>{% endblock %}
+{% block content %}
+<h1>Admin</h1>
+{% if off %}
+<div class="alert error">The admin page is switched off: no ADMIN_PASSWORD is set on the host.</div>
+{% else %}
+<form class="panel" method="post" style="max-width:420px">
+  <label class="field"><span>Password</span><input type="password" name="password" autofocus autocomplete="current-password"></label>
+  <button class="btn primary" type="submit">Sign in</button>
+  {% if error %}<div class="err" style="margin-top:12px">{{ error }}</div>{% endif %}
+</form>
+{% endif %}
+{% endblock %}

@@ -98,8 +98,34 @@ def _write_all_quota(data):
     os.replace(tmp, QUOTA_FILE)
 
 
+DB_URL = ""
+
+
+def configure_db(url):
+    """Keep the monthly counters in the database (Neon) instead of a file. On a host that wipes its disk when it restarts, a file counter would reset and the free-tier guards would not hold."""
+    global DB_URL
+    DB_URL = url or ""
+
+
+def _db():
+    if not DB_URL:
+        return None
+    try:
+        import backend
+        return backend.open_store(DB_URL)
+    except Exception:  # noqa: BLE001 - fall back to the file rather than fail the audit
+        return None
+
+
 def read_quota(service="gemini"):
     """Usage so far this month for one service. Resets silently on a new month."""
+    db = _db()
+    if db is not None:
+        try:
+            u = db.usage_get(service, _month_key())
+            return {"month": _month_key(), "calls": u["calls"], "audits": u["audits"]}
+        except Exception:  # noqa: BLE001
+            pass
     all_q = _read_all_quota()
     q = all_q.get(service, {})
     if q.get("month") != _month_key():
@@ -111,6 +137,14 @@ def read_quota(service="gemini"):
 
 
 def record_usage(calls, audits=1, service="gemini"):
+    db = _db()
+    if db is not None:
+        try:
+            when = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+            db.usage_add(service, _month_key(), calls, audits, when)
+            return read_quota(service)
+        except Exception:  # noqa: BLE001
+            pass
     all_q = _read_all_quota()
     q = read_quota(service)
     q["calls"] = q.get("calls", 0) + int(calls)

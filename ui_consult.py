@@ -6,7 +6,10 @@ md_safe(), and links are limited to http/https, so nothing read from a web
 page can inject markup or load an image.
 """
 
-import streamlit as st
+try:
+    import streamlit as st
+except ImportError:        # the Flask site draws these screens with htmlst.py instead of Streamlit
+    from htmlst import st
 
 from ai_insights import sentiment_label
 import ui_theme

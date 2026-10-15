@@ -30,6 +30,7 @@ import time
 import urllib.parse
 import xml.etree.ElementTree as ET
 
+import netguard
 import requests
 
 import urlscope
@@ -94,8 +95,7 @@ def get(url, timeout=25):
         if hit and now - hit[0] < _HTTP_TTL_S:
             return hit[1]
     try:
-        r = requests.get(url, headers={"User-Agent": UA}, timeout=timeout,
-                         allow_redirects=True)
+        r = netguard.get(url, headers={"User-Agent": UA}, timeout=timeout)
     except requests.RequestException as e:
         return None
     if r.status_code == 200:

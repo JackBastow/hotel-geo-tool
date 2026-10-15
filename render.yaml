@@ -1,0 +1,30 @@
+# Render blueprint: the Flask site on Render's free web service. Auto-deploys from GitHub on every push to main.
+# Secrets are NOT in this file: Render asks for each `sync: false` value in its dashboard.
+services:
+  - type: web
+    name: hotel-ai-audit
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-web.txt
+    startCommand: python wsgi.py
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: GEMINI_READER_API_KEY
+        sync: false
+      - key: PAGESPEED_API_KEY
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true

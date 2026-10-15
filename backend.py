@@ -190,19 +190,23 @@ class Store:
                             "names_hotel INTEGER, names_competitor TEXT, own_site INTEGER)")
             self._ensure_columns(conn, "runs", {c: ("TEXT" if c in text_cols else "DOUBLE PRECISION" if (c in real_cols and self.kind != "sqlite") else "REAL" if c in real_cols else "INTEGER")
                                                 for c in RUN_COLS})
+            self._run(conn, "CREATE TABLE IF NOT EXISTS usage_counters (service TEXT, month TEXT, calls INTEGER, audits INTEGER, updated TEXT, PRIMARY KEY (service, month))")
+            self._ensure_columns(conn, "runs", {"access_token": "TEXT"})
             self._ensure_columns(conn, "ai_competitors", {"coverage_pct": "INTEGER", "sentiment": "INTEGER", "positive": "INTEGER", "negative": "INTEGER"})
             for sql in ("CREATE INDEX IF NOT EXISTS runs_key ON runs (hotel_key, run_at)", "CREATE INDEX IF NOT EXISTS runs_city ON runs (city)",
                         "CREATE INDEX IF NOT EXISTS comp_run ON ai_competitors (run_id)", "CREATE INDEX IF NOT EXISTS src_run ON ai_sources (run_id)",
-                        "CREATE INDEX IF NOT EXISTS page_run ON ai_pages (run_id)"):
+                        "CREATE INDEX IF NOT EXISTS page_run ON ai_pages (run_id)", "CREATE INDEX IF NOT EXISTS runs_token ON runs (access_token)"):
                 self._run(conn, sql)
             conn.commit()
         finally:
             conn.close()
 
     # writes ------------------------------------------------------------------
-    def save_run(self, rep):
-        """Store one finished audit and its market-level rows. -> the new run id."""
+    def save_run(self, rep, token=None):
+        """Store one finished audit and its market-level rows. -> the new run id. `token` is the unguessable link the visitor who ran it uses to come back to the report."""
         row = summarise(rep)
+        if token:
+            row["access_token"] = token
         row["report_json"] = json.dumps(rep, default=str)
         comps, srcs = children(rep)
         conn = self._connect()
@@ -269,6 +273,28 @@ class Store:
         """Summary rows for every run whose month (YYYY-MM) is between the two, inclusive. Oldest first."""
         cols = "id, " + ", ".join(RUN_COLS)
         return self._rows(f"SELECT {cols} FROM runs WHERE SUBSTR(run_at, 1, 7) >= ? AND SUBSTR(run_at, 1, 7) <= ? ORDER BY run_at ASC, id ASC", (start_month, end_month))
+
+    def get_report_by_token(self, token):
+        """(run id, report) for the visitor's own link, or (None, None). The token is never part of any export or list."""
+        if not token or len(token) < 20:
+            return None, None
+        rows = self._rows("SELECT id, report_json FROM runs WHERE access_token = ?", (token,))
+        return (rows[0]["id"], json.loads(rows[0]["report_json"])) if rows else (None, None)
+
+    # monthly usage counters (so the free-tier guards survive a host that restarts and wipes its disk) ---------
+    def usage_get(self, service, month):
+        rows = self._rows("SELECT calls, audits FROM usage_counters WHERE service = ? AND month = ?", (service, month))
+        return {"calls": rows[0]["calls"] or 0, "audits": rows[0]["audits"] or 0} if rows else {"calls": 0, "audits": 0}
+
+    def usage_add(self, service, month, calls, audits, when):
+        conn = self._connect()
+        try:
+            self._run(conn, "INSERT INTO usage_counters (service, month, calls, audits, updated) VALUES (?, ?, ?, ?, ?) "
+                            "ON CONFLICT (service, month) DO UPDATE SET calls = usage_counters.calls + excluded.calls, audits = usage_counters.audits + excluded.audits, updated = excluded.updated",
+                      (service, month, int(calls), int(audits), when))
+            conn.commit()
+        finally:
+            conn.close()
 
     def get_report(self, run_id):
         rows = self._rows("SELECT report_json FROM runs WHERE id = ?", (run_id,))

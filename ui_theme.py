@@ -7,7 +7,10 @@ callers' md_safe(), and this module escapes what it is given before putting it i
 
 import html
 
-import streamlit as st
+try:
+    import streamlit as st
+except ImportError:        # the Flask site draws these screens with htmlst.py instead of Streamlit
+    from htmlst import st
 
 INK, MUTED, LINE, BRAND = "#1A1D29", "#667085", "#E6E8F0", "#4F46E5"
 GOOD, WARN, BAD, GREY, SOFT = "#12B76A", "#F79009", "#F04438", "#98A2B3", "#EEF0FF"
