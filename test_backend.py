@@ -8,6 +8,8 @@ import os
 import tempfile
 import warnings
 
+os.environ["STREAMLIT_APP_ENABLED"] = "1"      # the Streamlit app is switched off unless this is set; these tests run it
+
 warnings.filterwarnings("ignore")
 from streamlit.testing.v1 import AppTest
 

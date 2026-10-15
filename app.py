@@ -47,6 +47,7 @@ That public-and-free-to-the-VISITOR design shapes everything here:
 import datetime as dt
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -110,6 +111,14 @@ def _operator_secret(name):
     except Exception:  # noqa: BLE001 - st.secrets raising means "none configured"
         return None
 
+
+# The audit now runs as the Flask site (server.py, on Render). This Streamlit app is switched off unless the secret STREAMLIT_APP_ENABLED is "1" (or the same environment
+# variable is set, which is how the tests and a local run turn it on): it shows where the service moved and does nothing else, so it cannot spend the operator's keys.
+MOVED_TO = "https://hotel-ai-audit.onrender.com"
+if str(_operator_secret("STREAMLIT_APP_ENABLED") or os.environ.get("STREAMLIT_APP_ENABLED") or "") != "1":
+    st.title("Hotel AI Discoverability Audit")
+    st.info(f"This service has moved to {MOVED_TO} and is for invited users. This page no longer runs audits.")
+    st.stop()
 
 TAVILY_KEY = _operator_secret("TAVILY_API_KEY")
 AMADEUS_KEY = _operator_secret("AMADEUS_API_KEY")

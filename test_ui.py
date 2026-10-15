@@ -7,6 +7,8 @@ import json
 import os
 import warnings
 
+os.environ["STREAMLIT_APP_ENABLED"] = "1"      # the Streamlit app is switched off unless this is set; these tests run it
+
 warnings.filterwarnings("ignore")
 from streamlit.testing.v1 import AppTest
 
@@ -190,6 +192,22 @@ m["summary"].update(articles=0, stories=0, publishers=0, independent_publishers=
 nothing["intel"]["identity"]["footprint"] = []
 at4 = run(nothing, "no coverage")
 check("a hotel with no coverage renders without error", not at4.exception, [e.message for e in at4.exception])
+
+print("9. the Streamlit app is switched off unless enabled (the service moved to the Flask site)")
+os.environ.pop("STREAMLIT_APP_ENABLED", None)
+off = AppTest.from_file(os.path.join(HERE, "app.py"), default_timeout=60)
+off.run()
+check("by default the page only says where the service moved: no form, no audit button, no exception",
+      not off.exception and any("has moved to https://hotel-ai-audit.onrender.com" in i.value for i in off.info) and not off.button and not off.text_input, [e.message for e in off.exception])
+off2 = AppTest.from_file(os.path.join(HERE, "app.py"), default_timeout=60)
+off2.session_state["fa_res"] = rep
+off2.run()
+check("even with a report in the session, and the admin address, it does nothing else", not off2.exception and not off2.tabs and not off2.metric)
+os.environ["STREAMLIT_APP_ENABLED"] = "1"
+on = AppTest.from_file(os.path.join(HERE, "app.py"), default_timeout=60)
+on.secrets["STREAMLIT_APP_ENABLED"] = "1"
+on.run()
+check("with STREAMLIT_APP_ENABLED set it works as before: the form is there and nothing says it moved", not on.exception and len(on.text_input) >= 3 and not any("has moved" in i.value for i in on.info))
 
 print()
 print("FAILURES:", fails if fails else "none")
