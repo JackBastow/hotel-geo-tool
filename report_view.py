@@ -15,9 +15,7 @@ import ui_intel
 import ui_theme
 from htmlst import st
 
-# the screens were written against `streamlit`; inside this process they write HTML instead
-for _m in (ui_consult, ui_intel, ui_theme):
-    _m.st = st
+htmlst.install()          # the screens were written against `streamlit`; inside this process they write HTML instead
 
 
 def md_safe(s):
@@ -214,52 +212,71 @@ def _tools(fa_res, token):
         st.raw(COMPARE_FORM.format(token=html.escape(token, quote=True)))
 
 
-def render(fa_res, token=None):
-    """-> the HTML of the report body (notices and the six tabs) for a finished audit report."""
+TABS = [("overview", "Overview"), ("action", "Action plan"), ("ai", "AI visibility"), ("site", "Your website"), ("reputation", "Reputation & listings"), ("score", "Scorecard"), ("tools", "Tools & method")]
+
+
+def render(fa_res, token=None, prev=None):
+    """
+    -> the HTML of the report body (notices, then seven tabs) for a finished audit report. `prev` is the hotel's previous audit's summary row, when there is one, for 'since last audit'.
+    The tabs are Overview and Action plan (dashboard_view.py, built for acting on) and the evidence tabs (the Streamlit screens drawn through htmlst).
+    """
+    import dashboard_view
     intel = fa_res.get("intel") or {}
     has_intel = bool(intel) and "error" not in intel
     consult = fa_res.get("consultant") or {}
     has_consult = bool(consult) and "error" not in consult
-    page = htmlst.Page()
-    with page:
-        _notices(fa_res)
-        t_over, t_ai, t_fix, t_beyond, t_score, t_tools = st.tabs(["Overview", "How AI sees your hotel", "Fix your website", "Beyond your website", "Scorecard", "Tools & method"])
-        with t_over:
-            if has_consult:
-                ui_consult.overview(consult, fa_res.get("headline"))
-            elif has_intel:
-                ui_intel.overview(intel)
-            else:
-                st.info("The analysis of what AI systems can understand about this hotel did not run for this audit. The Scorecard tab still has the website results.")
-        with t_ai:
-            if has_consult:
-                ui_consult.ai_view(consult, fa_res.get("ai_sample"), fa_res.get("ai_insights"))
-            else:
-                st.info("This section needs the consultant analysis, which did not run for this audit.")
-        with t_fix:
-            if has_consult:
-                ui_consult.fix_site(consult, fa_res.get("web_signals"))
-            else:
-                st.info("This section needs the consultant analysis, which did not run for this audit.")
-        with t_beyond:
-            st.caption("Evidence from outside the hotel's own website: where it is listed, how others describe it, and who covers it.")
-            subs = st.tabs(["Identity & distribution", "Reviews & reputation", "Media & validation", "Traveller fit", "Social & local"])
-            for tab, fn in zip(subs, ("identity", "reviews", "media", "traveller", "social_local")):
-                with tab:
-                    if fn == "reviews":
-                        _review_pack_intro(fa_res, token)
-                        ui_consult.review_card(fa_res.get("review_snapshot"))
-                    if fn == "identity":
-                        ui_consult.listing_checks_card(fa_res.get("listing_checks"))
-                    if has_intel:
-                        getattr(ui_intel, fn)(intel)
-                    else:
-                        st.info("This section needs the wider discovery analysis, which did not run for this audit.")
-        with t_score:
-            _scorecard(fa_res)
-        with t_tools:
-            _tools(fa_res, token)
-    return page.render()
+    no_consult = '<div class="alert info">This section needs the consultant analysis, which did not run for this audit.</div>'
+
+    def overview():
+        if has_consult:
+            ui_consult.coverage_banner(consult)
+            st.raw(dashboard_view.overview(fa_res, prev))
+        elif has_intel:
+            ui_intel.overview(intel)
+        else:
+            st.info("The analysis of what AI systems can understand about this hotel did not run for this audit. The Scorecard tab still has the website results.")
+
+    def ai():
+        if has_consult:
+            ui_consult.ai_view(consult, fa_res.get("ai_sample"), fa_res.get("ai_insights"))
+        else:
+            st.raw(no_consult)
+
+    def site():
+        if has_consult:
+            ui_consult.understanding_block(consult)
+            ui_consult.fix_site(consult, fa_res.get("web_signals"))
+        else:
+            st.raw(no_consult)
+
+    def reputation():
+        st.caption("Evidence from outside the hotel's own website: where it is listed, how others describe it, and who covers it.")
+        subs = st.tabs(["Reviews & reputation", "Identity & distribution", "Media & validation", "Traveller fit", "Social & local"])
+        for tab, fn in zip(subs, ("reviews", "identity", "media", "traveller", "social_local")):
+            with tab:
+                if fn == "reviews":
+                    _review_pack_intro(fa_res, token)
+                    ui_consult.review_card(fa_res.get("review_snapshot"))
+                if fn == "identity":
+                    ui_consult.listing_checks_card(fa_res.get("listing_checks"))
+                if has_intel:
+                    getattr(ui_intel, fn)(intel)
+                else:
+                    st.info("This section needs the wider discovery analysis, which did not run for this audit.")
+
+    panels = {
+        "overview": htmlst.build(overview),
+        "action": dashboard_view.action_plan(fa_res),
+        "ai": htmlst.build(ai),
+        "site": htmlst.build(site),
+        "reputation": htmlst.build(reputation),
+        "score": htmlst.build(_scorecard, fa_res),
+        "tools": htmlst.build(_tools, fa_res, token),
+    }
+    notices = htmlst.build(_notices, fa_res)
+    nav = "".join(f'<button type="button" class="tab{" active" if i == 0 else ""}" data-tab="tab-{k}" data-name="{k}">{html.escape(label)}</button>' for i, (k, label) in enumerate(TABS))
+    body = "".join(f'<div class="tab-panel{" active" if i == 0 else ""}" id="tab-{k}">{panels[k]}</div>' for i, (k, _l) in enumerate(TABS))
+    return f'{notices}<div class="tabs top"><div class="tab-bar" role="tablist">{nav}</div>{body}</div>'
 
 
 def pack_html(res, mapping):

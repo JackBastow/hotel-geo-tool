@@ -149,7 +149,7 @@ check("a visitor is limited to a few audits an hour, with a plain message (3 all
 print("4. the report and its downloads")
 page = c.get(f"/r/{token}")
 body = page.get_data(as_text=True)
-check("the report page renders the hotel, the six tabs, the readiness ring and the AI view", page.status_code == 200 and "Brooklands Hotel" in body and all(t in body for t in ("Overview", "How AI sees your hotel", "Fix your website", "Beyond your website", "Scorecard", "Tools &amp; method"))
+check("the report page renders the hotel, the seven tabs, the readiness ring and the AI view", page.status_code == 200 and "Brooklands Hotel" in body and all(t in body for t in ("Overview", "Action plan", "AI visibility", "Your website", "Reputation &amp; listings", "Scorecard", "Tools &amp; method"))
       and 'class="hk-ring"' in body and "Brand ranking: the hotel and the hotels named most" in body and "How we read this hotel" in body)
 check("it carries the honesty wording: a sample, not the market; not assessed; hypotheses not causes", all(w in body for w in ("not the market", "Not assessed", "not as causes")))
 check("it is private: not indexed, not cached", page.headers["X-Robots-Tag"].startswith("noindex") and page.headers["Cache-Control"] == "no-store" and 'name="robots" content="noindex' in body)
@@ -208,10 +208,19 @@ check("the landing page now says every run is saved and not shown to others", b"
 app3 = server.create_app(cfg2, run_fn=fake_run)       # a fresh process: nothing in memory
 check("after a restart the same private link still opens the report", app3.test_client().get(f"/r/{tok2}").status_code == 200)
 import backend
+jid3 = c2.post("/api/audit", json={"website": "brooklandshotelsurrey.com"}).get_json()["job"]
+for _ in range(100):
+    j3 = c2.get(f"/api/job/{jid3}").get_json()
+    if j3["status"] in ("done", "error"):
+        break
+    time.sleep(0.1)
+page3 = c2.get(f"/r/{j3['token']}").get_data(as_text=True)
+check("a second audit of the same hotel shows the change since the last one; the first audit does not", "since last audit" in page3 or "no change" in page3)
+check("...and the very first audit of a hotel has nothing to compare with", "since last audit" not in c2.get(f"/r/{tok2}").get_data(as_text=True) and "no change" not in c2.get(f"/r/{tok2}").get_data(as_text=True).split('class="kpis"')[0])
 st_ = backend.open_store(url)
 check("the link is not part of any list or export the operator pulls", all("access_token" not in r for r in st_.export_rows()) and "access_token" not in backend.to_csv(st_.export_rows()))
 up2 = app3.test_client().post(f"/api/r/{tok2}/review-pack", data={"file": (io.BytesIO(csvdata.encode()), "export.csv"), "platform": "Booking.com"}, content_type="multipart/form-data")
-check("a review export applied after a restart updates the saved run in place", up2.status_code == 200 and st_.list_runs()[0]["pack_reviews"] == 3)
+check("a review export applied after a restart updates the saved run in place", up2.status_code == 200 and next(r for r in st_.list_runs() if r["id"] == st_.get_report_by_token(tok2)[0])["pack_reviews"] == 3)
 
 print("8. the admin pages")
 ca = app2.test_client()

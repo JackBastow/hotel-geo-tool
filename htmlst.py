@@ -306,6 +306,15 @@ class _Module:
 st = _Module()
 
 
+def install():
+    """Make the report screens write HTML (this process draws them for the web, so they must not draw into Streamlit)."""
+    import ui_consult
+    import ui_intel
+    import ui_theme
+    for m in (ui_consult, ui_intel, ui_theme):
+        m.st = st
+
+
 def build(fn, *args, **kwargs):
     """Run fn(*args, **kwargs) with the screens writing into a fresh page; return the HTML."""
     page = Page()

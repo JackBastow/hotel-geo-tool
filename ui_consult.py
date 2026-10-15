@@ -136,10 +136,8 @@ def _short(text, n):
     return cut[: i if i > n * 0.5 else n].rstrip(" ;,.") + "..."
 
 
-def overview(c, h=None):
-    coverage_banner(c)
-    if h:
-        headline_strip(h)
+def understanding_block(c):
+    """What AI currently understands the hotel to be, and the eight readiness measures with how sure we are of each."""
     u = c["understanding"]
     st.markdown("#### AI currently understands this hotel as")
     if u["summary"]:
@@ -163,6 +161,13 @@ def overview(c, h=None):
                 st.caption(md_safe(ev["why"]))
             for d in p["drivers"][:3]:
                 st.caption("\u2022 " + md_safe(d))
+
+
+def overview(c, h=None):
+    coverage_banner(c)
+    if h:
+        headline_strip(h)
+    understanding_block(c)
 
     recs = {r["id"]: r for r in c["recommendations"]}
     fixes = [recs[i] for i in c.get("required_fixes", [])]

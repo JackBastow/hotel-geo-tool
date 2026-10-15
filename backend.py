@@ -274,6 +274,16 @@ class Store:
         cols = "id, " + ", ".join(RUN_COLS)
         return self._rows(f"SELECT {cols} FROM runs WHERE SUBSTR(run_at, 1, 7) >= ? AND SUBSTR(run_at, 1, 7) <= ? ORDER BY run_at ASC, id ASC", (start_month, end_month))
 
+    def previous_run(self, run_id):
+        """The summary row of the hotel's audit just before this one (same website or hotel folder), or None. Used for 'since last audit'."""
+        cur = self._rows("SELECT hotel_key, run_at FROM runs WHERE id = ?", (run_id,))
+        if not cur:
+            return None
+        cols = "id, " + ", ".join(RUN_COLS)
+        rows = self._rows(f"SELECT {cols} FROM runs WHERE hotel_key = ? AND (run_at < ? OR (run_at = ? AND id < ?)) ORDER BY run_at DESC, id DESC LIMIT 1",
+                          (cur[0]["hotel_key"], cur[0]["run_at"], cur[0]["run_at"], run_id))
+        return rows[0] if rows else None
+
     def get_report_by_token(self, token):
         """(run id, report) for the visitor's own link, or (None, None). The token is never part of any export or list."""
         if not token or len(token) < 20:

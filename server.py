@@ -93,6 +93,15 @@ class Reports:
             return None
         return None
 
+    def previous(self, token):
+        """The hotel's previous audit (summary numbers), for 'since last audit'. None without a database or an earlier run."""
+        rid = self.ids.get(token)
+        try:
+            db = self._db()
+            return db.previous_run(rid) if (db and rid) else None
+        except Exception:  # noqa: BLE001
+            return None
+
     def update(self, token, report):
         with self.lock:
             self.mem[token] = (time.time(), report)
@@ -260,7 +269,7 @@ def create_app(cfg=None, run_fn=None):
         if hit and hit[0] == sig:
             body = hit[1]
         else:
-            body = report_view.render(rep, token=token)
+            body = report_view.render(rep, token=token, prev=reports.previous(token))
             reports.html[token] = (sig, body)
         meta = rep["meta"]
         loc = meta.get("location") or {}

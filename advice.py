@@ -122,7 +122,7 @@ def _from_questions(questions):
         recs.append(_rec(
             f"Q{i}", "content", title, finding, WHY_QUESTION, _ev(ev, 3),
             (f"Add the answer to {where_txt} ({w['reason']})." if w["url"] else f"Create {w['label']} and add the answers.")
-            + (f" Also worth repeating on {_path(w['also'][0]['url'])}." if w.get("also") else ""),
+            + (f" Also worth repeating on {_path(w['also'][0]['url'])}." if w.get("also") and w["also"][0].get("url") != w.get("url") else ""),
             priority, "low" if len(adds) <= 8 else "medium", page={"url": w["url"], "label": where_txt} if w["url"] else {"url": "", "label": w["label"]},
             additions=adds[:10], example="\n".join(examples),
             technical="Content-completeness gap. Write each answer as plain text in a clearly headed section so it can be quoted; "

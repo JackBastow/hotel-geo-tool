@@ -32,6 +32,35 @@
     $$(":scope > .tab-panel", box).forEach(function (p) { p.classList.toggle("active", p.id === id); });
     refresh($("#" + id));
   });
+  /* ---- the top tabs: jump from a card to a tab, keep the tab in the address, and filter the recommendations */
+  function openTab(name) {
+    var b = $('.tabs.top > .tab-bar .tab[data-name="' + name + '"]');
+    if (b) { b.click(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  }
+  document.addEventListener("click", function (ev) {
+    var g = ev.target.closest("[data-goto]");
+    if (g) { openTab(g.getAttribute("data-goto")); return; }
+    var top = ev.target.closest(".tabs.top > .tab-bar .tab");
+    if (top && window.history && history.replaceState) { history.replaceState(null, "", "#" + top.getAttribute("data-name")); }
+    var f = ev.target.closest(".fchip");
+    if (f) {
+      $$(".fchip").forEach(function (x) { x.classList.toggle("on", x === f); });
+      var want = f.getAttribute("data-f");
+      $$("#rec-list .rec").forEach(function (card) {
+        var show = want === "all" || (want === "start" && card.getAttribute("data-start") === "1") || (want.indexOf("kind:") === 0 && card.getAttribute("data-kind") === want.slice(5)) || (want.indexOf("team:") === 0 && card.getAttribute("data-team") === want.slice(5));
+        card.hidden = !show;
+      });
+      $$("#rec-list .grp").forEach(function (h) { var n = h.nextElementSibling, any = false; while (n && n.classList && n.classList.contains("rec")) { if (!n.hidden) { any = true; } n = n.nextElementSibling; } h.hidden = !any; });
+    }
+  });
+  document.addEventListener("DOMContentLoaded", function () { var h = (location.hash || "").slice(1); var b = h && $('.tabs.top > .tab-bar .tab[data-name="' + h + '"]'); if (b) { b.click(); } });
+  document.addEventListener("click", function (ev) {
+    var a = ev.target.closest('a[href^="#rec-"]');
+    if (!a) { return; }
+    ev.preventDefault();
+    openTab("action");
+    setTimeout(function () { var el = document.getElementById(a.getAttribute("href").slice(1)); if (el) { el.hidden = false; el.scrollIntoView({ behavior: "smooth", block: "start" }); } }, 60);
+  });
   window.addEventListener("load", function () { refresh(document); setTimeout(function () { refresh(document); }, 400); });
   document.addEventListener("DOMContentLoaded", function () {
     refresh(document);
