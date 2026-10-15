@@ -58,6 +58,20 @@ def _within_quota(service, planned=1):
     return not would_exceed
 
 
+def _with_review_export(fa_res, rows, mapping):
+    """The hotel's own review export, uploaded with the audit: analysed against what its site says, the figures put into the report, the private part (review text, drafts) handed back under
+    '_review_private' for the job manager to hold in memory only. A failure leaves the audit as it was."""
+    import review_pack
+    try:
+        res = review_pack.analyse(rows, (fa_res.get("meta") or {}).get("hotel", ""), review_pack.site_states_from(fa_res.get("guest_questions")))
+        if res:
+            review_pack.apply(fa_res, res["public"])
+            fa_res["_review_private"] = {"res": res, "mapping": mapping}
+    except Exception:  # noqa: BLE001 - an extra; the audit stands without it
+        pass
+    return fa_res
+
+
 def run(params, cfg, progress=None):
     """
     params: {"website", "hotel", "city", "wider" (bool), "tier" (a key or None), "audiences" ([keys])}. -> the finished report (a dict). Raises on a failed audit.
@@ -74,6 +88,8 @@ def run(params, cfg, progress=None):
         gemini_reader_key=use_gemini_reader, youtube_api_key=cfg.youtube, wider=bool(params.get("wider", True)), pagespeed_api_key=cfg.pagespeed,
         anthropic_api_key=use_anthropic, anthropic_model=cfg.anthropic_model, anthropic_repeats=cfg.repeats,
         market_hint={"tier": TIERS.get(params.get("tier")), "audiences": [a for a in params.get("audiences") or [] if a in valid_aud]})
+    if params.get("review_rows"):
+        fa_res = _with_review_export(fa_res, params["review_rows"], params.get("review_mapping") or {})
     # usage against the shared monthly allowances
     tr = fa_res.get("tavily_result") or {}
     credits = ((fa_res.get("intel") or {}).get("methodology") or {}).get("tavily_credits_used")

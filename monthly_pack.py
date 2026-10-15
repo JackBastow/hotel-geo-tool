@@ -25,7 +25,7 @@ from openpyxl.utils import get_column_letter
 from ai_insights import sentiment_label
 
 CATEGORY_ORDER = [("ai_visibility", "AI Visibility"), ("otas", "OTAs & Travel Platforms"), ("reviews", "Reviews & Reputation"), ("editorial", "Editorial & Blogs"),
-                  ("website", "Website & Technical"), ("social", "Social & UGC"), ("entity", "Entity Consistency"), ("freshness", "Freshness")]
+                  ("website", "Website & Technical"), ("social", "Social & UGC"), ("entity", "Entity Consistency")]
 MEASURE_ORDER = [("discoverability", "Discoverability"), ("intent", "Traveller-intent coverage"), ("entity", "Entity clarity"), ("technical", "Technical accessibility"),
                  ("content", "Content completeness"), ("structured", "Structured data"), ("location", "Location relevance"), ("authority", "External authority / evidence")]
 KIND_LABEL = {"generic": "Town-wide", "niche": "Niche market", "direct": "About the hotel"}

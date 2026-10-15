@@ -20,6 +20,8 @@ import identity
 SOURCE = "Listing lookup (AI web search)"
 PLATFORMS = [(label, token) for label, token in identity.KEY_PLATFORMS if label in
              ("Booking.com", "Expedia", "Hotels.com", "TripAdvisor", "Trivago", "Agoda", "Trip.com", "Kayak")]
+SOCIAL = [("Facebook", "facebook.com"), ("Instagram", "instagram.com"), ("YouTube", "youtube.com"), ("TikTok", "tiktok.com"), ("X / Twitter", "x.com"), ("X / Twitter", "twitter.com"),
+          ("LinkedIn", "linkedin.com")]
 MAX_TOKENS = 3500
 
 SYSTEM = ("You are a research assistant who finds a hotel's own listing page on booking and review websites. Use the web search tool, one search per site, "
@@ -27,7 +29,8 @@ SYSTEM = ("You are a research assistant who finds a hotel's own listing page on 
           "check-in time, check-out time, star rating and telephone number. Quote only what the listing shows, and leave out anything it does not show.")
 
 PROMPT = ("Find the page for the hotel \"{hotel}\" in {city} on each of these websites: {sites}. Search for each site separately. "
-          "Then, for each listing you found, write one line quoting its check-in time, check-out time, star rating and telephone number as the listing shows them.")
+          "Then, for each listing you found, write one line quoting its check-in time, check-out time, star rating and telephone number as the listing shows them. "
+          "Also search once for the hotel's own official profile pages on Facebook, Instagram, YouTube, TikTok, X and LinkedIn, and name the ones you find.")
 
 
 _NOT_A_LISTING = re.compile(r"/(moments|travel-?guides?|blog|articles?|news|posts?)(/|$)", re.I)      # a social post or article on a platform's site is not the hotel's page
@@ -61,6 +64,19 @@ def hits_from_pages(pages, hotel, city, have=()):
     return list(out.values())
 
 
+def social_from_pages(pages, hotel, city=""):
+    """[{platform, url, title}]: the hotel's own profile pages among `pages`, one per platform, only where the address or title carries the hotel's name."""
+    out = {}
+    for label, token in SOCIAL:
+        if label in out:
+            continue
+        for p in pages:
+            if p.get("url") and identity.on_platform(_domain(p["url"]), token) and identity.names_hotel(p["url"], p.get("title", ""), "", hotel):
+                out[label] = {"platform": label, "url": p["url"], "title": (p.get("title") or "")[:100]}
+                break
+    return list(out.values())
+
+
 def run(hotel, city, *, api_key=None, model=None, client=None, have=()):
     """-> {"status", "reason", "pages", "cost_usd", "searches"}. Never raises. `have`: platform labels already found, which are not searched for."""
     def env(status, reason="", **kw):
@@ -80,7 +96,7 @@ def run(hotel, city, *, api_key=None, model=None, client=None, have=()):
             client = anthropic.Anthropic(api_key=api_key, max_retries=1, timeout=120.0)
         except Exception as e:  # noqa: BLE001
             return env("unavailable", f"The Anthropic library could not be started ({type(e).__name__}).")
-    tool = {**ai_sample.SEARCH_TOOL, "max_uses": len(todo) + 1}
+    tool = {**ai_sample.SEARCH_TOOL, "max_uses": len(todo) + 5}
     extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
     messages = [{"role": "user", "content": PROMPT.format(hotel=hotel, city=city.split(",")[0].strip(), sites=", ".join(l for l, _ in todo))}]
     pages, passages, searches, tin, tout = {}, [], 0, 0, 0

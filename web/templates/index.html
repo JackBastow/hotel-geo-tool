@@ -7,11 +7,19 @@
 
 <form class="panel" id="audit-form" autocomplete="off">
   <label class="field"><span>Website <small>(the only thing that's required)</small></span>
-    <input type="text" name="website" id="f-website" placeholder="brooklandshotelsurrey.com" required maxlength="300"></label>
+    <input type="text" name="website" id="f-website" placeholder="brooklandshotelsurrey.com" required maxlength="300" value="{{ pre.website }}"></label>
   <div class="grid2">
-    <label class="field"><span>Hotel name <small>(optional: read from the site if left blank)</small></span><input type="text" name="hotel" maxlength="120"></label>
-    <label class="field"><span>City <small>(optional: worked out from the address if left blank)</small></span><input type="text" name="city" maxlength="120"></label>
+    <label class="field"><span>Hotel name <small>(recommended: the outside checks need it)</small></span><input type="text" name="hotel" maxlength="120" value="{{ pre.hotel }}"></label>
+    <label class="field"><span>City or town <small>(recommended: the AI answers, listings and local checks need it)</small></span><input type="text" name="city" maxlength="120" value="{{ pre.city }}"></label>
   </div>
+  <p class="caption" style="margin-top:-4px">With only the website, the hotel and town are worked out from the pages and the address. When that fails, those checks are skipped, so typing them is worth it.</p>
+  <details class="details">
+    <summary>Your own reviews (optional, adds the review and reply analysis)</summary>
+    <div class="details-body">
+      <p class="caption">Export the hotel's reviews from Booking.com, Tripadvisor, Google or Expedia (a .csv or .xlsx file) and the audit analyses every review and reply: how many critical reviews are unanswered, how replies read, what guests praise and complain about. The review text is used for this run only and is not saved; only counts and rates are kept with the report.</p>
+      <div class="rp-row"><input type="file" name="reviews" id="f-reviews" accept=".csv,.xlsx"><input type="text" name="platform" placeholder="Platform, if the file does not say (for example Booking.com)" maxlength="30"></div>
+    </div>
+  </details>
   <details class="details">
     <summary>Who is the hotel for? (optional, improves the AI questions)</summary>
     <div class="details-body">

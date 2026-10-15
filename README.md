@@ -173,11 +173,11 @@ counts). Found listings join the footprint and the OTA score, marked "found in p
 platforms prohibit automated reading. A platform still not found says "not found by our searches", never "not listed".
 
 **The hotel's own review export (`review_pack.py`, free, no AI).** Platforms prohibit automated collection, but every one lets the hotel export its own reviews. Upload that file
-(Beyond your website, Reviews & reputation; a CSV or Excel file from Booking.com, Tripadvisor, Google or Expedia, or any sheet with a rating or review and, where there is one, a reply and
+(on the audit form before it runs, or afterwards under Reputation & listings, Reviews & reputation; a CSV or Excel file from Booking.com, Tripadvisor, Google or Expedia, or any sheet with a rating or review and, where there is one, a reply and
 dates) and the whole file is analysed: reply rate overall, by platform and by rating, critical reviews still unanswered (listed newest first with a skeleton draft reply to finish, never
 offering anything in return), response time, how the replies were written (specific, thanks or apologises, says what will be done, signed; a rule-based reading), how many replies are
 identical templates, what guests praise and criticise by topic and whether the hotel's own site states it, and the rating by month. It makes the Reviews & Reputation category assessed
-(evidence strength from the number of reviews), adds findings to the plan and updates the saved run. Every figure is for the file supplied. **Privacy:** reviewer names are never read;
+(evidence strength from the number of reviews), adds findings to the plan and updates the saved run. Uploaded with the audit form, the file is held in memory for that run only; the unanswered-review list and drafts stay available on the report for an hour and are never saved. Every figure is for the file supplied. **Privacy:** reviewer names are never read;
 the review text is analysed in the session and never saved; the report, the PDF, the saved run and the monthly pack keep counts and rates only.
 
 **What the travel sites show (`listing_facts.py`).** The listing lookup keeps the passages the search service quoted from each platform's page for the hotel; check-in and check-out time,
@@ -319,7 +319,7 @@ key, no cost.
 
 ## The scoring model
 
-Eight categories, weighted:
+Seven categories, weighted (Freshness is now part of Website & Technical, not a category of its own):
 
 | # | Category | Weight | Measured in this build? |
 |---|---|---|---|
@@ -327,10 +327,9 @@ Eight categories, weighted:
 | 2 | OTAs & Travel Platforms | 15% | 🔑 if a free Tavily key is configured |
 | 3 | Reviews & Reputation | 15% | ❌ not currently — needs Google Places (paid) or Amadeus (Enterprise sales, no longer free — see below) |
 | 4 | Editorial & Blogs | 15% | 🔑 if a free Tavily key is configured |
-| 5 | Website & Technical | 12.5% | ✅ always |
-| 6 | Social & UGC | 7.5% | ⚠️ presence yes, activity no |
+| 5 | Website & Technical (includes freshness and Google's PageSpeed test) | 17.5% | ✅ always; partial from outside signals when the site refuses this tool's reader |
+| 6 | Social & UGC | 7.5% | ⚠️ presence yes (from the site's links, or from search when the pages can't be read), activity no |
 | 7 | Entity Consistency | 5% | ✅ always |
-| 8 | Freshness | 5% | ✅ always |
 
 **Without any keys configured, this covers about 30% of the model.** That
 30% is never gated behind anything — no account, no key, free for every
@@ -540,8 +539,7 @@ its sitemap or links to; it never guesses URLs. Because it can't read every
 page, "not found" is always worded as *not found on the pages checked*.
 
 This replaces the old "topics with a matching page address" component inside
-**Website & Technical**; the eight categories and their weights are
-unchanged.
+**Website & Technical**.
 
 ### The fact sheet
 

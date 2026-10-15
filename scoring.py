@@ -53,18 +53,18 @@ CATEGORIES = [
      "Rating, review volume, recency, and the themes guests keep raising."),
     ("editorial", "Editorial & Blogs", 15.0,
      "Is it mentioned by credible travel publications, tourism sites, guides?"),
-    ("website", "Website & Technical", 12.5,
-     "Can AI and search systems crawl and understand the site?"),
+    ("website", "Website & Technical", 17.5,
+     "Can AI and search systems crawl and understand the site, and is it kept up to date?"),
     ("social", "Social & UGC", 7.5,
      "Is there meaningful recent discussion on Instagram, TikTok, Reddit?"),
     ("entity", "Entity Consistency", 5.0,
      "Do the name, address, amenities and key facts agree across the web?"),
-    ("freshness", "Freshness", 5.0,
-     "Is the information current, or stale?"),
 ]
 
 WEIGHTS = {k: w for k, _, w, _ in CATEGORIES}
 LABELS = {k: l for k, l, _, _ in CATEGORIES}
+# Freshness is no longer a category of its own: it is part of Website & Technical. Its scorer is still used for that part (and reads old reports), so it keeps a label and no weight.
+LABELS["freshness"], WEIGHTS["freshness"] = "Freshness", 0.0
 
 
 def _cat(key, score, detail, evidence=None, recs=None, partial=False):
@@ -174,8 +174,26 @@ def _guest_recs(guest):
     return recs
 
 
-def score_website(site, guest=None):
-    """Crawlability and machine-readability of the hotel's own site."""
+def _freshness_part(site):
+    """How recently the site's pages changed, from the sitemap's lastmod dates: (0..1, evidence, recommendations) or None when the sitemap carries no usable dates. Part of Website & Technical."""
+    c = score_freshness(site)
+    if not c["assessed"]:
+        return None
+    return c["score"] / 100.0, c["evidence"], c["recommendations"]
+
+
+def _pagespeed_part(web):
+    """Google's PageSpeed test of the homepage (Google fetches the page itself, so it works where this tool's own reader is refused): [(label, 0..1, weight, evidence)]."""
+    sc = (((web or {}).get("pagespeed") or {}).get("scores")) or {}
+    out = []
+    for key, label, w in (("performance", "Mobile speed", 0.07), ("accessibility", "Accessibility", 0.07), ("seo", "Search-readiness (SEO)", 0.09), ("best-practices", "Best practice", 0.04)):
+        if sc.get(key) is not None:
+            out.append((label, sc[key] / 100.0, w, f"Google PageSpeed, {label.lower()}: {sc[key]}/100"))
+    return out
+
+
+def score_website(site, guest=None, web=None):
+    """Crawlability and machine-readability of the hotel's own site, how fast and accessible it is, and how recently it was updated."""
     pts, ev, recs = [], [], []
 
     blocked = site.get("ai_crawlers_blocked") or []
@@ -260,10 +278,58 @@ def score_website(site, guest=None):
                        "hand before acting on it.",
             })
 
-    score = sum(v * w for _, v, w in pts) * 100
+    fresh = _freshness_part(site)
+    if fresh:
+        pts.append(("Freshness", fresh[0], 0.10))
+        ev += ["Freshness: " + e for e in fresh[1]]
+        recs += fresh[2]
+    for label, frac, w, line in _pagespeed_part(web):
+        pts.append((label, frac, w))
+        ev.append(line)
+    score = sum(v * w for _, v, w in pts) / sum(w for _, _, w in pts) * 100
     return _cat("website", score,
                 f"{len([p for p in pts if p[1] >= 0.99])} of {len(pts)} technical "
                 "checks fully passed.", ev, recs)
+
+
+def score_website_unread(site, guest=None, web=None):
+    """
+    Website & Technical when the pages could only be read as plain text (the site refused this tool's own reader, so markup, headings, images and structured data could not be inspected).
+    It is built from what does not need the markup: robots.txt and the AI crawlers, the sitemap, how many guest questions the pages answer, how recently the pages changed, and Google's own PageSpeed
+    test of the homepage (Google fetches the page itself). Always partial, and says so; not assessed when there is too little to go on.
+    """
+    pts, ev, recs = [], [], []
+    if site.get("robots", {}).get("present") or "ai_crawlers_blocked" in site:
+        blocked = site.get("ai_crawlers_blocked") or []
+        pts.append(("AI crawlers", 0.0 if blocked else 1.0, 0.25))
+        ev.append(f"robots.txt blocks: {', '.join(blocked)}" if blocked else "robots.txt does not block the major AI crawlers")
+        if blocked:
+            recs.append({"code": "crawler_block", "priority": "critical", "action": f"Unblock {', '.join(blocked)} in robots.txt",
+                         "why": "These crawlers are refused outright, so the hotel's own site cannot be used as a source by the assistants that rely on them."})
+    if site.get("sitemap", {}).get("present"):
+        pts.append(("Sitemap", 1.0, 0.10))
+        ev.append(f"Sitemap found, {site['sitemap'].get('url_count', 0)} URLs")
+    gfrac = guest_questions.coverage_fraction(guest)
+    if gfrac is not None:
+        pts.append(("Guest-question coverage", gfrac, 0.25))
+        ev += _guest_evidence(guest)
+        recs += _guest_recs(guest)
+    fresh = _freshness_part(site)
+    if fresh:
+        pts.append(("Freshness", fresh[0], 0.10))
+        ev += ["Freshness: " + e for e in fresh[1]]
+        recs += fresh[2]
+    ps = _pagespeed_part(web)
+    for label, frac, w, line in ps:
+        pts.append((label, frac * 1.0, w * 1.2))
+        ev.append(line)
+    if len(pts) < 2 or not (ps or gfrac is not None):
+        return _not_assessed("website", "The site refused this tool's own reader, and there was too little else to go on (no PageSpeed result and no readable pages), so this was not scored.",
+                             "Run again if the block was temporary, or ask the web supplier whether a firewall refuses automated visitors.")
+    ev.append("Not inspected, because the pages were read as plain text: structured data, headings, images and page titles")
+    score = sum(v * w for _, v, w in pts) / sum(w for _, _, w in pts) * 100
+    return _cat("website", score, "Partial: from robots.txt, the sitemap, the questions the pages answer, how recently they changed and Google's PageSpeed test. The pages' markup could not be inspected.",
+                ev, recs, partial=True)
 
 
 def score_entity(entities, consistency, location):
@@ -493,7 +559,7 @@ def apply_review_pack(scorecard, pack):
     """Replace the (not assessed) Reviews & Reputation category of a finished scorecard with the one worked out from an uploaded review pack, and recompute the totals."""
     cats = [c for c in scorecard["categories"] if c["key"] != "reviews"] + [score_review_pack(pack)]
     order = {k: i for i, (k, _, _, _) in enumerate(CATEGORIES)}
-    cats.sort(key=lambda c: order[c["key"]])
+    cats.sort(key=lambda c: order.get(c["key"], 99))
     assessed = [c for c in cats if c["assessed"]]
     total_weight = sum(c["weight"] for c in assessed)
     overall = sum(c["score"] * c["weight"] for c in assessed) / total_weight if total_weight else 0
@@ -755,6 +821,24 @@ def score_ai_visibility(audit_payload):
                "From a live Gemini grounded-search sample.", ev, recs)
 
 
+def score_social_outside(found, tavily_result=None):
+    """
+    Social presence when the hotel's own pages could not be read for links: official profiles found by search (the listing lookup) and by the wider search. `found` is None when no search ran.
+    Presence only, capped, and never a verdict on activity.
+    """
+    independent = {h["platform"] for h in (tavily_result or {}).get("social_hits") or []}
+    if found is None and not independent:
+        return _not_assessed("social", "The pages could not be read for links to social profiles and no search for them ran.", "Run again with the hotel's name and town.")
+    names = sorted(set(found or []) | independent)
+    ev = [f"Official profiles found by search: {', '.join(names) or 'none'}", "Activity and recency NOT measured - needs platform API access"]
+    recs = []
+    if not names:
+        recs.append({"code": "social_none_found", "priority": "low", "action": "Check which social profiles the hotel has, and link them from its own site",
+                     "why": "None were found by search. That may only mean they are not easy to find, or that the brand rather than the hotel runs them: worth checking by hand."})
+    cap = 75 if independent else 60
+    return _cat("social", min(len(names), 3) / 3.0 * cap, "Presence only, from search; activity not measured.", ev, recs, partial=True)
+
+
 def score_social(discovery, tavily_result=None):
     """
     Presence only - deliberately capped.
@@ -818,7 +902,7 @@ def score_social(discovery, tavily_result=None):
 
 def build_scorecard(site, entities, consistency, location, discovery,
                     ai_visibility=None, tavily_result=None,
-                    places_result=None, amadeus_result=None, guest_result=None):
+                    places_result=None, amadeus_result=None, guest_result=None, web=None, social_found=None):
     """
     Every category is assembled the same way: run its scorer, which itself
     decides "assessed" vs "not assessed" based on whether the data it needs
@@ -827,9 +911,8 @@ def build_scorecard(site, entities, consistency, location, discovery,
     their results in here - this function never reaches out to an API itself.
     """
     cats = [
-        score_website(site, guest_result),
+        score_website(site, guest_result, web),
         score_entity(entities, consistency, location),
-        score_freshness(site),
         score_social(discovery, tavily_result),
         score_otas(tavily_result),
         score_reviews(places_result, amadeus_result),
@@ -852,8 +935,10 @@ def build_scorecard(site, entities, consistency, location, discovery,
         why = ("The site refused this tool's own reader, so its pages were read through Anthropic's page reader as plain text. Markup, headings, images "
                "and the profiles linked from the page cannot be inspected that way, so this was not scored.")
         for i, c in enumerate(cats):
-            if c["key"] in ("website", "social"):
-                cats[i] = _not_assessed(c["key"], why, "Needs the site's own pages to be readable by this tool (ask the web team about bot protection).")
+            if c["key"] == "website":
+                cats[i] = score_website_unread(site, guest_result, web)
+            elif c["key"] == "social":
+                cats[i] = score_social_outside(social_found, tavily_result)
     if guest_result is not None and guest_result.get("pages_ok", 3) < 3:
         n = guest_result.get("pages_ok", 0)
         why = (("None of the website's pages" if not n else f"Only {n} page(s) of the website")
@@ -865,7 +950,7 @@ def build_scorecard(site, entities, consistency, location, discovery,
             if c["key"] in ("website", "social") or (c["key"] == "entity" and not confident):
                 cats[i] = _not_assessed(c["key"], why, how)
     order = {k: i for i, (k, _, _, _) in enumerate(CATEGORIES)}
-    cats.sort(key=lambda c: order[c["key"]])
+    cats.sort(key=lambda c: order.get(c["key"], 99))
 
     assessed = [c for c in cats if c["assessed"]]
     not_assessed = [c for c in cats if not c["assessed"]]

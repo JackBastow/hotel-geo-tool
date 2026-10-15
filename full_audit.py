@@ -262,16 +262,28 @@ def tidy_typed_name(given, site, base, scope):
 
 
 def _place_from_text(text):
-    """Is this word a town or city? Asked of OpenStreetMap's own place search (free). '' when it is not, or the service is down."""
+    """Is this word a town or city? Asked of OpenStreetMap's own place search (free), restricted to settlements so 'Zurich Airport' is not taken for a town. '' when it is not, or the service is down."""
     try:
-        r = requests.get("https://nominatim.openstreetmap.org/search", params={"q": text, "format": "jsonv2", "limit": 1, "addressdetails": 1, "accept-language": "en"},
+        r = requests.get("https://nominatim.openstreetmap.org/search", params={"q": text, "format": "jsonv2", "limit": 1, "addressdetails": 1, "accept-language": "en", "featureType": "settlement"},
                          headers={"User-Agent": sources.UA}, timeout=12)
         hit = (r.json() or [None])[0] if r.status_code == 200 else None
     except (requests.RequestException, ValueError):
         return ""
-    if not hit or hit.get("category") not in ("place", "boundary") or hit.get("type") not in ("city", "town", "village", "administrative", "suburb", "municipality"):
+    if not hit or hit.get("category") not in ("place", "boundary") or hit.get("type") not in ("city", "town", "village", "administrative", "suburb", "municipality", "hamlet", "borough"):
         return ""
     return (hit.get("name") or text).strip()
+
+
+def city_from_candidates(cands, limit=4):
+    """The first candidate that is really a town (one question a second to the place search, as its policy asks). '' when none is."""
+    import time as _t
+    for k, c in enumerate(cands[:limit]):
+        if k:
+            _t.sleep(1.1)
+        place = _place_from_text(c)
+        if place:
+            return place
+    return ""
 
 
 _POSTCODE = re.compile(r"\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b")
@@ -652,10 +664,11 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     if city_given:
         location["city"] = city
         location["source"] = "provided by you"
-    elif not location.get("city") and name_from_address:
-        place = next((p for p in (_place_from_text(c) for c in slug_guess["city_candidates"]) if p), "")
+    elif not location.get("city"):
+        # the town is usually in the hotel's own name or in its address ('Hilton Zurich Airport', .../zrhhitw-hilton-zurich-airport/): ask a place search whether a word of it is a town
+        place = city_from_candidates((slug_guess["city_candidates"] if name_from_address else []) + urlscope.place_candidates(hotel) + (urlscope.place_candidates(urlscope.name_from_url(base, site["meta"].get("scope")).get("name", "")) if not name_from_address else []))
         if place:
-            location["city"], location["source"] = place, "inferred from the web address"
+            location["city"], location["source"] = place, ("inferred from the hotel's name and web address")
     city = location["city"]
 
     # The wider discovery (other sources, media coverage, listings, awards) needs only
@@ -844,6 +857,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             _pool += [{"url": pg["url"], "title": pg.get("title", "")} for pg in _it.get("pages") or []]
         _pool += [{"url": pl["url"], "title": pl.get("platform", "")} for pl in ((review_result or {}).get("platforms") or []) if pl.get("url")]
         _hits = listing_lookup.hits_from_pages(_pool, hotel, city)
+        listing_result["social"] = listing_lookup.social_from_pages(_pool, hotel, city)
         _known = {c["key"] for c in corpus.get("candidates", [])}
         _new = [c for c in listing_lookup.as_candidates(_hits, base) if c["key"] not in _known]
         corpus.setdefault("candidates", []).extend(_new)
@@ -883,6 +897,17 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         ai_result["market"] = market_profile                         # how the hotel's market was read, shown beside the answers
     if ai_visibility_cat is None:
         ai_visibility_cat = scoring.score_ai_sample(ai_result)       # one model's sample: scored, but always labelled low-evidence
+    try:
+        web = web_future.result(timeout=120)
+    except Exception as e:  # noqa: BLE001 - these are extras; the audit stands without them
+        web = {"version": 1, "ai_policy": web_signals.ai_policy(site.get("robots")),
+               "llms_txt": {"status": "unavailable", "present": None, "reason": f"Not completed ({type(e).__name__})."},
+               "commoncrawl": {"source": "Common Crawl", "status": "unavailable", "items": [],
+                               "reason": f"Not completed in time ({type(e).__name__}), so this was not assessed."},
+               "pagespeed": {"source": "PageSpeed Insights", "status": "unavailable", "items": [],
+                             "reason": f"Not completed in time ({type(e).__name__}), so this was not assessed."}}
+    finally:
+        web_ex.shutdown(wait=False, cancel_futures=True)
     findings = build_findings(site, ext["entities"], ext["consistency"], discovery,
                               location=location)
 
@@ -890,7 +915,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         site, ext["entities"], ext["consistency"], location, discovery,
         ai_visibility=ai_visibility_cat, tavily_result=tavily_result,
         places_result=places_result, amadeus_result=amadeus_result,
-        guest_result=guest,
+        guest_result=guest, web=web,
+        social_found=([x["platform"] for x in listing_result.get("social", [])] if listing_result.get("status") == "ok" else None),
     )
 
     # Hotel types suggested by the site's own pages (free - no search needed);
@@ -929,18 +955,6 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         listing_checks = listing_facts.build(listing_result, hotel, guest, own_pages, _former)
     except Exception:  # noqa: BLE001 - an extra; the audit stands without it
         listing_checks = None
-
-    try:
-        web = web_future.result(timeout=120)
-    except Exception as e:  # noqa: BLE001 - these are extras; the audit stands without them
-        web = {"version": 1, "ai_policy": web_signals.ai_policy(site.get("robots")),
-               "llms_txt": {"status": "unavailable", "present": None, "reason": f"Not completed ({type(e).__name__})."},
-               "commoncrawl": {"source": "Common Crawl", "status": "unavailable", "items": [],
-                               "reason": f"Not completed in time ({type(e).__name__}), so this was not assessed."},
-               "pagespeed": {"source": "PageSpeed Insights", "status": "unavailable", "items": [],
-                             "reason": f"Not completed in time ({type(e).__name__}), so this was not assessed."}}
-    finally:
-        web_ex.shutdown(wait=False, cancel_futures=True)
 
     # What the sampled answers mean: who is recommended instead, which sources were used, is it right, why the hotel may not be named.
     ai_insight_result = None

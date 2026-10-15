@@ -40,6 +40,7 @@ class Manager:
         self.pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="audit")
         self.max_queue, self.per_hour = max_queue, per_hour
         self.jobs = {}
+        self.private = {}                # report token -> (time, data): the hotel's own review text from an upload at the start. Memory only, never stored, gone after an hour.
         self.by_visitor = collections.defaultdict(collections.deque)
         self.lock = threading.Lock()
 
@@ -47,6 +48,8 @@ class Manager:
         now = time.time()
         for k in [k for k, j in self.jobs.items() if j.finished and now - j.finished > KEEP_FINISHED_S]:
             self.jobs.pop(k, None)
+        for k in [k for k, (t, _d) in self.private.items() if now - t > KEEP_FINISHED_S]:
+            self.private.pop(k, None)
         for dq in self.by_visitor.values():
             while dq and now - dq[0] > 3600:
                 dq.popleft()
@@ -72,11 +75,20 @@ class Manager:
         job.messages.append("Starting the audit...")
         try:
             report = self.run_fn(job.params, lambda m: job.messages.append(str(m)[:200]))
+            private = report.pop("_review_private", None) if isinstance(report, dict) else None
             job.token = self.store_fn(report)
+            if private:
+                self.private[job.token] = (time.time(), private)
             job.status = "done"
         except Exception as e:  # noqa: BLE001 - show the real reason, never a stack trace
             job.status, job.error = "error", f"{type(e).__name__}: {e}"[:300]
+        job.params.pop("review_rows", None)       # the review text is not kept once the audit has used it
         job.finished = time.time()
+
+    def private_for(self, token):
+        """The private review results for this report, while they are still held (an hour), else None."""
+        hit = self.private.get(token)
+        return hit[1] if hit and time.time() - hit[0] <= KEEP_FINISHED_S else None
 
     def get(self, job_id):
         return self.jobs.get(job_id)

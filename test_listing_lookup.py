@@ -71,8 +71,8 @@ class Fake:
 fake = Fake([resp([(p["url"], p["title"]) for p in pages])])
 r = ll.run(HOTEL, CITY, client=fake)
 tool = fake.calls[0]["tools"][0]
-check("one call with the web-search tool, allowed a search per site, naming every site, and asking only to search", len(fake.calls) == 1 and tool["name"] == "web_search" and tool["max_uses"] == 9
-      and all(w in fake.calls[0]["messages"][0]["content"] for w in ("Expedia", "Booking.com", "Hotels.com", "TripAdvisor")))
+check("one call with the web-search tool, allowed a search per site, naming every site, and asking only to search", len(fake.calls) == 1 and tool["name"] == "web_search" and tool["max_uses"] == 13
+      and all(w in fake.calls[0]["messages"][0]["content"] for w in ("Expedia", "Booking.com", "Hotels.com", "TripAdvisor", "Facebook", "Instagram")))
 check("it returns the pages the search returned (the model's own words are not used) and the cost", r["status"] == "ok" and len(r["pages"]) == 6 and 0 < r["cost_usd"] < 0.30, r["cost_usd"])
 check("the platforms already found are left out of the request", "Expedia" not in Fake([resp([])]).calls and
       "Expedia" not in (lambda f: (ll.run(HOTEL, CITY, client=f, have=("Expedia",)), f.calls[0]["messages"][0]["content"])[1])(Fake([resp([])])))

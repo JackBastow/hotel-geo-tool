@@ -93,6 +93,32 @@ def property_code(start_url, scope=None):
     return ""
 
 
+_NOT_A_PLACE = _BRAND_OR_COMMON | {"airport", "apartments", "apartment", "residence", "residences", "collection", "hostel", "motel", "and", "by", "at", "of", "in", "centre", "center", "station",
+                                    "central", "city", "plaza", "garden", "gardens", "express", "premier", "plus", "boutique", "luxury", "beach", "lake", "view", "sheraton", "westin", "radisson",
+                                    "blu", "hyatt", "regency", "ibis", "budget", "styles", "novotel", "mercure", "pullman", "kimpton", "intercontinental", "crowne", "plaza", "renaissance", "meridien",
+                                    "four", "seasons", "ritz", "carlton", "mandarin", "oriental", "fairmont", "ambassador", "opera", "club", "tower", "towers", "palace", "castle", "court", "lodge"}
+
+
+def place_candidates(name, limit=6):
+    """
+    Words in a hotel's name (or address slug) that might be its town: 'Hilton Zurich Airport' -> ['zurich']. Brand, lodging and generic words are skipped; single words come first (later words
+    before earlier ones, because the town usually follows the brand), then pairs ('new york'). Each is only a candidate: the caller asks a place search whether it really is a town.
+    """
+    toks = [t for t in re.split(r"[^a-z\u00c0-\u024f]+", str(name or "").lower()) if len(t) >= 3]
+    keep = [t for t in toks if t not in _NOT_A_PLACE]
+    out = list(reversed(keep))
+    for i in range(len(toks) - 1, 0, -1):
+        a, b = toks[i - 1], toks[i]
+        if a not in _NOT_A_PLACE and b not in _NOT_A_PLACE:
+            out.append(f"{a} {b}")
+    seen, uniq = set(), []
+    for c in out:
+        if c not in seen:
+            seen.add(c)
+            uniq.append(c)
+    return uniq[:limit]
+
+
 def name_from_url(start_url, scope):
     """
     For a chain's page whose content we cannot read, the address itself usually names the hotel:
@@ -113,5 +139,6 @@ def name_from_url(start_url, scope):
     host = urllib.parse.urlparse(start_url).netloc.lower()
     brand = _BRAND_NAMES.get(toks[0]) if host.endswith("hilton.com") else None      # "doubletree-luxembourg" is "DoubleTree by Hilton Luxembourg"
     if brand:
-        return {"name": brand + " " + " ".join(t.capitalize() for t in toks[1:]), "city_candidates": [toks[-1]] + ([" ".join(toks[-2:])] if len(toks) >= 3 else [])}
-    return {"name": " ".join(t.capitalize() for t in toks), "city_candidates": [toks[-1]] + ([" ".join(toks[-2:])] if len(toks) >= 3 else [])}
+        full = brand + " " + " ".join(t.capitalize() for t in toks[1:])
+        return {"name": full, "city_candidates": place_candidates(" ".join(toks[1:])) or [toks[-1]]}
+    return {"name": " ".join(t.capitalize() for t in toks), "city_candidates": place_candidates(" ".join(toks)) or [toks[-1]]}

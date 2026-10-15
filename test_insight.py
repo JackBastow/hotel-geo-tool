@@ -707,8 +707,16 @@ check("the same pages read normally DO get technical findings (the safeguard is 
 sc_txt = scoring.build_scorecard({"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}, [], [], {}, {"profiles": []},
                                  guest_result={"pages_ok": 6, "pages_attempted": 6, "questions": [], "conflicts": [], "own_facts_node": {}, "read_via": "anthropic_page_reader"})
 bx = {c["key"]: c for c in sc_txt["categories"]}
-check("the scorecard does not score Website & Technical or Social from a text-only read, and says why",
-      not bx["website"]["assessed"] and not bx["social"]["assessed"] and "plain text" in bx["website"]["detail"])
+check("with too little else to go on, a text-only read leaves Website & Technical and Social not assessed, and says why",
+      not bx["website"]["assessed"] and not bx["social"]["assessed"] and "too little" in bx["website"]["detail"])
+_web = {"pagespeed": {"status": "ok", "scores": {"performance": 80, "accessibility": 90, "seo": 100, "best-practices": 90}}}
+sc_ps = scoring.build_scorecard({"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}, [], [], {}, {"profiles": []},
+                                guest_result={"pages_ok": 6, "pages_attempted": 6, "questions": [], "conflicts": [], "own_facts_node": {}, "read_via": "anthropic_page_reader"},
+                                web=_web, social_found=["Facebook", "Instagram"])
+bp = {c["key"]: c for c in sc_ps["categories"]}
+check("with Google's PageSpeed result, Website & Technical is assessed as partial, and Social is scored from profiles found by search",
+      bp["website"]["assessed"] and bp["website"].get("partial") and bp["social"]["assessed"] and 0 < bp["social"]["score"] <= 60)
+check("freshness is no longer a category of its own", "freshness" not in bp)
 check("the monthly budget guard exists and is in thousandths of a dollar", __import__("store").SERVICE_CAPS["claude"] == 100000)
 
 print("22. the content hub: rate inclusions, room configurations and the area around the hotel")

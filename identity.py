@@ -196,6 +196,9 @@ def names_hotel(url, title, snippet, hotel):
     hay = f"{slug} § {evidence.fold(title)}"
     if len(toks) >= 2 and " ".join(toks) in hay:
         return True
+    squash = lambda t: re.sub(r"[^a-z0-9]", "", t)        # noqa: E731
+    if len(toks) >= 2 and len(squash("".join(toks))) >= 8 and any(squash("".join(toks)) in squash(part) for part in hay.split("§")):
+        return True        # a social handle is the name run together ('hiltonzurichairport')
     # a long name with one extra word at the front or back (a property code, a brand prefix) still matches the listing's name without it
     if len(toks) >= 4 and (" ".join(toks[1:]) in hay or " ".join(toks[:-1]) in hay):
         return True

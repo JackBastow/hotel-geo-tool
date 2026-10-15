@@ -181,6 +181,60 @@ check("an earlier report can be compared, and the result is drawn", cmpr["ok"] a
 check("a file that is not JSON is refused", c.post(f"/api/r/{token}/compare", data={"file": (io.BytesIO(b"not json"), "x.json")}, content_type="multipart/form-data").status_code == 400)
 check("the upload endpoints do not work on an unknown report", c.post("/api/r/" + "b" * 30 + "/review-pack", data={"file": (io.BytesIO(csvdata.encode()), "x.csv")}, content_type="multipart/form-data").status_code == 404)
 
+print("5b. the review export uploaded with the audit, the prefilled form and the missing-town notice")
+
+
+def run_with_reviews(params, progress):
+    r = fake_run(params, progress)
+    if params.get("review_rows"):
+        r = audit_service._with_review_export(r, params["review_rows"], params.get("review_mapping") or {})
+    if params.get("hotel") == "NoTown":
+        r["meta"]["city"] = ""
+    return r
+
+
+appr = server.create_app(audit_service.Config({"ADMIN_PASSWORD": "open-sesame"}), run_fn=run_with_reviews)
+cr = appr.test_client()
+check("the form can be prefilled from the address (and the values are escaped), and offers the review upload",
+      b'value="brooklands.example"' in cr.get("/?website=brooklands.example&hotel=Zurich%20Airport").data and b'value="Zurich Airport"' in cr.get("/?hotel=Zurich%20Airport").data
+      and b"&lt;b&gt;" in cr.get("/?hotel=%3Cb%3E").data and b'name="reviews"' in cr.get("/").data)
+
+
+def run_job(client, **data):
+    rr = client.post("/api/audit", data=data, content_type="multipart/form-data")
+    assert rr.status_code == 200, rr.get_data(as_text=True)
+    jid_ = rr.get_json()["job"]
+    for _ in range(100):
+        jj = client.get(f"/api/job/{jid_}").get_json()
+        if jj["status"] in ("done", "error"):
+            return jj
+        time.sleep(0.1)
+    return jj
+
+
+jr = run_job(cr, website="brooklands.example", hotel="Brooklands Hotel", city="Weybridge", platform="Booking.com", reviews=(io.BytesIO(csvdata.encode()), "export.csv"))
+page_r = cr.get(f"/r/{jr['token']}").get_data(as_text=True)
+check("a review file sent with the form is analysed during the audit: the page shows the figures, the unanswered reviews and the drafts",
+      jr["status"] == "done" and "The file uploaded with this audit" in page_r and "Critical reviews still unanswered" in page_r and "noisy at night" in page_r and "Draft reply to finish" in page_r)
+saved_r = appr.extensions["reports"].load(jr["token"])
+check("what is saved is only counts and rates: the reviews are not in the report, and the scorecard uses them",
+      saved_r["review_pack"]["reviews"] == 3 and "noisy at night" not in json.dumps(saved_r, default=str) and "_review_private" not in saved_r
+      and next(x for x in saved_r["scorecard"]["categories"] if x["key"] == "reviews").get("from_review_pack"))
+check("the review text is not kept on the job once it finished, and is held only for the hour",
+      all("review_rows" not in j_.params for j_ in appr.extensions["jobs"].jobs.values()) and appr.extensions["jobs"].private_for(jr["token"]) is not None and appr.extensions["jobs"].private_for("zzz") is None)
+appr.extensions["jobs"].private[jr["token"]] = (time.time() - 4000, appr.extensions["jobs"].private[jr["token"]][1])
+check("after an hour the private part is gone, and the page shows only the saved figures", appr.extensions["jobs"].private_for(jr["token"]) is None
+      and "noisy at night" not in cr.get(f"/r/{jr['token']}").get_data(as_text=True))
+bad = cr.post("/api/audit", data={"website": "brooklands.example", "reviews": (io.BytesIO(b"a,b" + bytes([10]) + b"1,2" + bytes([10])), "x.csv")}, content_type="multipart/form-data")
+check("a review file that is not an export is refused before the audit starts, with the columns it found", bad.status_code == 400 and "columns" in bad.get_json()["error"])
+plain = run_job(cr, website="brooklands.example", hotel="Brooklands Hotel", city="Weybridge")
+check("an audit without a file works as before", plain["status"] == "done" and "review_pack" not in appr.extensions["reports"].load(plain["token"]))
+nt = run_job(cr, website="brooklands.example", hotel="NoTown")
+nt_page = cr.get(f"/r/{nt['token']}").get_data(as_text=True)
+check("when the hotel is known but the town is not, the report says what was skipped and links to the form with the website and hotel filled in",
+      "town could not be worked out" in nt_page and "/?website=brooklands.example" in nt_page.replace("&amp;", "&") and "hotel=NoTown" in nt_page.replace("&amp;", "&"))
+check("when the town is known there is no such notice", "town could not be worked out" not in page_r)
+
 print("6. a busy service")
 mgr = jobs.Manager(lambda p, prog: (time.sleep(0.4), {"meta": {}})[1], lambda r: "tok", workers=1, max_queue=2, per_hour=100)
 j1, _ = mgr.submit({"website": "a.example.com"}, "v1")

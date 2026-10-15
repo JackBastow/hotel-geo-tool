@@ -31,6 +31,12 @@ def _notices(fa_res):
                  if (fa_res.get("guest_questions") or {}).get("read_via")
                  else "The website could not be read, so the hotel was identified from its web address as ") + f"\"{meta['hotel']}\""
                 + (f" in {meta['city']}" if meta.get("city") else "") + ". That is a guess: type the exact hotel name and city and run the audit again if it is wrong.")
+    if meta.get("hotel") and not meta.get("city"):
+        import urllib.parse
+        link = "/?" + urllib.parse.urlencode({"website": meta.get("website", ""), "hotel": meta["hotel"]})
+        st.warning("The town could not be worked out from the website or the hotel's name, so the AI answers, the listing lookup and the local-context checks were skipped. "
+                   "Run it again with the town filled in to include them: it is the single biggest thing that changes what this report can measure.")
+        st.raw(f'<p><a class="btn primary" href="{html.escape(link, quote=True)}">Run it again with the town filled in</a></p>')
     if not meta.get("hotel"):
         st.warning("The hotel's name couldn't be worked out from the website, so the outside checks (listings, media coverage, local context, open-data "
                    "lookups) could not run. Type the hotel name and city and run the audit again to include them.")
@@ -158,7 +164,7 @@ COMPARE_FORM = """
 </div>"""
 
 
-def _review_pack_intro(fa_res, token):
+def _review_pack_intro(fa_res, token, private=None):
     st.markdown("##### The hotel's own reviews: upload an export")
     st.caption("Booking.com, Tripadvisor, Google and Expedia all let the hotel export its reviews. Upload that file and every review and reply in it is analysed, instead of the handful "
                "that public search shows. Reviewer names are never read. The text of the reviews is analysed in this session and is not saved: only counts and rates are kept with the report.")
@@ -170,7 +176,10 @@ def _review_pack_intro(fa_res, token):
                     "- **Any spreadsheet** works if it has a rating or a review text, and, where you have them, a reply and the dates. Column names are recognised in English.")
     if token:
         st.raw(REVIEW_FORM.format(token=html.escape(token, quote=True)))
-    if fa_res.get("review_pack"):
+    if private:
+        st.markdown("##### The file uploaded with this audit")
+        st.raw(pack_html(private["res"], private["mapping"], included=True))
+    elif fa_res.get("review_pack"):
         st.markdown("##### The last analysis saved with this report")
         ui_consult._pack_public(fa_res["review_pack"])
         st.caption("Upload the file again to see the unanswered critical reviews and starting drafts, which are not saved.")
@@ -215,7 +224,7 @@ def _tools(fa_res, token):
 TABS = [("overview", "Overview"), ("action", "Action plan"), ("ai", "AI visibility"), ("site", "Your website"), ("reputation", "Reputation & listings"), ("score", "Scorecard"), ("tools", "Tools & method")]
 
 
-def render(fa_res, token=None, prev=None):
+def render(fa_res, token=None, prev=None, private=None):
     """
     -> the HTML of the report body (notices, then seven tabs) for a finished audit report. `prev` is the hotel's previous audit's summary row, when there is one, for 'since last audit'.
     The tabs are Overview and Action plan (dashboard_view.py, built for acting on) and the evidence tabs (the Streamlit screens drawn through htmlst).
@@ -255,7 +264,7 @@ def render(fa_res, token=None, prev=None):
         for tab, fn in zip(subs, ("reviews", "identity", "media", "traveller", "social_local")):
             with tab:
                 if fn == "reviews":
-                    _review_pack_intro(fa_res, token)
+                    _review_pack_intro(fa_res, token, private)
                     ui_consult.review_card(fa_res.get("review_snapshot"))
                 if fn == "identity":
                     ui_consult.listing_checks_card(fa_res.get("listing_checks"))
@@ -279,7 +288,7 @@ def render(fa_res, token=None, prev=None):
     return f'{notices}<div class="tabs top"><div class="tab-bar" role="tablist">{nav}</div>{body}</div>'
 
 
-def pack_html(res, mapping):
+def pack_html(res, mapping, included=False):
     """The result of a review-export upload as HTML: the figures (counts and rates), then the unanswered critical reviews with starting drafts. Sent to the visitor's browser only; the review text is not stored."""
     import csv
     import io
@@ -288,7 +297,8 @@ def pack_html(res, mapping):
     def body():
         used = ", ".join(f"{k}: '{md_safe(v)}'" for k, v in mapping.items())
         st.caption("Columns used: " + used + ".")
-        st.success("The Reviews & Reputation score, the plan and the readiness figure now include this file. Reload the report to see them in the Scorecard and Overview.")
+        st.success("The Reviews & Reputation score, the plan and the readiness figure include this file." if included
+                   else "The Reviews & Reputation score, the plan and the readiness figure now include this file. Reload the report to see them in the Scorecard and Overview.")
         ui_consult._pack_public(res["public"])
         un = res["private"]["unanswered"]
         if un:

@@ -83,8 +83,20 @@
       errBox.hidden = true;
       go.disabled = true;
       var fd = new FormData(form);
-      var body = { website: fd.get("website"), hotel: fd.get("hotel"), city: fd.get("city"), tier: fd.get("tier"), wider: fd.get("wider") ? "1" : "0", audiences: fd.getAll("audiences") };
-      fetch("/api/audit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      var file = $("#f-reviews") && $("#f-reviews").files[0];
+      var req;
+      if (file) {
+        var mf = new FormData();      /* with a review file the form goes as multipart; the file is read by the server for this run only */
+        ["website", "hotel", "city", "tier", "platform"].forEach(function (k) { mf.append(k, fd.get(k) || ""); });
+        mf.append("wider", fd.get("wider") ? "1" : "0");
+        fd.getAll("audiences").forEach(function (a) { mf.append("audiences", a); });
+        mf.append("reviews", file);
+        req = { method: "POST", body: mf };
+      } else {
+        var body = { website: fd.get("website"), hotel: fd.get("hotel"), city: fd.get("city"), tier: fd.get("tier"), wider: fd.get("wider") ? "1" : "0", audiences: fd.getAll("audiences") };
+        req = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+      }
+      fetch("/api/audit", req)
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (res) {
           if (!res.ok || !res.j.ok) { fail(res.j.error || "Something went wrong. Please try again."); return; }

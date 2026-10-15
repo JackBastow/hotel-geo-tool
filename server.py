@@ -222,7 +222,8 @@ def create_app(cfg=None, run_fn=None):
     # ------------------------------------------------------------------ pages
     @app.get("/")
     def index():
-        return render_template("index.html", audiences=[(k, lbl) for k, lbl, *_r in ai_niche.AUDIENCES], saves=bool(cfg.database_url))
+        pre = {k: (request.args.get(k) or "").strip()[:300] for k in ("website", "hotel", "city")}
+        return render_template("index.html", audiences=[(k, lbl) for k, lbl, *_r in ai_niche.AUDIENCES], saves=bool(cfg.database_url), pre=pre)
 
     @app.get("/healthz")
     def healthz():
@@ -232,6 +233,12 @@ def create_app(cfg=None, run_fn=None):
     def api_audit():
         d = request.get_json(silent=True) or request.form
         site = valid_website(d.get("website"))
+        rows, mapping = None, None
+        f = request.files.get("reviews")
+        if f and f.filename:
+            rows, mapping, err = _read_reviews(f, (d.get("platform") or "").strip()[:30])
+            if err:
+                return jsonify(ok=False, error=err), 400
         if not site:
             return jsonify(ok=False, error="Enter the hotel's website address, for example brooklandshotelsurrey.com"), 400
         if not netguard.url_ok(site if "//" in site else "https://" + site):
@@ -239,12 +246,27 @@ def create_app(cfg=None, run_fn=None):
         aud = d.getlist("audiences") if hasattr(d, "getlist") else d.get("audiences") or []
         params = {"website": site, "hotel": (d.get("hotel") or "").strip()[:120], "city": (d.get("city") or "").strip()[:120], "wider": str(d.get("wider", "1")).lower() not in ("0", "false", "off", ""),
                   "tier": (d.get("tier") or None) if (d.get("tier") or "") in audit_service.TIERS else None, "audiences": [a for a in (aud if isinstance(aud, list) else [])][:8]}
+        if rows:
+            params["review_rows"], params["review_mapping"] = rows, mapping        # held in memory for the job only; dropped when it finishes
         job, why = manager.submit(params, visitor_id())
         if job is None:
             msg = ("The service is busy with other audits. Please try again in a few minutes." if why == "busy"
                    else f"This service runs up to {cfg.audits_per_hour} audits an hour for each visitor. Please try again later.")
             return jsonify(ok=False, error=msg), 429
         return jsonify(ok=True, job=job.id)
+
+    def _read_reviews(f, platform):
+        """-> (normalised reviews, column mapping, error) for an uploaded review export."""
+        rows, err = review_pack.read_table(f.read(), f.filename or "")
+        if err:
+            return None, None, err
+        mapping = review_pack.map_columns(list(rows[0]))
+        if not any(mapping.get(k) for k in ("rating", "text", "reply", "positive", "negative")):
+            return None, None, "No rating, review or reply column was recognised in the review file. The columns in it are: " + ", ".join(list(rows[0])[:20]) + "."
+        norm = review_pack.normalise(rows, mapping, platform)
+        if not norm:
+            return None, None, "No reviews could be read from the review file."
+        return norm, mapping, ""
 
     @app.get("/api/job/<job_id>")
     def api_job(job_id):
@@ -265,12 +287,14 @@ def create_app(cfg=None, run_fn=None):
     def report_page(token):
         rep = _report_or_404(token)
         sig = signature(rep)
+        private = manager.private_for(token)
         hit = reports.html.get(token)
-        if hit and hit[0] == sig:
+        if hit and hit[0] == sig and not private:
             body = hit[1]
         else:
-            body = report_view.render(rep, token=token, prev=reports.previous(token))
-            reports.html[token] = (sig, body)
+            body = report_view.render(rep, token=token, prev=reports.previous(token), private=private)
+            if not private:
+                reports.html[token] = (sig, body)
         meta = rep["meta"]
         loc = meta.get("location") or {}
         chips = [f"Run {meta['run_at'][:16].replace('T', ' ')} UTC", f"Name {meta.get('hotel_name_source', '')}"]
