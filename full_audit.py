@@ -242,6 +242,11 @@ def tidy_typed_name(given, site, base, scope):
     -> (name, changed).
     """
     given = (given or "").strip()
+    # a name copied from the address ('Paroa Paris Marriott Opera Ambassador Hotel') carries the chain's property code at the front: the hotel is called without it
+    code = urlscope.property_code(base, scope)
+    words = given.split()
+    if code and len(words) >= 3 and words[0].lower() == code:
+        return " ".join(words[1:]), True
     squash = lambda t: re.sub(r"[^a-z0-9]", "", (t or "").lower())      # noqa: E731
     g = squash(given)
     if " " in given or len(g) < 8:

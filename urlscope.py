@@ -75,6 +75,24 @@ _BRAND_NAMES = {"doubletree": "DoubleTree by Hilton", "hampton": "Hampton by Hil
                 "curio": "Curio Collection by Hilton", "tapestry": "Tapestry Collection by Hilton", "waldorf": "Waldorf Astoria", "embassy": "Embassy Suites by Hilton"}
 
 
+_CODE_HOSTS = ("marriott.com",)        # their address is /hotels/<5-letter property code>-<hotel name>/ (paroa-paris-marriott-opera-ambassador-hotel)
+
+
+def property_code(start_url, scope=None):
+    """The property code at the front of a chain hotel's address slug ('paroa', 'lxmhidi'), or '' when the slug has none."""
+    path = scope or urllib.parse.urlparse(start_url).path
+    segs = [s for s in path.split("/") if s]
+    if not segs:
+        return ""
+    toks = [t for t in re.split(r"[-_]+", segs[-1].lower()) if t]
+    host = urllib.parse.urlparse(start_url).netloc.lower()
+    if len(toks) >= 3 and toks[0] not in _BRAND_OR_COMMON and (
+            (re.fullmatch(r"[a-z]{5,8}", toks[0]) and sum(c in "aeiou" for c in toks[0]) <= 2)
+            or (host.endswith(_CODE_HOSTS) and re.fullmatch(r"[a-z]{5}", toks[0]))):
+        return toks[0]
+    return ""
+
+
 def name_from_url(start_url, scope):
     """
     For a chain's page whose content we cannot read, the address itself usually names the hotel:
@@ -88,7 +106,7 @@ def name_from_url(start_url, scope):
         return {"name": "", "city_candidates": []}
     slug = segs[-1]
     toks = [t for t in re.split(r"[-_]+", slug.lower()) if t]
-    if len(toks) >= 3 and re.fullmatch(r"[a-z]{5,8}", toks[0]) and toks[0] not in _BRAND_OR_COMMON and sum(c in "aeiou" for c in toks[0]) <= 2:
+    if property_code(start_url, scope):
         toks = toks[1:]
     if not (2 <= len(toks) <= 8) or any(t.isdigit() for t in toks):
         return {"name": "", "city_candidates": []}

@@ -196,6 +196,9 @@ def names_hotel(url, title, snippet, hotel):
     hay = f"{slug} § {evidence.fold(title)}"
     if len(toks) >= 2 and " ".join(toks) in hay:
         return True
+    # a long name with one extra word at the front or back (a property code, a brand prefix) still matches the listing's name without it
+    if len(toks) >= 4 and (" ".join(toks[1:]) in hay or " ".join(toks[:-1]) in hay):
+        return True
     return len(toks) >= 3 and all(re.search(r"(?<![a-z0-9])" + re.escape(tk) + r"(?![a-z0-9])", hay) for tk in toks)
 
 

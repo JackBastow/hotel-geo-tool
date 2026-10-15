@@ -131,6 +131,21 @@ ec._get_json = lambda url, params: (None, "HTTP 429")
 r = ec.check_openstreetmap(HOTEL, CITY)
 check("a lookup that failed is an error, not 'missing' (so no advice to add the hotel)", r.get("error") == "HTTP 429" and not r["found"])
 
+print("6. a name copied from a chain's address (seen live: 'Paroa Paris Marriott Opera Ambassador Hotel')")
+import full_audit as _fa
+import urlscope as _us
+MU = "https://www.marriott.com/en-us/hotels/paroa-paris-marriott-opera-ambassador-hotel/overview/"
+msc = _us.normalise(MU)[1]
+check("the property code at the front of a Marriott or Hilton address is found, and the name from the address leaves it out",
+      _us.property_code(MU, msc) == "paroa" and _us.name_from_url(MU, msc)["name"] == "Paris Marriott Opera Ambassador Hotel" and _us.property_code("https://www.hilton.com/en/hotels/zrhhitw-hilton-zurich-airport/", "/en/hotels/zrhhitw-hilton-zurich-airport/") == "zrhhitw"
+      and _us.property_code("https://www.brooklandshotelsurrey.com/", "/") == "")
+check("a typed name that starts with that code is cleaned to the hotel's real name, so listings and AI answers are matched on it",
+      _fa.tidy_typed_name("Paroa Paris Marriott Opera Ambassador Hotel", {"pages": []}, MU, msc) == ("Paris Marriott Opera Ambassador Hotel", True)
+      and _fa.tidy_typed_name("Paris Marriott Opera Ambassador Hotel", {"pages": []}, MU, msc) == ("Paris Marriott Opera Ambassador Hotel", False))
+check("and if the name is still typed with an extra word at the front, a listing without it is still the hotel (four or more distinctive words)",
+      identity.names_hotel(EXPEDIA, "Hotel Information", "", "Paroa Paris Marriott Opera Ambassador Hotel") and identity.names_hotel(EXPEDIA, "Hotel Information", "", "Paris Marriott Opera Ambassador Hotel Annex")
+      and not identity.names_hotel("https://www.expedia.co.uk/Paris-Hotels-Ambassador.h1.Hotel-Information", "Ambassador", "", "Paroa Paris Marriott Opera Ambassador Hotel"))
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

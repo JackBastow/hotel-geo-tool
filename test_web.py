@@ -250,7 +250,7 @@ check("reports, downloads, uploads, the audit API and the admin pages are all cl
       and g.get("/api/job/abc").status_code == 401 and g.post("/api/r/" + "a" * 30 + "/review-pack").status_code == 401)
 check("the uptime monitor and the sign-in page's own files stay open", g.get("/healthz").status_code == 200 and g.get("/static/app.css").status_code == 200)
 time.sleep(0)
-bad_login = g.post("/login", data={"password": "westmont"})
+bad_login = g.post("/login", data={"password": "wrong-guess"})
 check("a wrong password (even a different capital) is refused and nothing opens", b"not right" in bad_login.data and g.get("/").status_code == 302)
 good = g.post("/login", data={"password": "Westmont-test", "next": "/r/" + "a" * 30})
 check("the right password signs in and goes where the visitor was heading", good.status_code == 302 and good.headers["Location"].endswith("/r/" + "a" * 30) and g.get("/").status_code == 200)
