@@ -11,16 +11,18 @@ The Hotel AI Discoverability Audit as a Flask site (served by Waitress; see wsgi
 All the audit logic is the same Python as before; this file is only the web layer. Keys come from environment variables on the host.
 """
 
+import collections
 import hashlib
 import json
 import os
 import re
 import secrets
+import hmac
 import threading
 import time
 import urllib.parse
 
-from flask import Flask, Response, abort, jsonify, render_template, request
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import ai_niche
@@ -137,12 +139,60 @@ def create_app(cfg=None, run_fn=None):
     cfg = cfg or audit_service.Config()
     app = Flask(__name__, template_folder=os.path.join(HERE, "web", "templates"), static_folder=os.path.join(HERE, "web", "static"), static_url_path="/static")
     app.config["MAX_CONTENT_LENGTH"] = 6 * 1024 * 1024
+    app.config["PERMANENT_SESSION_LIFETIME"] = 30 * 24 * 3600
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("RENDER") or os.environ.get("SESSION_COOKIE_SECURE"))
     app.config["SECRET_KEY"] = cfg.secret_key or (hashlib.sha256(((cfg.admin_password or "") + "hotel-audit").encode()).hexdigest() if cfg.admin_password else secrets.token_hex(32))
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
     store.configure_db(cfg.database_url)
     reports = Reports(cfg.database_url)
     manager = jobs.Manager(run_fn or (lambda params, progress: audit_service.run(params, cfg, progress)), reports.save, workers=2, max_queue=cfg.max_queue, per_hour=cfg.audits_per_hour)
     app.extensions["cfg"], app.extensions["reports"], app.extensions["jobs"] = cfg, reports, manager
+
+    # ---------------------------------------------------------------- site password
+    # When SITE_PASSWORD is set the whole site (pages, reports, uploads, admin) needs it first, so that only people who were given it can use the service and spend its free allowances.
+    # /healthz stays open for the uptime monitor, and so do the stylesheet and script the sign-in page itself needs. Wrong guesses are slowed and limited.
+    failed = collections.defaultdict(list)
+
+    @app.before_request
+    def site_gate():
+        if not cfg.site_password or session.get("site_ok") is True:
+            return None
+        if request.path in ("/healthz", "/login") or request.path.startswith("/static/"):
+            return None
+        if request.path.startswith("/api/"):
+            return jsonify(ok=False, error="Please sign in first."), 401
+        return redirect("/login?next=" + urllib.parse.quote(request.full_path.rstrip("?") if request.method == "GET" else "/", safe="/"))
+
+    @app.route("/login", methods=["GET", "POST"])
+    def site_login():
+        if not cfg.site_password:
+            return redirect("/")
+        nxt = request.values.get("next") or "/"
+        nxt = nxt if (nxt.startswith("/") and not nxt.startswith("//") and "\\" not in nxt and not nxt.startswith("/login")) else "/"
+        error = ""
+        if request.method == "POST":
+            ip = request.remote_addr or "?"
+            now = time.time()
+            failed[ip] = [t for t in failed[ip] if now - t < 600]
+            if len(failed[ip]) >= 6:
+                error = "Too many wrong passwords. Please try again in ten minutes."
+            elif hmac.compare_digest((request.form.get("password") or "").encode(), cfg.site_password.encode()):
+                session.clear()
+                session["site_ok"] = True
+                session.permanent = True
+                return redirect(nxt)
+            else:
+                failed[ip].append(now)
+                time.sleep(1.2)
+                error = "That password is not right."
+        return render_template("login.html", error=error, nxt=nxt), (429 if error.startswith("Too many") else 200)
+
+    @app.post("/logout")
+    def site_logout():
+        session.clear()
+        return redirect("/login")
 
     @app.after_request
     def headers(resp):

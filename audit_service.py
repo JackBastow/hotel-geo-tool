@@ -41,6 +41,7 @@ class Config:
             self.repeats = None
         self.database_url = get("DATABASE_URL")
         self.admin_password = get("ADMIN_PASSWORD")
+        self.site_password = get("SITE_PASSWORD")          # when set, every page except /healthz asks for it first
         self.secret_key = get("SECRET_KEY")
         try:
             self.audits_per_hour = int(get("AUDITS_PER_HOUR_PER_VISITOR") or 4)

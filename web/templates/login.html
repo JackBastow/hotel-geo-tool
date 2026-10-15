@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Sign in: Hotel AI Discoverability Audit{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block nav %}{% endblock %}
+{% block content %}
+<section class="lead" style="margin-top:34px">
+  <h1>Hotel AI Discoverability Audit</h1>
+  <p>This service is for invited users. Enter the password you were given.</p>
+</section>
+<form class="panel" method="post" style="max-width:420px">
+  <input type="hidden" name="next" value="{{ nxt }}">
+  <label class="field"><span>Password</span><input type="password" name="password" autofocus autocomplete="current-password"></label>
+  <button class="btn primary" type="submit">Continue</button>
+  {% if error %}<div class="err" style="margin-top:14px">{{ error }}</div>{% endif %}
+</form>
+{% endblock %}

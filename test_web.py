@@ -239,6 +239,32 @@ check("signing out closes the pages again", ca.get("/admin/runs").status_code ==
 for _ in range(5):
     app2.test_client().post("/admin/login", data={"password": "nope"})
 
+print("8b. the site password")
+gcfg = audit_service.Config({"SITE_PASSWORD": "Westmont-test", "ADMIN_PASSWORD": "open-sesame", "AUDITS_PER_HOUR_PER_VISITOR": "9"})
+gapp = server.create_app(gcfg, run_fn=fake_run)
+g = gapp.test_client()
+home_r = g.get("/")
+check("with a site password, the home page sends a visitor to the sign-in page, remembering where they were going", home_r.status_code == 302 and home_r.headers["Location"].startswith("/login"))
+check("the sign-in page shows no report and no form, and is not indexed", b"Run audit" not in g.get("/login").data and b"noindex" in g.get("/login").data)
+check("reports, downloads, uploads, the audit API and the admin pages are all closed too", g.get("/r/" + "a" * 30).status_code == 302 and g.get("/admin").status_code == 302 and g.post("/api/audit", json={"website": "x.com"}).status_code == 401
+      and g.get("/api/job/abc").status_code == 401 and g.post("/api/r/" + "a" * 30 + "/review-pack").status_code == 401)
+check("the uptime monitor and the sign-in page's own files stay open", g.get("/healthz").status_code == 200 and g.get("/static/app.css").status_code == 200)
+time.sleep(0)
+bad_login = g.post("/login", data={"password": "westmont"})
+check("a wrong password (even a different capital) is refused and nothing opens", b"not right" in bad_login.data and g.get("/").status_code == 302)
+good = g.post("/login", data={"password": "Westmont-test", "next": "/r/" + "a" * 30})
+check("the right password signs in and goes where the visitor was heading", good.status_code == 302 and good.headers["Location"].endswith("/r/" + "a" * 30) and g.get("/").status_code == 200)
+check("a sign-in cannot be used to redirect to another site", g.post("/login", data={"password": "Westmont-test", "next": "//evil.example.com"}).headers["Location"] == "/" and g.post("/login", data={"password": "Westmont-test", "next": "https://evil.example.com"}).headers["Location"] == "/")
+check("once in, the audit works as before, and the admin pages still need the admin password", g.post("/api/audit", json={"website": "brooklandshotelsurrey.com"}).status_code == 200 and g.get("/admin/runs").status_code == 302 and "/admin/login" in g.get("/admin/runs").headers["Location"])
+g.post("/logout")
+check("signing out closes it again", g.get("/").status_code == 302)
+spam = gapp.test_client()
+for _ in range(6):
+    spam.post("/login", data={"password": "no"})
+check("after six wrong passwords further tries are refused for a while, even the right one", spam.post("/login", data={"password": "Westmont-test"}).status_code == 429)
+check("no password set means no gate (as it was)", c.get("/").status_code == 200)
+check("the password is nowhere in the code or the blueprint", "Westmont" not in open(os.path.join(HERE, "render.yaml"), encoding="utf8").read() and "SITE_PASSWORD" in open(os.path.join(HERE, "render.yaml"), encoding="utf8").read())
+
 print("9. deployment")
 import subprocess
 import sys

@@ -22,6 +22,10 @@ The site is `server.py` (Flask) served by Waitress (`python wsgi.py`). The audit
 6. **Check it.** Run an audit from the form; open `/admin` with your `ADMIN_PASSWORD`; confirm the run appears.
 7. **Switch over** when you are happy: share the new address, and stop the Streamlit app in Streamlit Cloud when you no longer want it (it can stay up meanwhile).
 
+## Password for the whole site
+
+Set `SITE_PASSWORD` in Render (Environment tab). While it is set, every page, report, upload and the admin pages ask for it first; only `/healthz` (for the uptime monitor) and the sign-in page's own files are open. Wrong guesses are slowed and limited. The admin pages keep their own, separate `ADMIN_PASSWORD`. Remove the variable to open the site again. Never put the password in the code or the repository.
+
 ## Things to know
 
 - A visitor's report link (`/r/<long random text>`) is private to them and is kept in the database, so it still works after a restart. It is never listed anywhere.
