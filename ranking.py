@@ -31,6 +31,8 @@ import math
 
 EFFORT_COST = {"low": 1.0, "medium": 1.8, "high": 3.0}
 CONF_FACTOR = {"Established good practice": 1.0, "Reasonable inference": 0.8, "Experimental": 0.55}
+# What the reader sees: a finding the evidence directly supports, or an inference drawn from it. (Internal basis names stay as they are.)
+CONF_LABEL = {"Established good practice": "Verified finding", "Reasonable inference": "Reasonable inference", "Experimental": "Reasonable inference (experimental)"}
 
 # (source, tag) -> (risk, traveller, visibility, kind)
 F = {
@@ -55,7 +57,7 @@ F = {
     ("machine", "entity_missing"): (3, 2, 4, "fix"), ("machine", "READ1"): (4, 3, 5, "fix"),
     ("machine", "cc_refused"): (3, 2, 4, "fix"), ("machine", "speed"): (3, 4, 3, "fix"), ("machine", "a11y"): (3, 3, 2, "fix"),
     # structured data - deliberately modest: accuracy and tidiness, not a ranking lever
-    ("structured", "SD1"): (1, 2, 2, "fix"), ("structured", "SD2"): (3, 2, 3, "fix"),
+    ("structured", "SD1"): (2, 3, 4, "fix"), ("structured", "SD2"): (3, 3, 3, "fix"),
     ("structured", "SD3"): (1, 1, 2, "fix"), ("structured", "SD4"): (1, 1, 2, "opportunity"),
     ("structured", "SD5"): (1, 1, 1, "opportunity"), ("structured", "SD6"): (1, 1, 1, "opportunity"),
     # findings that came from the outside-the-website evidence
@@ -66,6 +68,11 @@ F = {
     ("ai", "AI4"): (2, 4, 4, "opportunity"),     # not named where the hotel is positioned to compete: more telling than a town-wide list
     ("ai", "AI3"): (3, 4, 3, "fix"), ("ai", "AI2"): (1, 3, 3, "opportunity"),     # AI3: the assistant's statement differs from the hotel's own record
     ("ai", "AI1"): (1, 3, 3, "opportunity"),     # one sampled model did not name the hotel: upside to explore, not a defect
+    ("traveller", "TR-families"): (2, 4, 3, "fix"), ("traveller", "TR-business"): (2, 4, 3, "fix"), ("traveller", "TR-spa_couples"): (2, 4, 3, "fix"), ("traveller", "TR-location"): (2, 4, 4, "fix"),
+    ("competitors", "CP-spa_detail"): (2, 3, 3, "opportunity"), ("competitors", "CP-meeting_detail"): (2, 4, 3, "opportunity"), ("competitors", "CP-restaurant_detail"): (2, 3, 3, "opportunity"),
+    ("competitors", "CP-wedding_detail"): (2, 3, 3, "opportunity"), ("competitors", "CP-pool_detail"): (1, 3, 2, "opportunity"), ("competitors", "CP-connecting_rooms"): (2, 3, 3, "opportunity"),
+    ("booking", "BK1"): (4, 5, 3, "fix"), ("booking", "BK2"): (5, 5, 3, "fix"), ("booking", "BK3"): (2, 3, 3, "fix"),
+    ("external", "EX1"): (4, 4, 4, "fix"), ("external", "EX2"): (2, 3, 3, "fix"), ("external", "EX3"): (2, 3, 3, "opportunity"),
     ("intel", "F1"): (5, 5, 2, "fix"),       # official food-hygiene rating below 4
     ("intel", "V1"): (5, 5, 2, "fix"),       # a verified low rating on a review platform
     ("intel", "V2"): (2, 3, 1, "fix"),       # a low rating that may belong to another hotel
@@ -81,7 +88,7 @@ F = {
 }
 DEFAULT = {"questions": (3, 3, 3, "fix"), "location": (2, 4, 3, "fix"), "consistency": (2, 3, 2, "fix"),
            "hidden": (1, 3, 2, "opportunity"), "machine": (2, 2, 2, "fix"), "structured": (1, 2, 2, "fix"),
-           "intel": (2, 2, 2, "fix")}
+           "intel": (2, 2, 2, "fix"), "traveller": (2, 4, 3, "fix"), "competitors": (2, 3, 3, "opportunity"), "booking": (3, 4, 3, "fix"), "external": (2, 3, 3, "fix")}
 
 
 def tag_of(r):
@@ -108,6 +115,9 @@ def factors(r, qmap):
         return risk, trav, 3, ("fix" if standard else "opportunity")
     if src == "location":
         return F.get(("location", tag_of(r)), DEFAULT["location"])
+    if src == "traveller":
+        risk, trav, vis, kind = F.get(("traveller", tag_of(r)), DEFAULT["traveller"])
+        return r.get("risk_hint", risk), trav, vis, r.get("kind_hint", kind)       # a missing core fact is a fix; completing an optional extra is an opportunity
     return F.get((src, tag_of(r)), DEFAULT.get(src, (2, 2, 2, "fix")))
 
 
@@ -128,6 +138,8 @@ def annotate(recs, questions):
         conf = CONF_FACTOR.get(r["confidence"], 0.8)
         value = 100.0 * (0.40 * risk + 0.25 * trav + 0.20 * vis) / 4.25 * conf
         r["factors"] = {"risk": risk, "traveller": trav, "visibility": vis, "confidence": conf}
+        r["confidence_label"] = CONF_LABEL.get(r["confidence"], "Reasonable inference")
+        r["owner"] = (r.get("team") or "web").capitalize()
         r["kind"] = kind
         r["value"] = round(value, 1)
         r["rank"] = round(value / math.sqrt(EFFORT_COST[r["effort"]]), 1)

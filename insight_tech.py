@@ -24,6 +24,7 @@ import evidence
 import media
 
 HOTEL_TYPES = {"Hotel", "LodgingBusiness", "Resort", "BedAndBreakfast", "Motel", "Hostel", "Inn", "Campground"}
+LOCAL_TYPES = {"LocalBusiness"}          # a generic business type: better than nothing, but a hotel should say it is a Hotel (an Organization block is about the company, not the hotel)
 FOOD_TYPES = {"Restaurant", "FoodEstablishment", "BarOrPub", "CafeOrCoffeeShop"}
 CAUTION = ("Structured data helps machines read facts accurately. There is no evidence that adding it, on its own, makes an "
            "AI assistant recommend a hotel - treat it as accuracy and tidiness, not a ranking lever.")
@@ -70,13 +71,26 @@ def structured_audit(site, location, guest, intent_rows):
                       "advice": advice, "confidence": level, "optional": optional})
 
     hotel = [(u, n) for u, n in nodes if _types(n) & HOTEL_TYPES]
+    generic = [(u, n) for u, n in nodes if _types(n) & LOCAL_TYPES and not _types(n) & HOTEL_TYPES]
+    inspected = [p for p in site.pages]
+    relevant = [site.label(p) for p in inspected if site.is_home(p) or re.search(r"contact|about|room|accommodation|hotel-information", site.path(p), re.I)][:6]
+    scope = {"pages_inspected": len(inspected), "home_inspected": site.home is not None, "relevant_inspected": relevant, "types_seen": sorted({t for _u, n in nodes for t in n["types"]})[:10]}
     if errors:
         add("Valid JSON-LD", "incorrect", f"{errors} structured-data block(s) could not be read at all (invalid JSON).",
             advice="Fix the syntax so the block can be read; an unreadable block is the same as none.")
-    if not hotel:
+    if not hotel and generic:
+        u, gnode = max(generic, key=lambda x: len(x[1]["keys"]))
+        add("Hotel / LodgingBusiness", "could_improve",
+            f"Only a generic {', '.join(gnode['types'])} block was found (on {urllib.parse.urlparse(u).path or '/'}), not a Hotel or LodgingBusiness one, so the site does not say what kind of business it is in the standard terms for hotels.",
+            [{"url": u, "snippet": "Properties present: " + ", ".join(gnode["keys"][:14])}],
+            advice="Change the block's type to Hotel (or LodgingBusiness) and keep the properties it already has.", level=BEST)
+        best = None
+    elif not hotel:
         add("Hotel / LodgingBusiness", "missing",
-            "No Hotel or LodgingBusiness markup was found on any page read, so the website does not state its basic facts in a standard, machine-readable form.",
-            advice="Add one Hotel block to the homepage with the name, address, telephone, coordinates and links to the official profiles.",
+            f"No Hotel, LodgingBusiness or LocalBusiness markup was found in the page source of the {scope['pages_inspected']} page(s) inspected"
+            + (f" (including {', '.join(relevant[:4])})" if relevant else "")
+            + ". That is what the pages as delivered contain: markup added after the page loads (for example by a tag manager) is not visible to this check, and the pages not inspected were not looked at.",
+            advice="Add one Hotel block to the homepage with the name, address, telephone, coordinates and links to the official profiles. If a developer or tag manager already adds one, test the live page at search.google.com/test/rich-results first.",
             level=BEST)
         best = None
     else:
@@ -109,6 +123,12 @@ def structured_audit(site, location, guest, intent_rows):
 
         # --- is what it says correct?
         wrong = []
+        vis_names = " ".join([site.home.get("title", "")] + list(site.home.get("h1", []))) if site.home is not None else ""
+        if best["name"] and vis_names and site.hotel:
+            toks = evidence.distinctive_tokens(site.hotel)
+            nm = evidence.fold(str(best["name"]))
+            if toks and not any(t in nm for t in toks) and not any(t in evidence.fold(vis_names) for t in evidence.distinctive_tokens(str(best["name"]))):
+                wrong.append(("name", f"The markup names the hotel '{best['name']}', which shares no distinctive word with the name on the page ({site.hotel})."))
         page_tels = {_norm_tel(t) for p in site.pages for t in p.get("tels", []) if len(_digits(t)) >= 9}
         if best["telephone"] and page_tels and _norm_tel(best["telephone"]) not in page_tels:
             wrong.append(("telephone", f"The markup says {best['telephone']}, but the pages show {', '.join(sorted(page_tels))}."))
@@ -206,7 +226,7 @@ def structured_audit(site, location, guest, intent_rows):
     # --- events: only if relevant
     if any("Event" in _types(n) for _, n in nodes):
         add("Event", "present", "Event markup is present.")
-    return {"items": items, "node_count": len(nodes), "hotel_found": bool(hotel), "best": best, "caution": CAUTION}
+    return {"items": items, "node_count": len(nodes), "hotel_found": bool(hotel), "generic_only": bool(generic and not hotel), "best": best, "caution": CAUTION, "scope": scope}
 
 
 def _key_of(u):
@@ -376,18 +396,54 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
         out.append(_f("understanding", "h1", f"{len(h1bad)} pages don't have exactly one main heading", "issue", "low",
                       ", ".join(f"{urllib.parse.urlparse(r['url']).path or '/'} ({r['h1_count']})" for r in h1bad[:5]),
                       "A single clear main heading states what each page is about.", "Give each page one H1 that names its topic.", level=INFER))
-    imgs = sum(r.get("images_total") or 0 for r in pm)
-    noalt = sum(r.get("images_no_alt") or 0 for r in pm)
-    if imgs >= 10 and noalt / imgs > 0.5:
-        ex = next(((r["url"], f) for r in site.pages for f in ((r.get("signals") or {}).get("images") or {}).get("files", []) if not f["alt"]), None)
-        out.append(_f("understanding", "alt", f"{noalt} of {imgs} images have no alt text", "issue", "medium",
-                      "More than half the images on the pages read have no description" + (f" (for example {ex[1]['src']})" if ex else "") +
-                      ". Some may be purely decorative.",
-                      "Important information contained only in images is less reliably discoverable, indexable and accessible than clear text and descriptive alt text; screen-reader guests also get nothing from an undescribed image.",
-                      "Describe the important images (rooms, facilities, views) in a short, factual alt text.",
-                      [{"url": ex[0], "snippet": f"image {ex[1]['src']} has no alt attribute"}] if ex else None, level=BEST))
-    elif imgs:
-        out.append(_f("understanding", "alt_ok", "Most images have alt text", "ok", "none", f"{imgs - noalt} of {imgs} images are described.", ""))
+    # Only real, content images count: tracking pixels, base64 or 1-pixel placeholders, icons, logos and images marked decorative are left out. The ones that matter most are the key images
+    # (rooms, food and drink, the spa, the hotel's facilities). Older reports have no such split, so they fall back to the plain count.
+    split = any(r.get("images_content") is not None for r in pm)
+    if split:
+        content = sum(r.get("images_content") or 0 for r in pm)
+        noalt = sum(r.get("images_no_alt") or 0 for r in pm)
+        key = sum(r.get("images_key") or 0 for r in pm)
+        key_no = sum(r.get("images_key_no_alt") or 0 for r in pm)
+        skipped = {k: sum(((r.get("images_skipped") or {}).get(k) or 0) for r in pm) for k in ("placeholders", "tracking", "decorative")}
+        sk_text = f"{sum(skipped.values())} placeholder, tracking or decorative image(s) were left out of the count"
+        names = {"room": "room", "restaurant": "restaurant and bar", "spa": "spa and pool", "facility": "meeting, event and garden"}
+        per_page = sorted(((r["url"], r.get("images_key_no_alt") or 0, r.get("images_key") or 0, ((r.get("signals") or {}).get("images") or {}).get("key_files", [{}])[:1]) for r in pm if (r.get("images_key_no_alt") or 0) > 0),
+                          key=lambda t: -t[1])[:3]
+        kinds_by_page = {}
+        for r in site.pages:
+            kf0 = ((r.get("signals") or {}).get("images") or {}).get("key_files", [])
+            if kf0:
+                kinds_by_page[r["url"]] = kf0[0]
+        if key_no >= 3 or (content >= 8 and noalt / content > 0.5):
+            kinds_row = {r["url"]: r.get("images_key_kinds") or {} for r in pm}
+            ev_rows = [{"url": u, "snippet": f"{n} of the {tot} room, restaurant, spa and facility images on this page have no alt attribute ("
+                        + ", ".join(f"{names[k_]} {c_}" for k_, c_ in sorted(kinds_row.get(u, {}).items(), key=lambda kv: -kv[1])) + ")"
+                        + (f", for example {kinds_by_page[u]['src']}" if u in kinds_by_page else "")} for u, n, tot, _ in per_page]
+            kind_counts = {}
+            for r in pm:
+                for k_, n_ in (r.get("images_key_kinds") or {}).items():
+                    kind_counts[k_] = kind_counts.get(k_, 0) + n_
+            kinds_text = ", ".join(f"{names[k_]} ({n_})" for k_, n_ in sorted(kind_counts.items(), key=lambda kv: -kv[1])) or "rooms, dining, the spa and facilities"
+            out.append(_f("understanding", "alt", f"{key_no} of {key} room, restaurant, spa and facility images have no alt text" if key_no else f"{noalt} of {content} content images have no alt text", "issue", "medium",
+                          (f"{key_no} of the {key} room, restaurant, spa and facility pictures on the pages read have no description: {kinds_text}" if key_no else f"{noalt} of {content} content images have no description")
+                          + f". {sk_text}.",
+                          "Important information contained only in images is less reliably discoverable, indexable and accessible than clear text and descriptive alt text; screen-reader guests also get nothing from an undescribed image.",
+                          "Add a short, factual alt text to the room, restaurant, spa and facility photographs first, starting with the pages listed (for example 'Superior double room with garden view'); leave decorative images empty.",
+                          ev_rows or None, level=BEST))
+        elif content:
+            out.append(_f("understanding", "alt_ok", "The images that matter have alt text", "ok", "none", f"{content - noalt} of {content} content images are described; {sk_text}.", ""))
+    else:
+        imgs = sum(r.get("images_total") or 0 for r in pm)
+        noalt = sum(r.get("images_no_alt") or 0 for r in pm)
+        if imgs >= 10 and noalt / imgs > 0.5:
+            ex = next(((r["url"], f) for r in site.pages for f in ((r.get("signals") or {}).get("images") or {}).get("files", []) if not f["alt"]), None)
+            out.append(_f("understanding", "alt", f"{noalt} of {imgs} images have no alt text", "issue", "medium",
+                          "More than half the images on the pages read have no description" + (f" (for example {ex[1]['src']})" if ex else "") + ". Some may be purely decorative.",
+                          "Important information contained only in images is less reliably discoverable, indexable and accessible than clear text and descriptive alt text; screen-reader guests also get nothing from an undescribed image.",
+                          "Describe the important images (rooms, facilities, views) in a short, factual alt text.",
+                          [{"url": ex[0], "snippet": f"image {ex[1]['src']} has no alt attribute"}] if ex else None, level=BEST))
+        elif imgs:
+            out.append(_f("understanding", "alt_ok", "Most images have alt text", "ok", "none", f"{imgs - noalt} of {imgs} images are described.", ""))
     ents = [e for e in entities or [] if e.get("found") and e.get("match_confident") is True]
     if not site.hotel:
         out.append(_f("understanding", "entity_unknown", "The hotel's name could not be determined, so no open-data lookup was made", "info", "none",
@@ -531,7 +587,7 @@ def _band(s):
 
 
 def readiness_profile(site, guest, intent_rows, location_res, structured, findings, consistency_items, intel,
-                      coverage=None, map_failed=()):
+                      coverage=None, map_failed=(), traveller=None, external=None):
     comps = []
 
     def comp(key, label, score, drivers, assessed=True, note=""):
@@ -604,9 +660,20 @@ def readiness_profile(site, guest, intent_rows, location_res, structured, findin
              + [f"- {i['place'] or i['label']}: {i['state'].replace('_', ' ')}" for i in graded if i["state"] != "stated"][:4],
              note="Does the site tie the hotel to the places guests care about?")
 
-    # Traveller-intent coverage
+    # Traveller recommendation readiness: the requirements each kind of traveller needs, met or not. Repetition of a word earns nothing; the older keyword-based view is used only when the
+    # requirement check could not run.
+    tsum = (traveller or {}).get("summary") or {}
     with_ev = [r for r in intent_rows if r["level"] != "none"]
-    if not with_ev:
+    if tsum.get("judged"):
+        lines = []
+        for seg in traveller["segments"]:
+            c = seg["counts"]
+            lines.append(f"{seg['label']}: {c['confirmed']} confirmed, {c['partial']} partly, {c['missing']} missing" + (f", {c['unknown']} unknown" if c["unknown"] else ""))
+        if tsum.get("unknown"):
+            lines.append(f"{tsum['unknown']} requirement(s) could not be judged and are not counted")
+        comp("intent", "Traveller recommendation readiness", tsum["score"], lines,
+             note="Does the site state what each kind of traveller needs to know? Counted by requirement, not by how often a word appears.")
+    elif not with_ev:
         comp("intent", "Traveller-intent coverage", 0, ["no clear traveller focus found on the pages read"], assessed=False)
     else:
         w = {"strong": 1.0, "some": 0.6, "weak": 0.25}
@@ -646,15 +713,25 @@ def readiness_profile(site, guest, intent_rows, location_res, structured, findin
     else:
         comp("structured", "Structured data", 0, ["nothing to assess"], assessed=False)
 
-    # External authority
-    if intel and "error" not in intel and intel["methodology"]["queries"]:
+    # External authority: how well the hotel is represented outside its own site, weighed by what could be VERIFIED and by the quality of each source, not by how many websites mention it
+    import external_presence as _ep
+    ext_score = _ep.authority_score(external) if external else None
+    if ext_score is not None:
+        ex = external["summary"]
+        pub = external["publications"]
+        comp("authority", "External presence (verified)", ext_score,
+             [f"{ex['verified']} source(s) verified against open data, {ex['identified']} identified in search results but not read, {ex['contradicts']} contradicting the website, {ex['not_verified']} not verified",
+              f"{pub['publishers']} independent publisher(s) found, {pub['strong']} of them substantial; weighted {pub['weighted']}, {pub['recent']} recent",
+              "Capped: platforms cannot be read and guest reviews are not measured. A source that could not be verified neither adds nor subtracts."],
+             note="Can the right hotel be identified on each outside source, and do they agree with the website? Quality over quantity.")
+    elif intel and "error" not in intel and intel["methodology"]["queries"]:
         md = intel["media"]["summary"]
-        s = min(60, md["independent_publishers"] * 12) + (15 if md["recent_independent"] else 0)
+        s = min(50, md["independent_publishers"] * 8) + (10 if md["recent_independent"] else 0)
         s += 10 if any(a["issuer_confirmed"] for a in intel["media"]["awards"]) else 0
-        s += 15 if len([r for r in intel["identity"]["footprint"] if r["discovered"] and r["type"] != "map / open data"]) >= 4 else 0
-        comp("authority", "External authority / evidence", s,
+        s += 10 if len([r for r in intel["identity"]["footprint"] if r["discovered"] and r["type"] != "map / open data"]) >= 4 else 0
+        comp("authority", "External authority / evidence", min(s, 70),
              [f"{md['independent_publishers']} independent publisher(s), {md['recent_independent']} recent",
-              "(reviews were not measurable - no lawful free source)"],
+              "(reviews were not measurable - no lawful free source; capped at 70 because sources were counted, not verified)"],
              note="Where measurable: independent coverage, awards, listings.")
     else:
         comp("authority", "External authority / evidence", 0, ["not measured this run"], assessed=False)

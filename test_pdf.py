@@ -61,7 +61,7 @@ else:
         check(f"section present: {heading}", heading in text)
     check("all 30 checks are listed", all(c["name"] in text for c in rep["intel"]["checks"]))
     check("sections are numbered in order", all(f"{i}. " in text for i in range(1, 9)))
-    check("recommendation cards use the Finding / Why / Action shape", "What we found" in text and "Why it matters" in text and "What to do" in text)
+    check("recommendation cards use the Issue / Evidence / Why / Action shape", "Issue" in text and "Why it matters" in text and "Action" in text)
     check("the readiness profile explains what drove each score", "What drove it" in text)
     check("the media-target table is present with its caveat", "Media and organisation targets" in text)
     check("the guest-review limitation is stated", "0 guest reviews" in text)
@@ -89,19 +89,20 @@ if pymupdf is not None:
     check("the management report is about 4-11 pages (the appendix holds the detail)", 4 <= len(mdoc) <= 11, len(mdoc))
     adoc, atext, _ = inspect(report_pdf.build_pdf(rep, "appendix"))
     check("the appendix is separate and much longer than the management report", len(adoc) >= 3 * len(mdoc), (len(adoc), len(mdoc)))
-    for heading in ("Executive summary", "Readiness score and coverage", "things most worth doing", "What AI and search can clearly understand",
-                    "Important information gaps", "Reputation and distribution risks", "already doing well", "30 / 60 / 90-day plan"):
+    for heading in ("Executive summary", "Discoverability and technical readiness", "Traveller recommendation readiness", "External presence and reputation", "Commercial opportunities",
+                    "Prioritised action plan", "Methodology and limitations"):
         check(f"management section present: {heading}", heading in mtext)
     check("the score is shown WITH its coverage and a provisional label", "Measurement coverage" in mtext and "PROVISIONAL" in mtext)
     check("what was not measured is stated", "Not measured" in mtext and "AI Visibility" in mtext)
     check("each evidence-strength level is shown beside component scores", "evidence" in mtext and "Evidence strength" in mtext)
-    for fld in ("Issue", "Why it matters", "Evidence", "Exact action", "Owner", "Expected outcome"):
+    for fld in ("Issue", "Why it matters", "Evidence", "Action", "owner", "Expected outcome"):
         check(f"each top action shows: {fld}", mtext.count(fld) >= 3, mtext.count(fld))
-    check("each top action shows priority, effort and confidence", all(w in mtext for w in ("priority - effort", "confidence:")))
+    check("each top action shows priority, effort, confidence (verified finding or reasonable inference) and owner", all(w in mtext for w in ("priority - effort", "owner:")) and ("Verified finding" in mtext or "Reasonable inference" in mtext))
+    check("readiness and observed AI visibility sit side by side, and the score's calculation is shown", "Observed AI visibility" in mtext and "How the readiness score is calculated" in mtext and "Share of the measured weight" in mtext)
     check("the 2/5 food hygiene rating reaches the management report", "Food hygiene rating" in mtext)
     check("at most seven top actions", mtext.count("Appendix reference") <= 7, mtext.count("Appendix reference"))
     check("opportunities are labelled as not defects", "Not defects" in mtext)
-    check("the limits are stated up front and at the end", "does not show what any AI assistant actually says" in mtext)
+    check("the limits are stated up front and at the end", "does not claim to measure visibility" in re.sub(r"\s+", " ", mtext) and "What could not be checked" in mtext and "AI recommendation testing" in mtext)
     import re as _re
     sents = [x.strip() for x in _re.split(r"(?<=[.!?])\s+", mtext) if len(x.strip()) >= 90]
     dup = sorted({x for x in sents if sents.count(x) > 1})
@@ -114,8 +115,8 @@ if pymupdf is not None:
           "Crawler access and speed" in atext and "Common Crawl" in atext and "PageSpeed Insights" in atext and "not a lock" in atext)
     check("the appendix carries the sampled AI answers with their limits",
           "What an AI assistant said: a sample" in atext and "not a ranking" in atext and "not named" in atext)
-    check("the management report no longer says no assistant was asked, once a sample exists",
-          "nothing was asked of an assistant" not in re.sub(r"\s+", " ", mtext) and "sample of one AI assistant" in re.sub(r"\s+", " ", mtext))
+    check("the management report no longer says no assistant was asked, once a sample exists, and says only one assistant was tested",
+          "No AI assistant was asked" not in re.sub(r"\s+", " ", mtext) and "Sampled on one assistant only" in re.sub(r"\s+", " ", mtext) and "NOT tested" in re.sub(r"\s+", " ", mtext))
     check("the appendix carries the reviews-and-replies snapshot with its limits",
           "Reviews and replies: an indicative snapshot" in atext and "not the hotel's reply rate" in re.sub(r"\s+", " ", atext))
     check("the management report points to it instead of saying reviews cannot be looked at at all",

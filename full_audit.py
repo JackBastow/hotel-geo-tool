@@ -69,6 +69,10 @@ import ai_insights
 import ai_niche
 import ai_sample
 import amadeus_check
+import booking_check
+import competitors as competitors_mod
+import evidence
+import external_presence
 import claude_reader
 import review_replies
 import audit
@@ -726,6 +730,14 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
 
     own_pages = guest.pop("own_pages", [])     # used by the wider analysis, not stored
 
+    # Booking readiness runs in the background from here (a handful of polite requests that can take several seconds on a slow site) and is joined when the report is assembled, so it adds no waiting.
+    try:
+        _home_links = _page_links(pages_html[0], base) if pages_html else []
+    except Exception:  # noqa: BLE001
+        _home_links = []
+    booking_ex = ThreadPoolExecutor(max_workers=1)
+    booking_future = booking_ex.submit(booking_check.run, base, _home_links, own_pages, guest.get("pages_meta", []))
+
     # The consistency check needs the hotel's OWN facts to compare against.
     # Many sites publish no structured data, which used to mean "nothing to
     # compare". Facts read from the page text (phone, address, times) fill
@@ -759,6 +771,16 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                       "tavily_credits": 0, "reads": {}}
         finally:
             collect_ex.shutdown(wait=False, cancel_futures=True)
+    # Comparable hotels: read in the background as soon as the map data is in (a few polite fetches of other hotels' pages, capped at 25 seconds), joined when the report is assembled.
+    competitors_ex = competitors_future = None
+    try:
+        _osm_item = ((corpus.get("sources") or {}).get("osm_context") or {})
+        _osm_ctx = (_osm_item.get("items") or [None])[0] if _osm_item.get("status") == "ok" else None
+        if own_pages and hotel:
+            competitors_ex = ThreadPoolExecutor(max_workers=1)
+            competitors_future = competitors_ex.submit(competitors_mod.run, _osm_ctx, own_pages, base, hotel)
+    except Exception:  # noqa: BLE001
+        competitors_future = None
     wd_entity = next((e for e in ext["entities"]
                       if e.get("source") == "Wikidata" and e.get("found") and e.get("match_confident")), None)
     if wd_entity:
@@ -819,7 +841,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             prof = ai_niche.profile(hotel, city, ext["entities"], _osm_ctx, own_pages, _ic0.features(_site0) if _site0 else [], _ic0.intents(_site0) if _site0 else [],
                                     hint=market_hint, domain=_host1)
             market_profile = ai_niche.describe(prof)
-            nqs = ai_niche.questions(prof, hotel, city, n=6)
+            nqs = ai_niche.questions(prof, hotel, city, n=8)
             if nqs:
                 _host0 = urllib.parse.urlparse(base).netloc.lower()
                 niche_ex = ThreadPoolExecutor(max_workers=1)
@@ -967,6 +989,21 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     except Exception:  # noqa: BLE001 - an extra; the audit stands without it
         listing_checks = None
 
+    # Booking readiness (a booking link, its destination, broken links) and external presence (is the right hotel identified on each outside source, do they agree with the website).
+    # Both reuse what was collected; the booking check makes at most ten polite requests, in parallel.
+    try:
+        booking_result = booking_future.result(timeout=45)
+    except Exception as e:  # noqa: BLE001 - an extra; the audit stands without it
+        booking_result = {"status": "unavailable", "reason": f"The booking check did not finish ({type(e).__name__}).", "checks": [], "candidates": []}
+    finally:
+        booking_ex.shutdown(wait=False, cancel_futures=True)
+    try:
+        _ie = intel_result if isinstance(intel_result, dict) and "error" not in intel_result else {}
+        external_result = external_presence.build((_ie.get("identity") or {}).get("footprint"), ext["entities"], ext["consistency"], listing_checks, _ie.get("media"), hotel, city, base,
+                                                  [{"url": l["url"], "domain": evidence.domain_of(l["url"])} for l in _home_links])
+    except Exception:  # noqa: BLE001
+        external_result = None
+
     # What the sampled answers mean: who is recommended instead, which sources were used, is it right, why the hotel may not be named.
     ai_insight_result = None
     if ai_result and ai_result.get("status") == "ok" and anthropic_api_key:
@@ -984,15 +1021,23 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         except Exception as e:  # noqa: BLE001 - an extra; the sample itself still shows
             ai_insight_result = {"source": ai_insights.SOURCE, "status": "unavailable", "reason": f"The analysis of the answers failed ({type(e).__name__}).", "cost_usd": 0.0}
 
-    # The consultant layer reads pages the crawl already fetched - no further requests.
+    # The consultant layer reads pages the crawl already fetched - no further requests (except the few polite ones of the competitor look, below).
     say("Working out what AI systems can and can't understand about the hotel...")
+    competitors_result = None
     try:
         osm_item = ((corpus.get("sources") or {}).get("osm_context") or {})
         osm_ctx = (osm_item.get("items") or [None])[0] if osm_item.get("status") == "ok" else None
+        if competitors_future is not None:
+            try:
+                competitors_result = competitors_future.result(timeout=40)
+            except Exception as e:  # noqa: BLE001 - an extra; the audit stands without it
+                competitors_result = {"status": "unavailable", "reason": f"The competitor look did not finish ({type(e).__name__}).", "competitors": [], "comparisons": []}
+            finally:
+                competitors_ex.shutdown(wait=False, cancel_futures=True)
         consult_result = consultant.analyse(
             own_pages=own_pages, pages_meta=guest.get("pages_meta", []), base=base, hotel=hotel, city=city,
             location=location, guest=guest, site=site, entities=ext["entities"], intel=intel_result,
-            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, listing_checks=listing_checks, reddit=reddit_result, text_only=bool(guest.get("read_via")),
+            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, listing_checks=listing_checks, reddit=reddit_result, booking=booking_result, external=external_result, competitors=competitors_result, text_only=bool(guest.get("read_via")),
             jsonld_example=fixes.hotel_jsonld({"base": base, "hotel": hotel, "location": location, "guest": guest,
                                                "discovery": discovery, "entities": ext["entities"], "site": site,
                                                "tavily": tavily_result}))
@@ -1044,6 +1089,9 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "listing_lookup": {k: v for k, v in listing_result.items() if k not in ("pages", "passages")},
         "listing_checks": listing_checks,
         "reddit": reddit_result,
+        "booking": booking_result,
+        "external": external_result,
+        "competitors": competitors_result,
         "tavily_result": tavily_result,
         "places_result": places_result,
         "amadeus_result": amadeus_result,

@@ -120,6 +120,18 @@ def insights(rep, limit=8):
                     + (f"{len(diff) - 1} more difference(s). " if len(diff) > 1 else "") + "Find out which is right and correct the other.", "goto": "reputation"})
     for h in (lc.get("former_name") or [])[:1]:
         out.append({"tone": "bad", "title": f"{h['platform']} still shows a former name", "body": f"'{h['name']}' appears in the listing. After a rebrand the old name lingers in listings and AI answers.", "goto": "reputation"})
+    bkc = {c["id"]: c for c in (cons.get("booking") or {}).get("checks", [])}
+    if (bkc.get("destination") or {}).get("state") == "fail":
+        out.append({"tone": "bad", "title": "The booking link leads to a page that does not work", "body": bkc["destination"]["detail"], "goto": "site"})
+    elif (bkc.get("link") or {}).get("state") == "fail":
+        out.append({"tone": "warn", "title": "No booking link could be found on the homepage", "body": "A traveller sent to the site needs an obvious way to book. It may be added by a script this check cannot see.", "goto": "site"})
+    tsum = ((cons.get("traveller") or {}).get("summary")) or {}
+    if tsum.get("missing") or tsum.get("partial"):
+        out.append({"tone": "warn", "title": f"{tsum.get('missing', 0) + tsum.get('partial', 0)} things travellers need to know are missing or only partly stated",
+                    "body": f"Across the traveller types the site serves, {tsum.get('confirmed', 0)} requirements are confirmed, {tsum.get('partial', 0)} partly and {tsum.get('missing', 0)} not stated. The Your website tab says what to add, and on which page.", "goto": "site"})
+    exc = ((cons.get("external") or {}).get("contradictions")) or []
+    if exc:
+        out.append({"tone": "warn", "title": f"{exc[0]['source']} disagrees with your website", "body": exc[0]["text"] + (f" ({len(exc) - 1} more)" if len(exc) > 1 else "") + ". Decide which is right and correct the other.", "goto": "reputation"})
     rd = rep.get("reddit") or {}
     rs = rd.get("summary") or {}
     if rd.get("status") == "ok" and rs.get("ai_cited_reddit"):
@@ -226,8 +238,8 @@ def _rec_card(r, n, start):
     team = TEAM_LABEL.get(r["team"], r["team"])
     return (f'<article class="rec {PRI_TONE.get(r["priority"], "")}" id="rec-{n}" data-team="{esc(r["team"])}" data-kind="{esc(r["kind"])}" data-start="{1 if start else 0}">'
             f'<div class="rec-n">{n}</div><div class="rec-main"><h4>{esc(r["title"])}</h4><p class="rec-why">{esc(short(r["why"], 230))}</p>'
-            f'<div class="rec-do"><b>What to do</b> {esc(short(r["action"], 260))}</div>'
-            f'<div class="chips">{chip(r["priority"].capitalize() + " priority", PRI_TONE.get(r["priority"], ""))}{chip("Effort: " + r["effort"])}{chip("Owner: " + team)}{chip("Confidence: " + r["confidence"].lower())}'
+            f'<div class="rec-do"><b>Action</b> {esc(short(r["action"], 260))}</div>'
+            f'<div class="chips">{chip(r["priority"].capitalize() + " priority", PRI_TONE.get(r["priority"], ""))}{chip("Effort: " + r["effort"])}{chip("Owner: " + team)}{chip("Confidence: " + (r.get("confidence_label") or r["confidence"]))}'
             f'{chip("Opportunity", "brand") if r["kind"] != "fix" else ""}{chip(r["ref"])}</div>'
             f'<details class="details"><summary>Evidence, example wording and full detail</summary><div class="details-body">{detail}</div></details></div></article>')
 

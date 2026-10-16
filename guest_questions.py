@@ -799,7 +799,8 @@ def _page_row(p):
             "canonical": s.get("canonical"), "noindex": bool(s.get("noindex")),
             "structured": [{"types": n["types"], "keys": n["keys"]} for n in s.get("structured", [])],
             "word_count": s.get("word_count"), "images_total": (s.get("images") or {}).get("total"),
-            "images_no_alt": (s.get("images") or {}).get("no_alt"), "pdfs": s.get("pdfs", []),
+            "images_no_alt": (s.get("images") or {}).get("no_alt"), "images_content": (s.get("images") or {}).get("content"),
+            "images_key": (s.get("images") or {}).get("key"), "images_key_no_alt": (s.get("images") or {}).get("key_no_alt"), "images_key_kinds": (s.get("images") or {}).get("key_no_alt_by_kind"), "images_skipped": (s.get("images") or {}).get("skipped"), "pdfs": s.get("pdfs", []),
             "js_shell": bool(s.get("js_shell")), "faq_like_items": s.get("faq_like_items", 0),
             "breadcrumb": bool(s.get("breadcrumb")), "og_image": bool((s.get("og") or {}).get("image")),
             "h1_count": s.get("h1_count"), "lang": s.get("lang")}

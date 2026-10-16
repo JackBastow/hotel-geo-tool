@@ -47,14 +47,14 @@ def rec_card(r, nested=False):
     """One recommendation in the Finding / Why / Evidence / Action / Example shape."""
     with st.container(border=True):
         st.markdown(f"**{md_safe(r['title'])}**")
-        st.caption(f"{PRI_ICON[r['priority']]} {r['priority'].capitalize()} priority · effort: {r['effort']} · team: {r['team']} · "
-                   f"confidence: {r['confidence'].lower()}")
-        st.markdown(f"**What we found.** {md_safe(r['finding'])}")
-        st.markdown(f"**Why it matters.** {md_safe(r['why'])}")
+        st.caption(f"{PRI_ICON[r['priority']]} {r['priority'].capitalize()} priority · effort: {r['effort']} · owner: {r.get('owner') or r['team'].capitalize()} · "
+                   f"{r.get('confidence_label') or r['confidence']}")
+        st.markdown(f"**Issue.** {md_safe(r['finding'])}")
         if r["evidence"]:
             st.markdown("**Evidence**")
             _evidence(r["evidence"])
-        st.markdown(f"**What to do.** {md_safe(r['action'])}")
+        st.markdown(f"**Why it matters.** {md_safe(r['why'])}")
+        st.markdown(f"**Action.** {md_safe(r['action'])}")
         if r.get("page") and (r["page"].get("url") or r["page"].get("label")):
             p = r["page"]
             st.markdown("**Where.** " + (f"[{md_safe(p['label'])}]({safe_url(p['url'])})" if safe_url(p.get("url")) else md_safe(p["label"])))
@@ -768,6 +768,8 @@ def ai_view(c, ai=None, ins=None):
                 st.caption(k["detail"] + " **Fix:** " + k["fix"])
     else:
         st.success("No contradictions found between the pages read (check-in times, phone numbers, address, hotel name, hours, offers).")
+    for n in c.get("consistency_notes") or []:
+        st.caption("Seen, and not flagged: " + md_safe(n["title"]) + ". " + md_safe(n["detail"]) + " " + "; ".join(f"{md_safe(v['value'][:90])} ({md_safe(_path(v['url']))})" for v in n["values"][:3] if v.get("url")))
 
 
 # --------------------------------------------------------------- fix the site
@@ -867,3 +869,132 @@ def fix_site(c, web=None):
             for r in rs:
                 with st.expander(f"{PRI_ICON[r['priority']]} {r['title']}"):
                     rec_card(r, nested=True)
+
+
+# ----------------------------------------------------------- scoring, traveller requirements, outside sources, booking, competitors, AI test log
+
+REQ_ICON = {"confirmed": "🟢 Confirmed", "partial": "🟡 Partially confirmed", "missing": "🔴 Missing", "unknown": "⚪ Unknown"}
+EXT_ICON = {"verified": "🟢 Verified", "identified": "🟢 Identified, not read", "contradicts": "🔴 Contradicts the website", "unclear": "🟡 Found, identity unclear", "not_verified": "⚪ Not verified"}
+BOOK_ICON = {"pass": "🟢 OK", "warn": "🟡 Check", "fail": "🔴 Problem", "not_verified": "⚪ Not verified"}
+
+
+def score_breakdown_card(rep):
+    """How the headline number is made: each assessed category's score, its weight, its share and the points it adds, so the rows add up to the score."""
+    import scoring
+    sc = rep.get("scorecard") or {}
+    cats = sc.get("categories") or []
+    if not cats:
+        return
+    t = scoring.totals(cats)
+    st.markdown("##### How the readiness score is calculated")
+    st.caption(t["method"])
+    df([{"Category": b["label"] + (" (partial)" if b["partial"] else ""), "Score": b["score"], "Weight": f"{b['weight']:g}%", "Share of the measured weight": f"{b['share_pct']:g}%", "Points added": b["points"],
+         "Why it has this weight": b["why"]} for b in t["breakdown"]])
+    st.caption(f"Readiness = {t['overall']}. Categories that could not be measured are left out of the sum; they are never counted as zero. "
+               "Readiness is how well the hotel is set up. It is not observed AI visibility, which is reported separately.")
+
+
+def traveller_card(trv, coverage=None):
+    """For each kind of traveller the hotel serves: what that traveller needs, and whether the hotel's own website states it."""
+    st.markdown("##### Traveller recommendation readiness")
+    st.caption("For each kind of traveller the hotel serves, does its own website state what they need to know before booking? **Confirmed** = clearly stated (quoted). **Partially confirmed** = some of it is. "
+               "**Missing** = not found in pages that were read well enough to say so. **Unknown** = too little was read, a page had sections whose text could not be seen, or the hotel gives no sign it "
+               "offers the thing, so nothing is recommended. Counted by requirement, not by how often a word appears.")
+    segs = (trv or {}).get("segments") or []
+    if not segs:
+        st.info("No traveller segment could be assessed from the pages read." + (" " + (trv or {}).get("error", "") if (trv or {}).get("error") else ""))
+        return
+    sm = trv["summary"]
+    if sm.get("judged"):
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Confirmed", sm["confirmed"])
+        c2.metric("Partially confirmed", sm["partial"])
+        c3.metric("Missing", sm["missing"])
+        c4.metric("Unknown (not counted)", sm["unknown"])
+    for seg in segs:
+        cn = seg["counts"]
+        with st.expander(f"{seg['label']}: {cn['confirmed']} confirmed, {cn['partial']} partly, {cn['missing']} missing" + (f", {cn['unknown']} unknown" if cn["unknown"] else "")):
+            st.caption(f"Assessed because {seg['assessed_because']}.")
+            for r in seg["requirements"]:
+                st.markdown(f"**{md_safe(r['label'])}** - {REQ_ICON[r['state']]}")
+                if r["found"]:
+                    _evidence([{"url": f["url"], "snippet": f["snippet"]} for f in r["found"][:2]])
+                if r["state"] in ("partial", "missing") and r["add"]:
+                    w = r.get("where") or {}
+                    st.markdown("Add: " + md_safe("; ".join(r["add"][:3])) + (f" - on [{md_safe(w['label'])}]({safe_url(w['url'])}) ({md_safe(w['reason'])})" if safe_url(w.get("url")) else (f" - on {md_safe(w.get('label', ''))}" if w.get("label") else "")))
+                elif r.get("why"):
+                    st.caption(md_safe(r["why"]))
+    if trv.get("skipped"):
+        st.caption("Not assessed, because the site shows no sign the hotel serves them: " + ", ".join(s["label"] for s in trv["skipped"]) + ".")
+
+
+def external_card(ext):
+    """Each outside source: can the right hotel be identified, do name and location agree, is there a link to the official site, does anything contradict the website."""
+    st.markdown("##### The hotel on outside sources")
+    if not ext or not ext.get("rows"):
+        st.caption("Not checked for this report.")
+        return
+    st.caption("Identified = a page for the hotel was found in public search results and its title and address carry the hotel's name and town; the platform itself was not read (their terms prohibit it). "
+               "Verified = read directly from open data and compared with the website. **Not verified = it cannot be checked reliably, which is never treated as missing or wrong.**")
+    df([{"Source": r["source"], "Status": EXT_ICON[r["status"]], "Identified": {True: "yes", False: "no", None: "-"}[r["identified"]], "Name and location": r["name_location"] or "-",
+         "Official site link": r["official_link"] or "not checked", "Differs from the website": "; ".join(r["contradictions"]) or "-", "Notes": r["note"], "Page": r["url"]} for r in ext["rows"]], link_cols=("Page",))
+    pub = ext.get("publications") or {}
+    if pub.get("rows"):
+        with st.expander(f"Independent publications, weighed by quality ({pub['publishers']} publisher(s), {pub['strong']} substantial)"):
+            st.caption("Each publisher counts once, by its best piece. A piece counts for more when it is independent editorial rather than a blog or a roundup, says a lot about the hotel, names it clearly and is recent. "
+                       "Sponsored pieces count for nothing. The number of websites that mention the hotel is not a score.")
+            df([{"Publisher": x["publisher"], "Kind": x["kind"], "Substance": x["substance"], "Freshness": x["freshness"], "Weight": x["weight"], "Page": x["url"]} for x in pub["rows"]], link_cols=("Page",))
+
+
+def booking_card(bk):
+    st.markdown("##### Booking readiness")
+    if not bk or bk.get("status") != "ok":
+        st.caption((bk or {}).get("reason") or "Not checked for this report.")
+        return
+    st.caption(" ".join(bk.get("limits", [])))
+    df([{"Check": k["label"], "Result": BOOK_ICON.get(k["state"], k["state"]), "Detail": k["detail"], "Page": k.get("url", "")} for k in bk["checks"]], link_cols=("Page",))
+    if bk.get("broken_links"):
+        df([{"Broken link": b["url"], "HTTP status": b["status"]} for b in bk["broken_links"]])
+
+
+def competitor_card(cp):
+    st.markdown("##### Comparable hotels")
+    if not cp:
+        st.caption("Not looked at for this report.")
+        return
+    st.caption(" ".join(cp.get("limits", [])))
+    if cp.get("status") != "ok":
+        st.info(cp.get("reason") or "No comparison was made.")
+        return
+    df([{"Hotel": c["name"], "Why comparable": "; ".join(c["why_comparable"]), "Distance": f"{c['km']} km", "Pages read": c["pages_read"], "Website": c["url"]} for c in cp["competitors"]], link_cols=("Website",))
+    for x in cp["comparisons"]:
+        (st.warning if x["behind"] else st.success)(x["statement"])
+
+
+def ai_test_card(ai, hotel=""):
+    """The genuine AI test log, and a checklist for the assistants this tool cannot query. Observed visibility stays NOT MEASURED for those."""
+    import ai_sample
+    st.markdown("##### AI recommendation tests: what was actually tested")
+    log = ai_sample.test_log(ai)
+    if not log:
+        st.warning("**Observed AI visibility: not measured.** No AI assistant was asked about the hotel in this audit, so nothing here shows whether ChatGPT, Gemini, Copilot or any other assistant recommends it. "
+                   "The checklist below lets you test by hand.")
+    else:
+        s = log["summary"]
+        st.caption(f"Genuine tests of **one assistant only: {md_safe(log['platform'])}**, run on {md_safe(log['date'])}. **Not tested: {', '.join(log['not_tested'])}.** "
+                   "Appeared = the hotel is named in the answer. Recommended = it is a line in a list of suggestions or a sentence recommends it (a rule-based reading; read the answer beside it). "
+                   "One assistant on one day is a sample, not a ranking, and it is not part of the readiness score.")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Prompts that do not name the hotel", s["prompts"])
+        c2.metric("Answers naming the hotel", f"{s['appeared']} of {s['non_branded_answers']}")
+        c3.metric("Answers recommending it", f"{s['recommended']} of {s['non_branded_answers']}")
+        c4.metric("Official site among the sources", f"{s['site_cited']} of {s['non_branded_answers']}")
+        yn = lambda v: "-" if v is None else ("yes" if v else "no")      # noqa: E731
+        with st.expander("The test log: every prompt, answer by answer"):
+            df([{"Prompt": r["prompt"], "Names the hotel in the prompt": "yes" if r["branded"] else "no", "Platform": r["platform"], "Appeared": yn(r["appeared"]), "Recommended": yn(r["recommended"]),
+                 "Place in list": r["position"] or "-", "Official site cited": yn(r["official_site_cited"]), "Date": r["date"]} for r in log["rows"]])
+    ck = ai_sample.manual_checklist(ai, hotel)
+    if ck["prompts"]:
+        with st.expander("Checklist: test these prompts by hand in ChatGPT, Gemini and Copilot"):
+            st.caption("This tool cannot ask those assistants, so their results are not measured here. Ask each prompt in a fresh chat and note the answer. Record: " + "; ".join(ck["fields"]) + ".")
+            df([{"Prompt": p, **{a: "" for a in ck["assistants"]}} for p in ck["prompts"]])

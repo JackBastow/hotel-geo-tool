@@ -9,6 +9,7 @@ collected, so it adds no requests and little time.
 """
 
 import advice
+import traveller_ready
 import ranking
 import urlscope
 import insight_content as ic
@@ -46,14 +47,14 @@ def crawl_coverage(pages_read, pages_meta):
 
 
 def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, entities, intel,
-            osm_ctx, jsonld_example="", web=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None):
+            osm_ctx, jsonld_example="", web=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, booking=None, external=None, competitors=None):
     s = ic.Site(own_pages, base, hotel, city)
     cov = crawl_coverage(len(s.pages), pages_meta)
     if text_only:
         cov["text_only"] = True
         cov["note"] = (cov["note"] + " " if cov["note"] else "") + TEXT_ONLY_NOTE
     if cov["unreadable"]:
-        return _unreadable(s, cov, pages_meta, site, entities, intel, web, ai, reviews, ai_insights, listing_checks, reddit)
+        return _unreadable(s, cov, pages_meta, site, entities, intel, web, ai, reviews, ai_insights, listing_checks, reddit, booking, external)
     feats = ic.features(s)
     intents = ic.intents(s)
     understanding = ic.understanding(s, intents, feats, city)
@@ -61,6 +62,11 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     questions = ic.questions(s, guest, intents, feats, loc["items"])
     opps = ic.opportunities(s, intents, feats)
     cons = ic.consistency(s, guest)
+    cons_notes = ic.consistency_notes(s)
+    try:
+        travel = traveller_ready.run(s, feats, intents, cov, loc)
+    except Exception as e:  # noqa: BLE001 - an extra; the keyword-based view still works
+        travel = {"segments": [], "assessed": [], "skipped": [], "summary": {"judged": 0, "score": None}, "error": f"{type(e).__name__}: {e}"}
     hidden = ic.hidden_strengths(s, feats, pages_meta)
     if text_only:
         sd = {"items": [], "node_count": 0, "hotel_found": None, "unreadable": True,
@@ -71,13 +77,14 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     if text_only:
         machine = [f for f in machine if f["id"] not in it.HTML_ONLY_FINDINGS]
     profile = it.readiness_profile(s, guest, intents, loc, sd, machine, cons, intel, coverage=cov,
-                                   map_failed=(osm_ctx or {}).get("failed_parts", []) if osm_ctx else ["all (no map data)"])
+                                   map_failed=(osm_ctx or {}).get("failed_parts", []) if osm_ctx else ["all (no map data)"], traveller=travel, external=external)
     if text_only:
         for p in profile:
             if p["key"] in ("technical", "structured", "discoverability"):
                 p.update(score=None, band="not assessed", assessed=False, drivers=["the pages were read as plain text, so this was not assessed"], evidence=None)
     recs = advice.build(questions=questions, location=loc, consistency=cons, hidden=hidden, structured=sd,
-                        machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai, reviews=reviews, text_only=text_only, ai_insights=ai_insights, listing_checks=listing_checks, reddit=reddit)
+                        machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai, reviews=reviews, text_only=text_only, ai_insights=ai_insights, listing_checks=listing_checks, reddit=reddit, traveller=travel, booking=booking, external=external, competitors=competitors)
+    recs, dropped = advice.validate(recs)
     top = advice.top_actions(recs)
     quick = advice.quick_wins(recs, exclude_ids={r["id"] for r in top})
     plan = ranking.plan_30_60_90(recs, {r["id"] for r in top})
@@ -88,7 +95,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         "version": 1, "pages_read": len(s.pages), "coverage": cov, "understanding": understanding,
         "intents": [{k: v for k, v in r.items()} for r in intents],
         "features": [{"key": f["key"], "label": f["label"], "level": f["level"], "pages": f["pages"]} for f in feats],
-        "questions": questions, "location": loc, "consistency": cons, "hidden": hidden,
+        "questions": questions, "location": loc, "consistency": cons, "consistency_notes": cons_notes, "traveller": travel, "booking": booking, "external": external, "competitors": competitors, "dropped_recommendations": dropped, "hidden": hidden,
         "structured": {k: v for k, v in sd.items() if k != "best"}, "machine": machine, "profile": profile,
         "recommendations": recs, "top_actions": [r["id"] for r in top], "quick_wins": [r["id"] for r in quick],
         "required_fixes": [r["id"] for r in recs if r["kind"] == "fix"],
@@ -117,7 +124,7 @@ def add_recommendations(c, new, source):
     return c
 
 
-def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None, ai=None, reviews=None, ai_insights=None, listing_checks=None, reddit=None):
+def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None, ai=None, reviews=None, ai_insights=None, listing_checks=None, reddit=None, booking=None, external=None):
     """
     Too few pages were read to judge the content. Report that plainly, keep only findings that
     come from what actually happened (what the fetches returned, robots.txt, open-data matches),
@@ -142,7 +149,7 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None, ai=
         technical="Crawl returned timeouts/refusals. Could be our fetch (rate limits, user agent) as well as the site; "
                   "verify by loading the pages with a plain HTTP client.", confidence=advice.INFER, team="web", source="machine",
         success="A later audit reads most of the site's pages.")
-    recs = [rec] + advice._from_machine([f for f in machine if f["status"] == "issue"]) + advice._from_intel(intel) + advice._from_ai(ai) + advice._from_reviews(reviews) + advice._from_ai_insights(ai_insights) + advice._from_listing_checks(listing_checks) + advice._from_reddit(reddit)
+    recs = [rec] + advice._from_machine([f for f in machine if f["status"] == "issue"]) + advice._from_intel(intel) + advice._from_ai(ai) + advice._from_reviews(reviews) + advice._from_ai_insights(ai_insights) + advice._from_listing_checks(listing_checks) + advice._from_reddit(reddit) + advice._from_booking(booking) + advice._from_external(external)
     recs = advice.drop_duplicate_entity(recs)
     ranking.annotate(recs, [])
     for r in recs:

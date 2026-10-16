@@ -54,7 +54,7 @@ check("what is already working is shown", "already doing well" in text)
 check("the unanswered-questions section is shown", "Questions AI may struggle to answer" in text)
 check("the structured-data audit is shown", "Structured data" in text)
 check("the 30-check method table is shown", "All 30 checks" in text)
-check("recommendation cards use the Finding / Why / Action shape", "What we found." in text and "Why it matters." in text and "What to do." in text)
+check("recommendation cards use the Issue / Evidence / Why / Action shape, with priority, effort, confidence and owner", all(w in text for w in ("Issue.", "Why it matters.", "Action.")) and any("owner:" in c.value for c in at.caption))
 check("tables rendered (dataframes present)", len(at.dataframe) >= 8, len(at.dataframe))
 check("no generic GEO claim leaks into the page", not any(p in text.lower() for p in ("boost your chatgpt", "guarantees better", "llms prefer")))
 

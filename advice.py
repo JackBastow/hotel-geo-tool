@@ -72,8 +72,14 @@ def _name_group(rec, qs, where_txt, kind):
         rec["short_title"] = "If a target segment: complete the " + ", ".join(shorts[:2]).lower() + " details"
     else:
         n = len(qs)
-        rec["short_title"] = (f"State the missing {shorts[0].lower()} details on {where_txt}" if n == 1 else
-                              f"Answer {n} open guest questions on {where_txt}")
+        if n == 1 and qs[0].get("optional") and not qs[0]["found"]:
+            rec["short_title"] = f"State whether the hotel has {_OPTIONAL_NAME.get(qs[0]['id'], shorts[0].lower())}"
+        else:
+            rec["short_title"] = (f"State the missing {shorts[0].lower()} details on {where_txt}" if n == 1 else
+                                  f"Answer {n} open guest questions on {where_txt}")
+
+_OPTIONAL_NAME = {"ev": "EV charging", "pets": "a pet policy (dogs or other pets)"}
+
 
 def _from_questions(questions):
     groups = {}
@@ -91,6 +97,9 @@ def _from_questions(questions):
         partial_high = any(q.get("high_value") for q in qs)
         n = len(qs)
         priority = "high" if high or n >= 4 else ("medium" if partial_high or n >= 2 else "low")
+        unread = all(q.get("access_note") for q in qs)
+        if unread:
+            priority = {"high": "medium", "medium": "low", "low": "low"}[priority]      # the answer may be in text the reader could not see
         adds = []
         for q in qs:
             for m in q["missing"]:
@@ -103,31 +112,44 @@ def _from_questions(questions):
             finding = (f"The hotel promotes {', '.join(sh.lower() for sh in shorts[:4])}, but the pages don't yet state: "
                        + "; ".join(sorted({m for q in qs for m in q["missing"]})[:6]) + ". Worth completing if this is a segment you want to attract.")
             title = "If this is a target segment, complete the details: " + ", ".join(shorts[:3])
+        elif n == 1 and qs[0].get("optional") and not qs[0]["found"]:
+            # nothing on the site says whether the hotel has this: we cannot know it does, so the advice is to say either way, never to provide it
+            q = qs[0]
+            finding = (f"None of the pages read says whether the hotel has {_OPTIONAL_NAME.get(q['id'], q['short'].lower())}. We cannot tell whether it is offered, so this is not a suggestion to provide it; "
+                       "guests who need it check before they book, and an assistant cannot answer for a hotel that does not say.")
+            title = f"State whether the hotel has {_OPTIONAL_NAME.get(q['id'], q['short'].lower())}"
         elif n == 1:
             q = qs[0]
             finding = (f"{q['question']} " + ("The site touches on it" + (f" ({', '.join(found_bits)})" if found_bits else "") +
                                                  f" but doesn't say {', '.join(q['missing'])}." if q["missing"] else "No page we read answers it clearly."))
             title = f"Answer this clearly: {q['question']}"
         else:
-            finding = f"{n} questions guests ask are only partly answered or not answered: " + "; ".join(topics[:5]) + "."
             shorts = [q.get("short") or q["question"].rstrip("?") for q in qs]
+            finding = (f"{n} questions guests ask are only partly answered or not answered: "
+                       + "; ".join(f"{sh}: " + (f"the page states {', '.join(q['found'][:2])}" if q["found"] else "nothing found")
+                                   + (f"; not stated: {', '.join(q['missing'][:2])}" if q["missing"] else "") for sh, q in zip(shorts, qs[:5])) + ".")
             title = (f"Fill the gaps on {where_txt}: " + ", ".join(shorts[:3])
                      + (f" and {n - 3} more" if n > 3 else ""))
         ev = []
         for q in qs:
             ev += q["evidence"]
         if not ev:
-            ev = [{"url": "", "snippet": "None of the pages we read states this clearly."}]
+            mentioned_ = [f for q in qs for f in q["found"]]
+            ev = [{"url": w["url"] if mentioned_ else "", "snippet": (f"The pages mention {', '.join(mentioned_[:3])} but do not state {', '.join(m for q in qs for m in q['missing'][:2])}" if mentioned_
+                                                                     else "No page read mentions it" + (" (the page named below is where it would belong)" if w["url"] else "") + ".")}]
         examples = [q["example"] for q in qs if q.get("example")][:3]
+        if unread:
+            finding += " Note: " + next(q["access_note"] for q in qs if q.get("access_note"))
         recs.append(_rec(
             f"Q{i}", "content", title, finding, WHY_QUESTION, _ev(ev, 3),
-            (f"Add the answer to {where_txt} ({w['reason']})." if w["url"] else f"Create {w['label']} and add the answers.")
+            ((f"Add one sentence to {where_txt} ({w['reason']}): the details if the hotel has it, or that it does not." if (n == 1 and qs[0].get("optional") and not qs[0]["found"]) else f"Add the answer to {where_txt} ({w['reason']}).")
+             if w["url"] else f"Add a short section to {w['label']} with the answers (no existing page covers this).")
             + (f" Also worth repeating on {_path(w['also'][0]['url'])}." if w.get("also") and w["also"][0].get("url") != w.get("url") else ""),
             priority, "low" if len(adds) <= 8 else "medium", page={"url": w["url"], "label": where_txt} if w["url"] else {"url": "", "label": w["label"]},
             additions=adds[:10], example="\n".join(examples),
             technical="Content-completeness gap. Write each answer as plain text in a clearly headed section so it can be quoted; "
                       "optionally mark up an FAQ section as FAQPage (see structured data).",
-            confidence=BEST if any(q.get("high_value") for q in qs) else INFER, team="web",
+            confidence=INFER if unread else (BEST if any(q.get("high_value") for q in qs) else INFER), team="web",
             success="The question is answered in plain text on the page and the next audit marks it 'answered'.",
             source="questions", question_ids=[q["id"] for q in qs]))
         _name_group(recs[-1], qs, where_txt, g["kind"])
@@ -223,17 +245,31 @@ def _from_structured(sd, jsonld_example, site):
     recs = []
     items = {i["item"]: i for i in sd["items"]}
     hotel = items.get("Hotel / LodgingBusiness")
+    sc = sd.get("scope") or {}
+    n_pages = sc.get("pages_inspected") or len(site.pages)
+    inspected = f"the {n_pages} page(s) inspected" + (f" ({', '.join(sc['relevant_inspected'][:4])})" if sc.get("relevant_inspected") else "")
     if hotel and hotel["status"] == "missing":
         recs.append(_rec(
-            "SD1", "understanding", "Give search engines the hotel's basic facts in a form they can read directly",
-            "Your pages state the hotel's name, address and phone in sentences, but there is no machine-readable 'Hotel' block, so every system has to work these facts out for itself.",
-            "When the hotel's basic facts are stated in a standard, machine-readable format, systems reading the page can pick them out with less ambiguity. Search and AI tools also draw on other sources, so this is about accuracy and tidiness rather than a ranking boost.",
-            [{"url": site.base, "snippet": "No Hotel/LodgingBusiness structured data found on any page read."}],
-            "Ask your web supplier to add one Hotel block to the homepage (below is a starting point filled from what we read - check every value).",
+            "SD1", "understanding", "Add Hotel structured data to the homepage",
+            f"No Hotel, LodgingBusiness or LocalBusiness structured data was found in the page source of {inspected}. The hotel's name, address and phone are stated in sentences, so every system reading the page has to work these facts out for itself. "
+            + (f" The only structured data seen is {', '.join(sc['types_seen'])}, none of which describes the hotel itself." if sc.get("types_seen") else "")
+            + " This is what the pages contained when fetched: markup added after the page loads, or on pages not inspected, would not show here.",
+            "Structured data states the hotel's basic facts in a standard form that search engines and AI tools can read directly, which reduces the chance of a wrong or missing fact. It supports accuracy; there is no evidence that it makes an assistant recommend a hotel.",
+            [{"url": site.base, "snippet": f"No Hotel/LodgingBusiness/LocalBusiness JSON-LD in the source of {inspected}"}],
+            "Give the web developer this: add one JSON-LD <script> block of type Hotel to the homepage (in the page head, or through the CMS's SEO plugin) with name, url, telephone, address (PostalAddress), geo (GeoCoordinates), image, checkinTime, checkoutTime and sameAs (the official profiles). "
+            "The block below is filled only from facts read on your own pages; anything in [brackets] must be filled by the hotel, and nothing should be added that the hotel cannot stand behind (no ratings, no facilities it does not offer). "
+            "First check the live page at search.google.com/test/rich-results in case a tag manager already adds one; then validate the result at validator.schema.org.",
             "high", "low", page={"url": site.base, "label": "the homepage"}, example=jsonld_example or "",
-            technical="Add JSON-LD (schema.org Hotel/LodgingBusiness) to the homepage: name, url, telephone, PostalAddress, GeoCoordinates, image, sameAs. "
-                      + CAUTION_SHORT,
-            confidence=BEST, team="web", success="A Hotel block is present on the homepage and matches the page text.", source="structured"))
+            technical="schema.org Hotel on the homepage: name, url, telephone, PostalAddress, GeoCoordinates, image, checkinTime, checkoutTime, sameAs. Mark each value to match the visible page text. " + CAUTION_SHORT,
+            confidence=BEST, team="web", success="A Hotel block is present on the homepage, validates, and matches the page text.", source="structured", tag="SD1",
+            summary="No Hotel structured data on the pages inspected"))
+    elif hotel and hotel["status"] == "could_improve" and sd.get("generic_only"):
+        recs.append(_rec(
+            "SD1", "understanding", "Change the structured data type from a generic business to Hotel",
+            hotel["detail"], "A generic business type tells a reading system less than Hotel: it cannot tell a hotel from any other local business.", _ev(hotel["evidence"], 3),
+            hotel["advice"] + " Keep the existing properties; add any of name, address, telephone, geo, image, checkinTime, checkoutTime and sameAs that are missing, and validate at validator.schema.org.",
+            "medium", "low", page={"url": site.base, "label": "the homepage"}, example=jsonld_example or "", technical="Change @type from LocalBusiness to Hotel. " + CAUTION_SHORT,
+            confidence=BEST, team="web", success="The block is typed Hotel and validates.", source="structured", tag="SD1", summary="Structured data is typed as a generic business"))
     inc = items.get("Is the markup correct?")
     if inc and inc["status"] == "incorrect":
         recs.append(_rec(
@@ -324,7 +360,7 @@ def _from_machine(findings):
 
 SUPERSEDED_SCORING = ("no_hotel_schema", "schema_incomplete", "social_sameas", "social_link", "guest_", "topic_guess", "crawler_block",
                       "no_sitemap", "location_unreadable", "facts_conflict")
-DROP_INTEL = ("V3", "T2-", "W1", "T1", "T3")      # limits or superseded by findings above
+DROP_INTEL = ("V3", "T2-", "W1", "T1", "T3", "M5")      # limits, or superseded by findings above, or preparation steps with no verified issue behind them (M5: 'prepare the pitch evidence')
 EFFORT_BY_TEAM = {"PR": "medium", "distribution": "low", "marketing": "low", "operations": "medium", "reputation management": "medium", "web": "low"}
 
 
@@ -595,6 +631,172 @@ def _from_reddit(rd):
     return out
 
 
+TRAVELLER_WHY = {
+    "spa_couples": "Couples choosing a spa break compare what the spa includes, who may use it, what it costs and how to book. Where those facts are not stated, the hotel loses the booking to one that states them, and an assistant asked for a romantic spa break has nothing specific to quote.",
+    "families": "Parents choose by whether a room physically fits the family and by what the hotel does for children. A room that does not say how many it sleeps is one they cannot book with confidence, and an assistant asked for a family-friendly hotel cannot say whether this one fits.",
+    "business": "Business travellers decide on a short list of practical facts: Wi-Fi, parking, meeting space, how to get there. Where one is not stated they ask elsewhere or book a hotel that states it, and an assistant answering a business-travel question will not quote what the site does not say.",
+    "location": "People search by place (hotels near a station, an airport or a venue). A place named without a distance or time is a much weaker location signal than 'a 10-minute walk'.",
+}
+TRAVELLER_TEAM = {"spa_couples": "marketing", "families": "operations", "business": "sales", "location": "marketing"}
+TRAVELLER_CORE = {"spa_facilities", "restrictions", "family_rooms", "occupancy", "children_policy", "wifi", "parking", "meetings", "transport", "loc_transport", "loc_airports"}
+TRAVELLER_SUPERSEDES = {"business": ("meeting_detail",), "spa_couples": ("spa_detail",), "families": ("connecting_rooms",)}
+
+
+def _from_traveller(trv, coverage=None):
+    """
+    One finding per kind of traveller whose requirements are missing or incomplete. Each names the information to add and the EXISTING page to add it to, and cites what the page does say (for a
+    partial) or the pages that were read and do not (for a missing one). Unknown requirements raise nothing: absence was not established, or the hotel gives no sign it offers the thing.
+    """
+    out = []
+    for seg in (trv or {}).get("segments", []):
+        todo = [r for r in seg["requirements"] if r["state"] in ("partial", "missing")]
+        if not todo:
+            continue
+        where = next((r["where"] for r in todo if r.get("where") and r["where"].get("url")), None) or next((r.get("where") for r in todo if r.get("where")), None) or {"url": "", "label": "the relevant page", "reason": "", "new_page": True}
+        page_txt = where["label"] if where.get("url") else where["label"]
+        names = [r["label"].lower() for r in todo]
+        adds = []
+        for r in todo:
+            for a in r["add"]:
+                adds.append(f"{r['label']}: {a}")
+        ev = []
+        for r in todo:
+            if r["found"]:
+                ev += [{"url": f["url"], "snippet": f"{r['label']}: the site says '{f['snippet'][:140]}' but not {', '.join(m.split(' (')[0] for m in r['missing'][:2]) or 'the rest'}"} for f in r["found"][:1]]
+            else:
+                ev.append({"url": where.get("url", ""), "snippet": f"{r['label']}: not found on the {(coverage or {}).get('pages_read', 'pages')} page(s) read, including {page_txt}"})
+        confident = all(not r.get("why") for r in todo)
+        n_missing, n_partial = sum(1 for r in todo if r["state"] == "missing"), sum(1 for r in todo if r["state"] == "partial")
+        status = []
+        if n_missing:
+            status.append(f"{n_missing} not stated")
+        if n_partial:
+            status.append(f"{n_partial} only partly stated")
+        first = todo[0]
+        title = (f"{seg['label']}: " + (f"state {first['add'][0]}" if len(todo) == 1 and first["add"] else f"complete {len(todo)} things travellers need ({', '.join(names[:3])})"))
+        core = any(r["id"] in TRAVELLER_CORE for r in todo)
+        action = (("Add to the existing " if not where.get("new_page") else "No existing page covers this; add a short section to ") + (f"{page_txt} page" if where.get("url") else page_txt) + ": "
+                  + "; ".join(a for r in todo for a in r["add"][:2])[:600] + ". State only what the hotel actually offers; check each fact before publishing.")
+        out.append(_rec(
+            f"TR-{seg['key']}", "content", title,
+            f"For {seg['goes_to']}, {', '.join(status)}: " + "; ".join(f"{r['label']} ({'not stated' if r['state'] == 'missing' else 'partly stated: missing ' + ', '.join(m.split(' (')[0] for m in r['missing'][:2])})" for r in todo) + ".",
+            TRAVELLER_WHY[seg["key"]], _ev(ev, 4), action, "high" if n_missing and core else "medium", "low",
+            page={"url": where.get("url", ""), "label": page_txt}, additions=adds[:8],
+            technical="Traveller-requirement check: each requirement was matched against the visible text of the pages read; the state is Confirmed, Partially confirmed, Missing or Unknown.",
+            confidence=BEST if confident else INFER, team=TRAVELLER_TEAM[seg["key"]], source="traveller", tag="TR-" + seg["key"],
+            success="The next audit shows these requirements as Confirmed.", summary="; ".join(names[:4])))
+        out[-1]["kind_hint"] = "fix" if core else "opportunity"
+        # the risk of leaving it: two or more core facts verified as not stated is a real obstacle to a booking; one is an inconvenience
+        out[-1]["risk_hint"] = 3 if sum(1 for r in todo if r["state"] == "missing" and r["id"] in TRAVELLER_CORE) >= 2 else 2
+    return out
+
+
+def _from_competitors(cp, site=None):
+    """Opportunities where the hotel offers something but says less about it than comparable hotels do. Only verified comparisons (both sides read) are raised."""
+    if not cp or cp.get("status") != "ok":
+        return []
+    out = []
+    names = ", ".join(c["name"] for c in cp["competitors"])
+    for c in cp["comparisons"]:
+        if not c["behind"] or not c["missing"]:
+            continue
+        better = [r for r in c["rivals"] if r["depth"] > c["own_depth"]]
+        slugs = {"spa_detail": ("spa", "wellness"), "meeting_detail": ("meeting", "conference", "events"), "pool_detail": ("pool", "spa", "leisure"), "restaurant_detail": ("restaurant", "dining", "eat"),
+                 "wedding_detail": ("wedding",), "connecting_rooms": ("family", "rooms")}.get(c["topic"], ())
+        pg = site.best_page(slugs) if site is not None and slugs else None
+        page = {"url": pg["url"], "label": site.path(pg)} if pg else {"url": "", "label": f"your {c['label']} page"}
+        ev = [{"url": "", "snippet": f"Your pages state {c['own_depth']} of {c['of']}: {', '.join(c['own_stated']) or 'none'}"}] + [e for r in better[:2] for e in r["evidence"][:1]]
+        out.append(_rec(
+            "CP-" + c["topic"], "authority", f"Say more about {c['label']}: comparable hotels state more",
+            c["statement"] + f" Compared with {names} (chosen as comparable by rating or size and by facilities).",
+            "A traveller, or an assistant answering for one, can only recommend a hotel for what its pages say. Where comparable hotels are specific and yours is not, they are the easier ones to recommend.",
+            _ev(ev, 3), (f"Add to the existing {page['label']} page: " if page["url"] else f"Add to {page['label']}: ") + "; ".join(c["missing"][:4]) + ". State only what the hotel offers.",
+            "medium", "low", page=page, additions=c["missing"][:5], example=c["example"], technical="Comparison of the facts each hotel's own pages state, on pages that were read for both hotels.",
+            confidence=INFER, team="marketing", success="The page states these details.", source="competitors", tag="CP-" + c["topic"], summary=c["statement"][:200]))
+        out[-1]["kind_hint"] = "opportunity"
+    return out
+
+
+def _from_external(ep):
+    """
+    Findings from the external-presence check. Travel-platform differences are raised by the listing check (LC1); this adds what the open data (OpenStreetMap, Wikidata) shows that disagrees with the
+    website or does not link to it, and any source where something was found but could not be tied to this hotel. A source that was simply not verified raises nothing.
+    """
+    if not ep:
+        return []
+    out = []
+    open_rows = [r for r in ep["rows"] if r["source"] in ("OpenStreetMap", "Wikidata")]
+    contra = [(r, c) for r in open_rows for c in r["contradictions"]]
+    if contra:
+        r0 = contra[0][0]
+        out.append(_rec(
+            "EX1", "authority", "Open map data disagrees with the website: " + "; ".join(sorted({r["source"] for r, _c in contra})),
+            "; ".join(f"{r['source']}: {c}" for r, c in contra[:4]) + ".",
+            "OpenStreetMap and Wikidata are read directly by search engines and AI tools, which use them to check a hotel's facts. When they disagree with the hotel's own site, a system may repeat the wrong one.",
+            [{"url": r["url"], "snippet": c} for r, c in contra[:3]],
+            "Decide which is right. If the website is right, correct the entry (OpenStreetMap and Wikidata can be edited by anyone with an account: say who you are and keep the edit factual). If the entry is right, update the website.",
+            "medium", "low", technical="Fact comparison against open data, from the entries' own fields.", confidence=BEST, team="distribution", success="The entries and the website agree.", source="external", tag="EX1",
+            summary="Open data disagrees with the website"))
+    nolink = [r for r in open_rows if r["status"] in ("verified",) and r["official_link"] == "not stated"]
+    if nolink:
+        out.append(_rec(
+            "EX2", "authority", "The open-data entry for the hotel does not link to its website",
+            "; ".join(f"{r['source']} found and matched, but it states no official website" for r in nolink) + ".",
+            "A link from an open-data entry to the official site lets a system connect the two as one hotel with more confidence.",
+            [{"url": r["url"], "snippet": f"{r['source']}: matched to the hotel, no official website stated"} for r in nolink[:3]],
+            "Add the hotel's official website address to the entry (OpenStreetMap: the website tag on the hotel's place; Wikidata: the official website property). Edit as the hotel, factually and once.",
+            "low", "low", technical="No website field in the matched entry's data as retrieved.", confidence=INFER, team="distribution", success="The entry links to the official website.", source="external", tag="EX2",
+            summary="Open-data entry has no website link"))
+    unclear = [r for r in ep["rows"] if r["status"] == "unclear" and r["source"] not in ("Independent travel publications",)]
+    if unclear:
+        out.append(_rec(
+            "EX3", "authority", "Check the hotel's own listing on " + ", ".join(r["source"] for r in unclear[:3]),
+            "; ".join(f"{r['source']}: {r['note'][:160]}" for r in unclear[:3]),
+            "If a platform's own listing cannot be told apart from a page that merely mentions the hotel, a system looking for the listing may not find it, and guests may land on the wrong page.",
+            [{"url": r["url"], "snippet": r["note"][:160]} for r in unclear[:3] if r["url"]] or [{"url": "", "snippet": unclear[0]["note"][:160]}],
+            "Open each platform's extranet (or search the platform for the hotel by name and town) and confirm the listing's name, address and website link are the hotel's.",
+            "low", "low", technical="A page was found in search results but its title and address did not name the hotel.", confidence=INFER, team="distribution", success="The listing is found and confirmed.", source="external", tag="EX3",
+            summary="Listing identity unclear"))
+    return out
+
+
+def _from_booking(bk):
+    """Findings from the booking-readiness check. A destination that merely refused the automated check is never reported as broken."""
+    if not bk or bk.get("status") != "ok":
+        return []
+    out = []
+    by = {c["id"]: c for c in bk.get("checks", [])}
+    link = by.get("link")
+    if link and link["state"] == "fail":
+        out.append(_rec(
+            "BK1", "content", "Make the way to book obvious on the homepage",
+            link["detail"], "An assistant can send a traveller to the website, but if the traveller cannot see how to book once there, the visit ends without a booking.",
+            [{"url": link["url"], "snippet": link["detail"][:200]}],
+            "Put a clearly labelled 'Book now' (or 'Check availability') link in the homepage header, linking straight to the booking page or engine, and repeat it on the rooms pages. If one already exists but is added by a script, ask the web supplier to render it in the page itself.",
+            "medium", "low", page={"url": link["url"], "label": "the homepage"}, technical="Booking route: no booking link or known booking engine among the homepage links as read.",
+            confidence=INFER, team="web", success="The next audit identifies a booking link on the homepage.", source="booking", tag="BK1", summary="No booking link found on the homepage"))
+    dest = by.get("destination")
+    if dest and dest["state"] == "fail":
+        out.append(_rec(
+            "BK2", "content", "The booking link leads to a page that does not work",
+            dest["detail"], "Every traveller who clicks 'Book now' reaches an error. This is a lost booking, whatever else the hotel does for visibility.",
+            [{"url": dest["url"], "snippet": dest["detail"]}],
+            "Open the booking link from the homepage, find out why it fails (a changed engine address or an expired link), and correct it today. Then test it from a phone.",
+            "high", "low", page={"url": dest["url"], "label": "the booking link"}, technical="The booking destination returned 404/410 or a server error to a polite request.",
+            confidence=BEST, team="web", success="The booking destination answers.", source="booking", tag="BK2", summary="Booking link is broken"))
+    lk = by.get("links")
+    if lk and lk["state"] == "fail" and bk.get("broken_links"):
+        bl = bk["broken_links"]
+        out.append(_rec(
+            "BK3", "content", f"{len(bl)} link(s) on the site lead to pages that do not exist",
+            lk["detail"], "A guest or a crawler that follows a broken link meets an error page, and it tells a reading system the site is not maintained.",
+            [{"url": b["url"], "snippet": f"HTTP {b['status']}"} for b in bl[:4]],
+            "Fix or remove each link (or add a redirect to the page that replaced it): " + ", ".join(b["url"] for b in bl[:5]) + ".",
+            "medium" if len(bl) >= 3 else "low", "low", technical="Links returned 404/410 or a server error to a polite request.", confidence=BEST, team="web",
+            success="The next audit finds no broken links.", source="booking", tag="BK3", summary="Broken links"))
+    return out
+
+
 def _from_intel(intel):
     recs = []
     if not intel or "error" in intel:
@@ -620,8 +822,12 @@ def _from_intel(intel):
 
 # ---------------------------------------------------------------------- assemble
 
-def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None):
+def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, traveller=None, booking=None, external=None, competitors=None):
     coverage = coverage or {}
+    # the requirement checks say more, and more exactly, than the extended guest questions they cover
+    superseded = {q for seg in (traveller or {}).get("assessed", []) for q in TRAVELLER_SUPERSEDES.get(seg, ())}
+    if superseded:
+        questions = [q for q in questions if q.get("id") not in superseded or q.get("source") != "extended"]
     recs = []
     recs += _from_questions(questions)
     recs += _from_location(location)
@@ -636,6 +842,10 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
     recs += _from_ai_insights(ai_insights)
     recs += _from_listing_checks(listing_checks)
     recs += _from_reddit(reddit)
+    recs += _from_traveller(traveller, coverage)
+    recs += _from_booking(booking)
+    recs += _from_external(external)
+    recs += _from_competitors(competitors, site)
     recs = drop_duplicate_entity(recs)
     limited_note = None
     if coverage.get("limited"):
@@ -659,6 +869,44 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
         r["score"] = r["rank"]          # kept for older readers of the report
     recs.sort(key=lambda r: -r["rank"])
     return recs
+
+
+GENERIC_ACTION = re.compile(r"improve (?:your )?(?:online )?visibility|optimi[sz]e (?:your )?(?:content|website|site) for (?:ai|search)|strengthen (?:your )?(?:digital|online) presence|boost (?:your )?(?:seo|visibility)|"
+                            r"increase (?:your )?(?:online )?presence|improve (?:your )?(?:ai|search) (?:presence|ranking)", re.I)
+
+
+def _title_tokens(t):
+    return {w for w in re.findall(r"[a-z0-9]+", (t or "").lower()) if len(w) > 3}
+
+
+def validate(recs):
+    """
+    The last gate before a recommendation reaches the hotel. Every recommendation must have supporting evidence (a page, a source or a quoted passage), a specific action, and wording that is not a
+    generic slogan ('improve your online visibility'); near-duplicates of an earlier one are dropped too. -> (kept, dropped) where each dropped row says why, so nothing disappears silently.
+    `recs` is expected best-first, so the earlier of two duplicates is the one kept.
+    """
+    kept, dropped = [], []
+    for r in recs:
+        ev = [e for e in r.get("evidence") or [] if (e.get("snippet") or "").strip() or (e.get("url") or "").strip()]
+        why = None
+        if not ev:
+            why = "no supporting evidence"
+        elif len((r.get("action") or "").strip()) < 25:
+            why = "no specific action"
+        elif GENERIC_ACTION.search(r.get("action", "")) or GENERIC_ACTION.search(r.get("title", "")):
+            why = "generic wording"
+        else:
+            tt = _title_tokens(r.get("title"))
+            for k in kept:
+                kt = _title_tokens(k.get("title"))
+                if tt and kt and len(tt & kt) / len(tt | kt) >= 0.8 and k.get("source") == r.get("source"):
+                    why = f"repeats {k['id']}"
+                    break
+        if why:
+            dropped.append({"id": r["id"], "title": r.get("title", ""), "reason": why})
+        else:
+            kept.append(r)
+    return kept, dropped
 
 
 def top_actions(recs, n=7):

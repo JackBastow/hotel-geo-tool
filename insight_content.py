@@ -386,7 +386,7 @@ def questions(site, guest, intent_rows, feature_rows, location_items):
         if src is not None and not site.is_home(src) and q["state"] in ("partial", "needs_checking"):
             where = {"url": src["url"], "label": site.path(src), "reason": "the page that already answers part of this",
                      "also": where["also"] if where["url"] != src["url"] else []}
-        out.append({"id": q["id"], "question": q["label"], "short": q["short"], "state": state, "source": "standard",
+        out.append({"id": q["id"], "question": q["label"], "short": q["short"], "state": state, "source": "standard", "optional": q["id"] in ("ev", "pets"),
                     "high_value": q.get("high_value", False),
                     "found": q.get("found", []), "missing": q.get("missing", []),
                     "evidence": ([{"url": q["source_url"], "snippet": q["snippet"]}] if q.get("source_url") else []),
@@ -446,6 +446,13 @@ def questions(site, guest, intent_rows, feature_rows, location_items):
                         "missing": ["distance or travel time"], "evidence": it["evidence"],
                         "where": _where_to_add(site, ("getting here", "location", "directions", "contact"), "a Location / Getting here page"),
                         "example": it["example"], "note": it.get("hint", "")})
+    # a fact reported as missing from a page whose headed sections were not in the text (tabs, accordions) may simply be in those sections: say so, and let the advice lower its confidence
+    for q in out:
+        if q["state"] in ("missing", "unclear", "partial") and q["source"] != "location":
+            slugs = tuple(q["where"].get("label", "").strip("/").split("/")[:1]) or ()
+            topic = [sl for sl in (slugs + tuple(w for w in q["question"].lower().replace("?", "").split() if len(w) > 4)) if sl]
+            if _topic_has_collapsed(site, topic[:6]) or (q["where"].get("url") and collapsed_sections(site.by_key.get(_key(q["where"]["url"])))):
+                q["access_note"] = "The page has sections (such as 'Amenities' or 'Things to know') whose text was not in the page as read, so this may be stated there."
     return out
 
 
@@ -607,6 +614,137 @@ def _norm_phone(s):
     return d[-10:] if len(d) >= 10 else d
 
 
+_COLLAPSED = re.compile(r"\b(?:amenities|things to know|room details|room features|features|facilities|what'?s included|good to know)\s+(?:share this page|take a tour|book now|find out more|book a stay|reviews?)\b", re.I)
+
+
+def collapsed_sections(page):
+    """Does this page have headed sections (tabs, accordions) whose text is not in the page as read? ('Amenities  Things to know  Share this page' with nothing between the headings.) A fact that is
+    'not found' on such a page may simply be in the part the reader could not see, so it is reported as unverified, not as absent."""
+    return bool(_COLLAPSED.search((page or {}).get("text", "")))
+
+
+def _topic_has_collapsed(site, slugs):
+    return any(collapsed_sections(p) for p in site.content_pages if any(evidence.fold(sl) in evidence.fold(site.path(p) + " " + p.get("title", "")) for sl in slugs))
+
+
+_DEPT_LABELS = [("events", re.compile(r"events?|conference|meetings?|weddings?|banquet\w*|sales|groups?\b", re.I)), ("spa", re.compile(r"\bspa\b|wellness|treatments?", re.I)),
+                ("dining", re.compile(r"restaurant|dining|table|bar\b|grill|kitchen|afternoon tea|brasserie|bistro|takeaway|reservations? for (?:dinner|lunch)", re.I)),
+                ("fax", re.compile(r"\bfax\b", re.I)), ("careers", re.compile(r"careers?|recruit\w*|vacanc\w+|jobs?\b", re.I)),
+                ("main", re.compile(r"reservations?|bookings?|reception|front desk|hotel|main|enquir\w+|tel(?:ephone)?\b|call us|phone", re.I))]
+_DEPT_PAGE = re.compile(r"event|wedding|conference|meeting|occasion|festive|christmas|spa|wellness|treatment|restaurant|dining|menu|bar\b|grill|afternoon-?tea|careers?|jobs|group|function|party|parties", re.I)
+
+
+def _phone_label(blob, start):
+    """The department a number is labelled with ('Events:', 'Spa reception', 'Restaurant bookings'): the nearest label in the text just before it, on the same line. '' when it has none."""
+    before = re.split(r"[\n\r]", blob[max(0, start - 60): start])[-1]
+    best, pos = "", -1
+    for key, rxl in _DEPT_LABELS:
+        for m in rxl.finditer(before):
+            if m.start() >= pos:
+                best, pos = key, m.start()
+    return best
+
+
+def _phone_analysis(site):
+    """-> (issues, notes). A second number is not an inconsistency when it is labelled as a department's line (events, spa, restaurant...) or appears only on that department's own page;
+    only unexplained, different numbers are raised. The explained ones are returned as notes, with the text that labels them."""
+    nums = defaultdict(lambda: {"pages": [], "labels": set(), "quote": ""})
+    for p in site.content_pages:
+        for t in p.get("tels", []):
+            if len(_digits(t)) >= 9:
+                nums[_norm_phone(t)]["pages"].append(p["url"])
+        blob = p.get("footer_text", "") + " \n " + p["text"][:1500]
+        for m in _PHONE.finditer(blob):
+            n = _norm_phone(m.group())
+            if len(n) < 9:
+                continue
+            d = nums[n]
+            d["pages"].append(p["url"])
+            lab = _phone_label(blob, m.start())
+            if lab:
+                d["labels"].add(lab)
+                d["quote"] = d["quote"] or evidence.clip(blob, m.start() - 40, m.end() + 20)
+    if len(nums) < 2:
+        return [], []
+    info = {}
+    for n, d in nums.items():
+        pages = sorted(set(d["pages"]))
+        dept_labels = d["labels"] - {"main"}
+        on_dept_pages = bool(pages) and all(_DEPT_PAGE.search(urllib.parse.urlparse(u).path) for u in pages)
+        info[n] = {"pages": pages, "labels": d["labels"], "quote": d["quote"],
+                   "explained": bool(dept_labels) or (on_dept_pages and not ("main" in d["labels"] and len(pages) > 1)),
+                   "why": (f"labelled {sorted(dept_labels)[0]}" if dept_labels else "appears only on a page about that department" if on_dept_pages else "")}
+    open_ = [n for n, d in info.items() if not d["explained"]]
+    notes = [{"type": "phone_department", "title": "A separate telephone line is used on " + (urllib.parse.urlparse(d["pages"][0]).path if d["pages"] else "one page") + (f" ({d['why'].replace('labelled ', '')})" if d["why"].startswith("labelled") else ""),
+              "values": [{"value": n, "url": d["pages"][0] if d["pages"] else "", "pages": len(d["pages"])}], "detail": ("Recognised as a department's own number, so it is not treated as an inconsistency. " + (f"The page says: \u201c{d['quote']}\u201d. " if d["quote"] else "")).strip()}
+             for n, d in info.items() if d["explained"]]
+    issues = []
+    if len(open_) > 1:
+        issues.append({"type": "phone", "title": f"{len(open_)} different telephone numbers appear on the site with nothing to say what each is for", "severity": "medium",
+                       "values": [{"value": n, "url": info[n]["pages"][0] if info[n]["pages"] else "", "pages": len(info[n]["pages"])} for n in sorted(open_, key=lambda k: -len(info[k]["pages"]))],
+                       "detail": "None of these is labelled as a department's line (events, spa, restaurant) and each is used on pages about the hotel as a whole. A guest, or an AI assistant quoting your number, may use the wrong one.",
+                       "fix": "Make the main reservations number identical everywhere, and label any deliberate second number (\u201cEvents: ...\u201d)."})
+    return issues, notes
+
+
+def consistency_notes(site):
+    """Things the consistency check looked at and found legitimate (a department's phone line, a longer form of the hotel's name), so the report can say they were seen and not flagged."""
+    notes = _phone_analysis(site)[1]
+    notes += _name_analysis(site)[1]
+    return notes
+
+
+_NAME_FILLER = {"the", "and", "&", "at", "of"}
+
+
+def _name_tokens(v):
+    return {t for t in evidence.fold(v).split() if t not in _NAME_FILLER}
+
+
+def _name_analysis(site):
+    """-> (issues, notes) for the forms of the hotel's name used on its own pages. A form that is the same name with something added ('Brooklands Hotel & Spa', 'The Brooklands Hotel Weybridge')
+    is a legitimate trading variant, not an error; only forms that differ in their own words ('Brooklands Hotel' and 'Brooklands Lodge') are raised."""
+    from identity import _variant_rx
+    rxn = _variant_rx(site.hotel) if site.hotel else None
+    if rxn is None:
+        return [], []
+    forms = defaultdict(lambda: {"pages": set(), "display": ""})
+    for p in site.content_pages:
+        blob = " ".join([p.get("title", "")] + list(p.get("h1", [])) + [p.get("footer_text", ""), p["text"][:3000]])
+        for m in rxn.finditer(blob):
+            v = re.sub(r"\s+(?:and|&)$", "", re.sub(r"\s+", " ", m.group(0)).strip(" &,-"), flags=re.I)
+            if not any(w in evidence.LODGING_WORDS for w in evidence.fold(v).split()):
+                continue
+            if evidence.fold(v).split()[-1] in ("restaurant", "bar", "grill"):
+                continue    # "Brooklands Hotel & Restaurant" labels a venue, it is not another name
+            f = forms[evidence.fold(v)]
+            f["display"] = f["display"] or v
+            f["pages"].add(p["url"])
+    sig = [(k, v) for k, v in forms.items() if len(v["pages"]) >= 2]
+    if len(sig) < 2:
+        return [], []
+    # group forms whose words contain another form's words: they are the same name written more fully
+    sig.sort(key=lambda kv: len(_name_tokens(kv[1]["display"])))
+    roots = []
+    for k, v in sig:
+        toks = _name_tokens(v["display"])
+        home = next((r for r in roots if _name_tokens(r[1]["display"]) <= toks or toks <= _name_tokens(r[1]["display"])), None)
+        if home is None:
+            roots.append((k, v, []))
+        else:
+            home[2].append((k, v))
+    notes = [{"type": "name_variants", "title": "The hotel's name is written in more than one form, all containing the same name",
+              "values": [{"value": r[1]["display"], "url": sorted(r[1]["pages"])[0], "pages": len(r[1]["pages"])}] + [{"value": v["display"], "url": sorted(v["pages"])[0], "pages": len(v["pages"])} for _k, v in r[2]],
+              "detail": "One form is the other with a word or two added ('& Spa', a place name), which is an ordinary trading variant, so it is not treated as an inconsistency."} for r in roots if r[2]]
+    issues = []
+    if len(roots) > 1:
+        issues.append({"type": "name", "title": "The hotel is called more than one thing across its own pages", "severity": "medium",
+                       "values": [{"value": r[1]["display"], "url": sorted(r[1]["pages"])[0], "pages": len(r[1]["pages"])} for r in sorted(roots, key=lambda r: -len(r[1]["pages"]))],
+                       "detail": "These forms differ in their own words, not just by an addition, and each is used on several pages. Search engines and AI systems may treat them as different names.",
+                       "fix": "Choose one trading name for the hotel (and a separate, clearly named label for the spa or restaurant), then use it in titles, headings and the footer."})
+    return issues, notes
+
+
 def consistency(site, guest, today=None):
     """Contradictions between the hotel's own pages. Each lists every page involved."""
     today = today or dt.date.today()
@@ -618,44 +756,9 @@ def consistency(site, guest, today=None):
                     "values": [{"value": v["value"], "url": v["source_url"]} for v in c["values"]],
                     "detail": c["note"], "fix": f"Decide the correct {c['fact'].lower()} and update every page and the structured data to match."})
 
-    # --- phone numbers
-    nums = defaultdict(list)
-    for p in site.content_pages:
-        found = {_norm_phone(t) for t in p.get("tels", []) if len(_digits(t)) >= 9}
-        found |= {_norm_phone(m.group()) for m in _PHONE.finditer(p.get("footer_text", "") + " " + p["text"][:1500])}
-        for n in found:
-            if len(n) >= 9:
-                nums[n].append(p["url"])
-    if len(nums) > 1:
-        out.append({"type": "phone", "title": f"{len(nums)} different telephone numbers appear on the site", "severity": "medium",
-                    "values": [{"value": n, "url": u[0], "pages": len(u)} for n, u in sorted(nums.items(), key=lambda kv: -len(kv[1]))],
-                    "detail": "This may be intentional (for example a separate events or spa line). If it isn't, a guest - or an AI "
-                              "assistant quoting your number - may use the wrong one.",
-                    "fix": "Label any deliberate second number (“Events: ...”), and make the main reservations number identical everywhere."})
-
-    # --- hotel name forms
-    from identity import _variant_rx
-    rxn = _variant_rx(site.hotel) if site.hotel else None
-    if rxn is not None:
-        forms = defaultdict(lambda: {"pages": set(), "display": ""})
-        for p in site.content_pages:
-            blob = " ".join([p.get("title", "")] + list(p.get("h1", [])) + [p.get("footer_text", ""), p["text"][:3000]])
-            for m in rxn.finditer(blob):
-                v = re.sub(r"\s+(?:and|&)$", "", re.sub(r"\s+", " ", m.group(0)).strip(" &,-"), flags=re.I)
-                if not any(w in evidence.LODGING_WORDS for w in evidence.fold(v).split()):
-                    continue
-                if evidence.fold(v).split()[-1] in ("restaurant", "bar", "grill"):
-                    continue    # "Brooklands Hotel & Restaurant" labels a venue, it is not another name
-                f = forms[evidence.fold(v)]
-                f["display"] = f["display"] or v
-                f["pages"].add(p["url"])
-        sig = [(k, v) for k, v in forms.items() if len(v["pages"]) >= 2]
-        if len(sig) > 1:
-            out.append({"type": "name", "title": "The hotel is called more than one thing across its own pages", "severity": "medium",
-                        "values": [{"value": v["display"], "url": sorted(v["pages"])[0], "pages": len(v["pages"])}
-                                   for k, v in sorted(sig, key=lambda kv: -len(kv[1]["pages"]))],
-                        "detail": "Both forms are used on several pages. Search engines and AI systems may treat them as different names.",
-                        "fix": "Choose one trading name for the hotel (and a separate, clearly named label for the spa or restaurant), then use it in titles, headings and the footer."})
+    # --- phone numbers and the forms of the hotel's name (a department's own line, or a fuller form of the name, is not an error)
+    out += _phone_analysis(site)[0]
+    out += _name_analysis(site)[0]
 
     # --- postcode / address
     pcs = defaultdict(set)

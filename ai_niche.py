@@ -77,6 +77,28 @@ def airport_from_map(osm_ctx, max_km=MAX_AIRPORT_KM):
     return (a["name"], round(float(a["km"]), 1))
 
 
+def region(entities, city=""):
+    """The county or region the map puts the hotel in, when it is not just the town again."""
+    for e in entities or []:
+        if e.get("source") != "OpenStreetMap" or not e.get("found") or e.get("match_confident") is not True:
+            continue
+        comp = e.get("address_components") or {}
+        v = (comp.get("county") or comp.get("state_district") or "").strip()
+        if v and evidence.fold(v) != evidence.fold(city.split(",")[0]) and len(v) > 2 and not v.isdigit():
+            return v
+    return None
+
+
+def landmark(osm_ctx, hotel=""):
+    """The nearest place people travel to (a mapped attraction with a website, a Wikipedia or Wikidata entry) within 4 km, as {name, km}; None when there is none or its name contains the hotel's own name."""
+    core = [t for t in ai_sample._core_tokens(hotel) if len(t) > 3]
+    for a in sorted((osm_ctx or {}).get("attractions", []), key=lambda r: r["km"]):
+        t = a.get("tags") or {}
+        if a["km"] <= 4 and (t.get("website") or t.get("wikidata") or t.get("wikipedia")) and not (core and any(w in evidence.fold(a["name"]) for w in core)):
+            return {"name": a["name"], "km": a["km"]}
+    return None
+
+
 def district(entities, city=""):
     """The neighbourhood the map puts the hotel in (a suburb or quarter), when it is not just the town again."""
     for e in entities or []:
@@ -106,7 +128,7 @@ def profile(hotel, city, entities, osm_ctx, own_pages, features, intents, hint=N
     stars = stars_from_text(texts)
     level = {r["key"]: r.get("level") for r in intents or []}
     flevel = {r["key"]: r.get("level") for r in features or []}
-    prof = {"district": district(entities, city), "airport": airport, "stars": stars,
+    prof = {"district": district(entities, city), "region": region(entities, city), "landmark": landmark(osm_ctx, hotel), "airport": airport, "stars": stars,
             "features": [f["key"] for f in features or [] if f.get("level") == "strong"] + [f["key"] for f in features or [] if f.get("level") == "some"],
             "segments": [r["label"] for r in intents or [] if r.get("level") == "strong"]}
     prof["airport_hotel"] = bool(airport and airport["km"] <= AIRPORT_HOTEL_KM)
@@ -222,7 +244,7 @@ def _tier_phrase(tier, stars):
     return {"luxury": "luxury ", "upscale": f"{stars}-star " if stars == 4 else "upscale ", "midscale": "mid-range ", "budget": "budget "}[tier["key"]]
 
 
-def questions(prof, hotel, city, n=6):
+def questions(prof, hotel, city, n=8):
     """
     Up to n questions for the markets the hotel competes in: its price level, its location (airport, neighbourhood) and the audiences it serves,
     each worded as a traveller with that need would write it and each tied to a fact we hold. None names the hotel.
@@ -270,6 +292,13 @@ def questions(prof, hotel, city, n=6):
             pass
     if district_q:
         cands.insert(1 if tier else 0, district_q)
+    lm = prof.get("landmark")
+    if lm:
+        cands.append(("landmark", "Near a landmark", f"Which hotels are closest to {lm['name']}?", f"The map places {lm['name']} {lm['km']} km from the hotel."))
+    rg = prof.get("region")
+    if rg and ("wellness" in have or "couples" in have):
+        cands.append(("region", "Region", f"Which {tp}hotels in {rg} are best for a romantic spa weekend?" if "wellness" in have else f"Which {tp}hotels in {rg} are best for a romantic weekend away?",
+                      f"The map places the hotel in {rg}."))
     out, seen_ids, seen_text = [], set(), set()
     for cid, angle, text, why in cands:
         if len(out) >= n:

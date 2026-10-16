@@ -67,6 +67,38 @@ LABELS = {k: l for k, l, _, _ in CATEGORIES}
 LABELS["freshness"], WEIGHTS["freshness"] = "Freshness", 0.0
 
 
+WEIGHT_WHY = {
+    "ai_visibility": "What assistants actually recommend decides whether a traveller is sent to the hotel, so it carries the largest share.",
+    "otas": "Most bookings start on a travel platform, so being correctly listed there matters.",
+    "reviews": "Guest reviews and the hotel's replies are the evidence assistants and travellers read most.",
+    "editorial": "Independent coverage is the evidence assistants cite as a source.",
+    "website": "The hotel's own website is the one source it fully controls, and the one every other check is compared with.",
+    "social": "Official profiles help systems connect the hotel's accounts, but they carry the least weight.",
+    "entity": "A consistent name, address and phone across sources is a basic condition for being identified correctly.",
+}
+
+
+def totals(cats):
+    """
+    The overall score, worked out in one place so the headline, the scorecard, the dashboard and the PDF can never disagree.
+    overall = sum(score x weight) / sum(weight), over the ASSESSED categories only. A category that was not measured is left out of both sums (it is never counted as 0).
+    -> {overall, coverage_pct, assessed_weight, breakdown, simple_average, method}. `breakdown` has one row per assessed category: its score, its weight, its share of the assessed weight
+    and the points it adds, so the rows add up to the overall score; `simple_average` is the plain mean of the same scores, shown only to explain why the two differ.
+    """
+    assessed = [c for c in cats if c["assessed"]]
+    tw = sum(c["weight"] for c in assessed)
+    overall = sum(c["score"] * c["weight"] for c in assessed) / tw if tw else 0
+    rows = [{"key": c["key"], "label": c["label"], "score": c["score"], "weight": c["weight"], "share_pct": round(100 * c["weight"] / tw, 1) if tw else 0,
+             "points": round(c["score"] * c["weight"] / tw, 1) if tw else 0, "partial": bool(c.get("partial")), "why": WEIGHT_WHY.get(c["key"], "")} for c in assessed]
+    simple = round(sum(c["score"] for c in assessed) / len(assessed)) if assessed else None
+    not_assessed = [c for c in cats if not c["assessed"]]
+    method = (f"Overall = each assessed category's score multiplied by its weight, added up, and divided by the weight of the assessed categories ({round(tw, 1)}% of the model). "
+              + (f"{', '.join(c['label'] for c in not_assessed)} ({round(sum(c['weight'] for c in not_assessed), 1)}% of the model) was not measured, so it is left out of the sum rather than counted as zero. " if not_assessed else "")
+              + (f"The plain average of the {len(assessed)} assessed scores is {simple}; the weighted score is {round(overall)} because the categories do not count equally." if assessed and simple is not None and simple != round(overall)
+                 else (f"The plain average of the {len(assessed)} assessed scores is also {simple}." if assessed else "")))
+    return {"overall": round(overall), "coverage_pct": round(tw, 1), "assessed_weight": round(tw, 1), "breakdown": rows, "simple_average": simple, "method": method}
+
+
 def _cat(key, score, detail, evidence=None, recs=None, partial=False):
     return {
         "key": key, "label": LABELS[key], "weight": WEIGHTS[key],
@@ -513,10 +545,13 @@ def score_otas(tavily_result):
                   "is based on one search's top results, not a full listing "
                   "check - verify by hand before treating it as certain.",
         })
-    score = min(len(hits), 4) / 4.0 * 100
+    # Found in a search index, never read: what the platform shows is not verified, so even a full set of platforms cannot score above 75.
+    platforms = {h["platform"] for h in hits}
+    score = min(len(platforms), 4) / 4.0 * 75
+    ev.append("Capped at 75: the platforms' own pages are not read (their terms prohibit it), so their names, facts and links are not verified here")
     return _cat("otas", score,
-               f"{len(hits)} OTA(s) found via search index (Tavily), not scraped "
-               "directly.", ev, recs)
+               f"{len(platforms)} OTA(s) found via search index (Tavily), not scraped "
+               "directly; scored on presence only, capped.", ev, recs)
 
 
 def score_review_pack(pack):
@@ -560,13 +595,13 @@ def apply_review_pack(scorecard, pack):
     cats = [c for c in scorecard["categories"] if c["key"] != "reviews"] + [score_review_pack(pack)]
     order = {k: i for i, (k, _, _, _) in enumerate(CATEGORIES)}
     cats.sort(key=lambda c: order.get(c["key"], 99))
-    assessed = [c for c in cats if c["assessed"]]
-    total_weight = sum(c["weight"] for c in assessed)
-    overall = sum(c["score"] * c["weight"] for c in assessed) / total_weight if total_weight else 0
+    tot = totals(cats)
+    total_weight, overall = tot["assessed_weight"], tot["overall"]
     missing = [c for c in cats if not c["assessed"]]
     caveat = (f"Score is {round(overall)} across the {round(total_weight, 1)}% of the model that could be measured. It is NOT a score out of 100 for the whole model - "
               f"{round(100 - total_weight, 1)}% ({', '.join(c['label'] for c in missing)}) was not assessed." if missing else f"Score is {round(overall)}, assessed across the full model.")
-    return {**scorecard, "overall": round(overall), "coverage_pct": round(total_weight, 1), "assessed_weight": round(total_weight, 1), "categories": cats, "caveat": caveat}
+    return {**scorecard, "overall": tot["overall"], "coverage_pct": tot["coverage_pct"], "assessed_weight": tot["assessed_weight"], "breakdown": tot["breakdown"], "simple_average": tot["simple_average"],
+            "method": tot["method"], "categories": cats, "caveat": caveat}
 
 
 def score_reviews(places_result, amadeus_result):
@@ -681,8 +716,15 @@ def score_editorial(tavily_result):
     weight_by_substance = {"feature": 1.0, "substantial mention": 0.6,
                           "passing mention": 0.3, "unknown": 0.4}
     confirmed_hits = [h for h in hits if h.get("read", {}).get("confirmed") is True]
-    weighted = sum(weight_by_substance.get(h["read"].get("substance", "unknown"), 0.4)
-                  for h in confirmed_hits)
+    # Quality over count: each publisher counts once, by its best piece, so six pieces on one site are one source; a negative or passing mention earns little.
+    best_by_publisher = {}
+    for h in confirmed_hits:
+        w = weight_by_substance.get(h["read"].get("substance", "unknown"), 0.4)
+        if h["read"].get("sentiment") == "negative":
+            w *= 0.5
+        k = h.get("platform") or h.get("url")
+        best_by_publisher[k] = max(best_by_publisher.get(k, 0.0), w)
+    weighted = sum(best_by_publisher.values())
 
     if hits:
         for h in confirmed_hits[:8]:
@@ -723,10 +765,11 @@ def score_editorial(tavily_result):
                   "press-coverage audit.",
         })
 
-    score = min(weighted, 3) / 3.0 * 100
+    score = min(weighted, 5) / 5.0 * 85            # five strong, distinct, independent features would earn 85; this is a sample of a search index, never a full press audit
+    ev.append(f"{len(best_by_publisher)} distinct publisher(s), weighted by substance (feature 1.0, substantial 0.6, passing 0.3) = {weighted:.1f}; five strong publishers would score 85, the cap")
     return _cat("editorial", score,
-               f"{len(confirmed_hits)} confirmed editorial/credible source(s), "
-               f"read and judged rather than just counted.", ev, recs)
+               f"{len(best_by_publisher)} distinct confirmed editorial/credible source(s), "
+               f"read and judged and weighted by quality, not counted.", ev, recs)
 
 
 def score_ai_sample(ai):
@@ -954,9 +997,8 @@ def build_scorecard(site, entities, consistency, location, discovery,
 
     assessed = [c for c in cats if c["assessed"]]
     not_assessed = [c for c in cats if not c["assessed"]]
-    total_weight = sum(c["weight"] for c in assessed)
-    overall = (sum(c["score"] * c["weight"] for c in assessed) / total_weight
-               if total_weight else 0)
+    tot = totals(cats)
+    total_weight, overall = tot["assessed_weight"], tot["overall"]
 
     if not_assessed:
         missing = ", ".join(c["label"] for c in not_assessed)
@@ -972,9 +1014,12 @@ def build_scorecard(site, entities, consistency, location, discovery,
         caveat = f"Score is {round(overall)}, assessed across the full model."
 
     return {
-        "overall": round(overall),
-        "coverage_pct": round(total_weight, 1),
-        "assessed_weight": round(total_weight, 1),
+        "overall": tot["overall"],
+        "coverage_pct": tot["coverage_pct"],
+        "assessed_weight": tot["assessed_weight"],
+        "breakdown": tot["breakdown"],
+        "simple_average": tot["simple_average"],
+        "method": tot["method"],
         "categories": cats,
         "caveat": caveat,
     }

@@ -106,6 +106,25 @@ def mentioned(text, hotel, city=""):
     return any(core[0] in s and bool(place) and place in s for s in sentences)
 
 
+_RECOMMEND = re.compile(r"\b(?:recommend\w*|suggest\w*|best|top|great (?:choice|option|pick)|good (?:choice|option|pick)|ideal|perfect|well[- ]suited|excellent|worth|stands? out|popular|favou?rite|go(?:es)? for)\b", re.I)
+_AGAINST = re.compile(r"\b(?:avoid|not recommended|wouldn'?t recommend|would not recommend|poor|disappointing|closed|no longer|permanently closed|complaints?)\b", re.I)
+
+
+def recommended(text, hotel, city=""):
+    """
+    Was the hotel actually RECOMMENDED, as distinct from merely named? True when it is a line of a list of suggestions (the assistant was asked to list the hotels it recommends, best first), or when a
+    sentence naming it carries recommending words and none against. A rule-based reading of the answer; the answer itself is shown beside it.
+    """
+    if not mentioned(text, hotel, city):
+        return False
+    if list_position(text, hotel):
+        return True
+    for s in re.split(r"(?<=[.!?\n])\s+", text or ""):
+        if mentioned(s, hotel, city) and _RECOMMEND.search(s) and not _AGAINST.search(s):
+            return True
+    return False
+
+
 def list_position(text, hotel):
     """1-based place of the hotel among list lines (numbered or bulleted) in the answer; None when it is not in a list."""
     lines = [ln for ln in (text or "").splitlines() if re.match(r"\s*(?:\d+[.)]|[-*•])\s+", ln)]
@@ -273,9 +292,10 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
         if not answer:
             return {**q, "answer": "", "mentioned": None, "position": None, "domains": domains, "searches": searches, "cost_usd": c,
                     "note": "The assistant returned no answer text."}
-        return {**q, "answer": answer, "mentioned": mentioned(answer, hotel, city), "position": list_position(answer, hotel),
+        return {**q, "answer": answer, "mentioned": mentioned(answer, hotel, city), "recommended": recommended(answer, hotel, city), "position": list_position(answer, hotel),
                 "domains": domains, "pages": parse_sources(resp), "searches": searches, "cost_usd": c,
-                "own_site_cited": bool(own and any(d == own or d.endswith("." + own) for d in domains))}
+                "own_site_cited": bool(own and any(d == own or d.endswith("." + own) for d in domains)),
+                "platform": f"Claude ({model}) with web search", "tested_on": time.strftime("%Y-%m-%d", time.gmtime())}
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:      # a few at a time: faster, still gentle on the rate limit
         items = [r for r in ex.map(ask, expand(questions, repeats)) if r]
@@ -342,6 +362,39 @@ def run_extra(hotel, city, questions, *, api_key=None, model=None, own_domain=""
     items, spent, why = ask_all(hotel, city, questions, client=client, model=model, own_domain=own_domain, budget_usd=budget_usd, workers=workers, progress=progress,
                                 repeats=repeats)
     return {"items": items, "cost_usd": round(spent, 5), "reason": why}
+
+
+PLATFORMS_NOT_TESTED = ["ChatGPT", "Google Gemini", "Microsoft Copilot", "Google AI Overviews", "Perplexity"]
+
+
+def test_log(ai):
+    """
+    The genuine AI test log: one row per question asked, from the answers actually collected. -> {"rows", "platform", "date", "not_tested", "summary"}.
+    Each row: the prompt, whether it names the hotel (branded) or not, which platform answered, whether the hotel appeared, whether it was recommended, its place in the list, whether the
+    official website was among the sources, and the date. Only Claude was queried; the other assistants are listed as not tested, never inferred.
+    """
+    if not ai or ai.get("status") != "ok":
+        return None
+    rows = []
+    for g in by_question(ai.get("items") or []):
+        for k, a in enumerate(g["answers"], 1):
+            rows.append({"prompt": g["text"], "branded": g["kind"] == "direct", "kind": g["kind"], "run": k, "of_runs": len(g["answers"]), "platform": a.get("platform") or f"Claude ({ai.get('model', '')}) with web search",
+                         "appeared": a.get("mentioned"), "recommended": a.get("recommended"), "position": a.get("position"), "official_site_cited": a.get("own_site_cited"),
+                         "date": a.get("tested_on") or ai.get("run_at") or ""})
+    nb = [r for r in rows if not r["branded"] and r["appeared"] is not None]
+    return {"rows": rows, "platform": f"Claude ({ai.get('model', '')}) with web search", "date": ai.get("run_at") or "", "not_tested": PLATFORMS_NOT_TESTED,
+            "summary": {"prompts": len({r["prompt"] for r in rows if not r["branded"]}), "non_branded_answers": len(nb), "appeared": sum(1 for r in nb if r["appeared"]),
+                        "recommended": sum(1 for r in nb if r["recommended"]), "site_cited": sum(1 for r in nb if r["official_site_cited"])}}
+
+
+def manual_checklist(ai, hotel="", city=""):
+    """The non-branded prompts to try by hand in the assistants this tool cannot query (ChatGPT, Gemini, Copilot), with the fields to record. Built from the prompts that were asked, so the results are comparable."""
+    seen, prompts = set(), []
+    for i in (ai or {}).get("items") or []:
+        if i.get("kind") != "direct" and i["text"] not in seen:
+            seen.add(i["text"])
+            prompts.append(i["text"])
+    return {"prompts": prompts[:10], "assistants": PLATFORMS_NOT_TESTED[:3], "fields": ["Hotel appeared? (yes/no)", "Recommended? (yes/no)", "Place in the list", "Website cited? (yes/no)", "Date tested"]}
 
 
 def by_question(items):

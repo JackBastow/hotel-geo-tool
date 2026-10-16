@@ -104,6 +104,79 @@ def structured_data(soup):
     return nodes, bad
 
 
+_TRACKING = re.compile(r"pixel|track|beacon|analytics|doubleclick|googleads|facebook\.com/tr|bat\.bing|adsystem|spacer|1x1|blank\.(?:gif|png)|clear\.gif|transparent", re.I)
+_DECORATIVE_CLASS = re.compile(r"icon|logo|sprite|spacer|bullet|divider|arrow|star|avatar|flag|badge|payment|social", re.I)
+_KEY_KINDS = [("room", re.compile(r"room|suite|bedroom|bed\b|twin|double|king|queen|family|apartment|accommodation", re.I)),
+              ("restaurant", re.compile(r"restaurant|dining|dishes?|menu|food|bar\b|grill|breakfast|afternoon|tea\b|cocktail|brasserie|chef", re.I)),
+              ("spa", re.compile(r"\bspa\b|pool|sauna|steam|treatment|massage|wellness|gym|fitness", re.I)),
+              ("facility", re.compile(r"meeting|conference|boardroom|wedding|ceremony|event|garden|terrace|lobby|reception|exterior|hotel[-_ ]?front|lounge|ballroom|function", re.I))]
+
+
+def _real_src(im):
+    """The address an image will actually show: lazy-loaders put a base64 or 1-pixel placeholder in src and the real file in a data attribute."""
+    cands = [im.get(k) or "" for k in ("data-src", "data-lazy-src", "data-original", "data-lazy", "src")]
+    for c in cands:
+        if c and not c.startswith("data:"):
+            return c
+    srcset = (im.get("data-srcset") or im.get("srcset") or "").split(",")[0].strip().split(" ")[0]
+    return srcset if srcset and not srcset.startswith("data:") else ""
+
+
+_PAGE_KIND = [("room", re.compile(r"/(?:rooms?|suites?|accommodation|bedrooms?|stay)(?:/|$|-)", re.I)), ("restaurant", re.compile(r"/(?:eat|dine|dining|restaurants?|bar|menus?|food|afternoon-tea|eat-drink)(?:/|$|-)", re.I)),
+              ("spa", re.compile(r"/(?:spa|bspa|wellness|treatments?|pool|leisure|gym)(?:/|$|-)", re.I)), ("facility", re.compile(r"/(?:meetings?|conference|events?|weddings?|private-dining|occasions|facilities|gardens?)(?:/|$|-)", re.I))]
+
+
+def image_summary(soup, url=""):
+    """
+    Images on the page, counted the way a guest or a screen reader would meet them. Tracking pixels, base64 or 1-pixel placeholders, vector icons, logos and decorative images (empty alt on
+    purpose, role=presentation, aria-hidden) are not content images and are left out. Of the content images, those that show rooms, food and drink, the spa or the hotel's facilities are
+    the key ones: they are what a traveller (and a system describing the hotel) most needs words for.
+    -> {total: every <img>, content: real images, no_alt: content images with no alt, key: key images, key_no_alt, skipped: {placeholders, tracking, decorative}, files: examples}
+    """
+    total = skipped_ph = skipped_tr = skipped_dec = 0
+    content = no_alt = key = key_no_alt = 0
+    files, key_files, by_kind = [], [], {}
+    for im in soup.find_all("img"):
+        total += 1
+        src = _real_src(im)
+        raw = im.get("src") or ""
+        w, h = str(im.get("width") or ""), str(im.get("height") or "")
+        if not src:
+            skipped_ph += 1                  # only a base64 / data placeholder, with no real file behind it
+            continue
+        if _TRACKING.search(src) or (w.isdigit() and h.isdigit() and int(w) <= 2 and int(h) <= 2):
+            skipped_tr += 1
+            continue
+        cls = " ".join(im.get("class") or []) if isinstance(im.get("class"), list) else str(im.get("class") or "")
+        alt_attr = im.get("alt")
+        name = urllib.parse.unquote(src.split("?")[0].rsplit("/", 1)[-1])[:80]
+        fig = im.find_parent("figure")
+        caption = fig.find("figcaption").get_text(" ")[:150] if fig is not None and fig.find("figcaption") else ""
+        # what the picture shows: the kind of page it is on (rooms, dining, spa, meetings...) first, then its file name, class and caption. Navigation text around it is not used.
+        name_kind = next((k for k, rxk in _KEY_KINDS if rxk.search(" ".join([name, caption]))), "")        # the file name and caption say what a picture shows; CSS classes (carousel, menu, bar...) do not
+        kind = name_kind or next((k for k, rxp in _PAGE_KIND if rxp.search(urllib.parse.urlparse(url).path + "/")), "")
+        alt = (alt_attr or "").strip()
+        decorative = (im.get("role") in ("presentation", "none") or im.get("aria-hidden") == "true" or src.lower().split("?")[0].endswith(".svg") or (w.isdigit() and int(w) < 48)
+                      or bool(_DECORATIVE_CLASS.search(cls)) or "logo" in src.lower() or (alt_attr is not None and not alt and not name_kind))      # an alt left empty on purpose, on a picture of nothing in particular
+        if decorative:
+            skipped_dec += 1
+            continue
+        content += 1
+        if kind:
+            key += 1
+        if not alt:
+            no_alt += 1
+            if kind:
+                key_no_alt += 1
+                by_kind[kind] = by_kind.get(kind, 0) + 1
+                if len(key_files) < 8:
+                    key_files.append({"src": name, "kind": kind})
+        if len(files) < 14:
+            files.append({"src": name, "alt": alt[:80]})
+    return {"total": total, "content": content, "no_alt": no_alt, "key": key, "key_no_alt": key_no_alt, "key_files": key_files, "key_no_alt_by_kind": by_kind,
+            "skipped": {"placeholders": skipped_ph, "tracking": skipped_tr, "decorative": skipped_dec}, "files": files}
+
+
 def extract(soup, url, raw_html):
     """-> dict of signals. Call BEFORE scripts/nav/footer are removed from `soup`."""
     sig = {}
@@ -119,20 +192,7 @@ def extract(soup, url, raw_html):
     sig["lang"] = (soup.html.get("lang") if soup.html else None) or None
     sig["structured"], sig["jsonld_errors"] = structured_data(soup)
 
-    imgs = soup.find_all("img")
-    no_alt, files = 0, []
-    for im in imgs:
-        alt = (im.get("alt") or "").strip()
-        src = im.get("src") or im.get("data-src") or ""
-        # decorative images may legitimately have empty alt; count only images that look
-        # like content (not tiny icons/tracking pixels)
-        w = str(im.get("width") or "")
-        tiny = w.isdigit() and int(w) < 40
-        if not alt and not tiny and "logo" not in src.lower():
-            no_alt += 1
-        if len(files) < 14:
-            files.append({"src": urllib.parse.unquote(src.split("?")[0].rsplit("/", 1)[-1])[:80], "alt": alt[:80]})
-    sig["images"] = {"total": len(imgs), "no_alt": no_alt, "files": files}
+    sig["images"] = image_summary(soup, url)
 
     pdfs = []
     for a in soup.find_all("a", href=True):

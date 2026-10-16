@@ -124,10 +124,16 @@ check("the word 'beach' on a menu is not a beach location signal",
 check("with no map data the report says so", "could not be retrieved" in ic.location(site2, None)["note"])
 
 print("5. consistency inside the hotel's own pages")
-call = page("/contact/", "Reservations: 0113 111 2222. Events line 0113 999 8888. " + LONG, title="Contact", tels=["0113 999 8888"])
+call = page("/contact/", "Reservations: 0113 111 2222. Call us on 0113 777 6666. " + LONG, title="Contact", tels=["0113 777 6666"])
 cons = ic.consistency(ic.Site(PAGES + [call], BASE, HOTEL, CITY), guest_for(PAGES))
 kinds = {c["type"] for c in cons}
-check("two different telephone numbers are surfaced, with the pages", "phone" in kinds)
+check("two different telephone numbers that nothing labels as a department are surfaced, with the pages", "phone" in kinds)
+dept = page("/contact/", "Reservations: 0113 111 2222. Events line 0113 999 8888. " + LONG, title="Contact", tels=["0113 999 8888"])
+cons_d = ic.consistency(ic.Site(PAGES + [dept], BASE, HOTEL, CITY), guest_for(PAGES))
+check("a number labelled as the events line is a department's line, not an inconsistency, and is noted as seen", "phone" not in {c["type"] for c in cons_d}
+      and any(n["type"] == "phone_department" for n in ic.consistency_notes(ic.Site(PAGES + [dept], BASE, HOTEL, CITY))))
+spa_page = page("/spa/treatments/", "Book a treatment on 0113 555 4444. " + LONG, title="Spa treatments", tels=["0113 555 4444"])
+check("a second number found only on the spa's own page is a department line too", "phone" not in {c["type"] for c in ic.consistency(ic.Site(PAGES + [spa_page], BASE, HOTEL, CITY), guest_for(PAGES))})
 check("the operating company's phone and postcode on the terms page are NOT counted",
       "postcode" not in kinds and not any("20 7000" in v["value"] or "2070001111" in v["value"] for c in cons if c["type"] == "phone" for v in c["values"]))
 conflict = {"fact": "Check-in time", "values": [{"value": "14:00", "source_url": BASE + "a"}, {"value": "15:00", "source_url": BASE + "b"}],
@@ -138,8 +144,13 @@ names = [page("/a/", "Test Hotel & Spa welcomes you. " + LONG, title="Test Hotel
          page("/b/", "Test Hotel & Spa is lovely. " + LONG, title="Test Hotel & Spa", h1=["Test Hotel & Spa"]),
          page("/c/", "Test Hotel is lovely. " + LONG, title="Test Hotel", h1=["Test Hotel"]),
          page("/d/", "Test Hotel is great. " + LONG, title="Test Hotel", h1=["Test Hotel"])]
-check("two name forms each used on several pages are flagged",
-      any(c["type"] == "name" for c in ic.consistency(ic.Site(names, BASE, HOTEL, CITY), {})))
+check("'Test Hotel & Spa' and 'Test Hotel' are the same name written more fully: not an error, and noted as seen",
+      not any(c["type"] == "name" for c in ic.consistency(ic.Site(names, BASE, HOTEL, CITY), {}))
+      and any(n["type"] == "name_variants" for n in ic.consistency_notes(ic.Site(names, BASE, HOTEL, CITY))))
+distinct = [page("/a/", "Test Inn welcomes you. " + LONG, title="Test Inn", h1=["Test Inn"]), page("/b/", "Test Inn is lovely. " + LONG, title="Test Inn", h1=["Test Inn"]),
+            page("/c/", "Test Hotel is lovely. " + LONG, title="Test Hotel", h1=["Test Hotel"]), page("/d/", "Test Hotel is great. " + LONG, title="Test Hotel", h1=["Test Hotel"])]
+check("two forms that differ in their own words ('Test Inn', 'Test Hotel') each used on several pages are flagged",
+      any(c["type"] == "name" for c in ic.consistency(ic.Site(distinct, BASE, HOTEL, CITY), {})))
 venue = [page("/a/", "Test Hotel & Restaurant. " + LONG, title="Test Hotel & Restaurant"), page("/b/", "Test Hotel & Restaurant. " + LONG, title="Test Hotel & Restaurant"),
          page("/c/", "Test Hotel. " + LONG, title="Test Hotel"), page("/d/", "Test Hotel. " + LONG, title="Test Hotel")]
 check("'& Restaurant' labels a venue and is not reported as a second hotel name",
@@ -404,7 +415,8 @@ check("the 2/5 hygiene rating is among the recommendations", fsa is not None)
 check("...and it IS in the top actions (the previous ranking left it out)", fsa and fsa["id"] in res13["top_actions"], res13["top_actions"])
 sd1 = next((r for r in res13["recommendations"] if r["id"] == "SD1"), None)
 check("a risk that guests can see outranks missing structured data", fsa and sd1 and fsa["rank"] > sd1["rank"], (fsa and fsa["rank"], sd1 and sd1["rank"]))
-check("structured-data advice stays modest: it is not a top action when real fixes exist", sd1 is None or sd1["id"] not in res13["top_actions"])
+check("a missing Hotel block is a medium-priority fix that now appears among the top actions (low effort), below a risk guests can see",
+      sd1 is not None and sd1["priority"] == "medium" and sd1["id"] in res13["top_actions"] and res13["top_actions"].index(fsa["id"]) < res13["top_actions"].index("SD1"))
 check("every recommendation shows the factors behind its rank",
       all({"risk", "traveller", "visibility", "confidence"} <= set(r["factors"]) and r["value"] > 0 and r["rank"] > 0 for r in res13["recommendations"]))
 check("the top actions are all REQUIRED FIXES", all(r13[i]["kind"] == "fix" for i in res13["top_actions"]))
@@ -422,7 +434,7 @@ mk = lambda src, tag, eff="low", conf=advice.BEST, cat="understanding": {"id": t
                                                                          "category": cat, "question_ids": []}
 fsa_u, sd_u = mk("intel", "F1", "medium"), mk("structured", "SD1")
 ranking.annotate([fsa_u, sd_u], [])
-check("model: hygiene (risk 5, traveller 5) scores far above markup (risk 1)", fsa_u["value"] > sd_u["value"] * 2, (fsa_u["value"], sd_u["value"]))
+check("model: hygiene (risk 5, traveller 5) scores well above markup", fsa_u["value"] > sd_u["value"] * 1.4, (fsa_u["value"], sd_u["value"]))
 inf_u, bes_u = mk("consistency", "phone", conf=advice.INFER), mk("consistency", "phone")
 ranking.annotate([inf_u, bes_u], [])
 check("model: lower confidence lowers the value", inf_u["value"] < bes_u["value"])

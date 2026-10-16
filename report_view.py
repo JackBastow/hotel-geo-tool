@@ -59,6 +59,7 @@ def _scorecard(fa_res):
     st.raw(f'<iframe class="dash" title="Scorecard" sandbox="allow-same-origin" srcdoc="{html.escape(doc, quote=True)}"></iframe>')
     st.caption(f"run {meta['run_at']} · hotel name {meta['hotel_name_source']}" + (f" · location from {loc['source']}" if loc.get("source") else ""))
     st.info(f"**Read the score with its coverage.** {sc['caveat']}")
+    ui_consult.score_breakdown_card(fa_res)
     for c in sc["categories"]:
         if not c["assessed"]:
             continue
@@ -247,6 +248,8 @@ def render(fa_res, token=None, prev=None, private=None):
 
     def ai():
         if has_consult:
+            ui_consult.ai_test_card(fa_res.get("ai_sample"), fa_res["meta"].get("hotel", ""))
+            st.divider()
             ui_consult.ai_view(consult, fa_res.get("ai_sample"), fa_res.get("ai_insights"))
         else:
             st.raw(no_consult)
@@ -254,6 +257,12 @@ def render(fa_res, token=None, prev=None, private=None):
     def site():
         if has_consult:
             ui_consult.understanding_block(consult)
+            ui_consult.traveller_card(consult.get("traveller"))
+            st.divider()
+            ui_consult.booking_card(consult.get("booking"))
+            st.divider()
+            ui_consult.competitor_card(consult.get("competitors"))
+            st.divider()
             ui_consult.fix_site(consult, fa_res.get("web_signals"))
         else:
             st.raw(no_consult)
@@ -267,6 +276,8 @@ def render(fa_res, token=None, prev=None, private=None):
                     _review_pack_intro(fa_res, token, private)
                     ui_consult.review_card(fa_res.get("review_snapshot"))
                 if fn == "identity":
+                    ui_consult.external_card(consult.get("external") if has_consult else None)
+                    st.divider()
                     ui_consult.listing_checks_card(fa_res.get("listing_checks"))
                 if fn == "reddit":
                     ui_consult.reddit_card(fa_res.get("reddit"))

@@ -341,7 +341,116 @@ def ai_section(ai, ins=None):
     return out
 
 
-def sections(c, H1, web=None, ai=None, reviews=None, ins=None, listings=None, pack=None):
+STATE_TXT = {"confirmed": "Confirmed", "partial": "Partially confirmed", "missing": "Missing", "unknown": "Unknown"}
+STATE_COL = {"confirmed": R.GOOD, "partial": R.WARN, "missing": R.BAD, "unknown": R.GREY}
+EXT_COL = {"verified": R.GOOD, "identified": R.GOOD, "contradicts": R.BAD, "unclear": R.WARN, "not_verified": R.GREY}
+
+
+def traveller_section(trv):
+    """Every traveller requirement with its status, the exact words found and the page they are on, or what to add and where."""
+    out = [para("Traveller requirements: the evidence for each", "h2"),
+           para("Confirmed = clearly stated on a page that was read (quoted below). Partially confirmed = some of it is. Missing = not found, in pages read well enough to say so. Unknown = too little was read, "
+                "a page had sections whose text could not be seen, or the hotel gives no sign it offers the thing (nothing is recommended). Counted by requirement, not by how often a word appears.", "tiny")]
+    for seg in (trv or {}).get("segments", []):
+        out.append(para(f"{seg['label']} (assessed because {seg['assessed_because']})", "h3"))
+        rows = [["Requirement", "Status", "Evidence, or what to add and where"]]
+        for r in seg["requirements"]:
+            if r["found"]:
+                ev = _ev([{"url": f["url"], "snippet": f["snippet"]} for f in r["found"][:2]], 2)
+            else:
+                ev = Markup("")
+            extra = ""
+            if r["state"] in ("partial", "missing"):
+                w = r.get("where") or {}
+                extra = "Add: " + "; ".join(r["add"][:3]) + (f" - on {w['label']} ({w['reason']})" if w.get("label") else "")
+            elif r["state"] == "unknown":
+                extra = r.get("why", "")
+            elif r.get("why"):
+                extra = r["why"]
+            rows.append([r["label"], R.coloured(STATE_TXT[r["state"]], STATE_COL[r["state"]]), cat(ev, Markup("<br/>") if ev and extra else "", extra)])
+        out.append(table(rows, [0.22, 0.14, 0.64]))
+    return out
+
+
+def external_section(ext):
+    out = [para("External presence: each source, with what was checked", "h2"),
+           para("Identified = a page for the hotel was found in public search results and its title and address carry the hotel's name and town; the platform itself was not read. Verified = read directly from open data "
+                "and compared with the website. Not verified = cannot be checked reliably, which is never treated as missing or wrong.", "tiny")]
+    rows = [["Source", "Status", "Identified", "Name and location", "Official site link", "Evidence and notes"]]
+    for r in (ext or {}).get("rows", []):
+        rows.append([r["source"], R.coloured(r["label"], EXT_COL[r["status"]]), {True: "yes", False: "no", None: "-"}[r["identified"]], r["name_location"] or "-", r["official_link"] or "not checked",
+                     cat(link(r["url"], r["title"] or r["url"]) if r["url"] else "", Markup("<br/>") if r["url"] else "", r["note"], *([Markup("<br/>"), "Differs: " + "; ".join(r["contradictions"])] if r["contradictions"] else []))])
+    out.append(table(rows, [0.17, 0.12, 0.08, 0.12, 0.11, 0.4]))
+    pub = (ext or {}).get("publications") or {}
+    if pub.get("rows"):
+        out.append(para("Independent publications, weighed by quality (type of source, how much it says about the hotel, how clearly it names it, how recent); sponsored pieces count for nothing", "h3"))
+        out.append(table([["Publisher", "Kind", "Substance", "Freshness", "Weight"]] + [[cat(link(x["url"], x["publisher"] or x["url"])), x["kind"], x["substance"] or "-", x["freshness"] or "-", f"{x['weight']:g}"] for x in pub["rows"][:8]],
+                         [0.3, 0.26, 0.18, 0.14, 0.12]))
+    return out
+
+
+def booking_section(bk):
+    if not bk or bk.get("status") != "ok":
+        return []
+    out = [para("Booking readiness: the checks", "h2"), para(" ".join(bk.get("limits", [])), "tiny")]
+    sym = {"pass": ("OK", R.GOOD), "warn": ("Check", R.WARN), "fail": ("Problem", R.BAD), "not_verified": ("Not verified", R.GREY)}
+    out.append(table([["Check", "Result", "Detail"]] + [[k["label"], R.coloured(*sym.get(k["state"], ("-", R.GREY))), cat(k["detail"], *([Markup("<br/>"), link(k["url"])] if k.get("url") else []))] for k in bk.get("checks", [])], [0.28, 0.12, 0.6]))
+    if bk.get("candidates"):
+        out.append(para("Booking links found on the homepage: " + "; ".join(f"'{c['anchor'] or 'link'}' to {c['engine'] or c['url']} ({c['kind']})" for c in bk["candidates"][:4]) + ".", "tiny"))
+    if bk.get("broken_links"):
+        out.append(table([["Broken link", "Status"]] + [[link(b["url"]), str(b["status"])] for b in bk["broken_links"]], [0.8, 0.2]))
+    return out
+
+
+def competitor_section(cp):
+    if not cp:
+        return []
+    out = [para("Comparable hotels: what was compared", "h2"), para(" ".join(cp.get("limits", [])), "tiny")]
+    if cp.get("status") != "ok":
+        out.append(para(cp.get("reason") or "No comparison was made.", "base"))
+        return out
+    out.append(table([["Hotel", "Why comparable", "Distance", "Pages read"]] + [[link(c["url"], c["name"]), "; ".join(c["why_comparable"]), f"{c['km']} km", str(c["pages_read"])] for c in cp["competitors"]], [0.3, 0.4, 0.14, 0.16]))
+    for x in cp["comparisons"]:
+        out.append(para(f"{x['label'].capitalize()}: your pages state {x['own_depth']} of {x['of']}", "h3"))
+        out.append(table([["Hotel", "Details stated", "Of"]] + [["This hotel", ", ".join(x["own_stated"]) or "none", str(x["of"])]] + [[r["name"], ", ".join(r["stated"]) or "none", str(x["of"])] for r in x["rivals"]], [0.3, 0.6, 0.1]))
+    return out
+
+
+def ai_test_section(ai, hotel=""):
+    import ai_sample
+    log = ai_sample.test_log(ai)
+    out = [para("AI recommendation tests: the log", "h2")]
+    if not log:
+        out.append(para("No AI assistant was asked about the hotel in this audit. Observed AI visibility is therefore NOT MEASURED. The checklist below can be used to test by hand.", "base"))
+    else:
+        out.append(para(f"Genuine tests of one assistant only: {log['platform']}. Not tested: {', '.join(log['not_tested'])}. Appeared = the hotel is named in the answer. Recommended = it is a line in a list of suggestions, "
+                        "or a sentence recommending it (a rule-based reading; the answers are in the appendix section above). One assistant on one day is a sample, never a ranking.", "tiny"))
+        yn = lambda v: "-" if v is None else ("yes" if v else "no")      # noqa: E731
+        rows = [["Prompt", "Type", "Appeared", "Recommended", "Place", "Website cited", "Date"]]
+        for r in log["rows"]:
+            rows.append([r["prompt"][:120], "mentions the hotel" if r["branded"] else "does not", yn(r["appeared"]), yn(r["recommended"]), str(r["position"] or "-"), yn(r["official_site_cited"]), r["date"]])
+        out.append(table(rows, [0.38, 0.14, 0.09, 0.11, 0.07, 0.11, 0.1]))
+    ck = ai_sample.manual_checklist(ai, hotel)
+    if ck["prompts"]:
+        out.append(para("Checklist to test by hand in ChatGPT, Gemini and Copilot (results are not measured by this tool)", "h3"))
+        out.append(table([["Prompt"] + ck["assistants"]] + [[p] + ["[ ]  appeared / recommended / place / site cited"] * len(ck["assistants"]) for p in ck["prompts"]], [0.4] + [0.2] * len(ck["assistants"])))
+    return out
+
+
+def score_section(rep):
+    if not rep:
+        return []
+    import scoring
+    sc = (rep.get("scorecard") or {})
+    bd = sc.get("breakdown") or (scoring.totals(sc["categories"])["breakdown"] if sc.get("categories") else [])
+    if not bd:
+        return []
+    out = [para("How the readiness score is calculated", "h2"), para(sc.get("method") or scoring.totals(sc["categories"])["method"], "tiny")]
+    out.append(table([["Category", "Score", "Weight", "Share", "Points", "Why it carries this weight"]] + [[b["label"], str(b["score"]), f"{b['weight']:g}%", f"{b['share_pct']:g}%", f"{b['points']:g}", b["why"]] for b in bd], [0.2, 0.08, 0.09, 0.09, 0.09, 0.45]))
+    return out
+
+
+def sections(c, H1, web=None, ai=None, reviews=None, ins=None, listings=None, pack=None, rep=None):
     """The dedicated consultant sections, in reading order."""
     recs = {r["id"]: r for r in c["recommendations"]}
     out = []
@@ -448,6 +557,15 @@ def sections(c, H1, web=None, ai=None, reviews=None, ins=None, listings=None, pa
         rows.append([i["item"] + (" (optional)" if i["optional"] else ""), R.coloured(SD_LABEL[i["status"]], SD_COL[i["status"]]), i["detail"], i["advice"]])
     out.append(table(rows, [0.2, 0.13, 0.37, 0.3]))
     out.append(para(sd["caution"], "note"))
+
+    # ---- the evidence behind the management report's newer sections
+    out += [PageBreak(), H1("Evidence for the traveller, external, booking and competitor findings")]
+    out += score_section(rep)
+    out += traveller_section(c.get("traveller"))
+    out += external_section(c.get("external"))
+    out += booking_section(c.get("booking"))
+    out += competitor_section(c.get("competitors"))
+    out += ai_test_section(ai, (rep or {}).get("meta", {}).get("hotel", ""))
 
     # ---- recommendation register: every recommendation once; worked examples only where they exist
     out += [PageBreak(), H1("Recommendation register"),

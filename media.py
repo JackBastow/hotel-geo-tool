@@ -13,6 +13,7 @@ story, and three titles from one publishing group are one publisher.
 
 import datetime as dt
 import re
+import urllib.parse
 from collections import Counter, defaultdict
 
 import evidence
@@ -200,11 +201,49 @@ def summarise_coverage(arts, clusters):
 _YEAR = re.compile(r"\b(20[0-2]\d)\b")
 
 
-def _award_hits(text):
-    """[(issuer, domains, snippet, year)] for award wording in `text`."""
+_THIRD_PARTY = re.compile(r"\b(?:tea|teas|coffee|roast\w*|brand|brands|supplier|suppliers|supplied|supplies|producer|producers|brew\w*|distill\w*|vineyard|winery|wine\s+(?:maker|merchant|list)|farm|farms|"
+                          r"bakery|baker|butcher|dairy|cheese|chocolat\w+|gin|whisky|spirits|ingredients?|sourced|sourcing|partner|partners|stockist|stocked|made by|produced by|blend\w*|"
+                          r"independent (?:british|local|family|scottish|welsh|irish)?\s*\w*\s*(?:brand|company|producer|supplier|brewer|roaster))\b", re.I)
+_SELF = re.compile(r"\b(?:we|we've|we have|we are|we were|we'?re|our|ours|the hotel|this hotel|the spa|our spa|the restaurant|our restaurant|our team|our chef|our hotel)\b", re.I)
+_ABOUT_PAGE = re.compile(r"/(?:about|awards?|accolades|press|news|history|our-story|story)\b|^/?$", re.I)
+
+
+def _sentence_around(text, start, end):
+    """The sentence (or line) that contains text[start:end]."""
+    a = max(text.rfind(c, 0, start) for c in ".!?\n")
+    b_candidates = [i for i in (text.find(c, end) for c in ".!?\n") if i != -1]
+    b = min(b_candidates) if b_candidates else len(text)
+    return text[a + 1:b + 1].strip(), a + 1
+
+
+def award_subject(text, start, end, hotel="", path="", issuer="(issuer not named)"):
+    """
+    Who does award wording found at text[start:end] describe? 'self' (the hotel, its spa or its restaurant), 'third_party' (a supplier, a product or a partner: 'an independent award winning
+    British tea brand') or 'unclear'. Award wording is only treated as the hotel's own claim when it is 'self', or when it is unclear but sits on a page about the hotel itself (home, about,
+    awards, press) and the sentence says nothing about a supplier or product. Wording about a supplier on, say, the sustainability policy is never the hotel's claim.
+    """
+    sent, off = _sentence_around(text, start, end)
+    rel = start - off
+    if _THIRD_PARTY.search(sent[max(0, rel - 120): rel + (end - start) + 60]):
+        # a self reference immediately before the award wording ('our award-winning spa') still makes it the hotel's claim
+        near = sent[max(0, rel - 25): rel]
+        if not _SELF.search(near):
+            return "third_party"
+    if _SELF.search(sent[max(0, rel - 45): rel]) or (hotel and any(t in evidence.fold(sent[max(0, rel - 60): rel]) for t in evidence.distinctive_tokens(hotel))):
+        return "self"
+    if issuer != "(issuer not named)":
+        return "self"        # a named scheme (AA rosettes, Michelin, Tripadvisor) on the hotel's own page is a claim about the hotel unless the sentence is about a supplier
+    return "unclear"
+
+
+def _award_hits(text, hotel="", path=""):
+    """[(issuer, domains, snippet, year)] for award wording in `text` that describes the hotel. Wording about a supplier or a product is left out."""
     out = []
     for pat, issuer, doms in sourcetypes.AWARD_ISSUERS:
         for m in re.finditer(pat, text or "", re.I):
+            subj = award_subject(text, m.start(), m.end(), hotel, path, issuer)
+            if subj == "third_party" or (subj == "unclear" and not _ABOUT_PAGE.search(path or "")):
+                continue
             snip = evidence.clip(text, m.start() - 90, m.end() + 110)
             ys = _YEAR.findall(snip)
             out.append((issuer, doms, snip, ys[-1] if ys else None))
@@ -226,7 +265,7 @@ def find_awards(own_pages, arts, corpus, hotel, ledger):
                                         "years": set(), "domains": doms})
 
     for p in own_pages or []:
-        for issuer, doms, snip, year in _award_hits(p.get("text", "")):
+        for issuer, doms, snip, year in _award_hits(p.get("text", ""), hotel, urllib.parse.urlparse(p["url"]).path):
             r = row(issuer, doms)
             eid = ledger.add(url=p["url"], source="Hotel's own website", source_type="own_website",
                              extract=snip, kind="observed", match="high",

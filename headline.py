@@ -89,13 +89,16 @@ def build(rep):
         expl = (f"Only {cov:.0f}% of the full model could be assessed, which is too little for a single score. "
                 "The category results below are shown on their own.")
     else:
-        expl = (f"{overall}/100 is the average of the categories that could be assessed, which is {cov:.0f}% of the full model. "
+        expl = (f"{overall}/100 is a weighted average of the categories that could be assessed, which is {cov:.0f}% of the full model. "
                 f"The other {miss_w:g}% is not measured ({names}). Read it as an indicator of how well the hotel is set up"
                 + (". It includes a small sample of one AI assistant's answers, which is a clue about visibility, not a measurement of it."
                    if any(c.get("key") == "ai_visibility" and c.get("assessed") for c in cats)
                    else ", not as a measure of how visible it is to AI assistants."))
     return {"title": "AI discoverability readiness (assessed factors)", "score": None if status == "withheld" else overall,
             "coverage_pct": cov, "status": status, "unassessed": unassessed, "unassessed_weight": miss_w,
+            "breakdown": sc.get("breakdown") or [], "simple_average": sc.get("simple_average"), "method": sc.get("method") or "",
+            "readiness_vs_visibility": ("Readiness is how well the hotel is set up, from what could be checked. Observed AI visibility is whether assistants actually recommend it; it is reported separately "
+                                        "and is not part of this number."),
             "explanation": expl,
             "badge": {"withheld": "not enough measured for a score", "provisional": "provisional", "assessed": "on assessed factors"}[status],
             "category_evidence": {k: {"level": v[0], "note": v[1]} for k, v in ev.items()}}
