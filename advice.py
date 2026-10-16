@@ -562,6 +562,39 @@ def _from_listing_checks(lc):
     return out
 
 
+def _from_reddit(rd):
+    """Findings from the Reddit check. Worded as what the searches found: they see public search results, not all of Reddit, and the advice is to take part honestly, never to seed posts."""
+    if not rd or rd.get("status") != "ok":
+        return []
+    sm, out = rd["summary"], []
+    ev_threads = lambda ts: [{"url": t["url"], "snippet": f"r/{t['subreddit']}: {t['title']}"} for t in ts[:3]]      # noqa: E731
+    honest = ("Take part as the hotel, openly: answer questions in the town's subreddit from an account that says who it is, follow that subreddit's rules on promotion, and correct wrong "
+              "facts politely. Do not post as a guest, seed reviews, or ask anyone to vote or to delete a thread: Reddit bans for it and assistants learn to discount it.")
+    if sm["hotel_mentioned"] is False and sm["town_threads"]:
+        out.append(_rec(
+            "RD1", "authority", "The hotel does not appear in the Reddit threads where travellers ask where to stay",
+            f"{sm['town_threads']} traveller thread(s) about the town turned up in searches of Reddit's public pages and none of them mentions the hotel. This is a sample of what search can see, "
+            "not all of Reddit.",
+            "Reddit is one of the sources AI assistants cite most for where-to-stay questions. A hotel that is never named in those threads is leaving the assistant to describe its competitors.",
+            ev_threads(rd["town_threads"]), honest, "medium", "medium", confidence=EXPER, team="PR and social", source="reddit", tag="RD1", summary="Not named in Reddit where-to-stay threads"))
+    crit = [t for t in rd["hotel_threads"] if t["tone"] == "critical"]
+    if crit:
+        out.append(_rec(
+            "RD2", "authority", f"{len(crit)} Reddit thread(s) about the hotel read as critical",
+            f"{len(crit)} of {len(rd['hotel_threads'])} thread(s) that name the hotel have a passage that reads as critical (a rule-based reading of the quoted passage: open the thread to judge it).",
+            "A critical thread stays findable for years and is the kind of page an assistant quotes when asked what guests say.",
+            ev_threads(crit), "Read each thread. Fix what is genuinely wrong, then, where the subreddit allows it, reply once as an identified member of the hotel's team with what has changed. "
+            "Never ask for a thread to be removed or for votes either way.", "medium", "low", confidence=EXPER, team="reputation management", source="reddit", tag="RD2", summary="Critical Reddit threads"))
+    if sm["ai_cited_reddit"] and not sm["ai_threads_name_hotel"]:
+        out.append(_rec(
+            "RD3", "authority", f"AI assistants cited Reddit in {sm['ai_cited_reddit']} of {sm['ai_answers']} sampled answers, and not for this hotel",
+            f"In {sm['ai_cited_reddit']} of {sm['ai_answers']} sampled answers the assistant relied on Reddit; none of the threads it cited names the hotel.",
+            "When an assistant builds its answer from Reddit threads, the hotels named in those threads are the hotels it can recommend.",
+            ev_threads(rd["ai_threads"]) or [{"url": "", "snippet": f"Reddit cited in {sm['ai_cited_reddit']} of {sm['ai_answers']} sampled answers"}], honest, "medium", "medium",
+            confidence=EXPER, team="PR and social", source="reddit", tag="RD3", summary="AI answers cite Reddit, not the hotel"))
+    return out
+
+
 def _from_intel(intel):
     recs = []
     if not intel or "error" in intel:
@@ -587,7 +620,7 @@ def _from_intel(intel):
 
 # ---------------------------------------------------------------------- assemble
 
-def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None):
+def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None):
     coverage = coverage or {}
     recs = []
     recs += _from_questions(questions)
@@ -602,6 +635,7 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
     recs += _from_reviews(reviews)
     recs += _from_ai_insights(ai_insights)
     recs += _from_listing_checks(listing_checks)
+    recs += _from_reddit(reddit)
     recs = drop_duplicate_entity(recs)
     limited_note = None
     if coverage.get("limited"):

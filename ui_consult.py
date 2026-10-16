@@ -258,6 +258,38 @@ def listing_checks_card(lc):
                    "After a rebrand the old name lingers in listings and in AI answers.")
 
 
+def reddit_card(rd):
+    """What Reddit shows about the hotel and the town, and whether AI answers cite it. From public search results and the sampled answers, not from Reddit itself."""
+    st.markdown("##### Reddit")
+    st.caption("Reddit is one of the sources AI assistants cite most for where-to-stay questions. It cannot be read directly (access is blocked and the official API is paid), so this shows "
+               "what one search of Reddit's public pages and the sampled AI answers turned up. A thread that search cannot see is not counted, so 'none found' never means 'nobody talks about the hotel'.")
+    if not rd or rd.get("status") != "ok":
+        st.info((rd or {}).get("reason") or "Reddit was not checked for this report: it needs the AI key and the hotel's name and town.")
+        return
+    sm = rd["summary"]
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Threads naming the hotel", "-" if sm["hotel_mentioned"] is None else sm["hotel_threads"], help="Found by searching Reddit's public pages")
+    c2.metric("Traveller threads about the town", sm["town_threads"], help="Where-to-stay threads that turned up in the same searches")
+    c3.metric("Sampled AI answers citing Reddit", f"{sm['ai_cited_reddit']} of {sm['ai_answers']}" if sm["ai_answers"] else "-", help="From the AI answers collected in this audit")
+    if sm["hotel_mentioned"] is False:
+        st.info("None of the threads found names the hotel. That is what these searches saw, not proof that it is never discussed.")
+
+    def table(rows, title):
+        if rows:
+            st.markdown(f"###### {title}")
+            tone = {"positive": "🟢 positive", "mixed": "🟠 mixed", "critical": "🔴 critical", "no clear tone": "no clear tone", None: ""}
+            df([{"Subreddit": "r/" + t["subreddit"], "Thread": t["title"], "Tone (rule-based)": tone.get(t["tone"], ""), "What the search quoted": t["passage"][:220], "Link": t["url"]} for t in rows],
+               link_cols=("Link",))
+    table(rd.get("hotel_threads"), "Threads that name the hotel")
+    table(rd.get("ai_threads"), "Reddit threads the AI assistant cited in its answers")
+    table(rd.get("town_threads"), "Traveller threads about the town found by search")
+    with st.expander("How to take part without it backfiring"):
+        st.markdown("- Answer real questions in the town's subreddit from an account that says it is the hotel, and read the subreddit's rules on promotion first.\n"
+                    "- Correct wrong facts (prices, facilities, location) politely and once.\n"
+                    "- Never post as a guest, seed reviews, buy upvotes or ask for a thread to be removed: Reddit bans for it, and assistants learn to discount it.\n"
+                    "- Do not offer anything in return for a post or a changed comment.")
+
+
 def _pack_public(p):
     """The numbers from a review export: counts and rates only (this is what is saved with the report)."""
     n = p["reviews"]

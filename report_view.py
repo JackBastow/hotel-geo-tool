@@ -260,14 +260,17 @@ def render(fa_res, token=None, prev=None, private=None):
 
     def reputation():
         st.caption("Evidence from outside the hotel's own website: where it is listed, how others describe it, and who covers it.")
-        subs = st.tabs(["Reviews & reputation", "Identity & distribution", "Media & validation", "Traveller fit", "Social & local"])
-        for tab, fn in zip(subs, ("reviews", "identity", "media", "traveller", "social_local")):
+        subs = st.tabs(["Reviews & reputation", "Identity & distribution", "Media & validation", "Reddit", "Traveller fit", "Social & local"])
+        for tab, fn in zip(subs, ("reviews", "identity", "media", "reddit", "traveller", "social_local")):
             with tab:
                 if fn == "reviews":
                     _review_pack_intro(fa_res, token, private)
                     ui_consult.review_card(fa_res.get("review_snapshot"))
                 if fn == "identity":
                     ui_consult.listing_checks_card(fa_res.get("listing_checks"))
+                if fn == "reddit":
+                    ui_consult.reddit_card(fa_res.get("reddit"))
+                    continue
                 if has_intel:
                     getattr(ui_intel, fn)(intel)
                 else:

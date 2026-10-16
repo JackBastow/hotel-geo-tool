@@ -79,6 +79,7 @@ import fixes
 import guest_questions
 import listing_facts
 import listing_lookup
+import reddit_check
 import headline
 import intel
 import places_check
@@ -677,14 +678,15 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     segment_labels = [tavily_check.SEGMENTS[k][0]
                       for k in tavily_check.detect_segments(site.get("topics_covered"))]
     # A few real questions put to an AI assistant (needs a name and a town; runs beside everything else).
-    ai_ex = ai_future = rv_future = ll_future = None
+    ai_ex = ai_future = rv_future = ll_future = rd_future = None
     if anthropic_api_key and hotel and city:
-        ai_ex = ThreadPoolExecutor(max_workers=3)
+        ai_ex = ThreadPoolExecutor(max_workers=4)
         _rep = {} if anthropic_repeats is None else {"repeats": max(1, min(3, int(anthropic_repeats)))}      # how many times each list question is asked (default in ai_sample)
         ai_future = ai_ex.submit(ai_sample.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model,
                                  segments=segment_labels, own_domain=base, **_rep)
         rv_future = ai_ex.submit(review_replies.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model)
         ll_future = ai_ex.submit(listing_lookup.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model)     # finds the hotel's listing on each major site
+        rd_future = ai_ex.submit(reddit_check.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model)       # Reddit threads about the hotel and the town
     collect_ex = collect_future = None
     if wider and hotel:
         collect_ex = ThreadPoolExecutor(max_workers=1)
@@ -828,6 +830,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
 
     ai_result = review_result = None
     listing_result = {"source": listing_lookup.SOURCE, "status": "not_configured", "reason": "", "pages": [], "cost_usd": 0.0}
+    reddit_lookup = None
     if ai_future is None:
         ai_result = ai_sample.run(hotel, city, api_key=anthropic_api_key)      # returns the 'not configured / need a name and town' envelope
         review_result = review_replies.run(hotel, city, api_key=anthropic_api_key)
@@ -847,8 +850,16 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             listing_result = ll_future.result(timeout=120)
         except Exception as e:  # noqa: BLE001
             listing_result = {"source": listing_lookup.SOURCE, "status": "unavailable", "reason": f"The listing lookup did not finish in time ({type(e).__name__}).", "pages": [], "cost_usd": 0.0}
+        try:
+            reddit_lookup = rd_future.result(timeout=120)
+        except Exception as e:  # noqa: BLE001
+            reddit_lookup = {"source": reddit_check.SOURCE, "status": "unavailable", "reason": f"The Reddit search did not finish in time ({type(e).__name__}).", "pages": [], "passages": [], "cost_usd": 0.0}
         finally:
             ai_ex.shutdown(wait=False, cancel_futures=True)
+    try:
+        reddit_result = reddit_check.build(reddit_lookup, ai_result, hotel, city)
+    except Exception:  # noqa: BLE001 - an extra; the audit stands without it
+        reddit_result = None
     # Listings found by the AI web searches (this lookup, the sampled answers and the review pages) join the candidates the footprint is built from, but only where the
     # page is on that platform's domain and its address or title names the hotel. They were not opened.
     try:
@@ -981,7 +992,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         consult_result = consultant.analyse(
             own_pages=own_pages, pages_meta=guest.get("pages_meta", []), base=base, hotel=hotel, city=city,
             location=location, guest=guest, site=site, entities=ext["entities"], intel=intel_result,
-            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, listing_checks=listing_checks, text_only=bool(guest.get("read_via")),
+            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, listing_checks=listing_checks, reddit=reddit_result, text_only=bool(guest.get("read_via")),
             jsonld_example=fixes.hotel_jsonld({"base": base, "hotel": hotel, "location": location, "guest": guest,
                                                "discovery": discovery, "entities": ext["entities"], "site": site,
                                                "tavily": tavily_result}))
@@ -1032,6 +1043,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "review_snapshot": review_result,
         "listing_lookup": {k: v for k, v in listing_result.items() if k not in ("pages", "passages")},
         "listing_checks": listing_checks,
+        "reddit": reddit_result,
         "tavily_result": tavily_result,
         "places_result": places_result,
         "amadeus_result": amadeus_result,

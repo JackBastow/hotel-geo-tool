@@ -120,6 +120,13 @@ def insights(rep, limit=8):
                     + (f"{len(diff) - 1} more difference(s). " if len(diff) > 1 else "") + "Find out which is right and correct the other.", "goto": "reputation"})
     for h in (lc.get("former_name") or [])[:1]:
         out.append({"tone": "bad", "title": f"{h['platform']} still shows a former name", "body": f"'{h['name']}' appears in the listing. After a rebrand the old name lingers in listings and AI answers.", "goto": "reputation"})
+    rd = rep.get("reddit") or {}
+    rs = rd.get("summary") or {}
+    if rd.get("status") == "ok" and rs.get("ai_cited_reddit"):
+        out.append({"tone": "good" if rs.get("ai_threads_name_hotel") else "warn", "title": f"AI assistants cited Reddit in {rs['ai_cited_reddit']} of {rs['ai_answers']} sampled answers",
+                    "body": ("The hotel is named in a thread they cited." if rs.get("ai_threads_name_hotel") else "None of the threads cited names the hotel. Taking part openly in the town's subreddit is how a hotel gets named there."), "goto": "reputation"})
+    elif rd.get("status") == "ok" and rs.get("hotel_mentioned") is False and rs.get("town_threads"):
+        out.append({"tone": "info", "title": "The hotel is not named in the Reddit where-to-stay threads we found", "body": "A sample of public search, not all of Reddit. Reddit is a source AI assistants lean on.", "goto": "reputation"})
     pk = rep.get("review_pack") or {}
     if pk.get("critical_unanswered"):
         out.append({"tone": "bad", "title": f"{pk['critical_unanswered']} critical review(s) have no reply", "body": "Replying to critical reviews is the one place the hotel's own words sit inside third-party evidence.", "goto": "reputation"})

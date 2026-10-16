@@ -131,6 +131,7 @@ def run_facts(row, rep, prev):
         "rv_examined": rv.get("examined"), "rv_replied": rv.get("replied"), "rv_neg": rv.get("negative_examined"), "rv_neg_replied": rv.get("negative_replied"),
         "speed": ps.get("performance"), "a11y": ps.get("accessibility"),
         "pk_n": (rep.get("review_pack") or {}).get("reviews"), "pk_rate": (rep.get("review_pack") or {}).get("reply_rate"), "pk_unans": (rep.get("review_pack") or {}).get("critical_unanswered"),
+        "reddit_hotel_threads": ((rep.get("reddit") or {}).get("summary") or {}).get("hotel_threads"), "reddit_cited_answers": ((rep.get("reddit") or {}).get("summary") or {}).get("ai_cited_reddit"),
         "lc_diff": ((rep.get("listing_checks") or {}).get("summary") or {}).get("differs"), "lc_former": ((rep.get("listing_checks") or {}).get("summary") or {}).get("former_name"), "recs": row.get("recs_total"),
         "acts": [a.get("short_title") or a.get("title") for a in acts], "cost": row.get("ai_cost_usd"),
     }
@@ -270,6 +271,8 @@ def build_workbook(runs, all_rows=None):
         metric(f, "Reviews (export)", "Critical reviews unanswered", f["pk_unans"], "count")
         metric(f, "Listings", "Facts differing from the website", f["lc_diff"], "count")
         metric(f, "Listings", "Listings showing a former name", f["lc_former"], "count")
+        metric(f, "Reddit", "Threads naming the hotel (found by search)", f["reddit_hotel_threads"], "count")
+        metric(f, "Reddit", "Sampled AI answers citing Reddit", f["reddit_cited_answers"], "count")
     _sheet(wb, "Metrics", ["Month", "Run id", "Run date", "Hotel", "City", "Hotel key", "Group", "Metric", "Value", "Unit"], m, {"Hotel": 30, "Metric": 30, "Hotel key": 34, "Group": 20})
 
     # ---- Scores and why
