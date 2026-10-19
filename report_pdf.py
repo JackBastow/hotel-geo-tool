@@ -608,7 +608,7 @@ def _website_section(rep, intel):
     if qs:
         rows = [["Question", "State", "Evidence from the website", "Page"]]
         for q in qs:
-            rows.append([q["short"], q.get("state_label") or q["state"], (q.get("snippet") or q.get("note") or "")[:200],
+            rows.append([q["short"], (q.get("state_label") or q["state"]) + (" (AI reading, quote checked)" if q.get("ai_facts") else ""), (q.get("snippet") or q.get("note") or "")[:200],
                          P_link(q["source_url"]) if q.get("source_url") else ""])
         out.append(table(rows, [0.14, 0.14, 0.52, 0.2]))
         out.append(para(f"{gq.get('pages_ok', 0)} of {gq.get('pages_attempted', 0)} pages were read. 'Not found on the pages checked' "

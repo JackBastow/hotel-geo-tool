@@ -73,6 +73,7 @@ import booking_check
 import competitors as competitors_mod
 import evidence
 import external_presence
+import ai_extract
 import claude_reader
 import review_replies
 import audit
@@ -727,6 +728,14 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             guest["own_reader_refused"] = refused[:3]
         else:
             guest["page_reader_note"] = fb.get("reason", "")
+
+    # AI reading of the hotel's own pages for what the rule-based check missed. Only quotations that appear word for word on the page are kept (see ai_extract).
+    if anthropic_api_key and guest.get("questions"):
+        say("Reading the hotel's pages with AI for facts the rules missed (quotations are checked)...")
+        try:
+            ai_extract.run(guest, guest.get("own_pages") or [], api_key=anthropic_api_key, model=os.environ.get("ANTHROPIC_EXTRACT_MODEL") or None)
+        except Exception as e:  # noqa: BLE001 - never fail the audit
+            guest["ai_extract"] = {"source": ai_extract.SOURCE, "status": "unavailable", "reason": f"The AI reading did not finish ({type(e).__name__}).", "cost_usd": 0.0}
 
     own_pages = guest.pop("own_pages", [])     # used by the wider analysis, not stored
 

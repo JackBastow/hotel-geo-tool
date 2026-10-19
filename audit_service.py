@@ -103,7 +103,7 @@ def run(params, cfg, progress=None):
         fa_res["ai_sample"] = ai_sample.budget_exhausted()
         fa_res["review_snapshot"] = review_replies.budget_exhausted()
     spent = (((fa_res.get("ai_sample") or {}).get("cost_usd") or 0) + ((fa_res.get("review_snapshot") or {}).get("cost_usd") or 0)
-             + ((fa_res.get("guest_questions") or {}).get("reader_cost_usd") or 0) + ((fa_res.get("ai_insights") or {}).get("cost_usd") or 0)
+             + ((fa_res.get("guest_questions") or {}).get("reader_cost_usd") or 0) + (((fa_res.get("guest_questions") or {}).get("ai_extract") or {}).get("cost_usd") or 0) + ((fa_res.get("ai_insights") or {}).get("cost_usd") or 0)
              + ((fa_res.get("listing_lookup") or {}).get("cost_usd") or 0) + ((fa_res.get("reddit") or {}).get("cost_usd") or 0))
     if spent:
         store.record_usage(max(1, round(spent * 1000)), service="claude")      # estimated spend, in thousandths of a dollar

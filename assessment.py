@@ -73,6 +73,13 @@ def assess(rep):
     nq = len(gq.get("questions", []))
     if nq:
         put("partial" if (limited or text_only) else "assessed", "Common guest questions (parking, breakfast, check-in, accessibility...)", f"{nq} questions checked against the text of the pages read")
+    ax = gq.get("ai_extract") or {}
+    if ax.get("status") == "ok":
+        n = len(ax.get("changed") or [])
+        put("assessed", "AI reading of the hotel's own pages", f"{ax.get('pages_sent', 0)} page(s) read by AI for facts the rules missed; {ax.get('kept', 0)} quotation(s) verified word for word on the page and used"
+            + (f", {ax['rejected']} thrown away because they could not be verified" if ax.get("rejected") else "") + (f"; it added to {n} guest question(s)" if n else "; it added nothing the rules had not found"))
+    elif ax.get("status") in ("unavailable",):
+        put("not_assessed", "AI reading of the hotel's own pages", ax.get("reason") or "the AI reading did not run; the rule-based check stands alone")
     trv = c.get("traveller") or {}
     if trv.get("summary", {}).get("judged"):
         put("partial" if (limited or text_only) else "assessed", "Traveller requirements", f"{trv['summary']['judged']} requirement(s) judged across {len(trv.get('segments', []))} traveller segment(s); {trv['summary'].get('unknown', 0)} could not be judged")

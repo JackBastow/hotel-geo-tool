@@ -228,6 +228,16 @@ Every recommendation has an issue, evidence (a page, a source or a quoted passag
 - **Several identifiers for outside sources** (`external_presence.identifiers`): an OpenStreetMap or Wikidata entry is Verified only on the name plus at least one more of coordinates (0.5 km), postcode, official website or telephone. The same town alone is an uncertain match.
 - **A stricter gate** (`advice.validate`): menu strips and telephone banners are never evidence; a 'not stated' finding must list the pages inspected, what was found and what is still unstated; it is labelled Verified only when the audit read a page it belongs on, fully, with coverage not limited (otherwise an inference, or suppressed when no page it belongs on was read); one underlying issue is one recommendation; confirmed problems and optional opportunities are listed apart.
 
+### AI reading of the hotel's own pages (`ai_extract.py`)
+
+After the rule-based guest-question check, one Claude request (default `claude-sonnet-5-5`, override with the `ANTHROPIC_EXTRACT_MODEL` environment variable; about 2-7 US cents per audit, added to the month's Claude spend) is given the text of up to 14 of the hotel's own pages and asked what they say about parking, breakfast, check-in and out, pets, accessibility, family rooms, getting there, Wi-Fi, EV charging and cancellation.
+
+- **No outside knowledge:** there are no web tools in the request; the model may use only the supplied pages, and is told the page text is data, not instructions.
+- **Every fact needs a quotation, and the code checks it:** the quoted words must appear word for word in the page named (ignoring case, spacing and quote marks) and sit in a sentence about the topic. Paraphrases, invented sentences, quotations from another page, abridged quotations, menu strips, and 'offered' backed by a sentence that denies it are thrown away and counted in the methodology.
+- **Absence is never taken from the model:** it can only add evidence to a question the rules did not already answer. A question becomes 'answered' only when every required fact has a verified quotation; the model cannot declare it complete.
+- **Labelled:** an AI-found fact is marked 'found by AI reading; the quoted words were checked against the page', and the methodology lists how many quotations were verified and how many were rejected.
+- Needs `ANTHROPIC_API_KEY` (already used for the sampled AI answers). Without it the rule-based check stands alone. Tests: `test_ai_extract.py`.
+
 ## Back end: saved audits, the admin page and the monthly pack
 
 Set a `DATABASE_URL` secret (a Postgres connection string; Neon's free plan needs no card) and **every** finished audit is
