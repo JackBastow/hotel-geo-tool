@@ -14,6 +14,7 @@ close equivalent or '?'. That is stated in the methodology.
 import datetime as dt
 import io
 import re
+import textutil
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -287,7 +288,7 @@ def _identity_section(intel):
     rows = [["Source", "Name seen", "Place / address", "Confidence"]]
     for s in idn["sources_compared"]:
         conf = {True: "location verified", False: "possible different hotel", None: ""}.get(s.get("confident"), "")
-        rows.append([s["source"], s.get("name") or "", (s.get("place") or "")[:90], conf])
+        rows.append([s["source"], s.get("name") or "", textutil.address_text(s.get("place"))[:90], conf])
     out.append(table(rows, [0.22, 0.26, 0.38, 0.14]))
     if idn["name_variants"]:
         out += [para("Name forms in use", "h3"),

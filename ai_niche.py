@@ -112,7 +112,25 @@ def district(entities, city=""):
     return None
 
 
-def profile(hotel, city, entities, osm_ctx, own_pages, features, intents, hint=None, domain=""):
+_VENUE_WORDS = re.compile(r"arena|stadium|stadion|\bdome\b|messe|expo|exhibition|convention|congress|\bRAI\b|concert hall|theatre|theater|racecourse|circuit", re.I)
+_NEAR = re.compile(r"(?:\b(?:[1-9]|1\d|20)\s?[-\u2013]?\s?min(?:ute)?s?\b|walking distance|\bsteps?\b|\bnext to\b|\bopposite\b|\badjacent\b|\b(?:[1-2](?:[.,]\d)?|0[.,]\d)\s?km\b|\b\d{2,3}\s?m\b|right (?:by|beside|at))", re.I)
+
+
+def venue_landmark(own_pages, hotel, osm_ctx=None):
+    """
+    A stadium, arena, exhibition or concert venue the hotel's OWN pages say is close (a short walk, next to it, within about two kilometres): {name, distance, url} or None. Hotels beside a venue
+    are chosen for it ('where to stay for a match or a concert at ...'), which is a far more telling question than a town-wide list. The hotel's own name is never taken as the venue.
+    """
+    import places
+    for p in own_pages or []:
+        for kind in ("venue", "attraction"):
+            for m in places.mentions(p.get("text", ""), kind, hotel, osm_ctx):
+                if _VENUE_WORDS.search(m["name"]) and m.get("distance") and _NEAR.search(m["distance"]):
+                    return {"name": m["name"], "distance": m["distance"], "url": p.get("url", ""), "sentence": m["sentence"]}
+    return None
+
+
+def profile(hotel, city, entities, osm_ctx, own_pages, features, intents, hint=None, domain="", classes=None):
     """
     What kind of hotel this is and who it is for, from facts the audit holds: its price tier (stars on its pages, then the brand it belongs to, then its
     own wording), where it sits (an airport, a neighbourhood), and which audiences its pages give evidence for. `features`/`intents` are the rows
@@ -133,6 +151,11 @@ def profile(hotel, city, entities, osm_ctx, own_pages, features, intents, hint=N
             "segments": [r["label"] for r in intents or [] if r.get("level") == "strong"]}
     prof["airport_hotel"] = bool(airport and airport["km"] <= AIRPORT_HOTEL_KM)
     prof["tier"] = tier_of(hotel, domain, stars, level, (hint or {}).get("tier"))
+    if classes is not None and (prof["tier"] or {}).get("key") == "luxury" and "luxury" not in classes:
+        classes = list(classes) + ["luxury"]
+    prof["classes"] = classes                                 # the kinds of hotel the audit decided this is (hotel_class), or None when not worked out
+    prof["venue"] = venue_landmark(own_pages, hotel, osm_ctx)
+    prof["skipped"] = []
     prof["audiences"] = audiences(prof, level, flevel, (hint or {}).get("audiences"))
     return prof
 
@@ -197,17 +220,48 @@ AUDIENCES = [
 _RANK = {"strong": 2, "some": 1}
 
 
+# What kind of hotel it takes for a market to be one the hotel competes in. A page that merely mentions spa, 'city' or a restaurant does not make a spa hotel, a city-centre hotel or a dining destination:
+# those audiences are asked about only when the hotel's kind (hotel_class) supports them. A fact a hotel simply offers (EV charging, pets, accessible rooms) needs strong evidence on its own pages.
+NEEDS_CLASS = {
+    "business": {"business", "conference", "airport", "city_centre"}, "meetings": {"business", "conference"}, "wellness": {"spa_hotel", "resort"}, "family": {"family_focused", "resort"},
+    "couples": {"spa_hotel", "boutique", "luxury", "resort"}, "weddings": {"resort", "luxury", "boutique", "spa_hotel"}, "food": {"luxury", "boutique", "resort", "spa_hotel"}, "city_break": {"city_centre"},
+}
+NEEDS_STRONG = {"pets", "ev", "accessible", "long_stay", "groups"}
+GATE_WHY = {
+    "wellness": "the pages mention a spa or pool, but nothing shows a spa hotel (treatments, sauna, steam room): a gym or a pool does not make one",
+    "family": "the pages offer family rooms, but nothing shows a hotel built around families (kids' club, play area)",
+    "city_break": "nothing shows the hotel is in the city centre or close to the main sights, so a 'close to the sights' question would not fit it",
+    "food": "the restaurant is described, but nothing shows the hotel is known for its dining",
+    "couples": "nothing shows a romantic or spa positioning",
+    "weddings": "nothing shows the hotel is a wedding venue",
+    "business": "nothing shows a business or conference hotel",
+    "meetings": "nothing shows a business or conference hotel",
+}
+
+
 def audiences(prof, level, flevel, stated=None):
     """The audiences the hotel plausibly serves, each with the evidence for it, strongest first. Audiences the hotel states for itself come first."""
     out = []
+    classes = set(prof.get("classes") or []) if prof.get("classes") is not None else None
     for key, label, ikeys, fkeys in AUDIENCES:
         lv = max([_RANK.get((level or {}).get(k), 0) for k in ikeys] + [_RANK.get((flevel or {}).get(k), 0) for k in fkeys] + [0])
         why = f"the hotel's own pages signal {label.lower()} {'strongly' if lv == 2 else 'somewhat'}"
         if key == "airport":
             ap = prof.get("airport")
-            if ap and (ap["km"] <= AIRPORT_HOTEL_KM or lv):
-                lv, why = max(lv, 2 if ap["km"] <= AIRPORT_HOTEL_KM else 1), f"{ap['source']} put {ap['name']} {ap['km']:g} km away"
-            elif not lv:
+            # an airport market only for a hotel that IS near the airport: a page quoting 'Schiphol 18.6 km' does not make an airport hotel
+            if ap and ap["km"] <= AIRPORT_HOTEL_KM:
+                lv, why = 2, f"{ap['source']} put {ap['name']} {ap['km']:g} km away"
+            else:
+                if ap and lv and key not in (stated or []):
+                    prof.setdefault("skipped", []).append({"key": key, "label": label, "why": f"{ap['name']} is {ap['km']:g} km away (further than {AIRPORT_HOTEL_KM:g} km), too far to be an airport hotel"})
+                if key not in (stated or []):
+                    continue
+        elif key not in (stated or []) and lv:
+            if classes is not None and key in NEEDS_CLASS and not (classes & NEEDS_CLASS[key]):
+                prof.setdefault("skipped", []).append({"key": key, "label": label, "why": GATE_WHY.get(key, "the hotel's kind does not support it")})
+                continue
+            if key in NEEDS_STRONG and lv < 2:
+                prof.setdefault("skipped", []).append({"key": key, "label": label, "why": "only mentioned in passing on the hotel's pages"})
                 continue
         if key in (stated or []):
             out.append({"key": key, "label": label, "level": "stated", "why": "stated by whoever ran the audit as an audience the hotel wants to attract"})
@@ -226,10 +280,32 @@ def describe(prof):
     kind = "airport hotel" if prof.get("airport_hotel") else "hotel"
     summary = " ".join(x for x in ((tier["label"] + (f" ({prof['stars']}-star)" if prof.get("stars") and tier["source"] != "brand" else "")) if tier else "", kind) if x)
     return {"summary": summary[:1].upper() + summary[1:], "tier": tier, "kind": kind, "audiences": prof.get("audiences", []), "district": prof.get("district"),
-            "airport": prof.get("airport"), "stars": prof.get("stars")}
+            "airport": prof.get("airport"), "stars": prof.get("stars"), "skipped": prof.get("skipped", []), "venue": prof.get("venue")}
 
 
 # --------------------------------------------------------------- questions
+
+MAX_CUSTOM, CUSTOM_MIN, CUSTOM_MAX = 5, 8, 220
+
+
+def clean_prompts(raw):
+    """The prompts a person typed (a list, or text with one per line): trimmed, 8-220 characters, no control characters, no repeats, at most five."""
+    if isinstance(raw, str):
+        raw = raw.splitlines()
+    out, seen = [], set()
+    for p in raw or []:
+        t = re.sub(r"[\x00-\x1f\x7f]+", " ", str(p or ""))
+        t = re.sub(r"\s+", " ", t).strip().lstrip("-*0123456789.) ").strip()
+        key = t.lower()
+        if CUSTOM_MIN <= len(t) <= CUSTOM_MAX and key not in seen:
+            seen.add(key)
+            out.append(t)
+    return out[:MAX_CUSTOM]
+
+
+def custom_questions(prompts):
+    """The person's own prompts as questions for the sample, asked exactly as typed (never reworded), each labelled as theirs."""
+    return [{"id": f"custom_{i}", "kind": "custom", "angle": "Your prompt", "text": t, "why": "Entered by the person who ran the audit."} for i, t in enumerate(clean_prompts(prompts), 1)]
 
 def _safe(text, hotel):
     """Never contains the hotel's name; a normal-length question."""
@@ -292,6 +368,10 @@ def questions(prof, hotel, city, n=8):
             pass
     if district_q:
         cands.insert(1 if tier else 0, district_q)
+    vn = prof.get("venue")
+    if vn:
+        cands.insert(1 if tier else 0, ("venue", "Near a venue", f"Which hotels are best to stay at for an event at {vn['name']}?",
+                                          f"The hotel's own pages put {vn['name']} close ({vn['distance']})."))
     lm = prof.get("landmark")
     if lm:
         cands.append(("landmark", "Near a landmark", f"Which hotels are closest to {lm['name']}?", f"The map places {lm['name']} {lm['km']} km from the hotel."))

@@ -13,6 +13,11 @@
     <label class="field"><span>City or town <small>(recommended: the AI answers, listings and local checks need it)</small></span><input type="text" name="city" maxlength="120" value="{{ pre.city }}"></label>
   </div>
   <p class="caption" style="margin-top:-4px">With only the website, the hotel and town are worked out from the pages and the address. When that fails, those checks are skipped, so typing them is worth it.</p>
+  <div class="field prompts-box">
+    <span>Test your own prompts <small>(optional, up to 5, one per line)</small></span>
+    <textarea name="prompts" id="f-prompts" rows="4" maxlength="1200" placeholder="Which hotels near the Johan Cruijff ArenA are good for a concert weekend?&#10;Best 4-star hotel in Amsterdam Zuidoost with free parking?"></textarea>
+    <p class="caption">Type the questions a guest would really ask an AI assistant. Each is put to the assistant exactly as written, a couple of times, and the report shows whether it named the hotel, where, and who it named instead. Needs the hotel's name and town (above). It is a sample on one assistant, not a score. A prompt that contains the hotel's name tests what the assistant knows about the hotel, not whether it volunteers it, and the report says so.</p>
+  </div>
   <details class="details">
     <summary>Your own reviews (optional, adds the review and reply analysis)</summary>
     <div class="details-body">

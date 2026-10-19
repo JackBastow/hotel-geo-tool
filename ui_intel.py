@@ -8,6 +8,8 @@ read from the web can inject markup or load an image.
 
 import re
 
+import textutil
+
 try:
     import streamlit as st
 except ImportError:        # the Flask site draws these screens with htmlst.py instead of Streamlit
@@ -109,7 +111,7 @@ def identity(intel):
     st.caption("Do the sources agree on who and where this hotel is, where is it listed, and does what is listed "
                "match the website? *Discovered* = a page exists; *content assessed* = we were allowed to read it.")
     st.markdown("##### Cross-source identity")
-    df([{"Source": s["source"], "Name seen": s.get("name") or "", "Place / address": (s.get("place") or "")[:100],
+    df([{"Source": s["source"], "Name seen": s.get("name") or "", "Place / address": textutil.address_text(s.get("place"))[:100],
          "Location": {True: "verified", False: "possible different hotel", None: ""}.get(s.get("confident"), "")}
         for s in idn["sources_compared"]])
     if idn["name_variants"]:

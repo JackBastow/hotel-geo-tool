@@ -6,6 +6,7 @@ dashboard can be produced from a finished audit without re-running requests.
 """
 
 import evidence
+import textutil
 import identity
 import localctx
 import media
@@ -189,9 +190,9 @@ def build_intel(*, hotel, city, base_url, location, site, discovery, guest, own_
              "distribution": distribution,
              "sources_compared": [
                  {"source": "Hotel's own website", "name": own_name,
-                  "place": (own_facts or {}).get("address", ""), "domain": evidence.domain_of(base_url)}] +
+                  "place": textutil.address_text((own_facts or {}).get("address", "")), "domain": evidence.domain_of(base_url)}] +
                  [{"source": e["source"], "name": (e.get("facts") or {}).get("name") or e.get("label"),
-                   "place": (e.get("facts") or {}).get("address") or e.get("description", ""),
+                   "place": textutil.address_text((e.get("facts") or {}).get("address") or e.get("description", "")),
                    "domain": evidence.domain_of((e.get("facts") or {}).get("url", "")),
                    "confident": e.get("match_confident")}
                   for e in entities or [] if e.get("found")] +

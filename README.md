@@ -247,6 +247,13 @@ After the rule-based guest-question check, one Claude request (default `claude-s
 - **A failed page is never called broken on one try.** A 404, 410 or server error is asked for again in other forms of its address; it is reported to the hotel only if it still fails, it was not the start page, the start page was read, and the answer was not a refusal (403, 429). Otherwise it is listed as 'not read by this audit', with what was received, and nothing is asked of the hotel. A site the audit could not read produces a note about the audit's limit, not a 'fix your website' action.
 - Sitemap indexes are read lightly (six child files at most). Tests: `test_entry.py`.
 
+### AI test questions: relevance, and your own prompts
+
+- **The hotel's kind decides which markets are asked about** (`ai_niche.audiences`). A page that merely mentions a spa, 'the city' or a restaurant does not make a spa hotel, a city-centre hotel or a dining destination: those markets are asked only when the hotel's kind (`hotel_class`) supports them. An airport market needs the airport within 15 km (a page quoting 'Schiphol 18.6 km' does not make an airport hotel). Pets, EV charging, accessibility, long stays and groups need strong evidence on the hotel's own pages. Anything the person says the hotel wants (the optional 'Who is the hotel for?') is always asked.
+- **A venue the pages put close** (a stadium, arena, exhibition or concert venue a short walk or about two kilometres away) becomes 'Which hotels are best to stay at for an event at ...?', with the sentence as the reason.
+- **What was left out is shown, with the reason** ('Considered but not asked'), in the web report and the PDF, so the questions are never a mystery.
+- **Your own prompts:** the start page has a box for up to five prompts (one per line, 8-220 characters). Each is put to the assistant exactly as written, twice, with live web search. The report has a 'Your own prompts' card at the top of the AI tab (named or not, recommended or not, position, the answers and their sources) and the prompts are in the test log. They are counted on their own, never in the town-wide or niche counts or any score. A prompt that contains the hotel's name is flagged: it tests what the assistant knows, not whether it volunteers the hotel. Needs the hotel's name, town and the service's Anthropic key. Tests: `test_niche_relevance.py`.
+
 ## Back end: saved audits, the admin page and the monthly pack
 
 Set a `DATABASE_URL` secret (a Postgres connection string; Neon's free plan needs no card) and **every** finished audit is

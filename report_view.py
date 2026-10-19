@@ -251,6 +251,9 @@ def render(fa_res, token=None, prev=None, private=None):
 
     def ai():
         if has_consult:
+            if fa_res.get("custom_prompts"):
+                ui_consult.custom_prompts_card(fa_res.get("ai_sample"), fa_res["custom_prompts"])
+                st.divider()
             ui_consult.ai_test_card(fa_res.get("ai_sample"), fa_res["meta"].get("hotel", ""))
             st.divider()
             ui_consult.ai_view(consult, fa_res.get("ai_sample"), fa_res.get("ai_insights"))

@@ -549,7 +549,7 @@ def _ins_sections(ai, ins):
     if ins.get("matrix"):
         st.markdown("###### Question by question")
         st.caption("A filled dot is an answer that named the hotel.")
-        _question_grid([m for m in ins["matrix"] if m["kind"] != "niche"])
+        _question_grid([m for m in ins["matrix"] if m["kind"] not in ("niche", "custom")])
     if ins.get("sources"):
         st.markdown("###### Where the assistant got its information")
         st.caption("The sites it used and how often. Purple: this audit found the hotel there. Grey: not found there, which can also be a search gap.")
@@ -627,6 +627,10 @@ def market_card(m):
             why.insert(0, f"Price level: {m['tier']['why']}")
         st.caption("The questions below were written for this market, not for 'the best hotels in town'. Why each applies: " + " · ".join(md_safe(w) for w in why)
                    + ". Brand level is an inference; correct it with 'Who is the hotel for?' when you run the audit.")
+        if m.get("venue"):
+            st.caption(f"Near a venue: the hotel's own pages put {md_safe(m['venue']['name'])} close ({md_safe(m['venue']['distance'])}).")
+        if m.get("skipped"):
+            st.caption("**Considered but not asked, because the hotel's kind does not support it:** " + " · ".join(f"{md_safe(x['label'])}: {md_safe(x['why'])}" for x in m["skipped"]) + ". Add any of these as your own prompt if you want them tested.")
 
 
 def ai_sample_card(ai, ins=None):
@@ -1003,6 +1007,36 @@ def competitor_card(cp):
     df([{"Hotel": c["name"], "Why comparable": "; ".join(c["why_comparable"]), "Distance": f"{c['km']} km", "Pages read": c["pages_read"], "Website": c["url"]} for c in cp["competitors"]], link_cols=("Website",))
     for x in cp["comparisons"]:
         (st.warning if x["behind"] else st.success)(x["statement"])
+
+
+def custom_prompts_card(ai, prompts):
+    """The prompts the person typed in before the audit, with what the assistant did with each. Nothing here is a score."""
+    if not prompts:
+        return
+    st.markdown("##### Your own prompts")
+    if not ai or ai.get("status") != "ok":
+        st.warning("You entered " + str(len(prompts)) + " prompt(s), but they were not run: " + md_safe((ai or {}).get("reason") or "no AI assistant could be asked in this audit (it needs the hotel's name and town, and the service's Anthropic key).") + " Try them by hand in the assistants.")
+        return
+    import ai_sample
+    groups = [g for g in ai_sample.by_question(ai.get("items") or []) if g["kind"] == "custom"]
+    if not groups:
+        st.info("Your prompts were not asked (the per-audit budget was used or the assistant did not answer).")
+        return
+    st.caption("Each prompt was put to one assistant (" + md_safe(ai.get("model", "")) + ") with live web search, exactly as you wrote it, " + ("twice" if max(len(g["answers"]) for g in groups) > 1 else "once")
+               + ". It is a sample, not a ranking, and it is not part of any score.")
+    for g in groups:
+        a0 = g["answers"][0]
+        rec = sum(1 for a in g["answers"] if a.get("recommended"))
+        icon = "🟢" if g["named"] and g["named"] == g["of"] else "🟡" if g["named"] else "🔴"
+        st.markdown(f"{icon} **{md_safe(g['text'])}**  \nNamed the hotel in {g['named']} of {g['of']} answer(s); recommended it in {rec}" + (f"; best place in the list: {g['best_position']}" if g["best_position"] else "") + ".")
+        if a0.get("names_hotel"):
+            st.caption("This prompt contains the hotel's name, so the answer shows what the assistant knows about the hotel, not whether it volunteers it.")
+        with st.expander("What the assistant said"):
+            for k, a in enumerate(g["answers"], 1):
+                st.markdown(f"**Answer {k}**" + (" (the hotel is named)" if a.get("mentioned") else " (the hotel is not named)"))
+                st.markdown(md_safe((a.get("answer") or "No answer text.")[:1500]))
+                if a.get("domains"):
+                    st.caption("Sources it used: " + ", ".join(md_safe(d) for d in a["domains"][:6]))
 
 
 def ai_test_card(ai, hotel=""):

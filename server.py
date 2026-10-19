@@ -244,8 +244,9 @@ def create_app(cfg=None, run_fn=None):
         if not netguard.url_ok(site if "//" in site else "https://" + site):
             return jsonify(ok=False, error="That address is not on the public web, so it cannot be audited."), 400
         aud = d.getlist("audiences") if hasattr(d, "getlist") else d.get("audiences") or []
+        prompts = ai_niche.clean_prompts(d.get("prompts") or "")
         params = {"website": site, "hotel": (d.get("hotel") or "").strip()[:120], "city": (d.get("city") or "").strip()[:120], "wider": str(d.get("wider", "1")).lower() not in ("0", "false", "off", ""),
-                  "tier": (d.get("tier") or None) if (d.get("tier") or "") in audit_service.TIERS else None, "audiences": [a for a in (aud if isinstance(aud, list) else [])][:8]}
+                  "tier": (d.get("tier") or None) if (d.get("tier") or "") in audit_service.TIERS else None, "audiences": [a for a in (aud if isinstance(aud, list) else [])][:8], "prompts": prompts}
         if rows:
             params["review_rows"], params["review_mapping"] = rows, mapping        # held in memory for the job only; dropped when it finishes
         job, why = manager.submit(params, visitor_id())

@@ -265,6 +265,8 @@ def ai_section(ai, ins=None):
         out.append(para("How the hotel's market was read, which decided the questions: " + mk["summary"] + ". "
                         + "; ".join(([f"price level {mk['tier']['label']} ({mk['tier']['why']})"] if mk.get("tier") else [])
                                     + [f"{a['label']} ({a['why']})" for a in mk.get("audiences", [])[:8]]) + ". Brand level is an inference.", "tiny"))
+    if mk and mk.get("skipped"):
+        out.append(para("Considered but not asked, because the hotel's kind does not support it: " + "; ".join(f"{x['label']} ({x['why']})" for x in mk["skipped"]) + ".", "tiny"))
     osr = (ins or {}).get("own_site")
     if osr and osr["answers"]:
         out.append(para(f"The hotel's own website was among the sources in {osr['own_cited']} of {osr['answers']} answers to the town and market questions"

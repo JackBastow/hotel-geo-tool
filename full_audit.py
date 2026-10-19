@@ -603,7 +603,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
                    youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None,
-                   anthropic_repeats=None, market_hint=None):
+                   anthropic_repeats=None, market_hint=None, custom_prompts=None):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -841,24 +841,33 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
 
     # Questions for the markets this hotel actually competes in (airport, district, price level, what it is known for), from facts now in hand.
     niche_ex = niche_future = market_profile = None
+    custom_qs = ai_niche.custom_questions(custom_prompts)          # the person's own prompts, asked exactly as typed
     if anthropic_api_key and hotel and city:
+        nqs = []
         try:
             import insight_content as _ic0
             _osm = ((corpus.get("sources") or {}).get("osm_context") or {})
             _osm_ctx = (_osm.get("items") or [None])[0] if _osm.get("status") == "ok" else None
             _site0 = _ic0.Site(own_pages, base, hotel, city) if own_pages else None
             _host1 = urllib.parse.urlparse(base).netloc.lower()
-            prof = ai_niche.profile(hotel, city, ext["entities"], _osm_ctx, own_pages, _ic0.features(_site0) if _site0 else [], _ic0.intents(_site0) if _site0 else [],
-                                    hint=market_hint, domain=_host1)
+            _feats0 = _ic0.features(_site0) if _site0 else []
+            _ints0 = _ic0.intents(_site0) if _site0 else []
+            import hotel_class as _hc0
+            _classes0 = _hc0.classify(_site0, _feats0, _ints0, _osm_ctx, hotel)["keys"] if _site0 else None      # the kinds of hotel this is decide which markets are worth asking about
+            prof = ai_niche.profile(hotel, city, ext["entities"], _osm_ctx, own_pages, _feats0, _ints0, hint=market_hint, domain=_host1, classes=_classes0)
             market_profile = ai_niche.describe(prof)
             nqs = ai_niche.questions(prof, hotel, city, n=8)
-            if nqs:
+        except Exception:  # noqa: BLE001 - the planner is an extra; the standard questions still run
+            nqs = []
+        nqs = nqs + custom_qs
+        if nqs:
+            try:
                 _host0 = urllib.parse.urlparse(base).netloc.lower()
                 niche_ex = ThreadPoolExecutor(max_workers=1)
                 niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model,
                                                own_domain=_host0[4:] if _host0.startswith("www.") else _host0, **({} if anthropic_repeats is None else {"repeats": max(1, min(3, int(anthropic_repeats)))}))
-        except Exception:  # noqa: BLE001 - the planner is an extra; the standard questions still run
-            niche_future = None
+            except Exception:  # noqa: BLE001
+                niche_future = None
 
     ai_result = review_result = None
     listing_result = {"source": listing_lookup.SOURCE, "status": "not_configured", "reason": "", "pages": [], "cost_usd": 0.0}
@@ -1096,6 +1105,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "web_signals": web,
         "ai_sample": ai_result,
         "market_profile": market_profile,
+        "custom_prompts": [q["text"] for q in custom_qs],
         "ai_insights": ai_insight_result,
         "review_snapshot": review_result,
         "listing_lookup": {k: v for k, v in listing_result.items() if k not in ("pages", "passages")},

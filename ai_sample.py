@@ -37,7 +37,7 @@ MAX_TOKENS = 1500
 MAX_QUESTIONS = 8
 WORKERS = 3
 REPEATS = 2                       # each list-type question is asked this many times, so coverage is steadier than a single answer
-REPEAT_KINDS = ("generic", "niche")
+REPEAT_KINDS = ("generic", "niche", "custom")
 
 # USD per million tokens (input, output) - Anthropic's published list prices for the models we allow.
 PRICES = {"claude-haiku-5-5": (0.10, 0.50), "claude-haiku-4-5": (1.00, 5.00), "claude-sonnet-5-5": (2.00, 10.00), "claude-opus-5-5": (4.00, 20.00)}
@@ -255,6 +255,14 @@ def expand(questions, repeats=REPEATS):
     return out
 
 
+def _names_hotel(text, hotel, city=""):
+    """Does the prompt itself contain the hotel's name? Then the answer shows what the assistant knows about the hotel, not whether it volunteers it."""
+    place = set(re.split(r"[^a-z0-9]+", evidence.fold((city or "").split(",")[0])))
+    core = [t for t in _core_tokens(hotel) if len(t) > 3 and t not in place]      # the town is in most prompts, so it does not count as naming the hotel
+    low = evidence.fold(text)
+    return bool(core) and all(t in low for t in core)
+
+
 def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=1.60, workers=WORKERS, progress=None, repeats=REPEATS):
     """Put the questions to the assistant a few at a time. -> (items in question order, estimated spend, reason it stopped early or '')."""
     import threading
@@ -292,7 +300,7 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
         if not answer:
             return {**q, "answer": "", "mentioned": None, "position": None, "domains": domains, "searches": searches, "cost_usd": c,
                     "note": "The assistant returned no answer text."}
-        return {**q, "answer": answer, "mentioned": mentioned(answer, hotel, city), "recommended": recommended(answer, hotel, city), "position": list_position(answer, hotel),
+        return {**q, "names_hotel": _names_hotel(q["text"], hotel, city), "answer": answer, "mentioned": mentioned(answer, hotel, city), "recommended": recommended(answer, hotel, city), "position": list_position(answer, hotel),
                 "domains": domains, "pages": parse_sources(resp), "searches": searches, "cost_usd": c,
                 "own_site_cited": bool(own and any(d == own or d.endswith("." + own) for d in domains)),
                 "platform": f"Claude ({model}) with web search", "tested_on": time.strftime("%Y-%m-%d", time.gmtime())}
@@ -307,6 +315,7 @@ def summarise(items):
     generic = [i for i in items if i["kind"] == "generic" and i["mentioned"] is not None]
     niche = [i for i in items if i["kind"] == "niche" and i["mentioned"] is not None]
     directs = [i for i in items if i["kind"] == "direct" and i["mentioned"] is not None]
+    custom = [i for i in items if i["kind"] == "custom" and i["mentioned"] is not None]
     direct = next((i for i in items if i["id"] == "about"), None) or (directs[0] if directs else None)
     cited = {}
     for i in items:
@@ -317,6 +326,7 @@ def summarise(items):
             "generic_questions": qids(generic), "niche_questions": qids(niche),
             "generic_asked": len(generic), "generic_named": sum(1 for i in generic if i["mentioned"]),
             "niche_asked": len(niche), "niche_named": sum(1 for i in niche if i["mentioned"]),
+            "custom_questions": qids(custom), "custom_asked": len(custom), "custom_named": sum(1 for i in custom if i["mentioned"]),
             "direct_known": None if not direct else bool(direct["mentioned"]),
             "direct_asked": len(directs), "direct_named": sum(1 for i in directs if i["mentioned"]),
             "own_site_cited": any(i.get("own_site_cited") for i in items),
@@ -378,7 +388,7 @@ def test_log(ai):
     rows = []
     for g in by_question(ai.get("items") or []):
         for k, a in enumerate(g["answers"], 1):
-            rows.append({"prompt": g["text"], "branded": g["kind"] == "direct", "kind": g["kind"], "run": k, "of_runs": len(g["answers"]), "platform": a.get("platform") or f"Claude ({ai.get('model', '')}) with web search",
+            rows.append({"prompt": g["text"], "branded": g["kind"] == "direct" or bool(a.get("names_hotel")), "kind": g["kind"], "run": k, "of_runs": len(g["answers"]), "platform": a.get("platform") or f"Claude ({ai.get('model', '')}) with web search",
                          "appeared": a.get("mentioned"), "recommended": a.get("recommended"), "position": a.get("position"), "official_site_cited": a.get("own_site_cited"),
                          "date": a.get("tested_on") or ai.get("run_at") or ""})
     nb = [r for r in rows if not r["branded"] and r["appeared"] is not None]

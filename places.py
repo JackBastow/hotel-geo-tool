@@ -90,6 +90,10 @@ def find(text, kind, hotel=""):
     for m in rx.finditer(text or ""):
         name = _clean(next((g for g in (m.group("name"), m.groupdict().get("name2"), m.groupdict().get("name3")) if g), ""))
         a = next((m.start(i) for i in (1, 2, 3) if m.group(i)), m.start()) if m.lastindex else m.start()
+        lead = name.split()
+        while len(lead) > 2 and lead[0].lower() in {"the", "our", "nearby", "local", "visit", "explore", "see", "view"}:      # 'The Johan Cruijff ArenA' at the start of a sentence is the ArenA
+            lead = lead[1:]
+        name = " ".join(lead)
         if not _ok_name(name, kind, hotel) or _own_name_run(text, m.start(), name, hotel):
             continue
         # the full capitalised run in front of the keyword must not be a menu strip

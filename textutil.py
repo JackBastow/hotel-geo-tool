@@ -89,6 +89,22 @@ def strip_label_runs(text):
     return _LABEL_RUN.sub(" ", text)
 
 
+def address_text(v):
+    """An address as one line of text, whatever shape it arrives in: a string, a schema.org PostalAddress record, or a list of either."""
+    if not v:
+        return ""
+    if isinstance(v, str):
+        return re.sub(r"\s+", " ", v).strip()
+    if isinstance(v, (list, tuple)):
+        return address_text(v[0]) if v else ""
+    if isinstance(v, dict):
+        c = v.get("addressCountry")
+        c = c.get("name") if isinstance(c, dict) else c
+        parts = [v.get("streetAddress"), v.get("addressLocality"), v.get("addressRegion"), v.get("postalCode"), c]
+        return ", ".join(re.sub(r"\s+", " ", str(p)).strip() for p in parts if p and not isinstance(p, (dict, list)))
+    return str(v)
+
+
 def is_generic_label(text):
     """A bare category word used as a label ('Airports', 'Railway stations', 'Charging station') is not a named place."""
     t = re.sub(r"\s+", " ", text or "").strip(" -|>/•·:").lower()
