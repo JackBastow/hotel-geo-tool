@@ -72,7 +72,7 @@ HAS_DISTANCE = lambda s: bool(TIME_DIST.search(s) or LENGTH_DIST.search(s))  # n
 # word "beach" in a menu item or "shopping" in a gift-voucher line says nothing about location.
 LOCATION_CUE = rx(r"\b(?:near|nearby|close to|minutes?|walk|drive|from the hotel|located|just|opposite|next to|adjacent|within|"
                   r"away|steps from|doorstep|surrounded|moments)\b")
-BOOKING_PAGE = rx(r"book|reserv|checkout|basket|availability|enquir")
+BOOKING_PAGE = rx(r"book|reserv|checkout|basket|availability|enquir|funnel")
 # pages that are legal/policy boilerplate: not evidence of what the hotel offers, and they carry the
 # operating company's address and phone numbers rather than the hotel's
 LEGAL_PAGE = rx(r"terms|privacy|cookie|gdpr|data-protection|modern-slavery|complaints?|legal|disclaimer|accessibility-statement|t-?and-?cs?\b")

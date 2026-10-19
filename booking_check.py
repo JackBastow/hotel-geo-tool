@@ -17,9 +17,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
+import entry
 import identity
 import netguard
 import polite
+import urlscope
 
 BOOK_ANCHOR = re.compile(r"\b(?:book(?:ing)?(?:\s+(?:now|direct|online|a (?:room|stay|table)|your (?:stay|room)))?|reserve(?:\s+now)?|reservations?|check (?:availability|rates|prices)|availability|stay with us|book a stay)\b", re.I)
 BOOK_PATH = re.compile(r"/(?:book|booking|bookings|reserve|reservations?|availability|rooms?/book|stay/book)(?:/|$|\?|-)", re.I)
@@ -139,8 +141,12 @@ def run(base, home_links, pages, pages_meta=None, fetch=probe):
                   "unreachable": ("not_verified", "The booking destination could not be reached from here, so it was not verified.")}[r["state"]]
             out["checks"].append({"id": "destination", "label": "The booking destination answers", "state": st[0], "detail": st[1], "url": primary["url"]})
     # --- the site's own links: those the crawl already fetched, and a few more from the homepage
-    broken = [{"url": m["url"], "status": m.get("status"), "found_on": base} for m in pages_meta or [] if m.get("status") in (404, 410) or (m.get("status") or 0) >= 500]
-    broken += [{"url": u, "status": r["status"], "found_on": base} for u, r in zip(internal, ires) if r["state"] == "broken"]
+    # only an error this audit cannot reasonably have caused is reported: the page was asked for again in another form of its address and still failed, and the start page was read fine
+    broken = [{"url": m["url"], "status": m.get("status"), "found_on": base} for m in pages_meta or [] if entry.credible_error(m, pages_meta)]
+    start_ok = any(m.get("is_start") and m.get("ok") for m in pages_meta or [])
+    for u, r in zip(internal, ires):
+        if r["state"] == "broken" and start_ok and not any(fetch(v)["state"] == "ok" for v, _w in urlscope.address_forms(u)[1:3]):
+            broken.append({"url": u, "status": r["status"], "found_on": base})
     out["links_checked"] = len(internal) + len([m for m in pages_meta or [] if m.get("status")])
     out["broken_links"] = broken[:10]
     out["checks"].append({"id": "links", "label": "The site's own links lead to pages that exist", "state": "fail" if broken else "pass",

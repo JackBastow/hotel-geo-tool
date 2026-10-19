@@ -204,7 +204,7 @@ try:
     if pymupdf:
         _, ut, _ = inspect(ub)
         check("it says how little was read and does not claim anything is missing",
-              "Read 0 of 10 pages" in ut and "Check that the website can be read" in ut)
+              "Read 0 of 10 pages" in ut and "Check that the website can be read" not in ut and "not a fault in the hotel" in " ".join(ut.split()))
 except Exception as e:  # noqa: BLE001
     check("a PDF for an unreadable site builds", False, repr(e))
 empty = copy.deepcopy(rep)

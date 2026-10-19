@@ -24,6 +24,7 @@ import lexicon
 import pagetarget
 import places
 import textutil
+import urlscope
 
 SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
@@ -34,7 +35,7 @@ def _key(u):
     p = urllib.parse.urlparse(u or "")
     host = p.netloc.lower()
     host = host[4:] if host.startswith("www.") else host
-    return f"{host}{p.path.rstrip('/') or '/'}".lower()
+    return f"{host}{urlscope.canon_index(p.path).rstrip('/') or '/'}".lower()      # a folder and its index file are one page
 
 
 class Site:
@@ -71,7 +72,7 @@ class Site:
         return bool(re.search(r"faq|frequently|questions", self.path(p), re.I))
 
     def depth(self, p):
-        path = self.path(p)
+        path = urlscope.canon_index(self.path(p))
         bp = urllib.parse.urlparse(self.base).path
         if len(bp) > 1 and path.lower().startswith(bp.lower()):
             path = path[len(bp):]                  # depth is counted inside the hotel's own folder, not from the brand's root

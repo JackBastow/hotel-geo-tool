@@ -56,6 +56,94 @@ def origin(url):
     return f"{p.scheme}://{p.netloc}"
 
 
+_SECOND_LEVEL = {"co.uk", "org.uk", "ac.uk", "com.au", "co.nz", "com.br", "co.za", "co.jp", "com.mx", "com.tr", "com.sg", "co.in"}
+
+
+def registered_domain(netloc):
+    """'spa.accor.com' -> 'accor.com'; 'www.somehotel.co.uk' -> 'somehotel.co.uk'."""
+    labels = [x for x in (netloc or "").lower().split(":")[0].split(".") if x]
+    if len(labels) >= 3 and ".".join(labels[-2:]) in _SECOND_LEVEL:
+        return ".".join(labels[-3:])
+    return ".".join(labels[-2:])
+
+
+def property_token(scope):
+    """The part of a chain hotel's folder that identifies it, wherever else it is repeated: '/hotel/1168/' -> '1168', '/en/hotels/zrhhitw-hilton-zurich-airport/' -> 'zrhhitw-hilton-zurich-airport'."""
+    segs = [s for s in (scope or "").split("/") if s]
+    tok = segs[-1] if segs else ""
+    if tok.isdigit():
+        return tok if len(tok) >= 3 else ""
+    return tok if len(tok) >= 8 else ""
+
+
+def is_sibling(url, base_host, scope):
+    """
+    Is this link one of the hotel's own pages on another address of the same chain website (a spa, restaurant or meetings site such as spa.accor.com/en/hotels/1168)? Only when it is on the same
+    registered domain AND carries the hotel's own identifier (its id or full address slug) as a whole token in its address, so another hotel's page and a general brand page never qualify.
+    """
+    tok = property_token(scope)
+    if not tok:
+        return False
+    p = urllib.parse.urlparse(url)
+    if p.scheme not in ("http", "https") or bare_host(p.netloc) == bare_host(base_host) or registered_domain(p.netloc) != registered_domain(base_host):
+        return False
+    if re.search(r"/(?:booking|book|reservation|checkout|login|account|search)(?:/|$)", p.path, re.I):
+        return False
+    return bool(re.search(rf"(?<![A-Za-z0-9]){re.escape(tok)}(?![A-Za-z0-9])", p.path + "?" + p.query))
+
+
+def bare_host(netloc):
+    h = (netloc or "").lower().split(":")[0]
+    return h[4:] if h.startswith("www.") else h
+
+
+_TRACKING = re.compile(r"^(?:utm_.*|gclid|gbraid|wbraid|fbclid|msclkid|msockid|mc_cid|mc_eid|igshid|igsh|_ga|_gl|yclid|dclid|cmpid|ref_src|sc_cid|srsltid)$", re.I)
+_INDEX = re.compile(r"/index(?:[._-][a-z]{2}(?:[_-][a-z]{2})?)?\.(?:s?html?|php\d?|aspx?|jsp|cfm)$", re.I)
+
+
+def canon_index(path):
+    """A folder and its index file are the same page: '/hotel/1168/index.en.shtml' -> '/hotel/1168/'."""
+    return _INDEX.sub("/", path or "/")
+
+
+def clean_entry(text):
+    """
+    The address exactly as the visitor pasted it, with only what never changes the page removed: the #fragment and tracking parameters (utm_*, fbclid, msockid...). The path, a file name such as
+    index.en.shtml, a trailing slash and any other query parameter are kept as typed.
+    """
+    raw = (text or "").strip()
+    if "//" not in raw:
+        raw = "https://" + raw
+    p = urllib.parse.urlparse(raw)
+    q = [(k, v) for k, v in urllib.parse.parse_qsl(p.query, keep_blank_values=True) if not _TRACKING.match(k)]
+    path = re.sub(r"/{2,}", "/", p.path or "/")
+    return urllib.parse.urlunparse((p.scheme or "https", p.netloc.lower(), path, "", urllib.parse.urlencode(q), ""))
+
+
+def address_forms(entry):
+    """
+    Other forms of the same address, to try only if the exact one does not answer: the other trailing-slash form, the page's folder if it ended in an index file, the file name with the index file
+    added if it was a folder, and the other of www / no-www. -> [(url, why)] in the order they are tried.
+    """
+    p = urllib.parse.urlparse(entry)
+    base = lambda path, host=None, query=p.query: urllib.parse.urlunparse((p.scheme, host or p.netloc, path, "", query, ""))      # noqa: E731
+    out = [(entry, "the address exactly as submitted")]
+    path = p.path or "/"
+    if path != "/" and "." not in path.rsplit("/", 1)[-1]:
+        out.append((base(path.rstrip("/") if path.endswith("/") else path + "/"), "the other trailing-slash form"))
+    if _INDEX.search(path):
+        out.append((base(canon_index(path)), "the page's folder"))
+    host = p.netloc.lower()
+    alt = host[4:] if host.startswith("www.") else "www." + host
+    out.append((base(path, alt), "the same address on the other of www / no-www"))
+    seen, uniq = set(), []
+    for u, w in out:
+        if u not in seen:
+            seen.add(u)
+            uniq.append((u, w))
+    return uniq
+
+
 def scope_note(start_url, scope):
     if not scope:
         return ""

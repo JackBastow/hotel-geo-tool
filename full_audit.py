@@ -653,14 +653,15 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     say("Finding linked profiles...")
     topic_pages = [v["urls"][0] for v in (site.get("topic_coverage") or {}).values()
                    if v.get("urls")]
-    pages_to_read = [base] + topic_pages[:2]
+    home_url = site["meta"].get("home_url") or site["meta"].get("entry_url") or base      # the page that answered, which is the address as submitted when it works
+    pages_to_read = [home_url] + topic_pages[:2]
     pages_html = []
     with ThreadPoolExecutor(max_workers=3) as _ex:      # three independent fetches, kept in order
         for r in _ex.map(get, pages_to_read):
             if r is not None and r.status_code == 200:
                 pages_html.append(r.text)
 
-    discovery = discover_profiles(base, extra_pages=topic_pages[:2], progress=progress,
+    discovery = discover_profiles(home_url, extra_pages=topic_pages[:2], progress=progress,
                                   prefetched=pages_html)
 
     # Establish WHERE the hotel is before looking it up anywhere, so a
@@ -719,7 +720,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     # The site refused our reader (a chain's bot protection, say). Fall back to Anthropic's openly identified page reader for the hotel's own
     # pages: only when our reader got fewer than three, only inside the hotel's own folder, and always reported as such.
     if anthropic_api_key and hotel and guest.get("pages_ok", 0) < 3:
-        fb = claude_reader.read_hotel_pages(base, api_key=anthropic_api_key, model=anthropic_model, progress=say)
+        fb = claude_reader.read_hotel_pages(home_url, api_key=anthropic_api_key, model=anthropic_model, progress=say)
         if fb["status"] == "ok" and sum(1 for p in fb["pages"] if p["ok"]) >= 1:
             refused = guest.get("pages_failed") or []
             guest = guest_questions.run_prefetched(site, base, hotel, fb["pages"], location=location)
@@ -741,7 +742,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
 
     # Booking readiness runs in the background from here (a handful of polite requests that can take several seconds on a slow site) and is joined when the report is assembled, so it adds no waiting.
     try:
-        _home_links = _page_links(pages_html[0], base) if pages_html else []
+        _home_links = _page_links(pages_html[0], home_url) if pages_html else []
     except Exception:  # noqa: BLE001
         _home_links = []
     booking_ex = ThreadPoolExecutor(max_workers=1)
@@ -984,7 +985,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             hotel=hotel, city=city, base_url=base, location=location, site=site,
             discovery=discovery, guest=guest, own_pages=own_pages, entities=ext["entities"],
             tavily_result=tavily_result, corpus=corpus, own_facts=own_facts,
-            site_links=_page_links(pages_html[0], base) if pages_html else [],
+            site_links=_page_links(pages_html[0], home_url) if pages_html else [],
             scorecard_recs=recs_all)
     except _NoName:
         intel_result = None

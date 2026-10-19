@@ -208,7 +208,8 @@ bad = page("/", HOME["text"], title=HOME["title"], jsonld_errors=2)
 check("unreadable JSON-LD is reported", any(i["item"] == "Valid JSON-LD" for i in it.structured_audit(ic.Site([bad], BASE, HOTEL, CITY), None, {}, intents)["items"]))
 
 print("8. machine readiness - four separate buckets")
-pm = [{"url": BASE + "rooms/", "ok": False, "reason": "HTTP 404", "status": 404, "title": ""},
+pm = [{"url": BASE, "ok": True, "reason": "", "status": 200, "title": "Home", "is_start": True},
+      {"url": BASE + "rooms/", "ok": False, "reason": "HTTP 404", "status": 404, "title": "", "retested": True, "retest": [{"url": BASE + "rooms", "status": 404}]},
       {"url": BASE + "spa/", "ok": True, "reason": "", "status": 200, "title": "Spa", "meta_description": "", "noindex": True, "h1_count": 1, "pdfs": [], "images_total": 20, "images_no_alt": 18, "js_shell": True},
       {"url": BASE + "book/", "ok": False, "reason": "no readable text (probably built with JavaScript)", "status": 200, "title": "Book", "js_shell": True},
       {"url": BASE + "a/", "ok": True, "title": "Same title", "meta_description": "", "h1_count": 1, "pdfs": []},
@@ -319,8 +320,8 @@ GONE = consultant.analyse(own_pages=[page("/", HOME["text"], title="x")], pages_
 check("with almost nothing read the site is declared unreadable", GONE["coverage"]["unreadable"])
 check("...and NOTHING is claimed missing: no questions, no structured-data absence, no intents",
       not GONE["questions"] and not GONE["intents"] and not GONE["structured"]["items"] and not GONE["understanding"]["summary"])
-check("...but the report explains what happened and what to check", any(r["id"] == "READ1" for r in GONE["recommendations"])
-      and "timed out" in " ".join(f for r in GONE["recommendations"] if r["id"] == "READ1" for f in [r["finding"]]))
+check("...but the report explains what happened, as a limit of the audit and not as a fix asked of the hotel", not any(r["id"] == "READ1" for r in GONE["recommendations"])
+      and "timed out" in " ".join(x["why"] for x in GONE["could_not_confirm"]) and "not reported as a fault" in " ".join(x["why"] for x in GONE["could_not_confirm"]))
 check("...and every readiness component is 'not assessed', not zero-scored", all(not p["assessed"] for p in GONE["profile"]))
 check("...and no recommendation says the hotel's markup, pages or answers are missing",
       not any(w in (r["title"] + r["finding"]).lower() for r in GONE["recommendations"] for w in ("no hotel", "markup", "unanswered")))
@@ -350,8 +351,8 @@ finally:
     advice._from_intel = _orig2
 ids2 = [r["id"] for r in GONE2["recommendations"]]
 check("the unreadable-site path also never lists the entity finding twice", ids2.count("M-entity_missing") + sum(i.startswith("X-S-entity_missing") for i in ids2) <= 1, ids2)
-check("a one-page site's READ1 says 'only 1 page', not 'read 1 of 1'",
-      "Only 1 page(s) of the site could be found and read" in next(r for r in GONE2["recommendations"] if r["id"] == "READ1")["finding"])
+check("a one-page site's note says 'only 1 page', not 'read 1 of 1'",
+      "Only 1 page(s) could be found and read" in GONE2["could_not_confirm"][0]["why"])
 json.dumps(GONE, default=str)
 check("an unreadable-site result is still JSON-serialisable", True)
 grouped = [r for r in res["recommendations"] if r["id"].startswith("Q")]
@@ -597,12 +598,21 @@ check("the crawl stays inside this hotel's pages and never wanders into the chai
       sel == [st_, "https://www.hilton.com/en/hotels/lxmhidi-doubletree-luxembourg/rooms/"], sel)
 check("the visitor is told what happened, in plain words", "page inside a larger website" in urlscope.scope_note(st_, sc_) and "brand's web team" in urlscope.scope_note(st_, sc_))
 
-blocked_pm = [{"url": HIL, "ok": False, "status": 403, "reason": "HTTP 403"}, {"url": BASE + "gone/", "ok": False, "status": 404, "reason": "HTTP 404"}]
+blocked_pm = [{"url": HIL, "ok": False, "status": 403, "reason": "HTTP 403"}, {"url": BASE, "ok": True, "status": 200, "reason": "", "is_start": True},
+              {"url": BASE + "gone/", "ok": False, "status": 404, "reason": "HTTP 404", "retested": True, "retest": [{"url": BASE + "gone", "status": 404}]}]
 mr = {f["id"]: f for f in it.machine_readiness(ic.Site(site16, BASE, HOTEL, CITY), blocked_pm, {"robots": {"present": True}}, [], None,
                                               {"hotel_found": None, "items": []}, [], [])}
 check("a 403 is 'the site refused our reader' - an information note, never 'a page that returns an error' to fix",
       mr["refused"]["status"] == "info" and "bot protection" in mr["refused"]["consequence"] and "403" in mr["refused"]["detail"] and "gone" not in mr["refused"]["detail"])
-check("a genuine 404 is still reported as a broken page", mr["http_errors"]["status"] == "issue" and "404" in mr["http_errors"]["detail"] and "403" not in mr["http_errors"]["detail"])
+check("a genuine 404 (asked for again in another form of its address, still failing, start page read fine) is still reported as a broken page", mr["http_errors"]["status"] == "issue" and "404" in mr["http_errors"]["detail"] and "403" not in mr["http_errors"]["detail"])
+unretested = [dict(r) for r in blocked_pm]
+for r in unretested:
+    r.pop("retested", None)
+mu = {f["id"]: f for f in it.machine_readiness(ic.Site(site16, BASE, HOTEL, CITY), unretested, {"robots": {"present": True}}, [], None, {"hotel_found": None, "items": []}, [], [])}
+check("a 404 that was not asked for again is 'not read by this audit', never a fault to fix", "http_errors" not in mu and mu["unread_pages"]["status"] == "info" and "nothing is reported as broken" in mu["unread_pages"]["consequence"])
+nostart = [dict(r, is_start=False, ok=False) if r.get("is_start") else r for r in blocked_pm]
+mn = {f["id"]: f for f in it.machine_readiness(ic.Site(site16, BASE, HOTEL, CITY), nostart, {"robots": {"present": True}}, [], None, {"hotel_found": None, "items": []}, [], [])}
+check("when the hotel's start page itself could not be read, nothing else is reported as broken", "http_errors" not in mn)
 mr2 = {f["id"]: f for f in it.machine_readiness(ic.Site(site16, BASE, "", ""), [], {"robots": {"present": True}}, [], None, {"hotel_found": None, "items": []}, [], [])}
 check("with no hotel name nobody claims 'no match in OpenStreetMap or Wikidata': it says no lookup was made",
       "entity_missing" not in mr2 and mr2["entity_unknown"]["status"] == "info" and "run again" in mr2["entity_unknown"]["consequence"])
@@ -610,9 +620,8 @@ check("with no hotel name nobody claims 'no match in OpenStreetMap or Wikidata':
 GB = consultant.analyse(own_pages=[], pages_meta=[{"url": st_, "ok": False, "status": 403, "reason": "HTTP 403"}], base=st_, hotel="DoubleTree Luxembourg", city="Luxembourg",
                         location={}, guest={"questions": [], "conflicts": [], "own_facts_node": {}}, site={"robots": {"present": True}, "sitemap": {}},
                         entities=[], intel=None, osm_ctx=None)
-r1 = next(r for r in GB["recommendations"] if r["id"] == "READ1")
-check("for a chain's page the 'who fixes it' advice names the brand's web team, not 'your web supplier'",
-      "brand's web team" in r1["action"] and "web supplier" not in r1["action"] and "None of the 1 page(s) we tried could be read" in r1["finding"], r1["action"][:80])
+check("a site that refused the reader produces no 'fix this' recommendation, only a note that names what was received",
+      not any(r["id"] == "READ1" for r in GB["recommendations"]) and "None of the 1 page(s) tried could be read" in GB["could_not_confirm"][0]["why"] and "nothing is asked of the hotel" in GB["could_not_confirm"][0]["why"], str(GB["could_not_confirm"])[:120])
 hz = hl.build({**mkrep(60.0), "consultant": {"coverage": {"unreadable": True, "limited": True, "pages_read": 0}}})
 check("a headline for a site with nothing read never says 'Only 0 page(s)'", "None of the website's pages could be read" in hz["explanation"] and "Only 0" not in hz["explanation"])
 failed_osm = [{"source": "OpenStreetMap", "found": False, "error": "request failed (timeout, DNS, or connection refused)"},

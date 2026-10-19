@@ -33,6 +33,7 @@ import xml.etree.ElementTree as ET
 import netguard
 import requests
 
+import entry
 import urlscope
 
 UA = ("Mozilla/5.0 (compatible; HotelAuditBot/1.0; "
@@ -186,7 +187,7 @@ def check_sitemap(base, robots_sitemaps):
         children = []
         for sm in root.findall(f"{ns}sitemap"):
             loc = sm.findtext(f"{ns}loc")
-            if loc and loc not in seen and len(seen) < 25:
+            if loc and loc not in seen and len(children) < 6:        # a chain's index lists dozens of large files; six keeps the audit light
                 seen.add(loc)
                 children.append(loc)
         with ThreadPoolExecutor(max_workers=6) as ex:
@@ -340,7 +341,10 @@ def run_site_check(website, max_pages=12, progress=None):
     covered = [t for t, v in topics.items() if v["page_found"]]
     missing = [t for t, v in topics.items() if not v["page_found"]]
 
-    to_check = [base]
+    # which page to start from: the address as submitted first, never a shortened form (see entry.py); every request is logged
+    start = entry.resolve(website, sitemap_urls=sitemap["urls"])
+    home = start["home_url"] or start["entry_url"]
+    to_check = [home]
     for t, v in topics.items():
         if v["urls"]:
             to_check.append(v["urls"][0])
@@ -364,6 +368,8 @@ def run_site_check(website, max_pages=12, progress=None):
 
     return {
         "meta": {"website": website, "base": base, "scope": scope, "scope_note": urlscope.scope_note(base, scope),
+                 "entry_url": start["entry_url"], "home_url": start["home_url"] or "", "start_ok": start["ok"], "start_via": start["via"], "start_note": start["note"],
+                 "fetch_log": start["log"],
                  "pages_analysed": len([p_ for p_ in pages if p_.get("ok")])},
         "robots": robots,
         "ai_crawlers_blocked": blocked_ai,

@@ -39,6 +39,8 @@ import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from site_check import get
+import entry
+import lexicon
 import urlscope
 import textutil
 from textutil import PRICE, is_negated, looks_like_nav
@@ -393,6 +395,14 @@ def fetch_page(url, timeout=FETCH_TIMEOUT):
     else:
         res.update(_parse_html(r.url or url, r.text))
         res["status"], res["final_url"] = r.status_code, r.url or url
+        fin = urllib.parse.urlparse(r.url or url)
+        if _bare(fin.netloc) != _bare(urllib.parse.urlparse(url).netloc) and lexicon.BOOKING_PAGE.search(fin.path):
+            # the page redirected to a booking tool on another address: what that tool says (noindex, a script-built page) is about the tool, not this page, so none of it is kept as a finding
+            res.update(text="", signals={}, links=[], title="", h1=[], ok=False,
+                       reason=f"redirects to a booking tool ({fin.netloc}{fin.path[:40]}), which is not read")
+            with _LOCK:
+                _CACHE[url] = (now, res)
+            return res
         if len(res["text"]) < MIN_READABLE_CHARS:
             res["reason"] = ("no readable text (probably built with JavaScript, "
                              "so a plain fetch sees an empty page)")
@@ -410,7 +420,7 @@ def fetch_page(url, timeout=FETCH_TIMEOUT):
 
 # ------------------------------------------------------------ page selection
 
-def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES):
+def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES, start=None):
     """
     Choose which pages to read: the homepage, then the pages whose addresses
     look most like they answer guest questions, then the shortest (top-level)
@@ -420,17 +430,30 @@ def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES):
     host = _bare(urllib.parse.urlparse(base).netloc)
     _, scope = urlscope.normalise(base)          # a page inside a chain's website: stay inside this hotel's own pages
     seen, cands = set(), []
+    start_host = urllib.parse.urlparse(start or base).netloc
+    n_sib = 0
     for u in list(sitemap_urls or []) + list(home_links or []):
         p = urllib.parse.urlparse(u)
-        if p.scheme not in ("http", "https") or _bare(p.netloc) != host or not urlscope.in_scope(u, scope):
+        sib = urlscope.is_sibling(u, start_host, scope)
+        if sib and n_sib >= 4:
             continue
+        if not sib and (p.scheme not in ("http", "https") or _bare(p.netloc) != host or not urlscope.in_scope(u, scope)):
+            continue
+        if not sib and re.search(r"/index[._-][a-z]{2}(?:[_-][a-z]{2})?\.s?html?$", p.path, re.I):
+            continue                                   # the same page in another language (index.fr.shtml)
         clean = urllib.parse.urlunparse((p.scheme, p.netloc, p.path, "", "", ""))
         key = clean.rstrip("/").lower()
         if key in seen or _SKIP_PATH.search(p.path):
             continue
         seen.add(key)
+        n_sib += 1 if sib else 0
         cands.append(clean)
 
+    start = start or base
+    def _pk(x):
+        q = urllib.parse.urlparse(x)
+        return _bare(q.netloc) + urlscope.canon_index(q.path).rstrip("/").lower()      # the host counts: another site's /hotel/1168/ is not this page
+    home_keys = {_pk(x) for x in (base, start)}
     home_key = base.rstrip("/").lower()
     question_slugs = {s for q in QUESTIONS for s in q["slugs"]}
 
@@ -441,13 +464,13 @@ def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES):
         depth = len([x for x in urllib.parse.urlparse(u).path.split("/") if x])
         return s - 0.1 * depth, depth
 
-    cands = [u for u in cands if u.rstrip("/").lower() != home_key]
+    cands = [u for u in cands if u.rstrip("/").lower() != home_key and _pk(u) not in home_keys]
     ranked = sorted(cands, key=lambda u: (-score(u)[0], score(u)[1]))
     chosen = [u for u in ranked if score(u)[0] > 0][: max_pages - 1]
     if len(chosen) < max_pages - 1:
         rest = sorted((u for u in cands if u not in chosen), key=lambda u: score(u)[1])
         chosen += rest[: max_pages - 1 - len(chosen)]
-    return [base] + chosen
+    return [start] + chosen
 
 
 # ---------------------------------------------------------------- evaluation
@@ -827,7 +850,7 @@ def build_fact_sheet(ok_pages, questions, hotel, base, lodging_node=None, locati
 
 def _page_row(p):
     s = p.get("signals") or {}
-    return {"url": p["url"], "ok": p["ok"], "reason": p.get("reason", ""), "status": p.get("status"),
+    return {"url": p["url"], "ok": p["ok"], "reason": p.get("reason", ""), "status": p.get("status"), "is_start": bool(p.get("is_start")), "retested": bool(p.get("retested")), "retest": p.get("retest", []),
             "final_url": p.get("final_url") or p["url"], "title": p.get("title", ""),
             "h1": p.get("h1", []), "meta_description": s.get("meta_description", ""),
             "canonical": s.get("canonical"), "noindex": bool(s.get("noindex")),
@@ -850,13 +873,15 @@ def run(site, base, hotel="", location=None, progress=None,
     say = progress or (lambda m: None)
 
     say("Reading the homepage...")
-    home = fetch_page(base)
+    meta_ = site.get("meta") or {}
+    start = meta_.get("home_url") or meta_.get("entry_url") or base      # the address the visitor gave (or a verified page of the same site), never a shortened form
+    home = fetch_page(start)
     sitemap_urls = site.get("sitemap_urls") or []
-    targets = select_pages(base, home.get("links", []), sitemap_urls, max_pages)
+    targets = select_pages(base, home.get("links", []), sitemap_urls, max_pages, start=start)
 
     say(f"Reading up to {len(targets)} pages to see what guests can learn...")
     pages = [home]
-    rest = [u for u in targets if u != base]
+    rest = [u for u in targets if u != start]
     ex = ThreadPoolExecutor(max_workers=6)
     try:
         futs = {ex.submit(fetch_page, u): u for u in rest}
@@ -876,7 +901,27 @@ def run(site, base, hotel="", location=None, progress=None,
     finally:
         ex.shutdown(wait=False, cancel_futures=True)
 
+    home["is_start"] = True
+    _retest_errors(pages, t0, budget_s)
     return _finish(pages, home, t0, site, base, hotel, location, sitemap_urls)
+
+
+def _recover(url, r):
+    d = _parse_html(r.url or url, r.text)
+    ok = len(d["text"]) >= MIN_READABLE_CHARS
+    d.update(url=url, status=200, final_url=r.url or url, ok=ok, reason="" if ok else "no readable text")
+    return d
+
+
+def _retest_errors(pages, t0, budget_s, limit=6):
+    """A page that answered 404, 410 or a server error is asked for again in other forms of its address before it is treated as failed: the failure may be this audit's own form of the address."""
+    n = 0
+    for p in pages:
+        if n >= limit or time.time() - t0 > budget_s:
+            break
+        if not p.get("ok") and not p.get("is_start") and entry.is_error_status(p.get("status")):
+            n += 1
+            entry.retest(p, get, parse=_recover)
 
 
 def _finish(pages, home, t0, site, base, hotel, location, sitemap_urls):
@@ -923,6 +968,7 @@ def _finish(pages, home, t0, site, base, hotel, location, sitemap_urls):
 def run_prefetched(site, base, hotel, pages, location=None):
     """The same analysis on pages somebody else already read (e.g. through Claude's page reader when the site refuses our reader)."""
     home = pages[0] if pages else {"ok": False}
+    home["is_start"] = True
     return _finish(pages, home, time.time(), site, base, hotel, location, site.get("sitemap_urls") or [])
 
 

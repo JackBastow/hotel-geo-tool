@@ -206,7 +206,7 @@ def fake_fetch(url):
     return {"status": 200, "final": url, "state": "ok"}
 
 
-bk = booking_check.run("https://www.testhotel.com/", links_ok, [home, rooms_page], [], fetch=fake_fetch)
+bk = booking_check.run("https://www.testhotel.com/", links_ok, [home, rooms_page], [{"url": "https://www.testhotel.com/", "ok": True, "status": 200, "is_start": True}], fetch=fake_fetch)
 ck = {c["id"]: c for c in bk["checks"]}
 check("a booking engine linked from the homepage is identified by its label and domain", ck["link"]["state"] == "pass" and "synxis" in ck["link"]["url"].lower() or "SynXis" in ck["link"]["detail"])
 check("the destination answering is verified, and a broken own link is found", ck["destination"]["state"] == "pass" and ck["links"]["state"] == "fail" and any("/gone/" in b["url"] for b in bk["broken_links"]))

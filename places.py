@@ -25,7 +25,7 @@ _NAV_WORDS = {"hotel", "info", "information", "offers", "offer", "gallery", "loc
               "reviews", "faq", "events", "meetings", "weddings", "spa", "wellness", "careers", "about", "terms", "privacy", "hotels", "destinations", "brands", "stay", "amenities", "facilities", "services",
               "directions", "overview", "deals", "packages", "view", "check", "availability", "reservations", "help", "account", "photos", "sitemap", "language"}
 
-_TABLE_WORDS = {"name", "banquet", "conference", "theatre", "theater", "classroom", "boardroom", "reception", "capacity", "cabaret", "u-shape", "sqm", "sq", "dimensions", "floor", "ceiling", "height",
+_TABLE_WORDS = {"filters", "filter", "sort", "reset", "apply", "clear", "show", "hide", "select", "results", "search", "name", "banquet", "conference", "theatre", "theater", "classroom", "boardroom", "reception", "capacity", "cabaret", "u-shape", "sqm", "sq", "dimensions", "floor", "ceiling", "height",
                 "length", "width", "seats", "layout"}
 
 KNOWN_AIRPORTS = ["Heathrow", "Gatwick", "Stansted", "Luton", "Schiphol", "Charles de Gaulle", "Orly", "Frankfurt", "Munich", "Flughafen Zürich", "Flughafen Zurich", "Kloten", "Fiumicino", "Ciampino",

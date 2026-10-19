@@ -18,6 +18,7 @@ import re
 from collections import Counter, defaultdict
 import urllib.parse
 
+import entry
 import urlscope
 
 import evidence
@@ -278,7 +279,7 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
                       "Crawlers rely on links alone to discover pages; deep pages (meetings, spa, offers) may be missed.",
                       "Publish a sitemap.xml and reference it in robots.txt.", level=BEST))
     shells_all = [r for r in pm if r.get("js_shell") or "probably built with JavaScript" in (r.get("reason") or "")]
-    booking = re.compile(r"book|reserv|checkout|basket|cart|availability|enquir", re.I)
+    booking = re.compile(r"book|reserv|checkout|basket|cart|availability|enquir|funnel", re.I)
     shells = [r for r in shells_all if not booking.search(urllib.parse.urlparse(r["url"]).path)]
     tools = [r for r in shells_all if r not in shells]
     if tools:
@@ -293,7 +294,16 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
                       "Make the key content part of the page's HTML (server-side rendering) or provide a text version.",
                       [{"url": r["url"], "snippet": r.get("reason") or "app shell with almost no text"} for r in shells[:3]], level=INFER))
     refused = [r for r in pm if not r["ok"] and r.get("status") in REFUSED_STATUS]
-    errs = [r for r in pm if not r["ok"] and r.get("status") and r["status"] >= 400 and r.get("status") not in REFUSED_STATUS]
+    errs_all = [r for r in pm if not r["ok"] and r.get("status") and r["status"] >= 400 and r.get("status") not in REFUSED_STATUS]
+    # a page is only reported as broken when this audit cannot reasonably be the cause: asked for again in another form of its address, still failing, and the hotel's start page was read fine
+    errs = [r for r in errs_all if entry.credible_error(r, pm)]
+    unread = [r for r in errs_all if r not in errs]
+    if unread:
+        out.append(_f("access", "unread_pages", f"{len(unread)} page(s) could not be read by this audit", "info", "low",
+                      ", ".join(f"{urllib.parse.urlparse(r['url']).path or '/'} ({r['status']})" for r in unread[:5]),
+                      "These pages did not answer this tool's reader. That describes what the audit received, which can differ from what a guest's browser gets (for example when a site answers a different form of the "
+                      "address, or turns automated readers away), so nothing is reported as broken and nothing is asked of the hotel. Open them in a browser to check.",
+                      "", [{"url": r["url"], "snippet": f"HTTP {r['status']}" + (" (also tried: " + ", ".join(str(t.get('status')) for t in r.get('retest') or []) + ")" if r.get("retest") else "")} for r in unread[:3]], level=INFER))
     if refused:
         out.append(_f("access", "refused", f"{len(refused)} page(s) refused our reader", "info", "low",
                       ", ".join(f"{urllib.parse.urlparse(r['url']).path or '/'} (HTTP {r['status']})" for r in refused[:5]),

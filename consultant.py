@@ -36,7 +36,7 @@ def crawl_coverage(pages_read, pages_meta):
                  else (f"none of the {attempted} page{'' if attempted == 1 else 's'} we tried could be read" if pages_read == 0
                        else f"we could only read {pages_read} of {attempted} pages"))
         note = (f"{found[0].upper() + found[1:]}, which is too few to say what the site does or doesn't contain. "
-                "Nothing below claims that information is missing.")
+                "Nothing below claims that information is missing, and this describes what this audit's reader received, not a fault in the hotel's website.")
     elif limited and pages_read >= attempted:
         note = (f"{pages_read} page{'' if pages_read == 1 else 's'} could be read, which is only part of a hotel's website. Anything reported as missing may be on a page that was not read, "
                 "so findings that say something is missing are marked as inferences, not verified.")
@@ -105,7 +105,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     recs, dropped = advice.validate(recs, cov, s)
     if (site.get("meta") or {}).get("scope"):
         for r in recs:
-            if r["source"] == "machine" and r["id"] in ("M-speed", "M-a11y", "M-cc_refused", "M-home_title", "M-home_meta", "M-meta_missing", "M-h1", "M-alt", "M-canonical_missing", "M-dup_titles"):
+            if r["source"] == "machine" and r["id"] in ("M-speed", "M-a11y", "M-cc_refused", "M-home_title", "M-home_meta", "M-meta_missing", "M-h1", "M-alt", "M-canonical_missing", "M-dup_titles", "M-canonical_other", "M-noindex", "M-js_empty"):
                 r["kind"], r["priority"], r["impact"] = "opportunity", "low", "low"
                 r["title"] = r["title"] + " (brand-run page)"
                 r["finding"] += " This page belongs to the brand's website, so the hotel cannot change it itself: pass it to the brand's web team."
@@ -158,22 +158,14 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None, ai=
     machine = [f for f in it.machine_readiness(s, pages_meta, site_payload, entities, intel, {"hotel_found": None, "items": []}, [], [], web)
                if f["bucket"] in ("access", "authority") or f["id"] in ("entity_ok", "entity_missing")]
     reasons = "; ".join(f"{n} x {r}" for r, n in cov["failure_reasons"].items()) or "no reason was reported"
-    evd = [{"url": p["url"], "snippet": p["reason"] or f"HTTP {p['status']}"} for p in cov["failed_pages"][:3]]
-    rec = advice._rec(
-        "READ1", "access", "Check that the website can be read by automated visitors",
-        (f"Only {cov['pages_read']} page(s) of the site could be found and read." if cov["pages_attempted"] <= cov["pages_read"]
-         else (f"None of the {cov['pages_attempted']} page(s) we tried could be read ({reasons})." if cov["pages_read"] == 0
-               else f"We could only read {cov['pages_read']} of {cov['pages_attempted']} pages ({reasons}).")),
-        "If our crawler cannot read the site, search engines and AI crawlers may not be able to either - or the site may be refusing automated "
-        "visitors on purpose (some firewalls do), in which case the information on it is less reliably discoverable by those systems.",
-        evd or [{"url": "", "snippet": "Too few pages could be read to say what the site contains."}],
-        ("Ask the brand's web team" if urlscope.normalise(s.base)[1] else "Ask your web supplier") + " whether a firewall, bot-protection rule or very slow hosting is blocking automated visitors, and check that the "
-        "main pages show their text without JavaScript. If the blocking is deliberate, this report cannot assess what is inside the site.",
-        "high", "medium", page={"url": s.base, "label": "the website"},
-        technical="Crawl returned timeouts/refusals. Could be our fetch (rate limits, user agent) as well as the site; "
-                  "verify by loading the pages with a plain HTTP client.", confidence=advice.INFER, team="web", source="machine",
-        success="A later audit reads most of the site's pages.")
-    recs = [rec] + advice._from_machine([f for f in machine if f["status"] == "issue"]) + advice._from_intel(intel) + advice._from_ai(ai) + advice._from_reviews(reviews) + advice._from_ai_insights(ai_insights) + advice._from_listing_checks(listing_checks) + advice._from_reddit(reddit) + advice._from_booking(booking) + advice._from_external(external)
+    # Not a recommendation: this audit's own reader may be the cause (an address form the site does not answer, a firewall that turns away automated readers, slow hosting), so nothing is asked of the hotel.
+    # It is stated as a limit of the audit, with what the reader received.
+    what = (f"only {cov['pages_read']} page(s) could be found and read" if cov["pages_attempted"] <= cov["pages_read"]
+            else (f"none of the {cov['pages_attempted']} page(s) tried could be read ({reasons})" if cov["pages_read"] == 0 else f"only {cov['pages_read']} of {cov['pages_attempted']} pages could be read ({reasons})"))
+    why = (f"{what[0].upper() + what[1:]}. That describes what this audit's reader received; it can differ from what a visitor's browser gets, so it is not reported as a fault in the hotel's website and nothing is "
+           "asked of the hotel. Open the pages in a browser to check; if automated readers are being turned away, a search or AI crawler may be too, which only the site's web team can confirm.")
+    could = [{"topic": "The hotel's website pages", "why": why}]
+    recs = advice._from_machine([f for f in machine if f["status"] == "issue"]) + advice._from_intel(intel) + advice._from_ai(ai) + advice._from_reviews(reviews) + advice._from_ai_insights(ai_insights) + advice._from_listing_checks(listing_checks) + advice._from_reddit(reddit) + advice._from_booking(booking) + advice._from_external(external)
     recs = advice.drop_duplicate_entity(recs)
     ranking.annotate(recs, [])
     for r in recs:
@@ -192,7 +184,7 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None, ai=
                               "note": cov["note"]},
             "intents": [], "features": [], "questions": [], "location": {"items": [], "map_data": False, "clear": 0, "note": cov["note"]},
             "consistency": [], "hidden": [], "structured": sd, "machine": machine, "profile": profile, "recommendations": recs,
-            "top_actions": [r["id"] for r in top], "quick_wins": [],
+            "top_actions": [r["id"] for r in top], "quick_wins": [], "could_not_confirm": could,
             "required_fixes": [r["id"] for r in recs if r["kind"] == "fix"],
             "opportunity_recs": [r["id"] for r in recs if r["kind"] == "opportunity"],
             "opportunities": [], "plan": ranking.plan_30_60_90(recs, {r["id"] for r in top}),

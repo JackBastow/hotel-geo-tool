@@ -238,6 +238,15 @@ After the rule-based guest-question check, one Claude request (default `claude-s
 - **Labelled:** an AI-found fact is marked 'found by AI reading; the quoted words were checked against the page', and the methodology lists how many quotations were verified and how many were rejected.
 - Needs `ANTHROPIC_API_KEY` (already used for the sampled AI answers). Without it the rule-based check stands alone. Tests: `test_ai_extract.py`.
 
+### Where the audit starts, and when a failed page is the hotel's problem (`entry.py`)
+
+- **The address you paste is requested exactly as pasted.** Only the #fragment and tracking parameters (utm_*, fbclid, msockid...) are removed. An earlier version cut `https://all.accor.com/hotel/1168/index.en.shtml` down to its folder, which Accor answers with 404, and then reported the hotel's own page as broken. The folder is now used only to decide which pages belong to the hotel.
+- **If the exact address does not answer**, other forms are tried in a fixed order (the other trailing-slash form, the folder of an index file, www / no-www), then up to three pages the site's own sitemap lists inside the hotel's folder. Every request and its answer is kept in `site.meta.fetch_log` and shown in the report data.
+- **A hotel's own pages on its chain's other addresses are read**, but only when they are on the same registered domain and carry the hotel's own id or full slug as a whole token (`spa.accor.com/en/hotels/1168`, `meetings.accor.com/hotel/1168/...`); at most four. Another hotel's page, a general brand page, booking paths and other languages of the same page are not.
+- **A page that redirects to a booking tool** is not judged as the hotel's page (its noindex or script-built page is about the tool).
+- **A failed page is never called broken on one try.** A 404, 410 or server error is asked for again in other forms of its address; it is reported to the hotel only if it still fails, it was not the start page, the start page was read, and the answer was not a refusal (403, 429). Otherwise it is listed as 'not read by this audit', with what was received, and nothing is asked of the hotel. A site the audit could not read produces a note about the audit's limit, not a 'fix your website' action.
+- Sitemap indexes are read lightly (six child files at most). Tests: `test_entry.py`.
+
 ## Back end: saved audits, the admin page and the monthly pack
 
 Set a `DATABASE_URL` secret (a Postgres connection string; Neon's free plan needs no card) and **every** finished audit is
