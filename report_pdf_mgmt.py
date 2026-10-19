@@ -23,8 +23,8 @@ from report_pdf import Markup, cat, esc, link, para, table
 PRI_COL = {"critical": R.BAD, "high": "#c2570c", "medium": R.WARN, "low": R.GREY}
 LEVEL_COL = {"high": R.GOOD, "medium": R.WARN, "low": R.BAD}
 STATUS_COL = {"assessed": R.GOOD, "provisional": R.WARN, "withheld": R.BAD}
-STATE_COL = {"confirmed": R.GOOD, "partial": R.WARN, "missing": R.BAD, "unknown": R.GREY}
-STATE_TXT = {"confirmed": "Confirmed", "partial": "Partially confirmed", "missing": "Missing", "unknown": "Unknown"}
+STATE_COL = {"confirmed": R.GOOD, "partial": R.WARN, "missing": R.BAD, "unknown": R.GREY, "not_offered": R.GREY}
+STATE_TXT = {"confirmed": "Confirmed", "partial": "Partially confirmed", "missing": "Missing", "unknown": "Unknown", "not_offered": "Stated as not available"}
 EXT_COL = {"verified": R.GOOD, "identified": R.GOOD, "contradicts": R.BAD, "unclear": R.WARN, "not_verified": R.GREY}
 
 NOREAD = "Not assessed: the website could not be read, so nothing can be said about this either way."
@@ -49,10 +49,16 @@ def _path(u):
 
 
 def _ev1(r):
-    e = (r.get("evidence") or [{}])[0]
-    q = short(e.get("snippet", ""), 150)
-    lead = link(e["url"], _path(e["url"])) if e.get("url") else Markup("")
-    return cat(lead, ": " if lead and q else "", f"“{q}”" if q else "")
+    """The first two evidence lines in full enough to read: what was found, and which pages were inspected for the rest."""
+    parts = []
+    for e in (r.get("evidence") or [{}])[:2]:
+        q = short(e.get("snippet", ""), 330)
+        lead = link(e["url"], _path(e["url"])) if e.get("url") else Markup("")
+        parts.append(cat(lead, ": " if lead and q else "", f"“{q}”" if q else ""))
+    out = parts[0]
+    for x in parts[1:]:
+        out = cat(out, Markup("<br/>"), x)
+    return out
 
 
 def _conf(r):
@@ -74,11 +80,8 @@ def action_card(i, r):
 
 def _breakdown(rep):
     sc = rep.get("scorecard") or {}
-    if sc.get("breakdown"):
-        return sc["breakdown"], sc.get("method", ""), sc.get("simple_average")
-    cats = sc.get("categories") or []
-    if cats:
-        t = scoring.totals(cats)
+    if sc.get("categories"):
+        t = scoring.totals_for(sc)
         return t["breakdown"], t["method"], t["simple_average"]
     return [], "", None
 
@@ -106,8 +109,7 @@ def _exec_sentences(c, h, top, hotel):
               f"{', provisional' if h['status'] == 'provisional' else ''} - {cov:.0f}% of the full model measured).")
     u = c["understanding"]
     s2 = ("What search and AI tools can clearly pick up from the website: " + ", ".join(u["strong_signals"][:4]) + ".") if u["strong_signals"] else ""
-    s6 = c["coverage"]["note"] if (c.get("coverage", {}).get("limited") or c.get("coverage", {}).get("text_only")) else ""
-    return [x for x in (s1, s2, s6) if x]
+    return [x for x in (s1, s2) if x]
 
 
 def story(rep, H1):
@@ -116,7 +118,7 @@ def story(rep, H1):
     hotel = meta.get("hotel", "the hotel")
     h = rep.get("headline") or headline_mod.build(rep)
     recs = {r["id"]: r for r in c["recommendations"]}
-    top = [recs[i] for i in c["top_actions"]][:5]
+    top = [recs[i] for i in c["top_actions"] if recs[i]["kind"] == "fix"][:5]
     out = [R.Spacer(1, 6 * R.mm), para("Management report", "title"), para(hotel, "h1"),
            R.P(link(meta.get("base", ""), meta.get("website", "")) + " - " + esc(meta.get("city", "")) +
                " - audit run " + esc(R._date(meta.get("run_at"))), "base"), Spacer(1, 4),
@@ -126,7 +128,7 @@ def story(rep, H1):
     cov = c.get("coverage") or {}
     if cov.get("limited") or cov.get("text_only"):
         why = "; ".join(f"{n} x {r}" for r, n in (cov.get("failure_reasons") or {}).items())
-        head = "" if str(cov.get("note", "")).startswith(("We could read", "We could only read")) else f"Read {cov['pages_read']} of {cov['pages_attempted']} pages. "
+        head = "" if str(cov.get("note", "")).startswith(("We could read", "We could only read")) or "which is only part of a hotel" in str(cov.get("note", "")) else f"Read {cov['pages_read']} of {cov['pages_attempted']} pages. "
         out.append(para(f"{head}{cov['note']}" + (f" Why pages failed: {why}." if why else ""), "note"))
 
     # 1 -------------------------------------------------------------- executive summary
@@ -233,13 +235,13 @@ def story(rep, H1):
             note = "; ".join(r["contradictions"]) if r["contradictions"] else short(r["note"], 170)
             rows.append([r["source"], R.coloured(r["label"], EXT_COL[r["status"]]), note])
         out.append(table(rows, [0.28, 0.2, 0.52]))
-        if ext.get("contradictions") or (rep.get("listing_checks") or {}).get("summary", {}).get("differs"):
-            out.append(para("Information inconsistencies", "h3"))
-            items = [f"{x['source']}: {x['text']}" for x in ext.get("contradictions", [])]
-            out += R.bullets(items or ["See the appendix: facts quoted from travel sites that differ from the website."])
+        diffs = [f"{r['platform']}: {r['fact'].lower()} shows {r['listing_says']}, the website says {r['site_says']}" for r in (rep.get("listing_checks") or {}).get("rows", []) if r["status"] == "differs"]
+        items = [f"{x['source']}: {x['text']}" for x in ext.get("contradictions", [])]
+        out.append(para("Information inconsistencies", "h3"))
+        out += R.bullets(list(dict.fromkeys(items + diffs)) or ["None found among the facts that could be compared (names, addresses, phone numbers, check-in and check-out times quoted by outside sources)."])
     else:
         out.append(para("The outside sources were not checked in this run.", "base"))
-    risks = [r for r in c["recommendations"] if r["source"] == "intel" and r["kind"] == "fix"]
+    risks = [r for r in c["recommendations"] if r["source"] == "intel" and r["kind"] == "fix" and not r["id"].startswith("X-S-") and r.get("confidence") != "Reasonable inference"]
     out.append(para("Confirmed reputation risks", "h3"))
     if risks:
         rows = [["Risk", "What we found", "Priority", "Ref"]]
@@ -260,12 +262,21 @@ def story(rep, H1):
 
     # 5 -------------------------------------------------------------- commercial opportunities
     out.append(H1("Commercial opportunities"))
-    strong = [r for r in c["intents"] if r["level"] in ("strong", "some")]
-    out.append(para("Relevant traveller segments", "h3"))
-    if strong:
-        out.append(table([["Traveller type", "Evidence on the website"]] + [[r["label"], "Strongly supported" if r["level"] == "strong" else "Some evidence"] for r in strong[:8]], [0.4, 0.6]))
+    hc = (c.get("hotel_class") or {}).get("classes") or []
+    out.append(para("What kind of hotel this is, and who it mainly serves", "h3"))
+    if hc:
+        out.append(table([["Hotel type", "Why"]] + [[x["label"], "; ".join(x["reasons"][:2])] for x in hc], [0.28, 0.72]))
     else:
-        out.append(para(NOREAD if cov.get("unreadable") else "No traveller type is clearly supported by the pages read.", "base"))
+        out.append(para("The pages did not show a clear type (airport, business, spa, resort...), so traveller segments are assessed only where the site itself describes the facilities.", "base"))
+    trv_ = c.get("traveller") or {}
+    seg_rows = [[sg["label"], "Core to this hotel" if sg.get("relevance", "core") == "core" else "Secondary: offered, but not what the hotel is for",
+                 f"{sg['counts']['confirmed']} confirmed, {sg['counts']['partial']} partly, {sg['counts']['missing']} missing"] for sg in trv_.get("segments", [])]
+    if seg_rows:
+        out.append(table([["Traveller segment", "Relevance", "Information on the website"]] + seg_rows, [0.3, 0.4, 0.3]))
+    if trv_.get("skipped"):
+        out.append(para("Not assessed, and no marketing advice given, because nothing shows the hotel serves or wants this market: " + ", ".join(x["label"] for x in trv_["skipped"]) + ".", "tiny"))
+    elif not seg_rows:
+        out.append(para(NOREAD if cov.get("unreadable") else "No traveller segment could be assessed from the pages read.", "base"))
     opp = c.get("opportunities") or []
     if opp:
         out.append(para("Underrepresented facilities and services", "h3"))
@@ -294,37 +305,39 @@ def story(rep, H1):
             if rid not in phase:
                 order.append(rid)
                 phase[rid] = label
-    out.append(para("Suggested implementation order", "h3"))
-    if order:
-        rows = [["#", "Action", "Owner", "Priority", "Effort", "When", "Ref"]]
-        for n, rid in enumerate(order, 1):
-            r = recs[rid]
-            tag = " (opportunity)" if r["kind"] == "opportunity" else ""
-            rows.append([str(n), short(r.get("short_title") or r["title"], 85) + tag, r.get("owner") or r["team"].capitalize(), R.coloured(r["priority"], PRI_COL[r["priority"]]), r["effort"], phase[rid], r["ref"]])
-        out.append(table(rows, [0.04, 0.36, 0.13, 0.1, 0.08, 0.12, 0.17]))
-        out.append(para("Days 1-30: serious and quick items. Days 31-60: medium-effort required fixes. Days 61-90: opportunities and larger pieces of work. Re-run the audit afterwards to check what changed.", "tiny"))
-    else:
-        out.append(para("No actions to schedule.", "base"))
+    for heading, kind, intro in (("Confirmed problems: suggested implementation order", "fix", "Things the audit found missing, wrong or broken on evidence it holds."),
+                                  ("Optional opportunities: not deficiencies", "opportunity", "Ways to strengthen a market the hotel may want. None of these is a fault, and none is needed unless the hotel wants that market.")):
+        order, phase = [], {}
+        for label, key in (("Days 1-30", "30"), ("Days 31-60", "60"), ("Days 61-90", "90")):
+            for rid in c["plan"].get(key, []):
+                if rid not in phase and recs[rid]["kind"] == kind:
+                    order.append(rid)
+                    phase[rid] = label
+        out.append(para(heading, "h3"))
+        out.append(para(intro, "tiny"))
+        if order:
+            rows = [["#", "Action", "Owner", "Priority", "Effort", "When", "Ref"]]
+            for n, rid in enumerate(order, 1):
+                r = recs[rid]
+                rows.append([str(n), short(r.get("short_title") or r["title"], 90), r.get("owner") or r["team"].capitalize(), R.coloured(r["priority"], PRI_COL[r["priority"]]), r["effort"], phase[rid], r["ref"]])
+            out.append(table(rows, [0.04, 0.38, 0.13, 0.1, 0.08, 0.12, 0.15]))
+        else:
+            out.append(para("None.", "base"))
+    out.append(para("Days 1-30: serious and quick items. Days 31-60: medium-effort fixes. Days 61-90: larger pieces of work. Re-run the audit afterwards to check what changed.", "tiny"))
 
     # 7 -------------------------------------------------------------- methodology and limitations
     out.append(H1("Methodology and limitations"))
     gq = rep.get("guest_questions") or {}
     web = rep.get("web_signals") or {}
-    checked = [f"{cov.get('pages_read', len((rep.get('site') or {}).get('pages', [])))} of {cov.get('pages_attempted', '?')} website pages read, with robots.txt, the sitemap and the structured data on them",
-               f"{len(gq.get('questions', []))} common guest questions checked against the pages",
-               f"{trv.get('summary', {}).get('judged', 0)} traveller requirements judged across {len(segs)} traveller segment(s)",
-               f"{ext.get('summary', {}).get('checkable', 0)} of {len(ext.get('rows', []))} outside sources could be checked" if ext.get("rows") else "outside sources: not checked",
-               "the booking link, its destination and the site's own links" if bk.get("status") == "ok" else "booking readiness: not checked",
-               ("a comparison with " + str(len(cp["competitors"])) + " comparable hotel(s)") if cp.get("status") == "ok" else "competitors: not compared"]
-    out.append(para("What was actually checked", "h3"))
-    out += R.bullets(checked)
-    out.append(para("What could not be checked", "h3"))
-    cannot = ["Guest reviews on the travel platforms, and the platforms' own pages (their terms prohibit automated reading): listings are identified in search results only.",
-              "Google Maps and Google hotel listings (no permitted, free way to read them): check the Google Business Profile by hand.",
-              "Social media activity (needs platform access); only the presence of official profiles is noted.",
-              "Text inside collapsed sections, tabs and accordions that the reader could not see: such pages are reported as Unknown, not as missing."]
-    cannot += [f"{u['label']}: {short(u['why'], 150)}" for u in h["unassessed"]][:3]
-    out += R.bullets(cannot)
+    import assessment
+    asm = assessment.assess(rep)
+    for bucket, title in (("assessed", "Assessed"), ("partial", "Partly assessed"), ("not_assessed", "Not assessed")):
+        out.append(para(title, "h3"))
+        out += R.bullets([cat(Markup(f"<b>{esc(i['what'])}</b>"), (": " + i["detail"]) if i["detail"] else "") for i in asm[bucket]] or ["Nothing in this group."])
+    cnc = c.get("could_not_confirm") or []
+    if cnc:
+        out.append(para("Could not be confirmed either way (no recommendation made)", "h3"))
+        out += R.bullets([f"{x['topic']}: {x['why']}" for x in cnc])
     n_ver = sum(1 for r in c["recommendations"] if _conf(r) == "Verified finding")
     out.append(para("Confidence", "h3"))
     out.append(para(f"{n_ver} of the {len(c['recommendations'])} recommendations are verified findings (the evidence directly shows the issue on pages that were read). The rest are reasonable inferences: "

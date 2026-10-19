@@ -40,6 +40,8 @@ from concurrent.futures import ThreadPoolExecutor, wait
 
 from site_check import get
 import urlscope
+import textutil
+from textutil import PRICE, is_negated, looks_like_nav
 import pagesignals
 
 try:
@@ -73,8 +75,8 @@ def _fact(key, label, *patterns, required=True):
 
 # The lookbehinds stop a price like "£10.00" or a date like "12.05" being read
 # as a time of day.
-_TIME = (r"(?<![£€\d.:])\d{1,2}(?:[:.]\d{2})?\s?(?:am|pm)\b"
-         r"|(?<![£€\d.:])\d{1,2}[:.]\d{2}(?!\d|\.\d)")
+_TIME = (r"(?<![£€$¥\d.:])\d{1,2}(?:[:.]\d{2})?\s?(?:am|pm)\b"
+         r"|(?<![£€$¥\d.:])\d{1,2}[:.]\d{2}(?!\d|\.\d)")
 
 # The gap between "check-in" and its time must not itself contain "check",
 # otherwise "check-in is flexible, check-out 11am" gives check-in = 11am.
@@ -89,15 +91,15 @@ _CO = [
 
 QUESTIONS = [
     {
-        "id": "parking", "short": "Parking", "high_value": True,
+        "id": "parking", "short": "Parking", "high_value": True, "refusal": True, "refusal_keep": (),
         "label": "Is there parking, and what does it cost?",
         "slugs": ["parking", "car park", "getting here", "directions",
-                  "transport", "travel", "facilities", "faq"],
+                  "transport", "travel", "facilities", "faq", "information", "hotel info", "location"],
         "mention": _rx(r"\bparking\b", r"\bcar[\s\-]?park\b", r"\bvalet\b"),
         "facts": [
             _fact("price", "the price",
-                  r"[£€]\s?\d", r"\bfree\b", r"complimentary", r"no (?:extra )?charge",
-                  r"\bcharge[sd]?\b", r"per (?:night|day|24)", r"\bfee\b"),
+                  PRICE, r"\bfree\b", r"complimentary", r"no (?:extra )?charge",
+                  r"\bcharge[sd]?\b", r"per (?:night|day|24)", r"\bfee\b", r"/\s?(?:night|day|24)", r"\bdaily\b", r"\ba (?:night|day)\b", r"\bovernight\b"),
             _fact("onsite", "whether it is on-site",
                   r"on[\s\-]?site", r"\bour (?:own )?(?:private )?(?:car[\s\-]?park|parking)",
                   r"\bprivate (?:car[\s\-]?park|parking)", r"\bvalet\b",
@@ -110,7 +112,7 @@ QUESTIONS = [
             _fact("reserve", "whether you can or must reserve",
                   r"\breserv", r"pre[\s\-]?book", r"\bbook (?:a |your |in advance|ahead)",
                   r"in advance", r"first[\s\-]come", r"subject to availability",
-                  r"spaces? (?:are )?limited", r"cannot be (?:booked|reserved)"),
+                  r"spaces? (?:are )?limited", r"cannot be (?:booked|reserved)", required=False),
         ],
     },
     {
@@ -121,7 +123,7 @@ QUESTIONS = [
         "facts": [
             _fact("times", "serving times", rf"{_TIME}"),
             _fact("details", "what is included or the price",
-                  r"included", r"complimentary", r"[£€]\s?\d", r"continental",
+                  r"included", r"complimentary", PRICE, r"continental",
                   r"full english", r"buffet", r"[àa] la carte", r"per person",
                   r"bed (?:and|&) breakfast"),
         ],
@@ -130,7 +132,7 @@ QUESTIONS = [
         "id": "checkin_out", "short": "Check-in and check-out", "high_value": True,
         "label": "What are the check-in and check-out times?",
         "slugs": ["check in", "check out", "arrival", "faq", "policies", "policy",
-                  "terms", "information", "guest"],
+                  "terms", "information", "guest", "hotel info"],
         "mention": _rx(r"check[\s\-]?in", r"check[\s\-]?out"),
         "facts": [
             _fact("checkin", "the check-in time", *_CI),
@@ -138,9 +140,9 @@ QUESTIONS = [
         ],
     },
     {
-        "id": "pets", "short": "Pets", "high_value": False, "refusal": True,
+        "id": "pets", "short": "Pets", "high_value": False, "refusal": True, "refusal_keep": ("policy",),
         "label": "Are dogs or pets allowed, and is there a charge?",
-        "slugs": ["pet", "dog", "faq", "policies", "policy", "terms", "information"],
+        "slugs": ["pet", "dog", "faq", "policies", "policy", "terms", "information", "hotel info"],
         "mention": _rx(r"\bdogs?\b", r"\bpets?\b", r"\banimals?\b"),
         "facts": [
             _fact("policy", "whether pets are allowed",
@@ -148,7 +150,7 @@ QUESTIONS = [
                   r"(?:dog|pet)[\s\-]friendly", r"\bno (?:dogs|pets)\b",
                   r"(?:welcome|allow|accept)[^.\n]{0,30}(?:dogs?|pets?)"),
             _fact("fee", "any charge",
-                  r"[£€]\s?\d", r"free of charge", r"no (?:extra |additional )?charge",
+                  PRICE, r"free of charge", r"no (?:extra |additional )?charge",
                   r"per (?:night|stay|dog|pet)", r"\bfee\b", r"supplement"),
             _fact("limits", "any limits (number, size, rooms)",
                   r"\bmax(?:imum)?\b", r"\blimit", r"\bdesignated\b", r"\bselected rooms\b",
@@ -158,7 +160,7 @@ QUESTIONS = [
     {
         "id": "accessibility", "short": "Accessibility", "high_value": True,
         "label": "Are there accessible rooms, and what features do they have?",
-        "slugs": ["accessib", "disabled", "mobility", "facilities", "faq", "information"],
+        "slugs": ["accessib", "disabled", "mobility", "facilities", "faq", "information", "hotel info"],
         "mention": _rx(r"accessib", r"wheelchair", r"disabled", r"disabilit",
                        r"mobility", r"step[\s\-]free"),
         "facts": [
@@ -183,6 +185,7 @@ QUESTIONS = [
             _fact("roomtype", "the family or connecting room type",
                   r"family (?:room|suite|bedroom)", r"connecting (?:room|bedroom)s?",
                   r"interconnecting"),
+            _fact("connecting", "connecting rooms", r"connecting (?:room|bedroom)s?", r"interconnecting", required=False),
             _fact("capacity", "how many guests it sleeps",
                   r"sleeps? (?:up to )?\d", r"up to \d+ (?:guests|people|adults|persons|children)",
                   r"\d adults? (?:and|&|\+) \d", r"max(?:imum)?\.? (?:occupancy|of \d)",
@@ -212,18 +215,18 @@ QUESTIONS = [
         ],
     },
     {
-        "id": "wifi", "short": "Wi-Fi", "high_value": False,
+        "id": "wifi", "short": "Wi-Fi", "high_value": False, "refusal": True, "refusal_keep": (),
         "label": "Is Wi-Fi available, and is it free?",
-        "slugs": ["wifi", "wi fi", "facilities", "faq", "rooms", "information"],
+        "slugs": ["wifi", "wi fi", "facilities", "faq", "rooms", "information", "hotel info"],
         "mention": _rx(r"wi[\s\-]?fi", r"wireless internet"),
         "facts": [
             _fact("cost", "whether it is free",
                   r"\bfree\b", r"complimentary", r"included", r"no (?:extra )?charge",
-                  r"[£€]\s?\d", r"\bcharge"),
+                  PRICE, r"\bcharge"),
         ],
     },
     {
-        "id": "ev", "short": "EV charging", "high_value": False,
+        "id": "ev", "short": "EV charging", "high_value": False, "refusal": True, "refusal_keep": (),
         "label": "Is there EV charging, and what does it cost?",
         "slugs": ["ev", "electric", "charging", "parking", "getting here", "faq", "facilities"],
         "mention": _rx(r"\bEV\b", r"electric (?:vehicle|car)", r"charging (?:point|station|port)s?",
@@ -233,7 +236,7 @@ QUESTIONS = [
                   r"\b\d+\s*(?:x\s*)?(?:ev )?(?:charging )?(?:points?|chargers?|bays?|ports?)\b",
                   r"\bkw\b", r"type 2", r"\brapid\b", r"fast[\s\-]charg", r"destination charg"),
             _fact("cost", "cost or how to pay",
-                  r"\bfree\b", r"complimentary", r"[£€]\s?\d", r"per\s?kwh",
+                  r"\bfree\b", r"complimentary", PRICE, r"per\s?kwh",
                   r"\btariff\b", r"\bapp\b", required=False),
         ],
     },
@@ -526,6 +529,8 @@ def _window_sentences(text, sents, spans):
 def _eval_question(q, ok_pages):
     per_page = []
     refused = False
+    refusal_snip = ""
+    neg_all = {}
     for p in ok_pages:
         text = p["text"]
         spans = []
@@ -537,11 +542,15 @@ def _eval_question(q, ok_pages):
         sents = _sentences(text)
         win = _window_sentences(text, sents, spans)
 
-        sat = {}
+        sat, neg = {}, {}
         for f in q["facts"]:
             for j in win:
                 sent = _sent(text, sents, j)
-                if any(rx.search(sent) for rx in f["patterns"]):
+                m = next((mm for mm in (rx.search(sent) for rx in f["patterns"]) if mm), None)
+                if m:
+                    if is_negated(sent, m.start(), m.end()):
+                        neg.setdefault(f["key"], _answer_snippet(text, sents, j))        # 'connecting rooms are not available' is a statement, but not that they exist
+                        continue
                     sat[f["key"]] = _answer_snippet(text, sents, j)
                     break
         if q.get("refusal"):
@@ -553,11 +562,14 @@ def _eval_question(q, ok_pages):
                 if (any(rx.search(sent) for rx in q["mention"])
                         and any(rx.search(sent) for rx in _REFUSAL)):
                     refused = True
+                    refusal_snip = _answer_snippet(text, sents, j)
 
         first = spans[0]
         fi = max(0, bisect.bisect_right([a for a, _ in sents], first[0]) - 1)
         mention_snip = _clean(_sent(text, sents, fi) + " " +
                               (_sent(text, sents, fi + 1) if fi + 1 < len(sents) else ""))
+        for k, v in neg.items():
+            neg_all.setdefault(k, (v, p["url"]))
         per_page.append({
             "page": p, "hits": len(spans), "sat": sat,
             "relevant": _topic_relevant(p, q) or len(spans) >= 3,
@@ -566,13 +578,14 @@ def _eval_question(q, ok_pages):
 
     required = [f for f in q["facts"] if f["required"]]
     if refused:
-        # "we can't accommodate dogs" fully answers the pets question
-        required = [f for f in required if f["key"] == "policy"]
+        # "we can't accommodate dogs" / "parking is not available" fully answers the question
+        keep = q.get("refusal_keep", ("policy",))
+        required = [f for f in required if f["key"] in keep]
     optional = [f for f in q["facts"] if not f["required"]]
     result = {"id": q["id"], "short": q["short"], "label": q["label"],
               "high_value": q["high_value"], "found": [], "missing": [],
               "nice_to_have": [], "snippet": "", "source_url": "",
-              "other_sources": [], "note": "", "template": q.get("template", "")}
+              "other_sources": [], "note": "", "template": q.get("template", ""), "not_offered": []}
 
     if not per_page:
         result["state"] = "not_found"
@@ -582,9 +595,25 @@ def _eval_question(q, ok_pages):
     found_keys = set()
     for pp in per_page:
         found_keys |= set(pp["sat"])
+    # a refusal ('pets are not allowed') IS the answer to the policy question, so the denial satisfies the fact it denies
+    if refused:
+        found_keys |= {k for k in q.get("refusal_keep", ("policy",)) if k in neg_all}
+    # a fact the pages only DENY ('connecting rooms are not available') is answered, as a negative: it is not found, but it is not missing either
+    denied = {k: v for k, v in neg_all.items() if k not in found_keys}
+    result_denied = [{"label": f["label"], "snippet": denied[f["key"]][0], "url": denied[f["key"]][1]} for f in q["facts"] if f["key"] in denied]
     best = max(per_page, key=lambda pp: (len(pp["sat"]), pp["relevant"], pp["hits"]))
     result["found"] = [f["label"] for f in q["facts"] if f["key"] in found_keys]
-    result["missing"] = [f["label"] for f in required if f["key"] not in found_keys]
+    snips = {}
+    for pp in per_page:
+        for k, sn in pp["sat"].items():
+            if k not in snips and not looks_like_nav(sn):
+                snips[k] = {"url": pp["page"]["url"], "snippet": sn}
+    result["fact_snippets"] = [{"label": f["label"], **snips[f["key"]]} for f in q["facts"] if f["key"] in snips]
+    result["pages_with_topic"] = [pp["page"]["url"] for pp in per_page if pp["relevant"]][:6]
+    result["missing"] = [f["label"] for f in required if f["key"] not in found_keys and f["key"] not in denied]
+    result["not_offered"] = result_denied
+    if refused:
+        result["not_offered"] = result["not_offered"] or [{"label": q["short"], "snippet": refusal_snip, "url": best["page"]["url"]}]
     result["nice_to_have"] = [f["label"] for f in optional
                               if f["key"] not in found_keys] if not refused else []
     result["source_url"] = best["page"]["url"]
@@ -592,14 +621,16 @@ def _eval_question(q, ok_pages):
                                if pp is not best][:3]
     first_fact = next((best["sat"][f["key"]] for f in q["facts"]
                        if f["key"] in best["sat"]), None)
-    result["snippet"] = first_fact or best["mention_snippet"]
+    result["snippet"] = first_fact or (best["mention_snippet"] if not looks_like_nav(best["mention_snippet"]) else "")
+    if looks_like_nav(result["snippet"]):
+        result["snippet"] = ""
     if refused:
         result["note"] = ("the text appears to say this is not offered - "
                           "check the wording")
     result["_per_page"] = per_page
     result["_found_keys"] = found_keys
 
-    any_relevant = any(pp["relevant"] for pp in per_page)
+    any_relevant = any(pp["relevant"] for pp in per_page) or refused
     if not result["missing"] and any_relevant:
         result["state"] = "answered"
     elif any_relevant:
@@ -612,6 +643,9 @@ def _eval_question(q, ok_pages):
 def evaluate(pages, sufficient=True):
     """Pure function over already-fetched pages - the part worth unit-testing."""
     ok_pages = [p for p in pages if p["ok"]]
+    bp = textutil.boilerplate(ok_pages, min_pages=4, share=0.6)       # site-wide menus, banners and footers are not what a page says
+    if bp:
+        ok_pages = [dict(p, text=textutil.strip_boilerplate(p["text"], bp)) for p in ok_pages]
     results = []
     for q in QUESTIONS:
         r = _eval_question(q, ok_pages)

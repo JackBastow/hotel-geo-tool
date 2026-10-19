@@ -67,10 +67,13 @@ def build(rep):
     sampled = (rep.get("ai_sample") or {}).get("status") == "ok"
     sc = rep.get("scorecard") or {}
     overall, cov = sc.get("overall"), sc.get("coverage_pct") or 0.0
+    new_model = (sc.get("model") or 1) >= 2
     cats = sc.get("categories") or []
     ev = category_evidence(rep)
+    # in the current model observed AI visibility is not part of readiness, so it is never listed as something the readiness score failed to measure
     unassessed = [{"key": c["key"], "label": c["label"], "weight": c["weight"],
-                   "why": (SAMPLED_NOTE if sampled and c["key"] == "ai_visibility" else WHY_NOT.get(c["key"], c.get("detail", "")))} for c in cats if not c.get("assessed")]
+                   "why": (SAMPLED_NOTE if sampled and c["key"] == "ai_visibility" else WHY_NOT.get(c["key"], c.get("detail", "")))} for c in cats
+                  if not c.get("assessed") and not (new_model and c["key"] == "ai_visibility")]
     miss_w = round(sum(u["weight"] for u in unassessed), 1)
     crawl = (rep.get("consultant") or {}).get("coverage") or {}
     if overall is None or cov < WITHHOLD_BELOW or crawl.get("unreadable"):
@@ -92,8 +95,8 @@ def build(rep):
         expl = (f"{overall}/100 is a weighted average of the categories that could be assessed, which is {cov:.0f}% of the full model. "
                 f"The other {miss_w:g}% is not measured ({names}). Read it as an indicator of how well the hotel is set up"
                 + (". It includes a small sample of one AI assistant's answers, which is a clue about visibility, not a measurement of it."
-                   if any(c.get("key") == "ai_visibility" and c.get("assessed") for c in cats)
-                   else ", not as a measure of how visible it is to AI assistants."))
+                   if (not new_model) and any(c.get("key") == "ai_visibility" and c.get("assessed") for c in cats)
+                   else ", not as a measure of how visible it is to AI assistants. Observed AI visibility is reported separately and is not part of this number."))
     return {"title": "AI discoverability readiness (assessed factors)", "score": None if status == "withheld" else overall,
             "coverage_pct": cov, "status": status, "unassessed": unassessed, "unassessed_weight": miss_w,
             "breakdown": sc.get("breakdown") or [], "simple_average": sc.get("simple_average"), "method": sc.get("method") or "",

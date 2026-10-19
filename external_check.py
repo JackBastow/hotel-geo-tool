@@ -393,9 +393,11 @@ def check_openstreetmap(hotel, city="", postcode="", lat=None, lon=None):
             except (TypeError, ValueError):
                 km = None
             if km is not None:
-                return (True, f"{km:.1f}km from the location on the hotel's own site") \
-                    if km <= 2.0 else \
-                    (False, f"{km:.0f}km from the location on the hotel's own site")
+                if km <= 0.5:
+                    return (True, f"{km:.1f}km from the location on the hotel's own site")
+                if km <= 2.0:
+                    return (None, f"{km:.1f}km from the location on the hotel's own site: close, but too far apart to confirm it is the same building")
+                return (False, f"{km:.0f}km from the location on the hotel's own site")
         a = h.get("address") or {}
         if postcode:
             hp = _uk_postcode(a.get("postcode", "") or h.get("display_name", ""))
@@ -408,7 +410,8 @@ def check_openstreetmap(hotel, city="", postcode="", lat=None, lon=None):
                   h.get("display_name", "").lower()
             hay_tokens = set(re.findall(r"[a-z]{3,}", hay))
             if city_tokens:
-                return (bool(city_tokens & hay_tokens), "matched on town name")
+                # the same town is not the same hotel: names repeat within a town, so a town match alone is an uncertain match
+                return ((None, "same town only: not enough to confirm it is this hotel") if (city_tokens & hay_tokens) else (False, "a different town"))
         return (None, "no location available to verify against")
 
     verified = [(h,) + verify(h) for h in hits]
@@ -422,6 +425,10 @@ def check_openstreetmap(hotel, city="", postcode="", lat=None, lon=None):
     out["found"] = True
     out["match_confident"] = confident
     out["match_reason"] = why
+    try:
+        out["lat"], out["lon"] = float(h.get("lat")), float(h.get("lon"))
+    except (TypeError, ValueError):
+        pass
     out["url"] = f"https://www.openstreetmap.org/{h.get('osm_type')}/{h.get('osm_id')}"
     out["display_name"] = h.get("display_name", "")
     out["facts"] = {k: v for k, v in {
@@ -462,6 +469,32 @@ def check_openstreetmap(hotel, city="", postcode="", lat=None, lon=None):
             "different hotel with the same name. Confirm before relying on it."
         )
         out["facts"] = {}  # never feed an unverified entity into fact comparison
+    return out
+
+
+def _wikidata_claims(qid):
+    """The identifiers Wikidata holds for an entity, when it has them: official website (P856), coordinates (P625), telephone (P1329). One request; {} when unavailable or none are recorded."""
+    if not qid:
+        return {}
+    data, err = _get_json(WIKIDATA_ENDPOINT, {"action": "wbgetentities", "ids": qid, "props": "claims", "format": "json"})
+    if err or not data:
+        return {}
+    cl = ((data.get("entities") or {}).get(qid) or {}).get("claims") or {}
+
+    def val(pid):
+        for c in cl.get(pid, []):
+            dv = (c.get("mainsnak") or {}).get("datavalue") or {}
+            if dv.get("value") is not None:
+                return dv["value"]
+        return None
+    out = {}
+    url, tel, co = val("P856"), val("P1329"), val("P625")
+    if isinstance(url, str):
+        out["url"] = url
+    if isinstance(tel, str):
+        out["telephone"] = tel
+    if isinstance(co, dict) and co.get("latitude") is not None:
+        out["lat"], out["lon"] = float(co["latitude"]), float(co["longitude"])
     return out
 
 
@@ -520,6 +553,11 @@ def check_wikidata(hotel, city="", place_tokens=None):
 
     out["found"] = True
     out["id"] = best.get("id")
+    claims = _wikidata_claims(best.get("id")) if confident else {}
+    if claims:
+        out["facts"] = {k: v for k, v in {"url": claims.get("url"), "telephone": claims.get("telephone")}.items() if v}
+        if claims.get("lat") is not None:
+            out["lat"], out["lon"] = claims["lat"], claims["lon"]
     out["url"] = f"https://www.wikidata.org/wiki/{best.get('id')}"
     out["label"] = best.get("label", "")
     out["description"] = best.get("description", "")

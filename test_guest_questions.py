@@ -63,9 +63,8 @@ pages = [page("https://h.com/", PAD),
          page("https://h.com/a/", PAD), page("https://h.com/b/", PAD)]
 r = q_by_id(gq.evaluate(pages, True), "parking")
 check("partial", r["state"] == "partial", r)
-check("missing lists price and on-site and reservation",
-      set(r["missing"]) == {"the price", "whether it is on-site",
-                            "whether you can or must reserve"}, r["missing"])
+check("missing lists price and on-site; whether you can reserve is a nice-to-have, not a gap",
+      set(r["missing"]) == {"the price", "whether it is on-site"} and "whether you can or must reserve" in r["nice_to_have"], (r["missing"], r["nice_to_have"]))
 
 print("3. a site we could not read is never 'missing'")
 res = gq.evaluate([page("https://h.com/", "", ok=False, reason="HTTP 403")], sufficient=False)

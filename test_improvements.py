@@ -55,7 +55,10 @@ cats = [{"key": "website", "label": "Website & Technical", "score": 60, "weight"
 t = scoring.totals(cats)
 expected = (60 * 17.5 + 100 * 5 + 40 * 7.5) / (17.5 + 5 + 7.5)
 check("overall = sum(score x weight) / sum(weights) over the assessed categories only", t["overall"] == round(expected) and abs(sum(b["points"] for b in t["breakdown"]) - expected) < 0.3, (t["overall"], expected))
-check("categories that were not measured are left out, never counted as zero", len(t["breakdown"]) == 3 and t["coverage_pct"] == 30.0 and "AI Visibility" in t["method"] and "left out of the sum rather than counted as zero" in t["method"])
+check("categories that were not measured are left out, never counted as zero", len(t["breakdown"]) == 3 and t["coverage_pct"] == 30.0 and "Reviews & Reputation" in t["method"] and "left out of the sum rather than counted as zero" in t["method"])
+cats_ai = cats[:3] + [{"key": "ai_visibility", "label": "Observed AI visibility", "score": 10, "weight": 0.0, "assessed": True, "separate": True}]
+check("observed AI visibility never enters the readiness calculation, even when it was measured and scored", scoring.totals(cats_ai)["overall"] == scoring.totals(cats[:3])["overall"] and all(b["key"] != "ai_visibility" for b in scoring.totals(cats_ai)["breakdown"]))
+check("the readiness weights add up to 100 and AI visibility has none", abs(sum(scoring.WEIGHTS[k] for k in scoring.WEIGHTS if k != "freshness") - 100) < 0.01 and scoring.WEIGHTS["ai_visibility"] == 0)
 check("the plain average is shown only to explain the difference, and differs from the weighted score here", t["simple_average"] == 67 and "plain average" in t["method"] and t["overall"] != t["simple_average"], t)
 check("each row carries its weight, its share of the measured weight and why it has that weight", all(b["share_pct"] and b["why"] for b in t["breakdown"]) and abs(sum(b["share_pct"] for b in t["breakdown"]) - 100) < 0.3)
 site0 = {"robots": {"present": True}, "sitemap": {}, "pages": [], "schema_types_found": [], "ai_crawlers_blocked": []}
@@ -149,18 +152,34 @@ fp = [{"platform": "Booking.com", "discovered": True, "url": "https://www.bookin
       {"platform": "Expedia", "discovered": True, "url": "https://www.expedia.co.uk/Leeds-Hotels-Best.guide", "title": "Best hotels in Leeds", "location_confirmed": True},
       {"platform": "TripAdvisor", "discovered": False, "url": "", "title": "", "location_confirmed": None}]
 lc = {"rows": [{"platform": "Booking.com", "fact": "Check-in time", "listing_says": "14:00", "site_says": "15:00", "status": "differs", "url": "https://www.booking.com/hotel/gb/test-hotel.html", "passage": "from 14:00"}]}
-ents = [{"source": "OpenStreetMap", "found": True, "match_confident": True, "url": "https://www.openstreetmap.org/way/1", "display_name": "Test Hotel, Leeds", "facts": {"name": "Test Hotel", "url": "https://other-site.com/"}, "match_reason": "0.1km"},
+ents = [{"source": "OpenStreetMap", "found": True, "match_confident": True, "url": "https://www.openstreetmap.org/way/1", "display_name": "Test Hotel, Leeds", "lat": 53.8001, "lon": -1.5001,
+         "address_components": {"postcode": "LS1 1AA"}, "facts": {"name": "Test Hotel", "url": "https://other-site.com/"}, "match_reason": "0.1km"},
         {"source": "Wikidata", "found": False}]
+OWN = {"lat": 53.8, "lon": -1.5, "postcode": "LS1 1AA", "phone": "0113 111 2222"}
 crows = [{"field": "name", "domain": "OpenStreetMap", "own_site_value": "Test Hotel", "other_source_value": "Test Hotel", "verdict": "consistent"},
          {"field": "telephone", "domain": "OpenStreetMap", "own_site_value": "0113 111 2222", "other_source_value": "0113 999 0000", "verdict": "significant discrepancy"}]
 media_ = {"articles": [{"publisher": "Good Travel", "publisher_key": "gt", "source_type": "news_or_magazine", "type": "review", "substance": "feature", "match": "high", "freshness": "recent", "url": "https://gt.example/a", "title": "t"},
                        {"publisher": "Paid", "publisher_key": "pd", "source_type": "blog", "type": "sponsored", "substance": "feature", "match": "high", "freshness": "recent", "url": "https://pd.example/a", "title": "t"}]}
-x = ep.build(fp, ents, crows, lc, media_, HOTEL, CITY, "testhotel.com")
+x = ep.build(fp, ents, crows, lc, media_, HOTEL, CITY, "testhotel.com", own=OWN)
 rows = {r["source"]: r for r in x["rows"]}
 check("a listing whose own fact differs from the website contradicts it (check-in 14:00 against 15:00)", rows["Booking.com"]["status"] == "contradicts" and "14:00" in rows["Booking.com"]["contradictions"][0])
 check("a guide or list page is never taken as the hotel's own listing", rows["Expedia"]["status"] == "unclear" and rows["Expedia"]["identified"] is False)
 check("a platform not found is Not verified (never 'missing')", rows["Tripadvisor"]["status"] == "not_verified" and "does not show the hotel is not listed" in rows["Tripadvisor"]["note"])
 check("Google cannot be checked reliably and says so", rows["Google Maps / Google hotel listing"]["status"] == "not_verified" and "does not allow automated reading" in rows["Google Maps / Google hotel listing"]["note"])
+# an entry is only Verified on several identifiers: the name plus coordinates, postcode, website or telephone. The same town is not enough.
+town_only = [{"source": "OpenStreetMap", "found": True, "match_confident": None, "url": "https://www.openstreetmap.org/way/2", "display_name": "Test Hotel, Leeds", "facts": {}, "address_components": {"city": "Leeds"}}]
+check("an open-data entry matched only on the town is an uncertain match, never Verified", ep.build([], town_only, [], None, {}, HOTEL, CITY, "testhotel.com", own=OWN)["rows"][4]["status"] == "unclear")
+good = [{"source": "OpenStreetMap", "found": True, "match_confident": True, "url": "https://www.openstreetmap.org/way/3", "display_name": "Test Hotel, Leeds", "lat": 53.8002, "lon": -1.5002, "address_components": {"postcode": "LS1 1AA"},
+         "facts": {"url": "https://www.testhotel.com/", "telephone": "+44 113 111 2222"}}]
+vg = ep.build([], good, [], None, {}, HOTEL, CITY, "testhotel.com", own=OWN)["rows"][4]
+check("name + coordinates + postcode + website + telephone make it Verified, and the note lists what matched", vg["status"] == "verified" and all(w in vg["note"] for w in ("coordinates", "postcode", "official website", "telephone")), vg["note"])
+far = [{**good[0], "lat": 53.9, "lon": -1.7, "address_components": {"postcode": "M1 1AA"}, "facts": {}}]
+check("same name but 15 km away and a different postcode is not a match", ep.build([], far, [], None, {}, HOTEL, CITY, "testhotel.com", own=OWN)["rows"][4]["status"] == "unclear")
+wd = [{"source": "Wikidata", "found": True, "match_confident": True, "url": "https://www.wikidata.org/wiki/Q1", "label": "Test Hotel", "description": "hotel in Leeds", "facts": {}}]
+check("a Wikidata entry with only a name and a town in its description is an uncertain match", ep.build([], wd, [], None, {}, HOTEL, CITY, "testhotel.com", own=OWN)["rows"][5]["status"] == "unclear")
+wd2 = [{**wd[0], "lat": 53.8001, "lon": -1.5001, "facts": {"url": "https://testhotel.com"}}]
+check("with coordinates and the official website recorded, Wikidata can be Verified", ep.build([], wd2, [], None, {}, HOTEL, CITY, "testhotel.com", own=OWN)["rows"][5]["status"] == "verified")
+check("the Google note says a Business Profile is free but cannot be read automatically", "free for the hotel to set up" in ep.build([], [], [], None, {}, HOTEL, CITY, "testhotel.com")["rows"][0]["note"] and "has no free listing service" not in ep.build([], [], [], None, {}, HOTEL, CITY, "testhotel.com")["rows"][0]["note"])
 check("open data is Verified by reading it, and a different website link and a different phone number are contradictions", rows["OpenStreetMap"]["read"] and rows["OpenStreetMap"]["status"] == "contradicts" and any("other-site.com" in c for c in rows["OpenStreetMap"]["contradictions"]) and any("telephone" in c for c in rows["OpenStreetMap"]["contradictions"]))
 check("an open-data source with no entry is Not verified, not 'wrong'", rows["Wikidata"]["status"] == "not_verified")
 check("sponsored coverage counts for nothing; the rest is weighed by quality", x["publications"]["sponsored_excluded"] == 1 and x["publications"]["publishers"] == 1)

@@ -22,7 +22,7 @@ import urllib.parse
 import evidence
 import identity
 
-LABEL = {"verified": "Verified", "identified": "Identified, not read", "contradicts": "Contradicts the website", "unclear": "Found, identity unclear", "not_verified": "Not verified"}
+LABEL = {"verified": "Verified", "identified": "Identified, not read", "contradicts": "Contradicts the website", "unclear": "Uncertain match", "limited": "Found, limited coverage", "not_verified": "Not verified"}
 GENERIC_PAGE = re.compile(r"/(?:guide|best-hotels|hotels-c\d|hotels?-in-|hotels-near|city-guide|destination|things-to-do|moments|blog|news|article)s?(?:/|-|$)|/hotels/[a-z-]+-hotels?$", re.I)
 
 PLATFORMS = [("Booking.com", ("Booking.com",)), ("Expedia", ("Expedia",)), ("Tripadvisor", ("TripAdvisor",))]
@@ -60,7 +60,47 @@ def _platform(label, names, footprint, listing_checks, hotel, city):
     return _row(label, st, identified=True, name_location=("consistent" if in_town else "town not confirmed"), official_link=None, contradictions=contradictions, url=url, title=title[:100], note=note)
 
 
-def _entity(source, entities, consistency_rows, own_domain):
+def _digits(s):
+    return re.sub(r"\D", "", str(s or ""))
+
+
+def identifiers(e, hotel, own, own_domain):
+    """
+    How many independent identifiers tie an open-data entry to THIS hotel, beyond being in the same town. -> {"matched": [...], "conflicts": [...], "checked": [...]}
+    name (the entry's name carries the hotel's distinctive words), coordinates (within 0.5 km of the hotel's own location), postcode, official website and telephone. A town name is not an identifier.
+    """
+    own = own or {}
+    matched, conflicts, checked = [], [], []
+    nm = evidence.fold(e.get("display_name") or e.get("label") or (e.get("facts") or {}).get("name") or "")
+    toks = [t for t in evidence.distinctive_tokens(hotel or "") if len(t) > 2]
+    if toks:
+        checked.append("name")
+        (matched if all(t in nm for t in toks) else conflicts).append("name")
+    if e.get("lat") is not None and own.get("lat") is not None and own.get("lon") is not None:
+        import sources
+        km = sources.haversine_km(own["lat"], own["lon"], e["lat"], e["lon"])
+        checked.append("coordinates")
+        if km <= 0.5:
+            matched.append(f"coordinates ({km:.2f} km apart)")
+        elif km > 2.0:
+            conflicts.append(f"coordinates ({km:.1f} km apart)")
+    pc = (e.get("address_components") or {}).get("postcode")
+    if pc and own.get("postcode"):
+        checked.append("postcode")
+        (matched if re.sub(r"\s", "", pc).upper() == re.sub(r"\s", "", own["postcode"]).upper() else conflicts).append("postcode")
+    site_url = (e.get("facts") or {}).get("url")
+    if site_url and own_domain:
+        checked.append("website")
+        d = _domain(site_url)
+        (matched if d == own_domain or d.endswith("." + own_domain) or own_domain.endswith("." + d) else conflicts).append("official website")
+    tel = (e.get("facts") or {}).get("telephone")
+    if tel and own.get("phone"):
+        checked.append("telephone")
+        (matched if _digits(tel)[-9:] == _digits(own["phone"])[-9:] else conflicts).append("telephone")
+    return {"matched": matched, "conflicts": conflicts, "checked": checked}
+
+
+def _entity(source, entities, consistency_rows, own_domain, hotel="", own=None):
     e = next((x for x in entities or [] if x.get("source") == source), None)
     if not e or not e.get("found"):
         return _row(source, "not_verified", note=f"No {source} entry was matched to the hotel. That may only mean nobody has added it.")
@@ -76,21 +116,30 @@ def _entity(source, entities, consistency_rows, own_domain):
         official = "not checked"          # the entry's official-website property is not read, so its absence says nothing
     else:
         official = "not stated"
-    if not e.get("match_confident"):
-        return _row(source, "unclear", identified=False, url=e.get("url", ""), title=(e.get("display_name") or e.get("label") or "")[:100], official_link=official,
-                    note=(e.get("note") or "A match was found but it could not be confirmed as this hotel.")[:200])
-    return _row(source, "contradicts" if diffs else "verified", identified=True, name_location="consistent" if any(r["field"] == "name" for r in agree) or e.get("match_confident") else "unknown",
-                official_link=official, contradictions=diffs, url=e.get("url", ""), title=(e.get("display_name") or e.get("label") or "")[:100], read=True,
-                note=f"Read directly from open data. {len(agree)} fact(s) agree with the website" + ("; none could be compared." if not rows else ".") + (" " + (e.get("match_reason") or "") if e.get("match_reason") else ""))
+    ids = identifiers(e, hotel, own, own_domain)
+    title = (e.get("display_name") or e.get("label") or "")[:100]
+    independent = [m for m in ids["matched"] if m != "name"]
+    if ids["conflicts"] and "name" in ids["matched"] and (len(ids["conflicts"]) >= 1 and not independent):
+        return _row(source, "unclear", identified=False, url=e.get("url", ""), title=title, official_link=official,
+                    note=f"Found by name, but it does not agree with the website on {', '.join(ids['conflicts'])}, so it may be a different hotel with the same name. Not treated as a match.")
+    if "name" not in ids["matched"] or not independent:
+        got = ", ".join(ids["matched"]) or "only the town"
+        return _row(source, "unclear", identified=False, url=e.get("url", ""), title=title, official_link=official,
+                    note=f"Uncertain match: it agrees with the hotel on {got}; a match needs the name and at least one more identifier (coordinates within 0.5 km, postcode, official website or telephone). "
+                         f"Checked: {', '.join(ids['checked']) or 'name only'}." + (" " + (e.get("note") or "")[:120] if e.get("note") else ""))
+    return _row(source, "contradicts" if (diffs or ids["conflicts"]) else "verified", identified=True, name_location="consistent",
+                official_link=official, contradictions=diffs + [f"{c} does not agree with the website" for c in ids["conflicts"] if c not in ("name",) and not any(c.split(" (")[0] in d for d in diffs)],
+                url=e.get("url", ""), title=title, read=True,
+                note="Read directly from open data. Matched on " + ", ".join(ids["matched"]) + f". {len(agree)} fact(s) agree with the website" + ("; none could be compared." if not rows else "."))
 
 
 def _google(own_site_links):
     for lk in own_site_links or []:
         if "google." in lk.get("domain", "") and "map" in lk.get("url", ""):
             return _row("Google Maps / Google hotel listing", "not_verified", url=lk["url"], official_link=None,
-                        note="The hotel's own site links to a Google Maps page. Google does not allow automated reading and has no free listing service, so the listing itself, its name, address and website link were not checked.")
+                        note="The hotel's own site links to a Google Maps page. A Google Business Profile is free for the hotel to set up and manage, but Google does not allow automated reading of Maps or hotel listings, and its data interfaces need the owner's permission or are paid, so the listing's name, address, website link and hours were not checked.")
     return _row("Google Maps / Google hotel listing", "not_verified",
-                note="Not checked. Google does not allow automated reading of Maps or hotel listings and has no free listing service. Check the hotel's Google Business Profile by hand: name, address, phone, website link and opening details.")
+                note="Not checked. A Google Business Profile is free for the hotel to set up and manage, but Google does not allow automated reading of Maps or hotel listings, and its data interfaces need the owner's permission or are paid. Check the hotel's Google Business Profile by hand: name, address, phone, website link and opening details.")
 
 
 def publications(media):
@@ -118,14 +167,14 @@ def publications(media):
             "recent": sum(1 for r in rows if r["freshness"] == "recent"), "strong": sum(1 for r in rows if r["weight"] >= 0.5)}
 
 
-def build(footprint, entities, consistency_rows, listing_checks, media, hotel, city, website, own_site_links=()):
+def build(footprint, entities, consistency_rows, listing_checks, media, hotel, city, website, own_site_links=(), own=None):
     own_domain = _domain(website if "//" in (website or "") else "https://" + (website or ""))
     rows = [_google(own_site_links)]
     rows += [_platform(label, names, footprint, listing_checks, hotel, city) for label, names in PLATFORMS]
-    rows += [_entity("OpenStreetMap", entities, consistency_rows, own_domain), _entity("Wikidata", entities, consistency_rows, own_domain)]
+    rows += [_entity("OpenStreetMap", entities, consistency_rows, own_domain, hotel, own), _entity("Wikidata", entities, consistency_rows, own_domain, hotel, own)]
     pub = publications(media)
     if pub["publishers"]:
-        rows.append(_row("Independent travel publications", "identified" if pub["strong"] else "unclear", identified=True, name_location="consistent",
+        rows.append(_row("Independent travel publications", "identified" if pub["strong"] else "limited", identified=True, name_location="consistent",
                          note=f"{pub['publishers']} publisher(s) found, of which {pub['strong']} are substantial independent coverage; {pub['recent']} recent."
                               + (f" {pub['sponsored_excluded']} sponsored piece(s) not counted." if pub["sponsored_excluded"] else "") + " Weighed by what each is, not counted."))
     else:
@@ -144,7 +193,7 @@ def authority_score(ep):
         return None
     s = ep["rows"]
     pts = 0.0
-    value = {"verified": 1.0, "identified": 0.7, "contradicts": 0.2, "unclear": 0.15}
+    value = {"verified": 1.0, "identified": 0.7, "contradicts": 0.2, "unclear": 0.15, "limited": 0.0}
     weight = {"Google Maps / Google hotel listing": 0, "Booking.com": 10, "Expedia": 8, "Tripadvisor": 10, "OpenStreetMap": 10, "Wikidata": 7}
     for r in s:
         if r["source"] in weight:

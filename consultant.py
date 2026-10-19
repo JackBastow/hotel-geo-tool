@@ -9,6 +9,7 @@ collected, so it adds no requests and little time.
 """
 
 import advice
+import hotel_class
 import traveller_ready
 import ranking
 import urlscope
@@ -36,6 +37,9 @@ def crawl_coverage(pages_read, pages_meta):
                        else f"we could only read {pages_read} of {attempted} pages"))
         note = (f"{found[0].upper() + found[1:]}, which is too few to say what the site does or doesn't contain. "
                 "Nothing below claims that information is missing.")
+    elif limited and pages_read >= attempted:
+        note = (f"{pages_read} page{'' if pages_read == 1 else 's'} could be read, which is only part of a hotel's website. Anything reported as missing may be on a page that was not read, "
+                "so findings that say something is missing are marked as inferences, not verified.")
     elif limited:
         note = (f"We could read {pages_read} of {attempted} pages. Anything reported as missing may be on a page we didn't read, so "
                 "absence-based findings are marked lower-confidence. Re-running the audit can read a different set of pages.")
@@ -49,6 +53,7 @@ def crawl_coverage(pages_read, pages_meta):
 def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, entities, intel,
             osm_ctx, jsonld_example="", web=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, booking=None, external=None, competitors=None):
     s = ic.Site(own_pages, base, hotel, city)
+    s.osm_ctx = osm_ctx
     cov = crawl_coverage(len(s.pages), pages_meta)
     if text_only:
         cov["text_only"] = True
@@ -59,15 +64,26 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     intents = ic.intents(s)
     understanding = ic.understanding(s, intents, feats, city)
     loc = ic.location(s, osm_ctx)
-    questions = ic.questions(s, guest, intents, feats, loc["items"])
-    opps = ic.opportunities(s, intents, feats)
+    # what kind of hotel this is decides which traveller segments, questions and opportunities are worth raising at all
+    try:
+        import ai_niche
+        _prof = ai_niche.profile(hotel, city, entities, osm_ctx, own_pages, feats, intents)
+    except Exception:  # noqa: BLE001
+        _prof = None
+    try:
+        hclass = hotel_class.classify(s, feats, intents, osm_ctx, hotel, _prof)
+    except Exception:  # noqa: BLE001
+        hclass = {"classes": [], "keys": []}
+    classes = hclass["keys"]
+    questions = ic.questions(s, guest, intents, feats, loc["items"], classes=classes)
+    opps = ic.opportunities(s, intents, feats, classes=classes)
     cons = ic.consistency(s, guest)
     cons_notes = ic.consistency_notes(s)
     try:
-        travel = traveller_ready.run(s, feats, intents, cov, loc)
+        travel = traveller_ready.run(s, feats, intents, cov, loc, classes=classes, class_info=hclass)
     except Exception as e:  # noqa: BLE001 - an extra; the keyword-based view still works
         travel = {"segments": [], "assessed": [], "skipped": [], "summary": {"judged": 0, "score": None}, "error": f"{type(e).__name__}: {e}"}
-    hidden = ic.hidden_strengths(s, feats, pages_meta)
+    hidden = ic.hidden_strengths(s, feats, pages_meta, classes=classes)
     if text_only:
         sd = {"items": [], "node_count": 0, "hotel_found": None, "unreadable": True,
               "caution": it.CAUTION + " The pages were read as plain text, so any markup they carry could not be inspected."}
@@ -75,16 +91,24 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         sd = it.structured_audit(s, location, guest, intents)
     machine = it.machine_readiness(s, pages_meta, site, entities, intel, sd, cons, questions, web)
     if text_only:
-        machine = [f for f in machine if f["id"] not in it.HTML_ONLY_FINDINGS]
+        # the site refused this tool's own reader, so what this tool fetched itself (the sitemap, robots.txt) cannot be taken as 'absent': only findings that do not depend on it remain
+        machine = [f for f in machine if f["id"] not in it.HTML_ONLY_FINDINGS and f["id"] not in ("sitemap_missing", "robots_block_all", "ai_blocked")]
     profile = it.readiness_profile(s, guest, intents, loc, sd, machine, cons, intel, coverage=cov,
                                    map_failed=(osm_ctx or {}).get("failed_parts", []) if osm_ctx else ["all (no map data)"], traveller=travel, external=external)
     if text_only:
         for p in profile:
             if p["key"] in ("technical", "structured", "discoverability"):
                 p.update(score=None, band="not assessed", assessed=False, drivers=["the pages were read as plain text, so this was not assessed"], evidence=None)
+    suppressed = []
     recs = advice.build(questions=questions, location=loc, consistency=cons, hidden=hidden, structured=sd,
-                        machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai, reviews=reviews, text_only=text_only, ai_insights=ai_insights, listing_checks=listing_checks, reddit=reddit, traveller=travel, booking=booking, external=external, competitors=competitors)
-    recs, dropped = advice.validate(recs)
+                        machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai, reviews=reviews, text_only=text_only, ai_insights=ai_insights, listing_checks=listing_checks, reddit=reddit, traveller=travel, booking=booking, external=external, competitors=competitors, suppressed=suppressed)
+    recs, dropped = advice.validate(recs, cov, s)
+    if (site.get("meta") or {}).get("scope"):
+        for r in recs:
+            if r["source"] == "machine" and r["id"] in ("M-speed", "M-a11y", "M-cc_refused", "M-home_title", "M-home_meta", "M-meta_missing", "M-h1", "M-alt", "M-canonical_missing", "M-dup_titles"):
+                r["kind"], r["priority"], r["impact"] = "opportunity", "low", "low"
+                r["title"] = r["title"] + " (brand-run page)"
+                r["finding"] += " This page belongs to the brand's website, so the hotel cannot change it itself: pass it to the brand's web team."
     top = advice.top_actions(recs)
     quick = advice.quick_wins(recs, exclude_ids={r["id"] for r in top})
     plan = ranking.plan_30_60_90(recs, {r["id"] for r in top})
@@ -95,7 +119,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         "version": 1, "pages_read": len(s.pages), "coverage": cov, "understanding": understanding,
         "intents": [{k: v for k, v in r.items()} for r in intents],
         "features": [{"key": f["key"], "label": f["label"], "level": f["level"], "pages": f["pages"]} for f in feats],
-        "questions": questions, "location": loc, "consistency": cons, "consistency_notes": cons_notes, "traveller": travel, "booking": booking, "external": external, "competitors": competitors, "dropped_recommendations": dropped, "hidden": hidden,
+        "questions": questions, "location": loc, "consistency": cons, "consistency_notes": cons_notes, "traveller": travel, "hotel_class": hclass, "booking": booking, "external": external, "competitors": competitors, "dropped_recommendations": dropped, "could_not_confirm": suppressed, "hidden": hidden,
         "structured": {k: v for k, v in sd.items() if k != "best"}, "machine": machine, "profile": profile,
         "recommendations": recs, "top_actions": [r["id"] for r in top], "quick_wins": [r["id"] for r in quick],
         "required_fixes": [r["id"] for r in recs if r["kind"] == "fix"],

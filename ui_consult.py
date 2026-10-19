@@ -873,9 +873,43 @@ def fix_site(c, web=None):
 
 # ----------------------------------------------------------- scoring, traveller requirements, outside sources, booking, competitors, AI test log
 
-REQ_ICON = {"confirmed": "🟢 Confirmed", "partial": "🟡 Partially confirmed", "missing": "🔴 Missing", "unknown": "⚪ Unknown"}
+REQ_ICON = {"confirmed": "🟢 Confirmed", "partial": "🟡 Partially confirmed", "missing": "🔴 Missing", "unknown": "⚪ Unknown", "not_offered": "⚪ Stated as not available"}
 EXT_ICON = {"verified": "🟢 Verified", "identified": "🟢 Identified, not read", "contradicts": "🔴 Contradicts the website", "unclear": "🟡 Found, identity unclear", "not_verified": "⚪ Not verified"}
 BOOK_ICON = {"pass": "🟢 OK", "warn": "🟡 Check", "fail": "🔴 Problem", "not_verified": "⚪ Not verified"}
+
+
+def hotel_type_card(c):
+    """What kind of hotel the audit took this to be, with the reasons, and which traveller segments that makes core, optional or not worth assessing."""
+    hc = (c or {}).get("hotel_class") or {}
+    st.markdown("##### What kind of hotel this is")
+    if not hc.get("classes"):
+        st.caption("The pages did not show a clear type (airport, business, spa, resort...), so traveller segments are assessed only where the site itself describes the facilities.")
+        return
+    st.caption("From the hotel's name, its open map data and its own pages. A hotel can be several things. The type decides which traveller segments matter most: a gym is not a spa, a restaurant is not a wedding venue.")
+    df([{"Type": x["label"], "Evidence": "; ".join(x["reasons"][:2])} for x in hc["classes"]])
+    trv = (c or {}).get("traveller") or {}
+    rows = [{"Segment": s["label"], "Relevance": "Core to this hotel" if s.get("relevance", "core") == "core" else "Secondary: offered, but not what the hotel is for"} for s in trv.get("segments", [])]
+    if rows:
+        df(rows)
+    if trv.get("skipped"):
+        st.caption("Not assessed, and no marketing advice given: " + ", ".join(s["label"] for s in trv["skipped"]) + ".")
+
+
+def assessment_card(rep):
+    """What was assessed, partly assessed and not assessed in this audit, from the evidence the audit holds."""
+    import assessment
+    a = assessment.assess(rep)
+    st.markdown("##### What this audit actually assessed")
+    st.caption("Stated from what the audit holds, not from what it set out to do: a site read as plain text cannot have its structured data, titles or images inspected, whatever a normal run checks.")
+    for key, title, icon in (("assessed", "Assessed", "🟢"), ("partial", "Partly assessed", "🟡"), ("not_assessed", "Not assessed", "⚪")):
+        with st.expander(f"{icon} {title} ({len(a[key])})", expanded=(key != "assessed")):
+            for i in a[key]:
+                st.markdown(f"- **{md_safe(i['what'])}**" + (f": {md_safe(i['detail'])}" if i["detail"] else ""))
+    cnc = ((rep.get("consultant") or {}).get("could_not_confirm")) or []
+    if cnc:
+        st.markdown("**Could not be confirmed either way (no recommendation made):**")
+        for x in cnc:
+            st.markdown(f"- {md_safe(x['topic'])}: {md_safe(x['why'])}")
 
 
 def score_breakdown_card(rep):
@@ -885,7 +919,7 @@ def score_breakdown_card(rep):
     cats = sc.get("categories") or []
     if not cats:
         return
-    t = scoring.totals(cats)
+    t = scoring.totals_for(sc)
     st.markdown("##### How the readiness score is calculated")
     st.caption(t["method"])
     df([{"Category": b["label"] + (" (partial)" if b["partial"] else ""), "Score": b["score"], "Weight": f"{b['weight']:g}%", "Share of the measured weight": f"{b['share_pct']:g}%", "Points added": b["points"],

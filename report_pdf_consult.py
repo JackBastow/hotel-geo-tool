@@ -341,8 +341,8 @@ def ai_section(ai, ins=None):
     return out
 
 
-STATE_TXT = {"confirmed": "Confirmed", "partial": "Partially confirmed", "missing": "Missing", "unknown": "Unknown"}
-STATE_COL = {"confirmed": R.GOOD, "partial": R.WARN, "missing": R.BAD, "unknown": R.GREY}
+STATE_TXT = {"confirmed": "Confirmed", "partial": "Partially confirmed", "missing": "Missing", "unknown": "Unknown", "not_offered": "Stated as not available"}
+STATE_COL = {"confirmed": R.GOOD, "partial": R.WARN, "missing": R.BAD, "unknown": R.GREY, "not_offered": R.GREY}
 EXT_COL = {"verified": R.GOOD, "identified": R.GOOD, "contradicts": R.BAD, "unclear": R.WARN, "not_verified": R.GREY}
 
 
@@ -442,10 +442,11 @@ def score_section(rep):
         return []
     import scoring
     sc = (rep.get("scorecard") or {})
-    bd = sc.get("breakdown") or (scoring.totals(sc["categories"])["breakdown"] if sc.get("categories") else [])
+    tt = scoring.totals_for(sc) if sc.get("categories") else None
+    bd = tt["breakdown"] if tt else []
     if not bd:
         return []
-    out = [para("How the readiness score is calculated", "h2"), para(sc.get("method") or scoring.totals(sc["categories"])["method"], "tiny")]
+    out = [para("How the readiness score is calculated", "h2"), para(tt["method"], "tiny")]
     out.append(table([["Category", "Score", "Weight", "Share", "Points", "Why it carries this weight"]] + [[b["label"], str(b["score"]), f"{b['weight']:g}%", f"{b['share_pct']:g}%", f"{b['points']:g}", b["why"]] for b in bd], [0.2, 0.08, 0.09, 0.09, 0.09, 0.45]))
     return out
 

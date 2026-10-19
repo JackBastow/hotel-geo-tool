@@ -68,7 +68,7 @@ F = {
     ("ai", "AI4"): (2, 4, 4, "opportunity"),     # not named where the hotel is positioned to compete: more telling than a town-wide list
     ("ai", "AI3"): (3, 4, 3, "fix"), ("ai", "AI2"): (1, 3, 3, "opportunity"),     # AI3: the assistant's statement differs from the hotel's own record
     ("ai", "AI1"): (1, 3, 3, "opportunity"),     # one sampled model did not name the hotel: upside to explore, not a defect
-    ("traveller", "TR-families"): (2, 4, 3, "fix"), ("traveller", "TR-business"): (2, 4, 3, "fix"), ("traveller", "TR-spa_couples"): (2, 4, 3, "fix"), ("traveller", "TR-location"): (2, 4, 4, "fix"),
+    ("traveller", "TR-families"): (2, 4, 3, "fix"), ("traveller", "TR-business"): (2, 4, 3, "fix"), ("traveller", "TR-spa_couples"): (2, 4, 3, "fix"), ("traveller", "TR-location"): (2, 4, 4, "fix"), ("traveller", "TR-airport_stay"): (3, 5, 4, "fix"),
     ("competitors", "CP-spa_detail"): (2, 3, 3, "opportunity"), ("competitors", "CP-meeting_detail"): (2, 4, 3, "opportunity"), ("competitors", "CP-restaurant_detail"): (2, 3, 3, "opportunity"),
     ("competitors", "CP-wedding_detail"): (2, 3, 3, "opportunity"), ("competitors", "CP-pool_detail"): (1, 3, 2, "opportunity"), ("competitors", "CP-connecting_rooms"): (2, 3, 3, "opportunity"),
     ("booking", "BK1"): (4, 5, 3, "fix"), ("booking", "BK2"): (5, 5, 3, "fix"), ("booking", "BK3"): (2, 3, 3, "fix"),
@@ -118,7 +118,8 @@ def factors(r, qmap):
     if src == "traveller":
         risk, trav, vis, kind = F.get(("traveller", tag_of(r)), DEFAULT["traveller"])
         return r.get("risk_hint", risk), trav, vis, r.get("kind_hint", kind)       # a missing core fact is a fix; completing an optional extra is an opportunity
-    return F.get((src, tag_of(r)), DEFAULT.get(src, (2, 2, 2, "fix")))
+    risk, trav, vis, kind = F.get((src, tag_of(r)), DEFAULT.get(src, (2, 2, 2, "fix")))
+    return risk, trav, vis, r.get("kind_hint", kind)
 
 
 def label(value, risk, vis):

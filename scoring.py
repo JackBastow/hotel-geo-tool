@@ -44,22 +44,26 @@ import re
 import guest_questions
 
 # key, label, weight, one-line description of what it answers
+# Readiness is HOW WELL THE HOTEL IS SET UP: the six categories below, weighted to 100. Observed AI visibility (what assistants actually recommend, from the tests that were run) is a different
+# measurement and has no weight here: it is reported beside the readiness score and never inside it.
+MODEL_VERSION = 2
 CATEGORIES = [
-    ("ai_visibility", "AI Visibility", 25.0,
-     "Does the hotel actually appear in relevant AI recommendation searches?"),
-    ("otas", "OTAs & Travel Platforms", 15.0,
+    ("ai_visibility", "Observed AI visibility", 0.0,
+     "Does the hotel actually appear in relevant AI recommendation tests? Reported separately; not part of readiness."),
+    ("otas", "OTAs & Travel Platforms", 20.0,
      "Is it well represented on Booking, Expedia, TripAdvisor, Google Hotels?"),
-    ("reviews", "Reviews & Reputation", 15.0,
+    ("reviews", "Reviews & Reputation", 20.0,
      "Rating, review volume, recency, and the themes guests keep raising."),
-    ("editorial", "Editorial & Blogs", 15.0,
+    ("editorial", "Editorial & Blogs", 20.0,
      "Is it mentioned by credible travel publications, tourism sites, guides?"),
-    ("website", "Website & Technical", 17.5,
+    ("website", "Website & Technical", 24.0,
      "Can AI and search systems crawl and understand the site, and is it kept up to date?"),
-    ("social", "Social & UGC", 7.5,
+    ("social", "Social & UGC", 10.0,
      "Is there meaningful recent discussion on Instagram, TikTok, Reddit?"),
-    ("entity", "Entity Consistency", 5.0,
+    ("entity", "Entity Consistency", 6.0,
      "Do the name, address, amenities and key facts agree across the web?"),
 ]
+SEPARATE = ("ai_visibility",)           # measured and shown, but never part of the readiness score
 
 WEIGHTS = {k: w for k, _, w, _ in CATEGORIES}
 LABELS = {k: l for k, l, _, _ in CATEGORIES}
@@ -78,13 +82,18 @@ WEIGHT_WHY = {
 }
 
 
-def totals(cats):
+def totals(cats, include_separate=False):
     """
     The overall score, worked out in one place so the headline, the scorecard, the dashboard and the PDF can never disagree.
     overall = sum(score x weight) / sum(weight), over the ASSESSED categories only. A category that was not measured is left out of both sums (it is never counted as 0).
     -> {overall, coverage_pct, assessed_weight, breakdown, simple_average, method}. `breakdown` has one row per assessed category: its score, its weight, its share of the assessed weight
     and the points it adds, so the rows add up to the overall score; `simple_average` is the plain mean of the same scores, shown only to explain why the two differ.
     """
+    # `include_separate` is only for reading a report made before the model separated AI visibility from readiness, so its stored score can still be reproduced
+    if include_separate:
+        cats = [{**c, "weight": c["weight"] or (25.0 if c["key"] == "ai_visibility" else 0.0)} for c in cats]
+    else:
+        cats = [c for c in cats if c["key"] not in SEPARATE]
     assessed = [c for c in cats if c["assessed"]]
     tw = sum(c["weight"] for c in assessed)
     overall = sum(c["score"] * c["weight"] for c in assessed) / tw if tw else 0
@@ -99,9 +108,17 @@ def totals(cats):
     return {"overall": round(overall), "coverage_pct": round(tw, 1), "assessed_weight": round(tw, 1), "breakdown": rows, "simple_average": simple, "method": method}
 
 
+def totals_for(sc):
+    """The breakdown for a finished scorecard: the stored one, or worked out from its categories (a report made before the model separated AI visibility from readiness is read the way it was made)."""
+    if sc.get("breakdown") and sc.get("method"):
+        return {"overall": sc["overall"], "coverage_pct": sc["coverage_pct"], "assessed_weight": sc.get("assessed_weight", sc["coverage_pct"]), "breakdown": sc["breakdown"],
+                "simple_average": sc.get("simple_average"), "method": sc["method"]}
+    return totals(sc.get("categories") or [], include_separate=(sc.get("model") or 1) < 2)
+
+
 def _cat(key, score, detail, evidence=None, recs=None, partial=False):
     return {
-        "key": key, "label": LABELS[key], "weight": WEIGHTS[key],
+        "key": key, "label": LABELS[key], "weight": WEIGHTS[key], "separate": key in SEPARATE,
         "assessed": True, "partial": partial,
         "score": max(0, min(100, round(score))),
         "detail": detail, "evidence": evidence or [], "recommendations": recs or [],
@@ -110,7 +127,7 @@ def _cat(key, score, detail, evidence=None, recs=None, partial=False):
 
 def _not_assessed(key, why, how_to_enable):
     return {
-        "key": key, "label": LABELS[key], "weight": WEIGHTS[key],
+        "key": key, "label": LABELS[key], "weight": WEIGHTS[key], "separate": key in SEPARATE,
         "assessed": False, "partial": False, "score": None,
         "detail": why, "evidence": [], "recommendations": [],
         "how_to_enable": how_to_enable,
@@ -437,12 +454,11 @@ def score_entity(entities, consistency, location):
                        "may repeat it.",
             })
     else:
-        # Nothing to compare is not "consistent" - it is unknown.
-        pts.append(("Facts agree", 0.0, 0.25))
-        ev.append("No fact comparisons possible - the hotel's own site publishes "
-                  "no structured facts to compare against")
+        # Nothing to compare is not "consistent" and not "inconsistent": it is unknown, so it is left out of the score rather than counted as zero.
+        ev.append("No fact comparisons possible - the hotel's own site publishes no structured facts to compare against, so this part is not counted either way")
 
-    score = sum(v * w for _, v, w in pts) * 100
+    tw = sum(w for _, _, w in pts) or 1.0
+    score = sum(v * w for _, v, w in pts) / tw * 100
     return _cat("entity", score, "Entity presence and agreement across open data.",
                 ev, recs)
 
@@ -597,11 +613,11 @@ def apply_review_pack(scorecard, pack):
     cats.sort(key=lambda c: order.get(c["key"], 99))
     tot = totals(cats)
     total_weight, overall = tot["assessed_weight"], tot["overall"]
-    missing = [c for c in cats if not c["assessed"]]
+    missing = [c for c in cats if not c["assessed"] and c["key"] not in SEPARATE]
     caveat = (f"Score is {round(overall)} across the {round(total_weight, 1)}% of the model that could be measured. It is NOT a score out of 100 for the whole model - "
               f"{round(100 - total_weight, 1)}% ({', '.join(c['label'] for c in missing)}) was not assessed." if missing else f"Score is {round(overall)}, assessed across the full model.")
     return {**scorecard, "overall": tot["overall"], "coverage_pct": tot["coverage_pct"], "assessed_weight": tot["assessed_weight"], "breakdown": tot["breakdown"], "simple_average": tot["simple_average"],
-            "method": tot["method"], "categories": cats, "caveat": caveat}
+            "method": tot["method"], "model": MODEL_VERSION, "observed_ai_visibility": next((c for c in cats if c["key"] == "ai_visibility"), None), "categories": cats, "caveat": caveat}
 
 
 def score_reviews(places_result, amadeus_result):
@@ -995,8 +1011,9 @@ def build_scorecard(site, entities, consistency, location, discovery,
     order = {k: i for i, (k, _, _, _) in enumerate(CATEGORIES)}
     cats.sort(key=lambda c: order.get(c["key"], 99))
 
-    assessed = [c for c in cats if c["assessed"]]
-    not_assessed = [c for c in cats if not c["assessed"]]
+    readiness = [c for c in cats if c["key"] not in SEPARATE]
+    assessed = [c for c in readiness if c["assessed"]]
+    not_assessed = [c for c in readiness if not c["assessed"]]
     tot = totals(cats)
     total_weight, overall = tot["assessed_weight"], tot["overall"]
 
@@ -1020,6 +1037,8 @@ def build_scorecard(site, entities, consistency, location, discovery,
         "breakdown": tot["breakdown"],
         "simple_average": tot["simple_average"],
         "method": tot["method"],
+        "model": MODEL_VERSION,
+        "observed_ai_visibility": next((c for c in cats if c["key"] == "ai_visibility"), None),
         "categories": cats,
         "caveat": caveat,
     }

@@ -218,6 +218,16 @@ Every recommendation has an issue, evidence (a page, a source or a quoted passag
 - **AI recommendation tests** (`ai_sample.test_log`): about ten prompts that do not name the hotel, dynamically written from its location, landmark, region, facilities and positioning, asked of **Claude with web search only**. The log records platform, whether the hotel appeared, whether it was recommended, its place in the list, whether its own site was cited and the date. ChatGPT, Gemini and Copilot are listed as not tested, with a checklist for testing them by hand. None of this enters the readiness score.
 - **Structured data** (`insight_tech.structured_audit`): Hotel, LodgingBusiness and LocalBusiness are checked on the pages inspected; a generic LocalBusiness block is flagged; the developer recommendation lists the properties, gives an example filled only from facts read on the site (unknowns stay in [brackets]), and says that structured data supports accuracy and is not shown to make an assistant recommend a hotel.
 
+### Accuracy rules added after the Hilton Zurich Airport review
+
+- **Information on the page is found, in any currency** (`textutil.py`): prices in CHF, dollars, codes after the figure; 'not available', 'cannot be guaranteed', 'not needed' are **negative evidence** (stated as not available), never a confirmation; site-wide menus, brand banners and footers are removed before facts are matched.
+- **Named places only** (`places.py`): a railway station, airport or attraction needs a proper name; 'Charging station', 'Airports', a menu strip and the hotel's own name are never places; a distance counts only if it is in the same sentence as the place and tied to it; places are matched to open map data where it lists them.
+- **The right page** (`pagetarget.py`): each page gets a type (rooms, dining, location, accessibility, hotel information, FAQ, policies, events...) from the path *inside the hotel's own folder*, and each kind of information has the types it belongs on. A page is never chosen because it merely contains the word; with no suitable page the general hotel-information page is named, and no address is invented.
+- **What kind of hotel it is** (`hotel_class.py`): airport, business, conference, city-centre, resort, spa, luxury, boutique, family-focused, each with its reasons. It decides which traveller segments are core, secondary (optional) or not assessed, and an airport hotel gets its own requirements (airport distance, shuttle, early departure and late arrival, parking, public transport, stopover). A gym is not a spa, a restaurant is not a wedding venue, a family room is not a family hotel.
+- **Honest coverage** (`assessment.py`): one place decides what was Assessed, Partly assessed and Not assessed from the evidence held. A site read as plain text has no structured-data, title, heading or image check, and an unreadable robots.txt or sitemap is not claimed as checked.
+- **Several identifiers for outside sources** (`external_presence.identifiers`): an OpenStreetMap or Wikidata entry is Verified only on the name plus at least one more of coordinates (0.5 km), postcode, official website or telephone. The same town alone is an uncertain match.
+- **A stricter gate** (`advice.validate`): menu strips and telephone banners are never evidence; a 'not stated' finding must list the pages inspected, what was found and what is still unstated; it is labelled Verified only when the audit read a page it belongs on, fully, with coverage not limited (otherwise an inference, or suppressed when no page it belongs on was read); one underlying issue is one recommendation; confirmed problems and optional opportunities are listed apart.
+
 ## Back end: saved audits, the admin page and the monthly pack
 
 Set a `DATABASE_URL` secret (a Postgres connection string; Neon's free plan needs no card) and **every** finished audit is
@@ -332,17 +342,17 @@ key, no cost.
 
 ## The scoring model
 
-Seven categories, weighted (Freshness is now part of Website & Technical, not a category of its own):
+Six categories make up the **readiness** score, weighted to 100. **Observed AI visibility** (what assistants actually recommend, from the tests that were run) is a different measurement: it is reported beside the readiness score and has no weight in it.
 
 | # | Category | Weight | Measured in this build? |
 |---|---|---|---|
-| 1 | AI Visibility | 25% | ❌ never — needs a paid, billed API |
-| 2 | OTAs & Travel Platforms | 15% | 🔑 if a free Tavily key is configured |
-| 3 | Reviews & Reputation | 15% | ❌ not currently — needs Google Places (paid) or Amadeus (Enterprise sales, no longer free — see below) |
-| 4 | Editorial & Blogs | 15% | 🔑 if a free Tavily key is configured |
-| 5 | Website & Technical (includes freshness and Google's PageSpeed test) | 17.5% | ✅ always; partial from outside signals when the site refuses this tool's reader |
-| 6 | Social & UGC | 7.5% | ⚠️ presence yes (from the site's links, or from search when the pages can't be read), activity no |
-| 7 | Entity Consistency | 5% | ✅ always |
+| 1 | OTAs & Travel Platforms | 20% | 🔑 if a free Tavily key is configured; identified in search results, never read, so capped |
+| 2 | Reviews & Reputation | 20% | ❌ unless the hotel uploads its own review export |
+| 3 | Editorial & Blogs | 20% | 🔑 if a free Tavily key is configured; weighed by publisher quality, not counted |
+| 4 | Website & Technical (includes freshness and Google's PageSpeed test) | 24% | ✅ always; partial from outside signals when the site refuses this tool's reader |
+| 5 | Social & UGC | 10% | ⚠️ presence yes (from the site's links, or from search when the pages can't be read), activity no |
+| 6 | Entity Consistency | 6% | ✅ always; facts with nothing to compare are left out, not scored zero |
+| - | Observed AI visibility | none (separate) | ⚠️ one assistant sampled when an Anthropic key is configured; never part of readiness |
 
 **Without any keys configured, this covers about 30% of the model.** That
 30% is never gated behind anything — no account, no key, free for every

@@ -102,7 +102,7 @@ if pymupdf is not None:
     check("the 2/5 food hygiene rating reaches the management report", "Food hygiene rating" in mtext)
     check("at most seven top actions", mtext.count("Appendix reference") <= 7, mtext.count("Appendix reference"))
     check("opportunities are labelled as not defects", "Not defects" in mtext)
-    check("the limits are stated up front and at the end", "does not claim to measure visibility" in re.sub(r"\s+", " ", mtext) and "What could not be checked" in mtext and "AI recommendation testing" in mtext)
+    check("the limits are stated up front and at the end", "does not claim to measure visibility" in re.sub(r"\s+", " ", mtext) and "Not assessed" in mtext and "AI recommendation testing" in mtext)
     import re as _re
     sents = [x.strip() for x in _re.split(r"(?<=[.!?])\s+", mtext) if len(x.strip()) >= 90]
     dup = sorted({x for x in sents if sents.count(x) > 1})

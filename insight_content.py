@@ -21,6 +21,9 @@ from collections import Counter, defaultdict
 
 import evidence
 import lexicon
+import pagetarget
+import places
+import textutil
 
 SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
@@ -39,6 +42,11 @@ class Site:
 
     def __init__(self, own_pages, base, hotel="", city=""):
         self.pages = [p for p in own_pages or [] if p.get("text")]
+        # menus, banners and brand headers that repeat on most pages are not what a page says: they are removed from the text every check reads (the raw text is kept as raw_text)
+        bp = textutil.boilerplate(self.pages, min_pages=4, share=0.6)
+        self.boilerplate_units = len(bp)
+        if bp:
+            self.pages = [dict(p, raw_text=p["text"], text=textutil.strip_boilerplate(p["text"], bp)) for p in self.pages]
         self.base, self.hotel, self.city = base, hotel, city
         # Terms, privacy and similar pages answer policy questions (cancellation, pets) but are not
         # evidence of what the hotel offers, and they carry the operating company's address and phone.
@@ -63,7 +71,11 @@ class Site:
         return bool(re.search(r"faq|frequently|questions", self.path(p), re.I))
 
     def depth(self, p):
-        return len([s for s in self.path(p).split("/") if s])
+        path = self.path(p)
+        bp = urllib.parse.urlparse(self.base).path
+        if len(bp) > 1 and path.lower().startswith(bp.lower()):
+            path = path[len(bp):]                  # depth is counted inside the hotel's own folder, not from the brand's root
+        return len([s for s in path.split("/") if s])
 
     def inbound(self, p):
         return len(self._inbound.get(_key(p["url"]), ()))
@@ -244,19 +256,33 @@ def features(site):
 _TIMERANGE = re.compile(r"\d{1,2}(?:[:.]\d{2})?\s?(?:am|pm)?\s?(?:-|–|—|to|until)\s?\d{1,2}(?:[:.]\d{2})?\s?(?:am|pm)\b", re.I)
 
 
-def _facts_present(site, patterns):
-    """Which of {name: regex} appear anywhere, with the first page and text matched."""
+def _facts_present(site, patterns, topic=None):
+    """Which of {name: regex} appear on the pages where they belong, with the first page and the sentence matched. With a `topic`, only pages of a type that topic belongs on (plus the general hotel
+    information and FAQ pages) are searched; a denial ('not available') never counts as the fact."""
     got = {}
+    pages = site.content_pages
+    if topic:
+        allowed = set(pagetarget.TOPIC_TYPES.get(topic) or ()) | set(pagetarget.GENERAL) | {"home"}
+        pages = [p for p in site.content_pages if pagetarget.classify(site, p) in allowed] or site.content_pages
     for name, pat in patterns.items():
-        for p in site.content_pages:     # a privacy policy saying "up to 50 guests" is not an answer
-            m = pat.search(p["text"])
+        for p in pages:     # a privacy policy saying "up to 50 guests" is not an answer
+            m = next((mm for mm in pat.finditer(p["text"]) if not textutil.is_negated(p["text"], mm.start(), mm.end())), None)
             if m:
-                got[name] = {"url": p["url"], "snippet": evidence.clip(p["text"], m.start() - 90, m.end() + 140)}
+                sent = textutil.sentence_of(p["text"], m.start(), m.end())
+                got[name] = {"url": p["url"], "snippet": sent if (len(sent) >= 30 and len(sent) <= 260) else evidence.clip(p["text"], m.start() - 90, m.end() + 140)}
                 break
     return got
 
 
-def _where_to_add(site, slugs, fallback):
+def _where_to_add(site, slugs, fallback, topic=None, prefer=()):
+    """Where an answer belongs. With a `topic` the page must be of a type that topic belongs on (pagetarget); a page that merely mentions the word is not chosen."""
+    if topic:
+        w = pagetarget.choose(site, topic, prefer)
+        if not w["url"]:
+            w["label"] = fallback if fallback else w["label"]
+        faq = site.faq_page()
+        w["also"] = [{"url": faq["url"], "label": site.path(faq)}] if faq and faq["url"] != w["url"] and w["type"] not in ("faq",) and topic in ("parking", "wifi", "checkin_out", "pets", "accessibility", "cancellation", "breakfast") else []
+        return w
     page = site.best_page(slugs)
     faq = site.faq_page()
     if page:
@@ -314,7 +340,7 @@ EXTENDED = [
      "applies": ("feature", "restaurant"), "slugs": ("restaurant", "dining", "eat", "menu"), "fallback": "a Dining page",
      "facts": {
          "opening times": _TIMERANGE,
-         "booking": re.compile(r"book(?:ing)?\b|reserv|table", re.I),
+         "booking": re.compile(r"book (?:a |your )?table|table (?:reservation|booking)s?|reserve (?:a |your )?table|reservations?\b|booking (?:is )?(?:essential|recommended|required)", re.I),
          "dietary options": re.compile(r"vegan|vegetarian|gluten|allerg|dietary|halal|kosher", re.I)},
      "example": "[Restaurant name] is open [12-2.30pm and 6-9.30pm] daily. Book online or call [phone]. Vegetarian, vegan and "
                 "gluten-free dishes are always available - tell us about allergies when booking."},
@@ -348,6 +374,25 @@ EXTENDED = [
 ]
 
 
+def _class_ok(rule_id, classes, site, feats, ints):
+    """Does this kind of hotel have a reason to publish this detail? A gym is not a spa, a restaurant is not a wedding venue. `classes` None means no classification (old behaviour)."""
+    if classes is None:
+        return True
+    c = set(classes)
+    if rule_id == "spa_detail":
+        return "spa_hotel" in c
+    if rule_id == "pool_detail":
+        return feats.get("pool") == "strong" and bool(c & {"spa_hotel", "resort", "family_focused"})
+    if rule_id == "wedding_detail":
+        dedicated = any(pagetarget.classify(site, p) == "events" and "wedding" in site.path(p).lower() for p in site.content_pages)
+        return bool(c & {"resort", "luxury", "boutique", "spa_hotel"}) or (ints.get("weddings") == "strong" and dedicated)
+    if rule_id == "meeting_detail":
+        return bool(c & {"business", "conference", "airport", "city_centre"}) or feats.get("meeting_rooms") == "strong"
+    if rule_id == "connecting_rooms":
+        return bool(c & {"family_focused", "resort"})
+    return True
+
+
 def _applies(rule, intent_rows, feature_rows):
     if rule is None:
         return True          # a core question asked of every hotel
@@ -357,13 +402,15 @@ def _applies(rule, intent_rows, feature_rows):
     return bool(r) and r["level"] in ("some", "strong")
 
 
-def questions(site, guest, intent_rows, feature_rows, location_items):
+def questions(site, guest, intent_rows, feature_rows, location_items, classes=None):
     """
     Traveller questions the pages leave unclear. Only questions that apply to
     this hotel (it says it has the thing) or that every guest asks (parking,
     check-in...) are raised, and only when the pages really leave them open.
     """
     out = []
+    feats_ = {f["key"]: f["level"] for f in feature_rows}
+    ints_ = {i["key"]: i["level"] for i in intent_rows}
     # --- the ten standard guest questions, already evaluated by the crawl
     for q in (guest or {}).get("questions", []):
         if q["state"] not in ("not_found", "needs_checking", "partial"):
@@ -380,25 +427,33 @@ def questions(site, guest, intent_rows, feature_rows, location_items):
                  "wifi": ("wifi", "faq"), "ev": ("parking", "getting here", "directions", "contact"),
                  "cancellation": ("cancel", "policies", "terms", "faq")}.get(q["id"], ("faq",))
         state = {"partial": "partial", "needs_checking": "unclear", "not_found": "missing"}[q["state"]]
-        where = _where_to_add(site, slugs, "your FAQ or a Guest information page")
-        # if a page already says part of the answer, that is where the rest belongs
+        where = _where_to_add(site, slugs, "your FAQ or a Guest information page", topic=q["id"], prefer=[q.get("source_url", "")])
+        # if a page already says part of the answer, that is where the rest belongs, but only if it is a page this kind of information belongs on
         src = site.by_key.get(_key(q.get("source_url", "")))
-        if src is not None and not site.is_home(src) and q["state"] in ("partial", "needs_checking"):
+        if src is not None and not site.is_home(src) and q["state"] in ("partial", "needs_checking") and pagetarget.allowed_for(site, src, q["id"]):
             where = {"url": src["url"], "label": site.path(src), "reason": "the page that already answers part of this",
                      "also": where["also"] if where["url"] != src["url"] else []}
-        out.append({"id": q["id"], "question": q["label"], "short": q["short"], "state": state, "source": "standard", "optional": q["id"] in ("ev", "pets"),
+        rel = "core"
+        if classes is not None and q["id"] == "family":
+            import hotel_class
+            rel = hotel_class.relevance(classes, "families", {"strong": "strong", "some": "some"}.get(ints_.get("family")))
+        if rel == "skip":
+            continue
+        out.append({"id": q["id"], "question": q["label"], "short": q["short"], "state": state, "source": "standard", "optional": q["id"] in ("ev", "pets"), "relevance": rel,
                     "high_value": q.get("high_value", False),
-                    "found": q.get("found", []), "missing": q.get("missing", []),
-                    "evidence": ([{"url": q["source_url"], "snippet": q["snippet"]}] if q.get("source_url") else []),
+                    "found": q.get("found", []), "missing": q.get("missing", []), "fact_snippets": q.get("fact_snippets", []), "pages_with_topic": q.get("pages_with_topic", []),
+                    "evidence": ([{"url": q["source_url"], "snippet": q["snippet"]}] if (q.get("source_url") and q.get("snippet")) else []),
                     "where": where, "example": q.get("template", ""), "note": q.get("note", "")})
     # --- extended questions: only where the hotel itself signals it offers the thing
     standard_ids = {q["id"] for q in out}
+    feats_ = {f["key"]: f["level"] for f in feature_rows}
+    ints_ = {i["key"]: i["level"] for i in intent_rows}
     for rule in EXTENDED:
-        if not _applies(rule["applies"], intent_rows, feature_rows):
+        if not _applies(rule["applies"], intent_rows, feature_rows) or not _class_ok(rule["id"], classes, site, feats_, ints_):
             continue
         if rule["id"] == "connecting_rooms" and "family" in standard_ids:
             continue    # the standard family question already covers this
-        present = _facts_present(site, rule["facts"])
+        present = _facts_present(site, rule["facts"], rule["id"])
         missing = [k for k in rule["facts"] if k not in present]
         if not missing:
             continue
@@ -408,7 +463,8 @@ def questions(site, guest, intent_rows, feature_rows, location_items):
         state = "partial" if present else "unclear"
         out.append({"id": rule["id"], "question": rule["q"], "short": SHORT.get(rule["id"], rule["id"]), "state": state, "source": "standard" if rule.get("core") else "extended",
                     "high_value": bool(rule.get("high_value")), "found": list(present), "missing": missing, "evidence": ev_rows,
-                    "where": _where_to_add(site, rule["slugs"], rule["fallback"]),
+                    "fact_snippets": [{"label": k, "url": v["url"], "snippet": v["snippet"]} for k, v in present.items()],
+                    "where": _where_to_add(site, rule["slugs"], rule["fallback"], topic=rule["id"]),
                     "example": rule["example"], "note": "" if relevant else
                     "no dedicated page for this topic was found among the pages read"})
     # --- a few facts every hotel could state
@@ -419,7 +475,7 @@ def questions(site, guest, intent_rows, feature_rows, location_items):
     if site.pages and not rooms:
         out.append({"id": "room_count", "question": "How many rooms does the hotel have?", "short": "Number of rooms", "state": "missing",
                     "source": "extended", "high_value": False, "found": [], "missing": ["total number of rooms"],
-                    "evidence": [], "where": _where_to_add(site, ("about us", "our hotel"), "your About page or the homepage"),
+                    "evidence": [], "where": _where_to_add(site, ("about us", "our hotel"), "your About page or the homepage", topic="room_count"),
                     "example": "Our [x] bedrooms range from [Classic doubles] to [suites].", "note": ""})
     # --- balconies: only if the site mentions them but no rooms page connects them to room types
     bal = [f for f in site.find(re.compile(r"balcon(?:y|ies)", re.I))]
@@ -427,7 +483,7 @@ def questions(site, guest, intent_rows, feature_rows, location_items):
         out.append({"id": "balconies", "question": "Which rooms have a balcony?", "short": "Balconies", "state": "unclear", "source": "extended",
                     "high_value": False, "found": ["balconies are mentioned"], "missing": ["which room types have one"],
                     "evidence": [{"url": f["page"]["url"], "snippet": f["snippet"]} for f in bal[:2]],
-                    "where": _where_to_add(site, ("rooms", "suites", "accommodation"), "your Rooms page"),
+                    "where": _where_to_add(site, ("rooms", "suites", "accommodation"), "your Rooms page", topic="balconies"),
                     "example": "Balcony: Deluxe Doubles and all suites. Classic rooms do not have a balcony.",
                     "note": ""})
     # --- location questions raised by the location analysis
@@ -444,7 +500,7 @@ def questions(site, guest, intent_rows, feature_rows, location_items):
                         "state": "unclear" if it["state"] == "mentioned_no_distance" else "missing", "source": "location",
                         "high_value": it["category"] == "transport", "found": ["it is mentioned"] if it["state"] == "mentioned_no_distance" else [],
                         "missing": ["distance or travel time"], "evidence": it["evidence"],
-                        "where": _where_to_add(site, ("getting here", "location", "directions", "contact"), "a Location / Getting here page"),
+                        "where": _where_to_add(site, ("getting here", "location", "directions", "contact"), "a Location / Getting here page", topic="transport"),
                         "example": it["example"], "note": it.get("hint", "")})
     # a fact reported as missing from a page whose headed sections were not in the text (tabs, accordions) may simply be in those sections: say so, and let the advice lower its confidence
     for q in out:
@@ -458,15 +514,29 @@ def questions(site, guest, intent_rows, feature_rows, location_items):
 
 # ----------------------------------------------------------------- location
 
+_TRANSLATE = {"flughafen": "airport", "aeroport": "airport", "aeroporto": "airport", "aeropuerto": "airport", "hauptbahnhof": "central station", "bahnhof": "station", "gare": "station",
+              "stazione": "station", "estacion": "station"}
+
+
+def _name_aliases(variants):
+    """The ways a place is written: its map name as given, and with foreign type words translated ('Zürich Flughafen' -> 'Zurich airport', 'Zurich airport station')."""
+    out = list(variants)
+    for v in variants:
+        toks = evidence.fold(v).split()
+        tr = [_TRANSLATE.get(t, t) for t in toks]
+        if tr != toks:
+            t2 = " ".join(tr)
+            out += [t2, t2 + " station"] if "station" not in t2 else [t2]
+    return list(dict.fromkeys(out))
+
+
 def _generic_places(site):
-    """Station / airport names written on the pages, when no map data names them."""
+    """Railway stations named on the pages, when no map data names them: identifiable names only (places.py), most often mentioned first. 'Charging station' and menu strips are never returned."""
     names = Counter()
     for p in site.content_pages:
-        for m in re.finditer(r"\b([A-Z][A-Za-z'’-]+(?:\s(?:and|&)\s[A-Z][A-Za-z'’-]+|\s[A-Z][A-Za-z'’-]+){0,2})\s+"
-                             r"(?:Railway |Train |Tube |Underground |DLR )?(Station)\b", p["text"]):
-            nm = m.group(1).strip()
-            if nm.lower() not in {"fire", "police", "petrol", "bus", "service", "train", "railway", "the", "our", "nearest", "local", "main"}:
-                names[nm + " station"] += 1
+        for m in places.mentions(p["text"], "station", site.hotel):
+            if m["type"] == "railway_station":
+                names[m["name"]] += 1
     return [n for n, _ in names.most_common(2)]
 
 
@@ -486,7 +556,7 @@ def _exhibits(attractions):
     out = set()
     for a_ in attractions:
         nm = a_["name"]
-        if re.search(r"['‘’\"].+['‘’\"]|(?:vickers|vc10|spitfire|hurricane|lancaster|concorde|locomotive|mk ?\d)", nm, re.I):
+        if re.search(r"['‘’\"].+['‘’\"]|\b(?:vickers|vc10|spitfire|hurricane|lancaster|concorde|locomotive|mk ?\d)\b", nm, re.I):
             out.add(nm)
             continue
         if a_.get("lat") is None or a_.get("tags", {}).get("tourism") in ("museum", "theme_park", "zoo"):
@@ -537,9 +607,13 @@ def location(site, osm_ctx):
         for p in site.content_pages:
             sents = site.sentences(p)
             for i, s in enumerate(sents):
-                if any(v and len(v) > 3 and v.lower() in s.lower() for v in variants):
-                    window = " ".join(sents[max(0, i - 1): i + 2])
-                    sentences.append((p, s, lexicon.HAS_DISTANCE(window)))
+                if textutil.looks_like_nav(s):
+                    continue                                  # a menu strip that lists the place's name is not a statement about it
+                low = evidence.fold(s)
+                hit = next((v for v in _name_aliases(variants) if v and len(v) > 3 and evidence.fold(v) in low), None)
+                if hit:
+                    at = low.index(evidence.fold(hit))
+                    sentences.append((p, s, bool(places.distance_for(s, {"start": at, "end": at + len(hit)}))))
         if sentences:
             stated = [x for x in sentences if x[2]]
             use = stated[0] if stated else sentences[0]
@@ -566,16 +640,38 @@ def location(site, osm_ctx):
                                  f"“The hotel is [X] minutes by [car/taxi] from {name}.” (replace [X] after checking)"})
         covered_cats.add(cat)
 
-    # categories described without a named place we know about: only report what the site raises itself
-    for cat, (label, pat) in lexicon.LOCATION_CATEGORIES.items():
+    # places the site itself names, when map data did not: stations and airports must be identifiable names (places.py); other categories must be a real sentence about the surroundings
+    for kind, cat, label in (("station", "transport", "Rail and public transport"), ("airport", "airports", "Airports")):
         if cat in covered_cats:
+            continue
+        seen_names, rows = set(), []
+        for p in site.content_pages:
+            if lexicon.LEGAL_PAGE.search(site.path(p)):
+                continue
+            for m in places.mentions(p["text"], kind, site.hotel, ctx):
+                if m["type"] == "bus_station" or m["name"] in seen_names:
+                    continue
+                seen_names.add(m["name"])
+                rows.append((p, m))
+        for p, m in sorted(rows, key=lambda r: (not r[1]["distance"], r[1]["name"]))[:3]:
+            stated = bool(m["distance"])
+            items.append({"category": cat, "label": label, "place": m["name"], "state": "stated" if stated else "mentioned_no_distance",
+                          "evidence": [{"url": p["url"], "snippet": m["sentence"][:240]}], "open_data_km": None, "hint": "",
+                          "map_checked": m["map"].get("matched"),
+                          "suggestion": ("Described with a distance - good." if stated else f"{m['name']} is named but without a distance or travel time. Say how far it is, once you've checked."),
+                          "example": f"“{m['name']} is a [X]-minute walk from the hotel.” (replace after checking)"})
+            covered_cats.add(cat)
+    for cat, (label, pat) in lexicon.LOCATION_CATEGORIES.items():
+        if cat in covered_cats or cat in ("transport", "airports"):
             continue
         hits = []
         for p in site.content_pages:
             sents = site.sentences(p)
-            for i, s in enumerate(sents):
-                if pat.search(s) and lexicon.LOCATION_CUE.search(s):
-                    hits.append((p, s, lexicon.HAS_DISTANCE(" ".join(sents[max(0, i - 1): i + 2]))))
+            for i, s_ in enumerate(sents):
+                if textutil.looks_like_nav(s_) or len(s_.split()) < 6:
+                    continue
+                if pat.search(s_) and lexicon.LOCATION_CUE.search(s_):
+                    hits.append((p, s_, lexicon.HAS_DISTANCE(s_)))
         if not hits:
             continue
         stated = [h for h in hits if h[2]]
@@ -866,7 +962,10 @@ _PDF_TOPICS = [("meeting", "meeting rooms"), ("conference", "meeting rooms"), ("
                ("brochure", None), ("fact", None), ("rates", None), ("tariff", None), ("floor", "meeting rooms")]
 
 
-def hidden_strengths(site, feature_rows, pages_meta=None):
+_FEATURE_SEGMENT = {"weddings": "weddings", "spa": "spa_couples", "family": "families", "pool": "spa_couples", "pets": None}
+
+
+def hidden_strengths(site, feature_rows, pages_meta=None, classes=None):
     out = []
     faq = site.faq_page()
     worth_finding = {"ev", "meeting_rooms", "spa", "pool", "weddings", "accessible", "family", "pets", "airport_transfer",
@@ -874,6 +973,11 @@ def hidden_strengths(site, feature_rows, pages_meta=None):
     for f in feature_rows:
         if f["level"] == "none" or f["key"] not in worth_finding:
             continue
+        seg_ = _FEATURE_SEGMENT.get(f["key"])
+        if classes is not None and seg_:
+            import hotel_class
+            if hotel_class.relevance(classes, seg_) == "skip":
+                continue                       # a strength that does not belong to this kind of hotel is not worth making easier to find
         found = f["found"]
         pages = [x["page"] for x in found]
         on_home = any(site.is_home(p) for p in pages)
@@ -956,7 +1060,12 @@ OPPORTUNITY_ASSETS = {
 }
 
 
-def opportunities(site, intent_rows, feature_rows):
+# the facility that must actually exist for an opportunity to be real, and the traveller segment (hotel_class) it belongs to
+_KEY_ASSET = {"couples": ("spa",), "spa": ("spa",), "family": ("family",), "business": ("meeting_rooms",), "weddings": ("weddings",), "pet": ("pets",)}
+_OPP_SEGMENT = {"couples": "spa_couples", "spa": "spa_couples", "family": "families", "business": "business", "weddings": "weddings", "pet": None}
+
+
+def opportunities(site, intent_rows, feature_rows, classes=None):
     """
     Where the hotel has real supporting assets that its pages don't connect into a clear proposition
     for a traveller type. These are COMMERCIAL OPPORTUNITIES, not defects: whether to pursue one
@@ -969,6 +1078,14 @@ def opportunities(site, intent_rows, feature_rows):
         row = levels.get(key)
         if not row or row["level"] == "strong":
             continue
+        # the facility the proposition is about must exist (a gym is not a spa; a restaurant is not a wedding venue), and the hotel's kind must give a reason to market to this audience
+        if any(feats.get(a, {}).get("level") not in ("some", "strong") for a in _KEY_ASSET.get(key, ())):
+            continue
+        if classes is not None and _OPP_SEGMENT.get(key):
+            import hotel_class
+            # marketing advice is given only for a market the hotel's kind makes its own; a market it merely has a facility for is optional detail, never a push
+            if hotel_class.relevance(classes, _OPP_SEGMENT[key], row["level"] if row["level"] in ("some", "strong") else None) != "core":
+                continue
         assets = [feats[a] for a in asset_keys if a in feats and feats[a]["level"] in ("some", "strong")]
         if len(assets) < 2 and not (assets and row["level"] == "weak"):
             continue

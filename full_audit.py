@@ -1000,7 +1000,9 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     try:
         _ie = intel_result if isinstance(intel_result, dict) and "error" not in intel_result else {}
         external_result = external_presence.build((_ie.get("identity") or {}).get("footprint"), ext["entities"], ext["consistency"], listing_checks, _ie.get("media"), hotel, city, base,
-                                                  [{"url": l["url"], "domain": evidence.domain_of(l["url"])} for l in _home_links])
+                                                  [{"url": l["url"], "domain": evidence.domain_of(l["url"])} for l in _home_links],
+                                                  own={"postcode": location.get("postcode"), "lat": location.get("lat"), "lon": location.get("lon"),
+                                                       "phone": (guest.get("own_facts_node") or {}).get("telephone") or (((guest.get("fact_sheet") or {}) if isinstance(guest.get("fact_sheet"), dict) else {}).get("telephone"))})
     except Exception:  # noqa: BLE001
         external_result = None
 

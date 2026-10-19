@@ -263,7 +263,7 @@ def build(hotel_name, website, sc, rest_recs, guest=None, top=None, headline=Non
         cards += f"""
         <div class="card {'na' if not assessed else ''}">
           <div class="top"><span class="cat">{esc(c['label'])}</span>
-            <span class="wt">{esc(c['weight'])}%</span>{tag}</div>
+            <span class="wt">{'separate' if c.get('separate') else esc(c['weight']) + '%'}</span>{tag}</div>
           <div class="scoreline"><b style="color:{color}">{esc(score) if assessed else '—'}</b>
             {'<small>/100</small>' if assessed else ''}</div>
           <div class="bar"><i style="width:{int(score or 0)}%;background:{color}"></i></div>

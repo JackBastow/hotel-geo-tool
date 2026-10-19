@@ -146,8 +146,12 @@ def compare_reports(old, new):
     ov = {"old": _num(o_sc.get("overall")), "new": _num(n_sc.get("overall")),
           "old_coverage": _num(o_sc.get("coverage_pct")),
           "new_coverage": _num(n_sc.get("coverage_pct"))}
+    same_model = (o_sc.get("model") or 1) == (n_sc.get("model") or 1)
     ov["like_for_like"] = (ov["old_coverage"] is not None
-                           and ov["old_coverage"] == ov["new_coverage"])
+                           and ov["old_coverage"] == ov["new_coverage"] and same_model)
+    if not same_model:
+        res["warnings"].append("The earlier report was scored with an older model that counted AI visibility inside readiness. Readiness now excludes it, so the two overall scores are not comparable. "
+                               "Compare the categories below instead.")
     if ov["old"] is not None and ov["new"] is not None:
         ov["delta"] = ov["new"] - ov["old"]
     if not ov["like_for_like"]:

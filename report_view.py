@@ -63,12 +63,12 @@ def _scorecard(fa_res):
     for c in sc["categories"]:
         if not c["assessed"]:
             continue
-        label = f"{c['label']} — {c['score']}/100 (weight {c['weight']}%)" + ("  ·  PARTIAL" if c.get("partial") else "")
+        label = (f"{c['label']} — {c['score']}/100 (" + ("separate from readiness" if c.get("separate") else f"weight {c['weight']:g}%") + ")") + ("  ·  PARTIAL" if c.get("partial") else "")
         with st.expander(label):
             st.caption(c["detail"])
             for e in c["evidence"]:
                 st.write(f"- {e}")
-    not_assessed = [c for c in sc["categories"] if not c["assessed"]]
+    not_assessed = [c for c in sc["categories"] if not c["assessed"] and not c.get("separate")]
     if not_assessed:
         missing_weight = round(sum(c["weight"] for c in not_assessed), 1)
         with st.expander(f"Not assessed — {missing_weight}% of the model ({len(not_assessed)} categories)"):
@@ -189,6 +189,9 @@ def _review_pack_intro(fa_res, token, private=None):
 def _tools(fa_res, token):
     intel = fa_res.get("intel") or {}
     meta = fa_res["meta"]
+    if fa_res.get("consultant") and "error" not in fa_res["consultant"]:
+        ui_consult.assessment_card(fa_res)
+        st.divider()
     st.subheader("Method: all 30 checks and what each source could and couldn't tell us")
     if intel and "error" not in intel:
         ui_intel.gaps(intel)
@@ -257,6 +260,8 @@ def render(fa_res, token=None, prev=None, private=None):
     def site():
         if has_consult:
             ui_consult.understanding_block(consult)
+            ui_consult.hotel_type_card(consult)
+            st.divider()
             ui_consult.traveller_card(consult.get("traveller"))
             st.divider()
             ui_consult.booking_card(consult.get("booking"))

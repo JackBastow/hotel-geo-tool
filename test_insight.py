@@ -357,7 +357,7 @@ check("an unreadable-site result is still JSON-serialisable", True)
 grouped = [r for r in res["recommendations"] if r["id"].startswith("Q")]
 check("grouped question titles use readable short names, not lower-cased question text",
       all("?" not in r["title"] for r in grouped if r["title"].startswith("Fill the gaps")) and any(
-          r["title"].startswith("Fill the gaps") and "Parking" in r["title"] for r in grouped), [r["title"] for r in grouped])
+          r["title"].startswith("Fill the gaps") and any(w in r["title"] for w in ("Parking", "Breakfast", "Accessibility")) for r in grouped), [r["title"] for r in grouped])
 listing = {"candidates": [{"url": "https://luxe.com/w", "title": "Leeds hotels", "snippet": "", "roles": [], "source_type": "booking_platform", "label": "Luxe",
            "domain": "luxe.com", "via": "tavily", "published_search": None, "read": {"status": "not_read"},
            "match": {"level": "none"}, "page": {}}]}
