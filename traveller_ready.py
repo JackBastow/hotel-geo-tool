@@ -132,7 +132,7 @@ SEGMENTS += [
           "need": 2, "add": ["what the hotel offers guests leaving early (breakfast, check-out)", "what the hotel offers guests arriving late (24-hour reception, late check-in)"]},
          {"id": "airport_parking", "label": "Parking, including for long stays", "context": _rx(r"park"),
           "facts": {"that parking is available": _rx(r"\bparking\b|car[- ]park|park (?:and|&) fly"),
-                    "its price (or that it is free)": _rx(PRICE_PATTERN + r"|(?:free|complimentary|no charge)[^.\n]{0,40}parking|parking[^.\n]{0,60}(?:free|complimentary|no charge|per (?:day|night|24)|daily|/ ?(?:day|night))")},
+                    "its price (or that it is free)": _rx(r"(?:parking|car[- ]park)[^.\n]{0,80}(?:" + PRICE_PATTERN + r")|(?:" + PRICE_PATTERN + r")[^.\n]{0,80}(?:parking|car[- ]park)|(?:free|complimentary|no charge)[^.\n]{0,40}parking|parking[^.\n]{0,60}(?:free|complimentary|no charge|per (?:day|night|24)|daily|/ ?(?:day|night))")},
           "need": 2, "add": ["that parking is available", "what parking costs per day or night, including for a longer stay"]},
          {"id": "airport_public_transport", "label": "Public transport", "context": _rx(r"train|rail|tram|bus|metro|s-bahn|station|bahnhof"),
           "facts": {"the train, tram or bus connection, with how long it takes": _rx(r"(?:train|rail|tram|bus|metro|s-bahn)[^.\n]{0,80}\d+\s?(?:min(?:ute)?s?|stops?)|\d+\s?(?:min(?:ute)?s?)[^.\n]{0,40}(?:by|on|via) (?:train|rail|tram|bus|metro|s-bahn)")},

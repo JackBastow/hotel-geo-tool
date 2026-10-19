@@ -54,7 +54,8 @@ def _ev1(r):
     for e in (r.get("evidence") or [{}])[:2]:
         q = short(e.get("snippet", ""), 330)
         lead = link(e["url"], _path(e["url"])) if e.get("url") else Markup("")
-        parts.append(cat(lead, ": " if lead and q else "", f"“{q}”" if q else ""))
+        note = "pages inspected for this" in q.lower() or q.startswith("No page about this topic")      # the audit's own note about what it looked at, not words from the website
+        parts.append(cat(lead, ": " if lead and q else "", (f"Audit note: {q}" if note else f"“{q}”") if q else ""))
     out = parts[0]
     for x in parts[1:]:
         out = cat(out, Markup("<br/>"), x)
@@ -197,6 +198,8 @@ def story(rep, H1):
     if sig:
         out.append(para("Significant technical issues", "h3"))
         out += R.bullets([cat(Markup(f"<b>{esc(short(r['title'], 90))}</b>"), f" - {short(r['finding'], 170)} ({r['ref']})") for r in sig])
+    elif cov.get("text_only"):
+        out.append(para("The technical checks that need a page's markup (structured data, titles, headings, image text, canonical tags) were not made, because the pages were read as plain text. No technical conclusion is drawn.", "base"))
     elif not hot and not cov.get("unreadable"):
         out.append(para("No significant technical issue was found in the pages read.", "base"))
 

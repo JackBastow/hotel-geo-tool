@@ -612,9 +612,12 @@ def readiness_profile(site, guest, intent_rows, location_res, structured, findin
 
     # Entity clarity
     e, er = 40, []
+    sd_skip = bool((coverage or {}).get("text_only"))        # a plain-text read cannot show structured data either way: it is left out, not counted against the hotel
     if structured["hotel_found"]:
         e += 20
         er.append("+ Hotel structured data present")
+    elif sd_skip:
+        er.append("structured data not assessed (the pages were read as plain text)")
     else:
         er.append("- no Hotel structured data")
     if byid.get("entity_ok"):
@@ -631,7 +634,7 @@ def readiness_profile(site, guest, intent_rows, location_res, structured, findin
     if any(i["status"] == "incorrect" for i in structured["items"]):
         e -= 20
         er.append("- structured data contradicts the page")
-    comp("entity", "Entity clarity", e, er, note="Is it clear what and where this hotel is?")
+    comp("entity", "Entity clarity", e * 100 / 80 if (sd_skip and not structured["hotel_found"]) else e, er, note="Is it clear what and where this hotel is?")
 
     # Content completeness
     qs = (guest or {}).get("questions", [])

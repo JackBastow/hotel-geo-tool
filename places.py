@@ -25,6 +25,9 @@ _NAV_WORDS = {"hotel", "info", "information", "offers", "offer", "gallery", "loc
               "reviews", "faq", "events", "meetings", "weddings", "spa", "wellness", "careers", "about", "terms", "privacy", "hotels", "destinations", "brands", "stay", "amenities", "facilities", "services",
               "directions", "overview", "deals", "packages", "view", "check", "availability", "reservations", "help", "account", "photos", "sitemap", "language"}
 
+_TABLE_WORDS = {"name", "banquet", "conference", "theatre", "theater", "classroom", "boardroom", "reception", "capacity", "cabaret", "u-shape", "sqm", "sq", "dimensions", "floor", "ceiling", "height",
+                "length", "width", "seats", "layout"}
+
 KNOWN_AIRPORTS = ["Heathrow", "Gatwick", "Stansted", "Luton", "Schiphol", "Charles de Gaulle", "Orly", "Frankfurt", "Munich", "Flughafen Zürich", "Flughafen Zurich", "Kloten", "Fiumicino", "Ciampino",
                   "Barajas", "El Prat", "Dulles", "JFK", "LaGuardia", "Newark", "O'Hare", "Changi", "Narita", "Haneda", "Dubai International", "Hamad International", "Kastrup", "Arlanda", "Gardermoen",
                   "Vaclav Havel", "Ataturk", "Sabiha Gokcen", "Edinburgh", "Manchester", "Birmingham", "Bristol", "Southend", "London City", "Brussels", "Vienna", "Geneva", "Basel"]
@@ -67,6 +70,8 @@ def _ok_name(name, kind, hotel=""):
     if len(words) < 2:
         return kind == "airport" and name in KNOWN_AIRPORTS
     first = words[0].lower()
+    if any(w.lower() in _TABLE_WORDS for w in words):
+        return False                                        # 'Name Banquet Conference Square' is the header row of a meeting-room table
     if kind == "station" and first in _NOT_STATION_PREFIX:
         return False
     if any(w.lower() in _NAV_WORDS for w in words[:-1]):

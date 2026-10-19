@@ -41,7 +41,7 @@ class Site:
     """A thin, read-only view over the crawled pages."""
 
     def __init__(self, own_pages, base, hotel="", city=""):
-        self.pages = [p for p in own_pages or [] if p.get("text")]
+        self.pages = [dict(p, text=textutil.strip_label_runs(p["text"])) for p in own_pages or [] if p.get("text")]
         # menus, banners and brand headers that repeat on most pages are not what a page says: they are removed from the text every check reads (the raw text is kept as raw_text)
         bp = textutil.boilerplate(self.pages, min_pages=4, share=0.6)
         self.boilerplate_units = len(bp)

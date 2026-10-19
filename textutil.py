@@ -74,6 +74,21 @@ def looks_like_nav(text):
     return menu / len(toks) >= 0.5 and title / len(toks) >= 0.7 and not punct
 
 
+# A page's amenity filter or feature menu ('Airport shuttle Fitness center Business center Pet-friendly rooms Concierge EV charging ... Parking Pets Smoking WiFi') is a list of labels, not a statement:
+# it says nothing about price, hours or policy, and a chain's filter can list what the brand offers in general. Four or more such labels in a row are removed from the text every check reads.
+_LABELS = (r"Airport shuttle|Shuttle|Fitness cent(?:er|re)|Business cent(?:er|re)|Pet[- ]friendly rooms?|Concierge|EV charging|Executive lounge|Cribs?|Room service|Meeting rooms?|All Amenities"
+           r"|Families and kids|Family rooms?|Parking|Valet parking|Self[- ]parking|Pets|Smoking|Non[- ]smoking|Wi-?Fi|Free Wi-?Fi|Pool|Swimming pool|Spa|Restaurants?|Bars?|Gym|Laundry|Babysitting"
+           r"|Accessible rooms?|Breakfast|Air conditioning|Kids club|Housekeeping|Currency exchange|Ice machine|Vending|Elevators?|Lifts?|Terrace|Garden")
+_LABEL_RUN = re.compile(rf"(?:\b(?:{_LABELS})\b[ \t]+){{3,}}\b(?:{_LABELS})\b")
+
+
+def strip_label_runs(text):
+    """The text without amenity-filter strips (four or more feature labels in a row, each capitalised as a label is). Anything else is left exactly as it was."""
+    if not text:
+        return text
+    return _LABEL_RUN.sub(" ", text)
+
+
 def is_generic_label(text):
     """A bare category word used as a label ('Airports', 'Railway stations', 'Charging station') is not a named place."""
     t = re.sub(r"\s+", " ", text or "").strip(" -|>/•·:").lower()

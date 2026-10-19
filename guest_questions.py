@@ -642,7 +642,7 @@ def _eval_question(q, ok_pages):
 
 def evaluate(pages, sufficient=True):
     """Pure function over already-fetched pages - the part worth unit-testing."""
-    ok_pages = [p for p in pages if p["ok"]]
+    ok_pages = [dict(p, text=textutil.strip_label_runs(p["text"])) for p in pages if p["ok"]]
     bp = textutil.boilerplate(ok_pages, min_pages=4, share=0.6)       # site-wide menus, banners and footers are not what a page says
     if bp:
         ok_pages = [dict(p, text=textutil.strip_boilerplate(p["text"], bp)) for p in ok_pages]

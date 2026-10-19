@@ -21,6 +21,7 @@ import urllib.parse
 import ai_sample
 import guest_questions
 import lexicon
+import textutil
 
 FETCH_TOOL = "web_fetch_20250910"
 MAX_PAGES = 6
@@ -61,7 +62,7 @@ def to_page(url, text, title=""):
     plain = _MDLINK.sub(r"\1", plain)
     plain = re.sub(r"(?m)^[#>*\-\s|:]+", " ", plain)
     plain = re.sub(r"[|*_`]+", " ", plain)
-    plain = re.sub(r"\s+", " ", plain).strip()[:30000]
+    plain = re.sub(r"\s+", " ", textutil.strip_label_runs(plain)).strip()[:30000]
     ok = len(plain) >= guest_questions.MIN_READABLE_CHARS
     return {"url": url, "ok": ok, "reason": "" if ok else "no readable text", "title": title or meta.get("title", "") or (h1[0] if h1 else ""), "h1": h1,
             "text": plain, "footer_text": "", "tels": [t.strip() for t in _TEL.findall(plain)][:5], "mails": sorted(set(_MAIL.findall(plain)))[:5],

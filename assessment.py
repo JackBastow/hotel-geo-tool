@@ -55,7 +55,9 @@ def assess(rep):
     else:
         put("assessed", "robots.txt", "none was published; the site sets no crawler rules")
     sm = site.get("sitemap") or {}
-    if sm.get("present"):
+    if sm.get("present") and not sm.get("url_count"):
+        put("partial", "The sitemap", "a sitemap file was found but no page addresses could be read from it")
+    elif sm.get("present"):
         put("assessed", "The sitemap", f"{sm.get('url_count', 0)} address(es) read")
     elif robots.get("status") in (401, 403) or robots.get("error") or text_only:
         put("not_assessed", "The sitemap", "it could not be read from this tool, so nothing is claimed about it")

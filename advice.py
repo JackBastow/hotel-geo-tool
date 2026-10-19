@@ -76,7 +76,7 @@ def _name_group(rec, qs, where_txt, kind):
         if n == 1 and qs[0].get("optional") and not qs[0]["found"]:
             rec["short_title"] = f"State whether the hotel has {_OPTIONAL_NAME.get(qs[0]['id'], shorts[0].lower())}"
         else:
-            rec["short_title"] = (f"State the missing {shorts[0].lower()} details on {where_txt}" if n == 1 else
+            rec["short_title"] = (f"Add the missing details on {shorts[0].lower()} to {where_txt}" if n == 1 else
                                   f"Answer {n} open guest questions on {where_txt}")
 
 _OPTIONAL_NAME = {"ev": "EV charging", "pets": "a pet policy (dogs or other pets)"}
@@ -895,6 +895,13 @@ def _from_intel(intel):
         if rid in ("S-editorial_outreach", "S-otas_missing", "S-social_none_found", "S-editorial_negative") or rid.startswith("S-editorial_outreach"):
             recs[-1]["kind_hint"] = "opportunity"                 # no verified defect behind it: a sample of searches found little, which is a prompt to look, not a finding
             recs[-1]["confidence"] = INFER
+        if rid.startswith("S-entity_unverified"):
+            # an uncertain match is a prompt to check by hand, not a fault: it is never a verified finding, and its evidence is what the match lacked, not the action itself
+            recs[-1]["kind_hint"] = "opportunity"
+            recs[-1]["confidence"] = INFER
+            recs[-1]["priority"], recs[-1]["impact"] = "low", "low"
+            recs[-1]["evidence"] = [{"url": "", "snippet": "Open map data lists an entry with the hotel's name, but it could not be matched on anything else (coordinates within 0.5 km, postcode, official website or telephone), so it may be this hotel or another with the same name."}]
+            recs[-1]["finding"] = "An entry with this name was found in open map data but could not be confirmed as this hotel. Check it by hand; if it is the hotel, add its website and telephone to the entry so it can be verified."
     return recs
 
 
