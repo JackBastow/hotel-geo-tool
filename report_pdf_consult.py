@@ -343,7 +343,7 @@ def ai_section(ai, ins=None):
 
 STATE_TXT = {"confirmed": "Confirmed", "partial": "Partially confirmed", "missing": "Missing", "unknown": "Unknown", "not_offered": "Stated as not available"}
 STATE_COL = {"confirmed": R.GOOD, "partial": R.WARN, "missing": R.BAD, "unknown": R.GREY, "not_offered": R.GREY}
-EXT_COL = {"verified": R.GOOD, "identified": R.GOOD, "contradicts": R.BAD, "unclear": R.WARN, "not_verified": R.GREY}
+EXT_COL = {"verified": R.GOOD, "identified": R.GOOD, "contradicts": R.BAD, "unclear": R.WARN, "limited": R.WARN, "not_verified": R.GREY}
 
 
 def traveller_section(trv):

@@ -874,7 +874,7 @@ def fix_site(c, web=None):
 # ----------------------------------------------------------- scoring, traveller requirements, outside sources, booking, competitors, AI test log
 
 REQ_ICON = {"confirmed": "🟢 Confirmed", "partial": "🟡 Partially confirmed", "missing": "🔴 Missing", "unknown": "⚪ Unknown", "not_offered": "⚪ Stated as not available"}
-EXT_ICON = {"verified": "🟢 Verified", "identified": "🟢 Identified, not read", "contradicts": "🔴 Contradicts the website", "unclear": "🟡 Found, identity unclear", "not_verified": "⚪ Not verified"}
+EXT_ICON = {"verified": "🟢 Verified", "identified": "🟢 Identified, not read", "contradicts": "🔴 Contradicts the website", "unclear": "🟡 Found, identity unclear", "limited": "🟡 Found, limited coverage", "not_verified": "⚪ Not verified"}
 BOOK_ICON = {"pass": "🟢 OK", "warn": "🟡 Check", "fail": "🔴 Problem", "not_verified": "⚪ Not verified"}
 
 

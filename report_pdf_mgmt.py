@@ -25,7 +25,7 @@ LEVEL_COL = {"high": R.GOOD, "medium": R.WARN, "low": R.BAD}
 STATUS_COL = {"assessed": R.GOOD, "provisional": R.WARN, "withheld": R.BAD}
 STATE_COL = {"confirmed": R.GOOD, "partial": R.WARN, "missing": R.BAD, "unknown": R.GREY, "not_offered": R.GREY}
 STATE_TXT = {"confirmed": "Confirmed", "partial": "Partially confirmed", "missing": "Missing", "unknown": "Unknown", "not_offered": "Stated as not available"}
-EXT_COL = {"verified": R.GOOD, "identified": R.GOOD, "contradicts": R.BAD, "unclear": R.WARN, "not_verified": R.GREY}
+EXT_COL = {"verified": R.GOOD, "identified": R.GOOD, "contradicts": R.BAD, "unclear": R.WARN, "limited": R.WARN, "not_verified": R.GREY}
 
 NOREAD = "Not assessed: the website could not be read, so nothing can be said about this either way."
 

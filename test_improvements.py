@@ -348,6 +348,14 @@ try:
 except Exception as e:  # noqa: BLE001
     check("the PDF and web report build with the new sections", False, repr(e))
 
+try:
+    import report_pdf_consult, report_pdf_mgmt, ui_consult, external_presence
+    miss = [k for k in external_presence.LABEL if not (k in report_pdf_mgmt.EXT_COL and k in report_pdf_consult.EXT_COL and k in ui_consult.EXT_ICON)]
+    check("every external-presence status can be drawn in the web report and both PDFs (an unmapped one crashed the page)", not miss, str(miss))
+except Exception as e:  # noqa: BLE001
+    check("status maps", False, repr(e))
+
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)
