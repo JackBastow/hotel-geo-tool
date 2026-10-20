@@ -738,7 +738,7 @@ bp = {c["key"]: c for c in sc_ps["categories"]}
 check("with Google's PageSpeed result, Website & Technical is assessed as partial, and Social is scored from profiles found by search",
       bp["website"]["assessed"] and bp["website"].get("partial") and bp["social"]["assessed"] and 0 < bp["social"]["score"] <= 60)
 check("freshness is no longer a category of its own", "freshness" not in bp)
-check("the monthly budget guard exists and is in thousandths of a dollar", __import__("store").SERVICE_CAPS["claude"] == 100000)
+check("the monthly budget guard exists, is in thousandths of a dollar and defaults to $600 (CLAUDE_MONTHLY_CAP_USD overrides it)", __import__("store").SERVICE_CAPS["claude"] == int(float(__import__("os").environ.get("CLAUDE_MONTHLY_CAP_USD") or 600) * 1000))
 
 print("22. the content hub: rate inclusions, room configurations and the area around the hotel")
 ids_quiet = {q["id"] for q in quiet["questions"]}
