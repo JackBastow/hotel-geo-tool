@@ -169,6 +169,13 @@ kept = [r for r in generic if r["id"] not in ("AI1", "AI4") and not (r["id"].sta
 check("the general 'not named in a sample' notes and the generic outreach are replaced when specific ones exist", [r["id"] for r in kept] == ["X-S-otas_missing"])
 check("no recommendation when the analysis is unavailable", advice._from_ai_gap({"status": "unavailable"}) == [] and advice._from_ai_gap(None) == [])
 
+import ranking
+rk = advice._from_ai_gap(res)
+ranking.annotate(rk, [])
+check("the investigations and the outreach clear the action-plan threshold (they were ranked below it and never appeared)", all(r["value"] >= 28 for r in rk), str([(r["id"], r["value"]) for r in rk]))
+plan = ranking.plan_30_60_90(rk, set())
+check("so they are in the plan", {r["id"] for r in rk} <= {i for b in plan.values() for i in b}, str(plan))
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)
