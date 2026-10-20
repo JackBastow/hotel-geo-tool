@@ -118,6 +118,45 @@ def _exec_sentences(c, h, top, hotel):
     return [x for x in (s1, s2) if x]
 
 
+def _markets_block(rep, c):
+    """The three things a general manager asks about the AI tests: in which searches does the assistant name the hotel, who does it name instead (only hotels in the hotel's own category), and what the evidence suggests differs."""
+    import trend
+    gap = rep.get("ai_gap") or {}
+    ai = rep.get("ai_sample") or {}
+    out = []
+    if gap.get("status") == "ok" and gap.get("markets"):
+        ms = [m for m in gap["markets"] if m["kind"] in ("niche", "custom", "generic")]
+        ms.sort(key=lambda m: (m.get("priority") != "core", m["kind"] != "niche", m["qid"]))
+        out.append(para("Which AI searches name the hotel, and who is named instead", "h3"))
+        rows = [["A search a traveller might make", "Names the hotel", "Named instead (same category)"]]
+        for m in ms[:7]:
+            inst = ", ".join(f"{r['name']} ({r['answers']} of {r['of']})" for r in m["rivals"][:2]) or ("only hotels in a higher category" if m.get("other_category") else "-")
+            rows.append([short(m["question"], 105), f"{m['named']} of {m['of']} ({trend.band(m['named'], m['of'])})", short(inst, 90)])
+        out.append(table(rows, [0.46, 0.2, 0.34]))
+        gm = [m for m in gap["markets"] if m["gap"]]
+        obs = []
+        for m in sorted(gm, key=lambda m: (not m["consistent"], m["qid"]))[:2]:
+            for o in (gap.get("observations") or {}).get(m["qid"], []):
+                if o["kind"] in ("criterion", "source", "facility") and o["text"] not in obs:
+                    obs.append(o["text"])
+        if obs:
+            out.append(para("What the evidence suggests differs (observations, not proven causes)", "h3"))
+            out += R.bullets([short(t, 260) for t in obs[:3]])
+        opp = [a for a in gap.get("articles") or [] if a.get("opportunity")]
+        if opp:
+            out.append(para("Editorial pages the assistant cited that name rivals and not the hotel: " + "; ".join(f"{a['domain']} ({short(a['title'], 60)})" for a in opp[:3]) + ".", "base"))
+        elif not gm and any(m["status"] != "named" for m in gap["markets"]):
+            out.append(para(gap.get("reason") or "", "base"))
+        out.append(para("One assistant on one day: a lead to investigate, not a ranking or a cause. Hotels in a different category from this one are not counted as competitors. The evidence for each row, the pages the assistant cited and the "
+                        "comparison with the rivals' own sites are in the appendix.", "tiny"))
+    elif ai.get("status") == "ok":
+        out.append(para("Which AI searches name the hotel", "h3"))
+        log = __import__("ai_sample").test_log(ai)
+        rows = [["A search a traveller might make", "Names the hotel"]] + [[short(g["text"], 120), f"{g['named']} of {g['of']} ({trend.band(g['named'], g['of'])})"] for g in __import__("ai_sample").by_question([i for i in ai["items"] if i["kind"] != "direct"])][:7]
+        out.append(table(rows, [0.7, 0.3]))
+    return out
+
+
 def story(rep, H1):
     c = rep["consultant"]
     meta = rep.get("meta", {})
@@ -152,25 +191,31 @@ def story(rep, H1):
         out.append(Spacer(1, 2))
     out.append(para("Readiness and observed AI visibility are kept separate on purpose: a well-prepared hotel can still not be recommended, and a hotel can be recommended by chance while poorly prepared. "
                     "This report scores readiness. It does not claim to measure visibility.", "tiny"))
-    out.append(para(f"The {len(top)} highest-priority actions" if top else "Highest-priority actions", "h3"))
+    out += _markets_block(rep, c)
+    out.append(para(f"What to do first: the {len(top)} highest-priority actions" if top else "What to do first", "h3"))
     if top:
-        out += R.bullets([cat(Markup(f"<b>{esc(short(r['title'], 95))}</b>"), f" - {r.get('owner') or r['team'].capitalize()}, {r['priority']} priority, effort {r['effort']} ({r['ref']})") for r in top])
+        out += R.bullets([cat(Markup(f"<b>{esc(short(r['title'], 95))}</b>"), f" - {r.get('owner') or r['team'].capitalize()}, {r['priority']} priority, {_conf(r)} ({r['ref']})") for r in top])
     else:
         out.append(para("Nothing in this audit met the bar for a required fix.", "base"))
+    out.append(para("How sure we are", "h3"))
+    out.append(para(CONF_KEY, "tiny"))
 
     # 2 -------------------------------------------------------------- discoverability and technical readiness
     out.append(H1("Discoverability and technical readiness"))
     prof = {p["key"]: p for p in c["profile"]}
     rows = [["Measure", "Score", "Evidence strength", "What drove it"]]
+    skipped = [prof[k]["label"] for k in ("discoverability", "technical", "structured") if prof.get(k) and not prof[k]["assessed"]]
     for k in ("discoverability", "technical", "structured", "entity"):
         p = prof.get(k)
-        if not p:
-            continue
+        if not p or (len(skipped) >= 2 and k in ("discoverability", "technical", "structured") and not p["assessed"]):
+            continue                                   # several 'not assessed' rows say one thing once, below the table
         ev = p.get("evidence") or {}
         sc = f"{p['score']} / 100" if p["assessed"] else "not assessed"
         rows.append([p["label"], sc, R.coloured((ev.get("level") or "-") + " evidence", LEVEL_COL.get(ev.get("level"), R.GREY)),
                      short("; ".join(p["drivers"][:2]), 140) + (f" ({ev['why']})" if ev.get("why") else "")])
     out.append(table(rows, [0.2, 0.12, 0.16, 0.52]))
+    if len(skipped) >= 2:
+        out.append(para("Not assessed: " + ", ".join(skipped) + ". " + ("The pages were read as plain text, so their markup, titles, headings and images could not be inspected." if (c.get("coverage") or {}).get("text_only") else "Too few pages could be read to judge them."), "base"))
     out.append(para("A score and the evidence behind it are different things: a high score on thin evidence is shown as such.", "tiny"))
     # how the overall number is made
     bd, method, simple = _breakdown(rep)
@@ -268,21 +313,6 @@ def story(rep, H1):
                     "Guest reviews could not be assessed (the platforms prohibit automated collection), so the absence of a finding here is not evidence of a healthy review profile. "
                     "Uploading the hotel's own review export adds this.", "tiny"))
 
-    # who the assistant named instead (a short view; the evidence is in the appendix)
-    gap = rep.get("ai_gap") or {}
-    if gap.get("status") == "ok" and gap.get("gaps"):
-        gms = {m["qid"]: m for m in gap["markets"]}
-        out.append(para("Where the hotel was not named, and who was", "h3"))
-        rows = [["Question put to the assistant", "Hotel named", "Named instead"]]
-        for q in gap["gaps"][:6]:
-            m = gms[q]
-            rows.append([short(m["question"], 110), f"{m['named']} of {m['of']} answers", ", ".join(f"{r['name']} ({r['answers']} of {r['of']})" for r in m["rivals"][:3])])
-        out.append(table(rows, [0.45, 0.15, 0.4]))
-        opp = [a for a in gap.get("articles") or [] if a.get("opportunity")]
-        if opp:
-            out.append(para("Editorial pages the assistant cited that name rivals and not the hotel: " + "; ".join(f"{a['domain']} ({short(a['title'], 60)})" for a in opp[:3]) + ".", "base"))
-        out.append(para("One assistant on one day: a lead to investigate, not a ranking or a cause. The evidence for each row, the cited pages and the comparison with the rivals' own sites are in the appendix.", "tiny"))
-
     # 5 -------------------------------------------------------------- commercial opportunities
     out.append(H1("Commercial opportunities"))
     hc = (c.get("hotel_class") or {}).get("classes") or []
@@ -371,7 +401,7 @@ def story(rep, H1):
     out.append(para("Confidence", "h3"))
     n_lik = sum(1 for r in c["recommendations"] if _conf(r) == "Likely")
     n_chk = sum(1 for r in c["recommendations"] if _conf(r) == "Worth checking")
-    out.append(para(f"Of the {len(c['recommendations'])} findings in this audit, {n_ver} are Confirmed, {n_lik} Likely and {n_chk} Worth checking. " + CONF_KEY + " "
+    out.append(para(f"Of the {len(c['recommendations'])} findings in this audit, {n_ver} are Confirmed, {n_lik} Likely and {n_chk} Worth checking (what each label means is explained in the executive summary). "
                     f"{len(c.get('dropped_recommendations') or [])} candidate finding(s) were withheld for lacking evidence or a specific action.", "base"))
     out.append(para("AI recommendation testing", "h3"))
     out.append(para(("Genuine tests were run on one assistant only (" + (rep.get("ai_sample") or {}).get("model", "Claude") + " with web search); every prompt and answer is logged in the appendix, and a checklist is provided to test the "
