@@ -348,7 +348,7 @@ try:
     check("it says only one assistant was sampled and which were not tested", "Sampled on one assistant only" in flat and "NOT tested" in flat)
     check("the appendix carries the evidence, the AI test log and the hand-testing checklist", all(w in " ".join(at.split()) for w in ("Traveller requirements: the evidence for each", "External presence: each source", "AI recommendation tests: the log", "Checklist to test by hand")))
     html = report_view.render(rep, token="t" * 32)
-    check("the web report shows the new cards", all(w in html for w in ("Traveller recommendation readiness", "The hotel on outside sources", "Booking readiness", "AI recommendation tests: what was actually tested", "How the readiness score is calculated")))
+    check("the web report shows the new cards", all(w in html for w in ("Traveller recommendation readiness", "The hotel on outside sources", "Booking readiness", "Do AI assistants name this hotel?", "How the readiness score is calculated")))
 except Exception as e:  # noqa: BLE001
     check("the PDF and web report build with the new sections", False, repr(e))
 

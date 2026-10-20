@@ -234,16 +234,20 @@ def overview(rep, prev=None):
 # ----------------------------------------------------------------------------- the Action plan
 
 def _rec_card(r, n, start):
+    """One recommendation as a single line (number, title, how sure, priority, owner) that opens to the reason, the action and the evidence. The first few of 'Start here' are open."""
     detail = htmlst.build(ui_consult.rec_card, r, True)
     team = TEAM_LABEL.get(r["team"], r["team"])
-    return (f'<article class="rec {PRI_TONE.get(r["priority"], "")}" id="rec-{n}" data-team="{esc(r["team"])}" data-kind="{esc(r["kind"])}" data-start="{1 if start else 0}">'
-            f'<div class="rec-n">{n}</div><div class="rec-main"><h4>{esc(r["title"])}</h4><p class="rec-why">{esc(short(r["why"], 230))}</p>'
-            f'<div class="rec-do"><b>Action</b> {esc(short(r["action"], 260))}</div>'
-            f'<div class="chips">{chip(r["priority"].capitalize() + " priority", PRI_TONE.get(r["priority"], ""))}{chip("Effort: " + r["effort"])}{chip("Owner: " + team)}{chip("Confidence: " + (r.get("confidence_label") or r["confidence"]))}'
-            f'{chip("Opportunity", "brand") if r["kind"] != "fix" else ""}{chip(r["ref"])}</div>'
+    label = r.get("confidence_label") or r["confidence"]
+    label_tone = {"Confirmed": "good", "Likely": "", "Worth checking": "warn"}.get(label, "")
+    return (f'<article class="rec compact {PRI_TONE.get(r["priority"], "")}" id="rec-{n}" data-team="{esc(r["team"])}" data-kind="{esc(r["kind"])}" data-start="{1 if start else 0}">'
+            f'<details class="rec-d"{" open" if start and n <= 3 else ""}><summary><span class="rec-n">{n}</span><span class="rec-t">{esc(short(r["title"], 140))}</span>'
+            f'<span class="rec-meta">{chip(r["priority"].capitalize(), PRI_TONE.get(r["priority"], ""))}{chip(label, label_tone)}{chip(team)}</span></summary>'
+            f'<div class="rec-body"><p class="rec-why">{esc(short(r["why"], 260))}</p>'
+            f'<div class="rec-do"><b>Action</b> {esc(short(r["action"], 300))}</div>'
+            f'<div class="chips">{chip("Effort: " + r["effort"])}{chip("Opportunity", "brand") if r["kind"] != "fix" else ""}{chip(r["ref"])}</div>'
             f'<div class="fb" data-ref="{esc(r["ref"])}"><span class="fb-q">Was this useful?</span><button type="button" data-v="useful">Useful</button><button type="button" data-v="wrong">Wrong or not relevant</button>'
             f'<span class="fb-done" hidden>Thank you, noted.</span></div>'
-            f'<details class="details"><summary>Evidence, example wording and full detail</summary><div class="details-body">{detail}</div></details></div></article>')
+            f'<details class="details"><summary>Evidence, example wording and full detail</summary><div class="details-body">{detail}</div></details></div></details></article>')
 
 
 def action_plan(rep):

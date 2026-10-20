@@ -143,6 +143,25 @@ def bars(rows):
     st.markdown(f'<div class="hk-bars">{"".join(out)}</div>', unsafe_allow_html=True)
 
 
+def count_bars(rows):
+    """
+    Horizontal bars that say 'n of m': rows [{"label", "named", "of", "note"}]. Green when the hotel was named in at least three quarters of the answers, amber when sometimes, red when never; a row with no
+    answers is shown as such, never as zero.
+    """
+    out = []
+    for r in rows:
+        n, of = r.get("named", 0), r.get("of", 0)
+        note = f"<small>{html.escape(str(r['note']))}</small>" if r.get("note") else ""
+        if not of:
+            out.append(f'<div class="hk-bar wide"><div>{html.escape(str(r["label"]))}{note}</div><div class="hk-track"></div><div class="hk-val hk-na">no answers</div></div>')
+            continue
+        pct = 100 * n / of
+        colour = "#1B873F" if pct >= 75 else "#D9822B" if n else "#C0392B"
+        out.append(f'<div class="hk-bar wide"><div>{html.escape(str(r["label"]))}{note}</div><div class="hk-track"><div class="hk-fill" style="width:{max(3, pct):.0f}%;background:{colour}"></div></div>'
+                   f'<div class="hk-val">{n} of {of}</div></div>')
+    st.markdown(f'<div class="hk-bars">{"".join(out)}</div>', unsafe_allow_html=True)
+
+
 def dots(named, of):
     """● ● ○ : which of a question's answers named the hotel."""
     return "".join(f'<span class="hk-dot {"y" if i < named else "n"}"></span>' for i in range(of))

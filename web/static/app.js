@@ -145,6 +145,13 @@
       }).catch(function () { btn.disabled = false; status.textContent = "Could not reach the service."; });
     });
   }
+  /* a link to a recommendation (quick wins, the 30/60/90 plan) opens it */
+  document.addEventListener("click", function (ev) {
+    var a = ev.target.closest && ev.target.closest('a[href^="#rec-"]');
+    if (!a) { return; }
+    var art = document.getElementById(a.getAttribute("href").slice(1)), d = art && art.querySelector("details.rec-d");
+    if (d) { d.open = true; }
+  });
   /* ---- 'useful' / 'wrong' on a recommendation: one tap, and for 'wrong' an optional word on what is wrong */
   document.addEventListener("click", function (ev) {
     var b = ev.target.closest && ev.target.closest(".fb button");

@@ -154,7 +154,7 @@ check("the report page renders the hotel, the seven tabs, the readiness ring and
 check("it carries the honesty wording: a sample, not the market; not assessed; hypotheses not causes", all(w in body for w in ("not the market", "Not assessed", "not as causes")))
 check("it is private: not indexed, not cached", page.headers["X-Robots-Tag"].startswith("noindex") and page.headers["Cache-Control"] == "no-store" and 'name="robots" content="noindex' in body)
 check("an unknown link and a malformed one are both a plain 404 (a guessed address finds nothing)", c.get("/r/" + "a" * 32).status_code == 404 and c.get("/r/short").status_code == 404 and c.get("/r/%2e%2e%2f").status_code == 404)
-check("the charts are written as data for the browser to draw, and the scorecard is a sandboxed frame without scripts", 'class="vega"' in body and 'sandbox="allow-same-origin"' in body and "ResizeObserver" not in body.split('<iframe class="dash"')[1].split("</iframe>")[0])
+check("the charts are written as data for the browser to draw, and the scorecard no longer carries the old long frame", 'class="vega"' in body and '<iframe class="dash"' not in body and "How the readiness score is calculated" in body)
 pdf = c.get(f"/r/{token}/management.pdf")
 check("the management report downloads as a PDF", pdf.status_code == 200 and pdf.data[:4] == b"%PDF" and "attachment" in pdf.headers["Content-Disposition"])
 check("so does the appendix, and the data file", c.get(f"/r/{token}/appendix.pdf").data[:4] == b"%PDF" and json.loads(c.get(f"/r/{token}/data.json").data)["meta"]["hotel"] == "Brooklands Hotel" and c.get(f"/r/{token}/other.pdf").status_code == 404)

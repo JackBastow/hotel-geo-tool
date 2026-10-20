@@ -51,12 +51,6 @@ def _scorecard(fa_res):
     intel = fa_res.get("intel") or {}
     has_intel = bool(intel) and "error" not in intel
     st.caption("The original eight-category scorecard, with its coverage. The other tabs add evidence and recommendations; this number is unchanged by them.")
-    top = fa_res.get("top_fixes") or []
-    top_codes = {r.get("code") for r in top}
-    rest = [r for r in fa_res["recommendations"] if r.get("code") not in top_codes]
-    doc, _h = dashboard.build(meta["hotel"], meta["website"], sc, rest, fa_res.get("guest_questions"), top, fa_res.get("headline"))
-    doc = doc.replace(dashboard._RESIZE_JS, "")        # the page itself resizes the frame (the frame is sandboxed, so it must not run scripts)
-    st.raw(f'<iframe class="dash" title="Scorecard" sandbox="allow-same-origin" srcdoc="{html.escape(doc, quote=True)}"></iframe>')
     st.caption(f"run {meta['run_at']} · hotel name {meta['hotel_name_source']}" + (f" · location from {loc['source']}" if loc.get("source") else ""))
     st.info(f"**Read the score with its coverage.** {sc['caveat']}")
     ui_consult.score_breakdown_card(fa_res)
@@ -192,14 +186,21 @@ def _tools(fa_res, token):
     if fa_res.get("consultant") and "error" not in fa_res["consultant"]:
         ui_consult.assessment_card(fa_res)
         st.divider()
-    st.subheader("Method: all 30 checks and what each source could and couldn't tell us")
-    if intel and "error" not in intel:
-        ui_intel.gaps(intel)
-    else:
-        st.info("The 30-check methodology table needs the wider analysis, which did not run.")
-    st.divider()
+    with st.expander("Method: all 30 checks and what each source could and couldn't tell us"):
+        if intel and "error" not in intel:
+            ui_intel.gaps(intel)
+        else:
+            st.info("The 30-check methodology table needs the wider analysis, which did not run.")
     st.caption("Optional extras. Nothing here is part of the score.")
-    st.subheader("Check what AI assistants actually say about your hotel")
+    with st.expander("Check what AI assistants actually say about your hotel: prompts to copy"):
+        _by_hand(fa_res, meta)
+    st.subheader("Compare with an earlier report")
+    st.caption("Run the audit again after making changes, then upload the .json you downloaded last time to see what moved. Nothing you upload here is kept.")
+    if token:
+        st.raw(COMPARE_FORM.format(token=html.escape(token, quote=True)))
+
+
+def _by_hand(fa_res, meta):
     st.caption("This tool doesn't ask AI assistants for you, but you can in a few minutes, free, in whichever assistant you use. Copy a prompt, paste it in, and look at what came back. "
                "Each answer is **one sample** — an assistant can answer differently tomorrow, with web search on or off — so look for patterns across several answers, not a verdict from one.")
     prompts = ai_check.build_prompts(meta["hotel"], meta.get("city") or "", fa_res.get("segments"))
@@ -219,10 +220,6 @@ def _tools(fa_res, token):
             st.code(p["prompt"])
     st.info("**Real citation data, if you own the website:** Bing Webmaster Tools has an *AI Performance* report showing how often your pages are cited in Microsoft Copilot and Bing's AI summaries "
             "(public preview). It does **not** cover ChatGPT, Gemini or Perplexity. [How it works](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)")
-    st.subheader("Compare with an earlier report")
-    st.caption("Run the audit again after making changes, then upload the .json you downloaded last time to see what moved. Nothing you upload here is kept.")
-    if token:
-        st.raw(COMPARE_FORM.format(token=html.escape(token, quote=True)))
 
 
 TABS = [("overview", "Overview"), ("action", "Action plan"), ("ai", "AI visibility"), ("site", "Your website"), ("reputation", "Reputation & listings"), ("score", "Scorecard"), ("tools", "Tools & method")]
@@ -250,21 +247,8 @@ def render(fa_res, token=None, prev=None, private=None, prev_full=None):
             st.info("The analysis of what AI systems can understand about this hotel did not run for this audit. The Scorecard tab still has the website results.")
 
     def ai():
-        if has_consult:
-            if fa_res.get("custom_prompts"):
-                ui_consult.custom_prompts_card(fa_res.get("ai_sample"), fa_res["custom_prompts"])
-                st.divider()
-            if fa_res.get("ai_gap"):
-                ui_consult.ai_gap_card(fa_res["ai_gap"])
-                st.divider()
-            if prev_full and (prev_full.get("ai_sample") or {}).get("status") == "ok":
-                ui_consult.ai_trend_card(fa_res.get("ai_sample"), prev_full, fa_res.get("benchmark"))
-                st.divider()
-            ui_consult.ai_test_card(fa_res.get("ai_sample"), fa_res["meta"].get("hotel", ""))
-            st.divider()
-            ui_consult.ai_view(consult, fa_res.get("ai_sample"), fa_res.get("ai_insights"))
-        else:
-            st.raw(no_consult)
+        import ui_ai
+        ui_ai.ai_tab(fa_res, consult if has_consult else None, prev_full)
 
     def site():
         if has_consult:
@@ -278,6 +262,9 @@ def render(fa_res, token=None, prev=None, private=None, prev_full=None):
             ui_consult.competitor_card(consult.get("competitors"))
             st.divider()
             ui_consult.fix_site(consult, fa_res.get("web_signals"))
+            st.divider()
+            with st.expander("How the website reads to an AI: signals, traveller searches, open questions and location"):
+                ui_consult.site_reading(consult)
         else:
             st.raw(no_consult)
 

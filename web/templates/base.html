@@ -7,7 +7,7 @@
 <meta name="description" content="Find the gaps in the information AI search can use about your hotel. Free, no account.">
 {% block robots %}{% endblock %}
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Ctext x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EH%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=1">
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ asset_v }}">
 </head>
 <body>
 <header class="site-head"><div class="wrap">
@@ -19,6 +19,6 @@
 <script src="https://cdn.jsdelivr.net/npm/vega@5.30.0" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.21.0" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.26.0" defer></script>
-<script src="{{ url_for('static', filename='app.js') }}?v=1" defer></script>
+<script src="{{ url_for('static', filename='app.js') }}?v={{ asset_v }}" defer></script>
 </body>
 </html>

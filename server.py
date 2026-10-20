@@ -172,6 +172,15 @@ def create_app(cfg=None, run_fn=None):
     manager = jobs.Manager(run_fn or (lambda params, progress: audit_service.run(params, cfg, progress)), reports.save, workers=2, max_queue=cfg.max_queue, per_hour=cfg.audits_per_hour)
     app.extensions["cfg"], app.extensions["reports"], app.extensions["jobs"] = cfg, reports, manager
 
+    @app.context_processor
+    def asset_version():
+        """The stylesheet and script carry their last-changed time in their address, so a visitor's browser fetches the new ones after a deploy instead of showing the new page in the old style."""
+        try:
+            v = int(max(os.path.getmtime(os.path.join(HERE, "web", "static", f)) for f in ("app.css", "app.js")))
+        except OSError:
+            v = 1
+        return {"asset_v": v}
+
     # ---------------------------------------------------------------- site password
     # When SITE_PASSWORD is set the whole site (pages, reports, uploads, admin) needs it first, so that only people who were given it can use the service and spend its free allowances.
     # /healthz stays open for the uptime monitor, and so do the stylesheet and script the sign-in page itself needs. Wrong guesses are slowed and limited.

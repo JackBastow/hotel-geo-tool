@@ -439,7 +439,7 @@ def gap_section(gap):
         if crit:
             word = {"strong": "states it clearly", "mentioned": "only in passing", "not_found": "does not mention it", "not_assessed": "not assessed"}
             out.append(table([["Reason the assistant gave", "Named for it", "The hotel's own pages"]] + [[c["label"], ", ".join(c["rivals"][:3]), word.get(c["hotel"]["state"], "-")] for c in crit], [0.4, 0.35, 0.25]))
-        obs = (gap.get("observations") or {}).get(q) or []
+        obs = [o for o in (gap.get("observations") or {}).get(q) or [] if o["kind"] != "assistant"]      # the assistant's own reasons are in the table above
         if obs:
             out += R.bullets([o["text"] for o in obs])
         steps = (gap.get("investigate") or {}).get(q) or []
