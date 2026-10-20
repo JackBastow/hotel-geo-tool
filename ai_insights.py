@@ -105,6 +105,13 @@ def appears(name, answer):
 
 # ------------------------------------------------------------ LLM: extraction
 
+# the reasons an assistant gives for recommending a hotel, as a fixed list, so the reasons for different hotels in different answers can be counted and compared with what the hotel's own pages say
+THEMES = {"location": "close to a named landmark, area, station or attraction", "views_terrace": "a rooftop, terrace, garden or views", "spa_wellness": "a spa, pool, gym or wellness",
+          "meetings_events": "meeting rooms, conferences or events", "dining": "a restaurant, bar or food", "design_style": "design, boutique or stylish character", "luxury_service": "luxury, service or an exclusive feel",
+          "value": "price, value or affordability", "family": "family-friendly", "rating_reviews": "high ratings or good reviews", "awards": "awards or recognition", "transport_access": "easy transport links or airport access",
+          "quiet_historic": "quiet, historic or characterful", "sustainability": "sustainability or eco credentials", "pets_accessibility": "pet-friendly or accessible", "breakfast": "breakfast"}
+THEMES_TEXT = "; ".join(f"{k} = {v}" for k, v in THEMES.items())
+
 EXTRACT_SYSTEM = ("You extract structured facts from answers a travel assistant gave. Use ONLY what is written in each answer; never add anything. "
                   "Reply with one JSON object and nothing else.")
 
@@ -117,12 +124,13 @@ For the answers that are ABOUT the target hotel (ids: {about_ids}) also return h
 
 Return JSON in exactly this shape:
 {{
-  "answers": [{{"id": "best", "hotels": [{{"name": "as written", "rank": 1, "reason": "paraphrase", "rating": "e.g. 8.6 on Booking.com or null", "sentiment": "positive|neutral|negative"}}]}}],
+  "answers": [{{"id": "best", "hotels": [{{"name": "as written", "rank": 1, "reason": "paraphrase", "rating": "e.g. 8.6 on Booking.com or null", "sentiment": "positive|neutral|negative", "stars": 4, "themes": ["location"]}}]}}],
   "about": {{"tone": "positive|mixed|negative|unclear",
             "strengths": ["short phrases the assistant gives as positives"], "weaknesses": ["short phrases the assistant gives as drawbacks"],
             "claims": [{{"type": "phone|address|check_in|check_out|star_rating|parking|pets|other", "value": "exactly as stated", "answer_id": "about"}}]}}
 }}
-Use an empty list where nothing applies. rank is the position in the answer's list (1 first), or null if the answer is not a list.'''
+Use an empty list where nothing applies. rank is the position in the answer's list (1 first), or null if the answer is not a list.
+stars is the star rating the answer gives for THAT hotel (a number from 1 to 5), or null when the answer gives none: never guess it. themes are the reasons the answer gives for recommending THAT hotel, chosen ONLY from this list: {themes}.'''
 
 
 def _blocks(items):
@@ -134,10 +142,31 @@ def _extract_batch(client, model, batch, hotel, city):
     about_ids = [i["id"] for i in batch if i["kind"] == "direct"]
     extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
     resp = client.messages.create(model=model, max_tokens=MAX_TOKENS, system=EXTRACT_SYSTEM, messages=[{"role": "user", "content": EXTRACT_PROMPT.format(
-        hotel=hotel, city=city, about_ids=", ".join(about_ids) or "none", blocks=_blocks(batch))}], **extra)
+        hotel=hotel, city=city, about_ids=", ".join(about_ids) or "none", blocks=_blocks(batch), themes=THEMES_TEXT)}], **extra)
     text, _d, _s, tin, tout = ai_sample.parse_response(resp)
     data = review_replies.parse_json(text)
     return (data if isinstance(data, dict) else None), (tin, tout)
+
+
+_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+_STAR = re.compile(r"(\d|one|two|three|four|five)[\s-]?(?:star|stars|\*|\u00e9toiles?)\b|(\d)\*", re.I)
+
+
+def _star_near(answer, name, stars):
+    """Does the answer give this star rating right beside THIS hotel's name (the rest of its line or sentence)? A rating given for another hotel in the same answer does not count."""
+    low = evidence.fold(answer)
+    i = low.find(evidence.fold(name))
+    if i < 0:
+        i = low.find(canon(name))
+    if i < 0:
+        return False
+    end = re.search(r"(?<=[.!?])\s|\s\d{1,2}\.\s|\n", answer[i + len(name):])
+    stop = i + len(name) + (end.start() if end else 160)
+    for m in _STAR.finditer(answer[max(0, i - 20): stop]):
+        v = (m.group(1) or m.group(2) or "").lower()
+        if (int(v) if v.isdigit() else _WORDS.get(v)) == stars:
+            return True
+    return False
 
 
 def extract(client, model, items, hotel, city):
@@ -174,7 +203,12 @@ def extract(client, model, items, hotel, city):
             seen.add(canon(nm))
             rank = h.get("rank")
             sent = str(h.get("sentiment") or "").strip().lower()
-            keep.append({"name": nm, "rank": rank if isinstance(rank, int) and 1 <= rank <= 30 else None, "sentiment": sent if sent in SENTIMENTS else "neutral",
+            stars = h.get("stars")
+            stars = int(stars) if str(stars).strip().isdigit() and 1 <= int(str(stars).strip()) <= 5 else None
+            if stars and not _star_near(by_id[a["id"]]["answer"], nm, stars):
+                stars = None                                   # a star rating the answer does not give for THIS hotel is an invention
+            themes = [t for t in (h.get("themes") or []) if t in THEMES][:5]
+            keep.append({"name": nm, "stars": stars, "themes": themes, "rank": rank if isinstance(rank, int) and 1 <= rank <= 30 else None, "sentiment": sent if sent in SENTIMENTS else "neutral",
                          "reason": re.sub(r"\s+", " ", str(h.get("reason") or "")).strip()[:140],
                          "rating": (str(h.get("rating"))[:40] if h.get("rating") not in (None, "null", "") else None)})
         answers[a["id"]] = keep

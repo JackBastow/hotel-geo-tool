@@ -25,6 +25,7 @@ import ai_sample
 import competitors
 import evidence
 import insight_content as ic
+import rivals
 import textutil
 
 SOURCE = "Competitors the assistant named instead, the pages it cited, and what the evidence shows"
@@ -47,60 +48,77 @@ FACILITY_KEYS = ("spa", "pool", "restaurant", "meeting_rooms", "weddings", "airp
 
 # ------------------------------------------------------------------ 1. the gap
 
-def _fold_names(rows):
-    """One hotel written two ways ('Park Inn by Radisson' / 'Park Inn by Radisson Luxembourg City') is one hotel: the shorter folds into the longer."""
-    for short in sorted(rows, key=lambda k: -len(k)):
-        st = short.split()
-        host = next((k for k in rows if k != short and len(st) >= 2 and k.split()[:len(st)] == st), None)
-        if host and short in rows:
-            a, b = rows[host], rows.pop(short)
-            a["answers"] |= b["answers"]
-            a["ranks"] += b["ranks"]
-            a["reasons"] += [x for x in b["reasons"] if x not in a["reasons"]]
-            a["ratings"] += [x for x in b["ratings"] if x not in a["ratings"]]
-            a["sent"] += b["sent"]
-    return rows
+def _resolver(items, extracted, hotel, city):
+    """One decision, for the whole audit, about which names are one hotel: name -> (group key, display name, other names, uncertain). See rivals.resolve."""
+    by_answer = []
+    for it in items:
+        if it.get("kind") == "direct" or it["id"] not in extracted:
+            continue
+        by_answer.append((it["id"], [h["name"] for h in extracted[it["id"]] if not ai_sample.mentioned(h["name"], hotel)]))
+    out = {}
+    for g in rivals.resolve(by_answer, city):
+        for n in g["names"]:
+            out[n] = (g["key"], g["name"], [x for x in g["names"] if x != g["name"]], g["uncertain"])
+    return out
 
 
-def market_rivals(answer_ids, extracted, hotel):
-    """The hotels named in the answers to ONE question (repeats together), other than the hotel: [{name, answers, of, best_rank, reasons, ratings, sentiment}], most-named first."""
+def market_rivals(answer_ids, extracted, hotel, resolver=None, city="", hotel_tier=None):
+    """
+    The hotels named in the answers to ONE question (repeats together), other than the hotel, each placed on the category ladder:
+    [{name, aliases, uncertain, answers, of, best_rank, reasons, ratings, sentiment, themes, stars_said, tier, relation}], most-named first.
+    """
+    resolver = resolver or _resolver([{"id": a, "kind": "x"} for a in answer_ids], extracted, hotel, city)
     rows = {}
     for aid in answer_ids:
         for h in extracted.get(aid) or []:
             if ai_sample.mentioned(h["name"], hotel):
                 continue
-            k = ains.canon(h["name"])
-            r = rows.setdefault(k, {"name": h["name"], "answers": set(), "ranks": [], "reasons": [], "ratings": [], "sent": []})
+            key, display, aliases, unc = resolver.get(h["name"], (ains.canon(h["name"]), h["name"], [], False))
+            r = rows.setdefault(key, {"name": display, "aliases": aliases, "uncertain": unc, "answers": set(), "ranks": [], "reasons": [], "ratings": [], "sent": [], "themes": {}, "stars": []})
             r["answers"].add(aid)
             r["sent"].append(h.get("sentiment") or "neutral")
             if h.get("rank"):
                 r["ranks"].append(h["rank"])
+            if h.get("stars"):
+                r["stars"].append(h["stars"])
+            for t in h.get("themes") or []:
+                r["themes"][t] = r["themes"].get(t, 0) + 1
             if h.get("reason") and h["reason"] not in r["reasons"]:
                 r["reasons"].append(h["reason"])
             if h.get("rating") and h["rating"] not in r["ratings"]:
                 r["ratings"].append(h["rating"])
     out = []
-    for r in _fold_names(rows).values():
-        out.append({"name": r["name"], "answers": len(r["answers"]), "of": len(answer_ids), "best_rank": min(r["ranks"]) if r["ranks"] else None, "reasons": r["reasons"][:2],
-                    "ratings": r["ratings"][:2], "sentiment": ains.sentiment_of(r["sent"]).get("sentiment")})
+    for r in rows.values():
+        stars = max(set(r["stars"]), key=r["stars"].count) if r["stars"] else None
+        tier = rivals.tier_of(r["name"], stars)
+        out.append({"name": r["name"], "aliases": r["aliases"], "uncertain": r["uncertain"], "answers": len(r["answers"]), "of": len(answer_ids), "best_rank": min(r["ranks"]) if r["ranks"] else None,
+                    "reasons": r["reasons"][:2], "ratings": r["ratings"][:2], "sentiment": ains.sentiment_of(r["sent"]).get("sentiment"), "themes": r["themes"], "stars_said": stars,
+                    "tier": tier, "relation": rivals.relation(hotel_tier, tier["key"])})
     out.sort(key=lambda r: (-r["answers"], r["best_rank"] or 99, r["name"]))
     return out
 
 
-def markets(items, extracted, hotel):
-    """One record per question put to the assistant (never the 'about the hotel' ones): whether the hotel was named, and who was named. -> list in question order."""
+def markets(items, extracted, hotel, city="", hotel_tier=None):
+    """
+    One record per question put to the assistant (never the 'about the hotel' ones): whether the hotel was named, and who was named. `rivals` are the COMPARABLE hotels (same category, one step either way,
+    or category not known); `other_category` are hotels in a higher or lower category, which are shown but never make a gap.
+    """
+    resolver = _resolver(items, extracted, hotel, city)
     out = []
     for g in ai_sample.by_question([i for i in items if i.get("kind") != "direct"]):
         ids = [a["id"] for a in g["answers"] if a.get("answer")]
         if not ids:
             continue
-        rivals = market_rivals(ids, extracted, hotel)
+        every = market_rivals(ids, extracted, hotel, resolver, city, hotel_tier)
+        rv = [r for r in every if r["relation"] in rivals.COMPARABLE]
+        other = [r for r in every if r["relation"] not in rivals.COMPARABLE]
         status = "named" if g["named"] == g["of"] and g["of"] else "sometimes" if g["named"] else "not_named"
-        top = rivals[0] if rivals else None
-        out.append({"qid": g["qid"], "kind": g["kind"], "question": g["text"], "angle": g.get("angle"), "why": g.get("why"), "named": g["named"], "of": g["of"], "status": status,
-                    "best_position": g["best_position"], "answer_ids": ids, "rivals": rivals[:MAX_RIVALS_PER_MARKET],
-                    "gap": status != "named" and bool(rivals),
-                    "consistent": bool(top and top["of"] >= 2 and top["answers"] == top["of"] and g["named"] == 0)})
+        top = rv[0] if rv else None
+        out.append({"qid": g["qid"], "kind": g["kind"], "question": g["text"], "angle": g.get("angle"), "why": g.get("why"), "priority": next((i.get("priority") for i in items if (i.get("qid") or i["id"]) == g["qid"]), None),
+                    "named": g["named"], "of": g["of"], "status": status, "best_position": g["best_position"], "answer_ids": ids, "rivals": rv[:MAX_RIVALS_PER_MARKET], "other_category": other[:4],
+                    "gap": status != "named" and bool(rv),
+                    "consistent": bool(top and top["of"] >= 2 and top["answers"] == top["of"] and g["named"] == 0),
+                    "note": ("The hotels named are in a different category from this hotel, so the hotel not being among them is not a competitive gap." if status != "named" and other and not rv else "")})
     return out
 
 
@@ -329,14 +347,85 @@ def compare(own_pages, base, hotel, rivals, fetch, polite_allowed):
     return out
 
 
-# --------------------------------------------------------------- observations
+# ------------------------------------------------------------- criteria and observations
 
-def observations(market, arts, comp):
+# what the hotel's own pages can show for each reason an assistant gives: ic.features / ic.intents keys, and a phrase to look for
+THEME_EVIDENCE = {
+    "location": {"rx": r"minutes?\b[^.]{0,40}(?:walk|from)|steps from|next to|opposite|heart of|close to|\bnear\b|\bkm\b"},
+    "views_terrace": {"rx": r"rooftop|roof terrace|terrace|panoramic|\bviews?\b|garden|courtyard"},
+    "spa_wellness": {"features": ("spa", "pool", "gym")},
+    "meetings_events": {"features": ("meeting_rooms",), "intents": ("meetings",)},
+    "dining": {"features": ("restaurant", "bar"), "rx": r"michelin|chef|brasserie"},
+    "design_style": {"rx": r"boutique|design|stylish|contemporary|art deco|interiors?"},
+    "luxury_service": {"intents": ("luxury",), "rx": r"concierge|butler|personali[sz]ed|bespoke"},
+    "value": {"rx": r"best (?:rate|price)|great value|good value|affordable|price guarantee"},
+    "family": {"features": ("family",)},
+    "awards": {"rx": r"award|winner|michelin|travellers['\u2019] choice|recogni[sz]ed"},
+    "transport_access": {"features": ("airport_transfer",), "rx": r"metro|station|airport|\btrain\b|\btram\b|\bRER\b"},
+    "quiet_historic": {"rx": r"historic|heritage|quiet|peaceful|character|landmark"},
+    "sustainability": {"rx": r"sustainab|eco-?label|green key|eco-?friendly|ecocertified"},
+    "pets_accessibility": {"features": ("pets", "accessible")},
+    "breakfast": {"rx": r"breakfast|buffet"},
+}
+
+
+def hotel_theme_states(own_pages, base, hotel):
+    """For each reason an assistant gives, what the hotel's OWN pages show: {theme: {"state": strong|mentioned|not_found|not_assessed, "url", "snippet"}}. 'not_found' means not found on the pages read."""
+    out = {}
+    if not own_pages:
+        return {t: {"state": "not_assessed", "url": "", "snippet": ""} for t in ains.THEMES}
+    site = ic.Site(own_pages, base, hotel, "")
+    feat = {f["key"]: f["level"] for f in ic.features(site)}
+    ints = {i["key"]: i["level"] for i in ic.intents(site)}
+    for theme in ains.THEMES:
+        ev = THEME_EVIDENCE.get(theme)
+        if not ev:
+            out[theme] = {"state": "not_assessed", "url": "", "snippet": ""}          # ratings and reviews are outside the hotel's own pages
+            continue
+        lv = max([{"strong": 2, "some": 1}.get(feat.get(k), 0) for k in ev.get("features", ())] + [{"strong": 2, "some": 1}.get(ints.get(k), 0) for k in ev.get("intents", ())] + [0])
+        hits = site.find(re.compile(ev["rx"], re.I)) if ev.get("rx") else []
+        state = "strong" if lv == 2 or len(hits) >= 2 else "mentioned" if lv == 1 or hits else "not_found"
+        top = hits[0] if hits else None
+        out[theme] = {"state": state, "url": top["page"]["url"] if top else "", "snippet": top["snippet"][:200] if top else ""}
+    return out
+
+
+def criteria(market, extracted, hotel_states):
+    """
+    Why the assistant named the comparable hotels, as the reasons it gave (a fixed list of themes) that recur across the hotels named for this question, set beside what the hotel's own pages show for each.
+    -> [{theme, label, rivals, count, quotes, hotel: {state, url, snippet}}], the most recurrent first. A reason given for a single hotel once is not a pattern and is left out.
+    """
+    by_theme = {}
+    for r in market.get("rivals") or []:
+        for t, n in (r.get("themes") or {}).items():
+            d = by_theme.setdefault(t, {"rivals": [], "count": 0, "quotes": []})
+            d["rivals"].append(r["name"])
+            d["count"] += n
+            if r.get("reasons") and r["reasons"][0] not in d["quotes"]:
+                d["quotes"].append(r["reasons"][0])
+    rows = []
+    for t, d in by_theme.items():
+        if len(d["rivals"]) >= 2 or d["count"] >= 2:
+            rows.append({"theme": t, "label": ains.THEMES[t], "rivals": d["rivals"][:4], "count": d["count"], "quotes": d["quotes"][:2], "hotel": (hotel_states or {}).get(t) or {"state": "not_assessed", "url": "", "snippet": ""}})
+    rows.sort(key=lambda r: (-len(r["rivals"]), -r["count"], r["theme"]))
+    return rows[:5]
+
+
+def observations(market, arts, comp, crit=None):
     """The evidence for ONE market where the hotel was not (always) named, as observations that name their source. Never a cause."""
     obs = []
     for r in market["rivals"][:3]:
         if r["reasons"]:
             obs.append({"kind": "assistant", "text": f"The assistant named {r['name']} in {r['answers']} of {r['of']} answers and gave this reason: {r['reasons'][0]}.", "urls": []})
+    for c in crit or []:
+        st, who = c["hotel"]["state"], ", ".join(c["rivals"][:3])
+        if st == "not_found":
+            obs.append({"kind": "criterion", "theme": c["theme"], "text": f"{who} were recommended for {c['label']}. The hotel's own pages do not mention it: either the hotel does not offer it, or it is not stated (only the hotel knows which).", "urls": []})
+        elif st == "mentioned":
+            obs.append({"kind": "criterion", "theme": c["theme"], "text": f"{who} were recommended for {c['label']}. The hotel's pages mention it only in passing: \u201c{c['hotel']['snippet'][:140]}\u201d.", "urls": [c["hotel"]["url"]] if c["hotel"]["url"] else []})
+        elif st == "strong":
+            obs.append({"kind": "criterion", "theme": c["theme"], "text": f"{who} were recommended for {c['label']}. The hotel's own pages already state it clearly (\u201c{c['hotel']['snippet'][:140]}\u201d), so the difference is more likely in the evidence outside the hotel's site.",
+                        "urls": [c["hotel"]["url"]] if c["hotel"]["url"] else []})
     mine = [a for a in arts if market["qid"] in a["questions"] and a["read"] == "ok"]
     missing = [a for a in mine if a["rivals_in"] and a["hotel_in"] is False]
     present = [a for a in mine if a["hotel_in"]]
@@ -357,10 +446,17 @@ def investigate(market, obs):
     steps = []
     kinds = {o["kind"] for o in obs}
     top = ", ".join(r["name"] for r in market["rivals"][:2])
+    crit = [o for o in obs if o["kind"] == "criterion"]
+    weak = [o for o in crit if "do not mention it" in o["text"] or "only in passing" in o["text"]]
+    strong = [o for o in crit if "already state it clearly" in o["text"]]
+    if weak:
+        steps.append("For each reason listed above that the hotel's pages do not state: if the hotel offers it, state it plainly (what, how many, when, cost) on the page it belongs on; if it does not, there is nothing to fix, it is a real difference between the hotels.")
+    if strong:
+        steps.append("Where the hotel's own pages already state the reason, look outside the site: the pages the assistant cited and the hotel's listings, to see whether they carry the same fact.")
     if "source" in kinds:
         steps.append("Open the cited pages listed here and check whether the hotel is described there; where a relevant editorial list omits it, decide whether the hotel genuinely belongs in it.")
     if "facility" in kinds:
-        steps.append("Compare the facilities noted here with the hotel's own pages. If the hotel offers the same thing, state it as plainly (what, how many, when, cost) on the page where it belongs; if it does not, leave it.")
+        steps.append("Compare the facilities noted here with the hotel's own pages, and state any the hotel really has as plainly as the rival does.")
     steps.append(f"Look at how {top} describe themselves and which independent sources feature them, and compare that with what the hotel's pages and outside sources say.")
     steps.append("Ask the same question again in a few weeks: one assistant on one day is a sample, and a gap that persists is worth more than one that does not.")
     return steps
@@ -383,9 +479,11 @@ def run(ai, ins, ctx, *, api_key=None, model=None, client=None, reader=None, fet
     if not extracted:
         return env("unavailable", "The answers could not be broken down into the hotels they name, so who was named instead cannot be shown.")
     hotel, city = ctx["hotel"], ctx.get("city", "")
-    ms = markets(ai["items"], extracted, hotel)
+    ms = markets(ai["items"], extracted, hotel, city, ctx.get("hotel_tier"))
     gaps = [m for m in ms if m["gap"]]
-    out = env("ok", "" if gaps else "The hotel was named in every answer to every question, so there is no gap to analyse.", markets=ms, gaps=[m["qid"] for m in gaps])
+    out = env("ok", "" if gaps else ("The hotel was named in every answer to every question, so there is no gap to analyse." if all(m["status"] == "named" for m in ms) else
+                                      "The hotel was not named in some answers, but only hotels in a different category were: that is not a competitive gap."),
+              markets=ms, gaps=[m["qid"] for m in gaps], hotel_tier=ctx.get("hotel_tier"))
     if not gaps:
         return out
     if reader is None:
@@ -435,7 +533,9 @@ def run(ai, ins, ctx, *, api_key=None, model=None, client=None, reader=None, fet
     verified = [r for r in rivals if r["verified"]]
     comp = compare(ctx.get("own_pages") or [], ctx.get("base", ""), hotel, verified, fetch, polite_allowed) if verified and ctx.get("own_pages") else None
     out["comparison"] = comp
-    out["observations"] = {m["qid"]: observations(m, arts, comp) for m in gaps}
+    states = hotel_theme_states(ctx.get("own_pages") or [], ctx.get("base", ""), hotel)
+    out["criteria"] = {m["qid"]: criteria(m, extracted, states) for m in gaps}
+    out["observations"] = {m["qid"]: observations(m, arts, comp, out["criteria"][m["qid"]]) for m in gaps}
     out["investigate"] = {m["qid"]: investigate(m, out["observations"][m["qid"]]) for m in gaps}
     out["cost_usd"] = round(cost, 5)
     if not verified:

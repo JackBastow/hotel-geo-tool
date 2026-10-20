@@ -431,8 +431,14 @@ def gap_section(gap):
         if not m:
             continue
         out.append(para(f"“{m['question']}”: the hotel was named in {m['named']} of {m['of']} answers", "h3"))
-        out.append(table([["Hotel named instead", "Answers", "Best place", "The assistant's reason"]] + [[r["name"], f"{r['answers']} of {r['of']}", str(r["best_rank"] or "-"), "; ".join(r["reasons"])[:160] or "-"] for r in m["rivals"]],
-                         [0.3, 0.12, 0.1, 0.48]))
+        out.append(table([["Hotel named instead", "Answers", "Category", "The assistant's reason"]] + [[r["name"] + (" (possibly the same hotel as " + ", ".join(r["aliases"]) + ")" if r.get("uncertain") and r.get("aliases") else ""), f"{r['answers']} of {r['of']}",
+                                                                                                                                  (r["tier"] or {}).get("label", "-"), "; ".join(r["reasons"])[:150] or "-"] for r in m["rivals"]], [0.32, 0.1, 0.18, 0.4]))
+        if m.get("other_category"):
+            out.append(para("Also named, but in a different category, so not treated as competitors: " + ", ".join(f"{r['name']} ({(r['tier'] or {}).get('label', '')})" for r in m["other_category"]) + ".", "tiny"))
+        crit = (gap.get("criteria") or {}).get(q) or []
+        if crit:
+            word = {"strong": "states it clearly", "mentioned": "only in passing", "not_found": "does not mention it", "not_assessed": "not assessed"}
+            out.append(table([["Reason the assistant gave", "Named for it", "The hotel's own pages"]] + [[c["label"], ", ".join(c["rivals"][:3]), word.get(c["hotel"]["state"], "-")] for c in crit], [0.4, 0.35, 0.25]))
         obs = (gap.get("observations") or {}).get(q) or []
         if obs:
             out += R.bullets([o["text"] for o in obs])
@@ -458,6 +464,10 @@ def gap_section(gap):
             rows.append([r["facility"], word.get(r["hotel"], "not mentioned")] + [word.get(r["rivals"].get(n), "not mentioned") for n in names])
         out.append(table(rows, [0.22, 0.16] + [0.62 / max(1, len(names))] * len(names)))
         out.append(para("Read from the pages of each site, politely and within robots.txt. 'Not mentioned' means not found on the pages read.", "tiny"))
+    quiet = [m for m in gap["markets"] if m["status"] != "named" and not m["gap"] and m.get("note")]
+    if quiet:
+        out.append(para("Named hotels in a different category (not a competitive gap)", "h3"))
+        out += R.bullets([f"{m['question']}: " + ", ".join(f"{r['name']} ({(r['tier'] or {}).get('label', '')})" for r in m["other_category"][:4]) for m in quiet])
     out.append(para("Limits: " + " ".join(gap.get("limits") or []), "tiny"))
     return out
 

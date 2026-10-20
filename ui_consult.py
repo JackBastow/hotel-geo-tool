@@ -1041,6 +1041,11 @@ def custom_prompts_card(ai, prompts):
                     st.caption("Sources it used: " + ", ".join(md_safe(d) for d in a["domains"][:6]))
 
 
+def rivals_label(rel):
+    import rivals
+    return rivals.RELATION_LABEL.get(rel, rel)
+
+
 def ai_gap_card(gap):
     """Where the hotel was not named, who was named instead, the pages the assistant cited, and what the evidence shows. A sample with its limits stated: never a ranking and never a cause."""
     st.markdown("##### Who the assistant named instead")
@@ -1050,9 +1055,11 @@ def ai_gap_card(gap):
     if gap.get("status") != "ok":
         st.info(md_safe(gap.get("reason") or "Not run."))
         return
+    quiet0 = [m for m in gap["markets"] if m["status"] != "named" and not m["gap"] and m.get("note")]
     if not gap.get("gaps"):
-        st.success(md_safe(gap.get("reason") or "The hotel was named in every answer to every question."))
-        return
+        (st.info if quiet0 else st.success)(md_safe(gap.get("reason") or "The hotel was named in every answer to every question."))
+        if not quiet0:
+            return
     st.caption("From the answers already collected: one assistant, a handful of answers, one day. 'n of m answers' counts answers that named a hotel. What is shown under each question is a difference in "
                "the evidence, not a proven reason for the assistant's choice.")
     ms = {m["qid"]: m for m in gap["markets"]}
@@ -1062,8 +1069,16 @@ def ai_gap_card(gap):
             continue
         icon = "🔴" if m["status"] == "not_named" else "🟡"
         st.markdown(f"{icon} **{md_safe(m['question'])}**  \nThe hotel was named in {m['named']} of {m['of']} answer(s)." + (" Every answer named the same leading hotel." if m.get("consistent") else ""))
-        df([{"Named instead": r["name"], "Answers": f"{r['answers']} of {r['of']}", "Best place": r["best_rank"] or "-", "Rating quoted": "; ".join(r["ratings"]) or "-",
-             "The assistant's reason": "; ".join(r["reasons"]) or "-"} for r in m["rivals"]])
+        df([{"Named instead": r["name"] + (" (possibly the same hotel as " + ", ".join(r["aliases"]) + ")" if r.get("uncertain") and r.get("aliases") else ""), "Answers": f"{r['answers']} of {r['of']}",
+             "Category": (r["tier"] or {}).get("label", "-") + ("" if r.get("relation") in ("same", "unknown") else " - " + rivals_label(r["relation"])), "Best place": r["best_rank"] or "-",
+             "Rating quoted": "; ".join(r["ratings"]) or "-", "The assistant's reason": "; ".join(r["reasons"]) or "-"} for r in m["rivals"]])
+        if m.get("other_category"):
+            st.caption("Also named, but in a different category, so not treated as competitors: " + ", ".join(f"{md_safe(r['name'])} ({md_safe((r['tier'] or {}).get('label', ''))})" for r in m["other_category"]) + ".")
+        crit = (gap.get("criteria") or {}).get(q) or []
+        if crit:
+            st.markdown("**Why they were recommended** *(the reasons the assistant gave, beside what the hotel's own pages show)*")
+            word = {"strong": "states it clearly", "mentioned": "mentions it only in passing", "not_found": "does not mention it", "not_assessed": "not assessed"}
+            df([{"Reason the assistant gave": c["label"], "Named for it": ", ".join(c["rivals"][:3]), "The hotel's own pages": word.get(c["hotel"]["state"], "-") + (": " + c["hotel"]["snippet"][:110] if c["hotel"].get("snippet") else "")} for c in crit])
         obs = (gap.get("observations") or {}).get(q) or []
         if obs:
             st.markdown("**Observed differences** *(not proven causes)*")
@@ -1075,6 +1090,11 @@ def ai_gap_card(gap):
             with st.expander("What to look into"):
                 for s_ in steps:
                     st.markdown(f"- {md_safe(s_)}")
+    quiet = [m for m in gap["markets"] if m["status"] != "named" and not m["gap"] and m.get("note")]
+    if quiet:
+        st.markdown("###### Named hotels in a different category (not a gap)")
+        for m in quiet:
+            st.markdown(f"- **{md_safe(m['question'])}** — " + ", ".join(f"{md_safe(r['name'])} ({md_safe((r['tier'] or {}).get('label', ''))})" for r in m["other_category"][:4]) + ". " + md_safe(m["note"]))
     arts = gap.get("articles") or []
     if arts:
         st.markdown("###### The pages the assistant cited for these questions")
