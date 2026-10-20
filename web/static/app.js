@@ -145,6 +145,23 @@
       }).catch(function () { btn.disabled = false; status.textContent = "Could not reach the service."; });
     });
   }
+  /* ---- 'useful' / 'wrong' on a recommendation: one tap, and for 'wrong' an optional word on what is wrong */
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest && ev.target.closest(".fb button");
+    if (!b) { return; }
+    var box = b.closest(".fb"), m = location.pathname.match(/^\/r\/([A-Za-z0-9_-]+)/);
+    if (!box || !m) { return; }
+    var note = "";
+    if (b.getAttribute("data-v") === "wrong") {
+      note = window.prompt("What is wrong or not relevant? (optional, a few words help us fix it)", "");
+      if (note === null) { return; }
+    }
+    box.querySelectorAll("button").forEach(function (x) { x.disabled = true; });
+    fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: m[1], ref: box.getAttribute("data-ref"), verdict: b.getAttribute("data-v"), note: note }) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { var d = box.querySelector(".fb-done"); d.textContent = j.ok ? "Thank you, noted." : (j.error || "That did not save."); d.hidden = false; })
+      .catch(function () { box.querySelectorAll("button").forEach(function (x) { x.disabled = false; }); });
+  });
   var rp = $("#review-pack"), cmp = $("#compare");
   if (rp) { upload("#rp-go", "#rp-file", "#rp-status", "#rp-result", "/api/r/" + rp.getAttribute("data-token") + "/review-pack", function (fd) { fd.append("platform", $("#rp-platform").value); }); }
   if (cmp) { upload("#cmp-go", "#cmp-file", "#cmp-status", "#cmp-result", "/api/r/" + cmp.getAttribute("data-token") + "/compare"); }

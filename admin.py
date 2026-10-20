@@ -20,7 +20,7 @@ import htmlst
 import ui_theme
 from htmlst import st
 
-NAV = [("overview", "Overview"), ("runs", "Runs"), ("hotels", "Hotels"), ("markets", "Markets"), ("usage", "Usage"), ("export", "Export")]
+NAV = [("overview", "Overview"), ("runs", "Runs"), ("hotels", "Hotels"), ("markets", "Markets"), ("usage", "Usage"), ("feedback", "Feedback"), ("export", "Export")]
 PUB_COLS = ["id", "run_at", "hotel", "city", "headline_status", "headline_score", "coverage_pct", "ai_generic_named", "ai_generic_asked", "ai_niche_named", "ai_niche_asked",
             "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_rank_in_table", "ai_top_competitor", "reviews_replied", "reviews_examined", "pack_reviews", "pack_reply_rate", "pagespeed_perf",
             "recs_total", "ai_cost_usd"]
@@ -299,6 +299,20 @@ def register(app, cfg):
                + '<p class="caption">Costs are the app\'s own estimates from reported token use and searches. The Anthropic Console is the source of truth for what was charged.</p>'
                + "<h5>Free-tier guards this month</h5>" + _table(lines) + '<p class="caption">Claude is counted in thousandths of a US dollar. These guards stop the service calling a key once its monthly allowance is used; the workspace spend limit in the Anthropic Console is the hard stop.</p>')
         return shell("usage", "Usage", out)
+
+    @app.get("/admin/feedback")
+    def admin_feedback():
+        g = guard()
+        if g:
+            return g
+        s, msg = store_or_msg()
+        if s is None:
+            return shell("feedback", "Feedback", f'<div class="alert warning">{htmlst.html.escape(msg)}</div>')
+        out = ('<p class="caption">Visitors mark each recommendation Useful or Wrong. If the evidence labels mean anything, Confirmed should be marked useful more often than Likely, and Likely more often than Worth checking. '
+               'Small numbers say little: read these as a check on the labels once there are a few dozen marks, not before.</p>'
+               + "<h5>How each evidence label was marked</h5>" + _table(s.feedback_summary(), ["label", "marked", "useful", "wrong", "useful_pct"], {"label": "Label", "marked": "Marked", "useful": "Useful", "wrong": "Wrong", "useful_pct": "% useful"})
+               + "<h5>Most recent</h5>" + _table(s.recent_feedback(), ["created", "ref", "verdict", "label", "title", "note"], {"created": "When", "ref": "Ref", "verdict": "Verdict", "label": "Label", "title": "Recommendation", "note": "Note"}))
+        return shell("feedback", "Feedback", out)
 
     @app.get("/admin/export")
     def admin_export():

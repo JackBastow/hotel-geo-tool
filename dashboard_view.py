@@ -241,6 +241,8 @@ def _rec_card(r, n, start):
             f'<div class="rec-do"><b>Action</b> {esc(short(r["action"], 260))}</div>'
             f'<div class="chips">{chip(r["priority"].capitalize() + " priority", PRI_TONE.get(r["priority"], ""))}{chip("Effort: " + r["effort"])}{chip("Owner: " + team)}{chip("Confidence: " + (r.get("confidence_label") or r["confidence"]))}'
             f'{chip("Opportunity", "brand") if r["kind"] != "fix" else ""}{chip(r["ref"])}</div>'
+            f'<div class="fb" data-ref="{esc(r["ref"])}"><span class="fb-q">Was this useful?</span><button type="button" data-v="useful">Useful</button><button type="button" data-v="wrong">Wrong or not relevant</button>'
+            f'<span class="fb-done" hidden>Thank you, noted.</span></div>'
             f'<details class="details"><summary>Evidence, example wording and full detail</summary><div class="details-body">{detail}</div></details></div></article>')
 
 

@@ -23,6 +23,7 @@ import decimal
 import json
 import re
 import sqlite3
+import time
 import urllib.parse
 
 SCHEMA_VERSION = 2
@@ -191,6 +192,7 @@ class Store:
             self._ensure_columns(conn, "runs", {c: ("TEXT" if c in text_cols else "DOUBLE PRECISION" if (c in real_cols and self.kind != "sqlite") else "REAL" if c in real_cols else "INTEGER")
                                                 for c in RUN_COLS})
             self._run(conn, "CREATE TABLE IF NOT EXISTS usage_counters (service TEXT, month TEXT, calls INTEGER, audits INTEGER, updated TEXT, PRIMARY KEY (service, month))")
+            self._run(conn, f"CREATE TABLE IF NOT EXISTS feedback (id {pk}, created TEXT, run_id INTEGER, ref TEXT, verdict TEXT, note TEXT, label TEXT, source TEXT, title TEXT)")
             self._ensure_columns(conn, "runs", {"access_token": "TEXT"})
             self._ensure_columns(conn, "ai_competitors", {"coverage_pct": "INTEGER", "sentiment": "INTEGER", "positive": "INTEGER", "negative": "INTEGER"})
             for sql in ("CREATE INDEX IF NOT EXISTS runs_key ON runs (hotel_key, run_at)", "CREATE INDEX IF NOT EXISTS runs_city ON runs (city)",
@@ -283,6 +285,31 @@ class Store:
         rows = self._rows(f"SELECT {cols} FROM runs WHERE hotel_key = ? AND (run_at < ? OR (run_at = ? AND id < ?)) ORDER BY run_at DESC, id DESC LIMIT 1",
                           (cur[0]["hotel_key"], cur[0]["run_at"], cur[0]["run_at"], run_id))
         return rows[0] if rows else None
+
+    def add_feedback(self, row):
+        """One 'useful' / 'wrong' mark on one recommendation of one saved audit: {run_id, ref, verdict, note, label, source, title}. The text is the visitor's own words about the finding, stored without any
+        personal detail (no address, no name)."""
+        conn = self._connect()
+        try:
+            self._insert(conn, "feedback", {"created": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), **row})
+            conn.commit()
+        finally:
+            conn.close()
+
+    def feedback_summary(self):
+        """How the recommendations were marked: per evidence label, useful and wrong counts and the share marked useful, so the labels can be checked against what hotels actually find."""
+        rows = self._rows("SELECT label, verdict, COUNT(*) AS n FROM feedback GROUP BY label, verdict")
+        out = {}
+        for r in rows:
+            d = out.setdefault(r["label"] or "(none)", {"label": r["label"] or "(none)", "useful": 0, "wrong": 0})
+            d[r["verdict"]] = d.get(r["verdict"], 0) + int(r["n"])
+        for d in out.values():
+            n = d["useful"] + d["wrong"]
+            d["marked"], d["useful_pct"] = n, (round(100 * d["useful"] / n) if n else None)
+        return sorted(out.values(), key=lambda d: d["label"])
+
+    def recent_feedback(self, limit=60):
+        return self._rows("SELECT created, run_id, ref, verdict, label, source, title, note FROM feedback ORDER BY id DESC LIMIT ?", (int(limit),))
 
     def get_report_by_token(self, token):
         """(run id, report) for the visitor's own link, or (None, None). The token is never part of any export or list."""

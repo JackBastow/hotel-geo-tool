@@ -269,6 +269,39 @@ def create_app(cfg=None, run_fn=None):
             return None, None, "No reviews could be read from the review file."
         return norm, mapping, ""
 
+    fb_seen = collections.defaultdict(list)
+    fb_mem = collections.deque(maxlen=500)             # kept in memory when there is no database, so the buttons still work (and the tests can see them)
+    app.extensions["feedback"] = fb_mem
+
+    @app.post("/api/feedback")
+    def api_feedback():
+        """'Useful' / 'wrong' on one recommendation of the visitor's own report. Rate-limited per visitor; the note is short plain text."""
+        d = request.get_json(silent=True) or {}
+        token, ref, verdict = str(d.get("token") or ""), str(d.get("ref") or "")[:60], str(d.get("verdict") or "")
+        note = re.sub(r"[\x00-\x1f\x7f]+", " ", str(d.get("note") or "")).strip()[:300]
+        if verdict not in ("useful", "wrong") or not ref or not TOKEN_RX.match(token):
+            return jsonify(ok=False, error="That could not be saved."), 400
+        now = time.time()
+        recent = [t for t in fb_seen[visitor_id()] if now - t < 3600]
+        fb_seen[visitor_id()] = recent
+        if len(recent) >= 80:
+            return jsonify(ok=False, error="Thank you: that is enough feedback for now."), 429
+        rep = reports.load(token)
+        if rep is None:
+            return jsonify(ok=False, error="That report is no longer available."), 404
+        rec = next((r for r in ((rep.get("consultant") or {}).get("recommendations") or []) if r.get("id") == ref or r.get("ref") == ref), None)
+        row = {"run_id": reports.ids.get(token), "ref": ref, "verdict": verdict, "note": note, "label": (rec or {}).get("confidence_label"), "source": (rec or {}).get("source"),
+               "title": ((rec or {}).get("title") or "")[:160]}
+        fb_seen[visitor_id()].append(now)
+        fb_mem.append(row)
+        try:
+            db = reports._db()
+            if db:
+                db.add_feedback(row)
+        except Exception:  # noqa: BLE001 - feedback must never break the report
+            pass
+        return jsonify(ok=True)
+
     @app.get("/api/job/<job_id>")
     def api_job(job_id):
         job = manager.get(job_id)
