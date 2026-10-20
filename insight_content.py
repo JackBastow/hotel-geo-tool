@@ -359,7 +359,7 @@ EXTENDED = [
          "how many each sleeps": re.compile(r"sleeps? (?:up to )?\d|(?:up to |max(?:imum)?\.? (?:occupancy )?(?:of )?)\d\s*(?:guests|people|adults|persons)|occupancy[: ]+\d|\b\d\s*adults?\b|\b\d\s*guests?\b", re.I),
          "the bed set-up": re.compile(r"\b(?:king|queen|double|twin|single|super[- ]king)[- ](?:size[d]? )?beds?\b|\b\d\s*(?:single|double|twin|queen|king) beds\b|bed(?:s)? (?:configuration|type|set-?up)|sofa[- ]?bed|extra bed|rollaway|z[- ]?bed", re.I)},
      "example": "Classic Double: 1 king bed, sleeps 2. Superior Twin: 2 single beds, sleeps 2. Family Room: 1 double + 1 sofa bed, sleeps up to 4 (2 adults, 2 children). [x] rooms connect: ask when booking."},
-    {"id": "area_guide", "q": "Does the site say what is nearby: where to eat, what to do, and what is open late or when it rains?", "applies": None, "core": True, "high_value": False,
+    {"id": "area_guide", "q": "Does the site say what is nearby: where to eat, what to do, and what is open late or when it rains?", "applies": None, "core": False, "high_value": False,
      "slugs": ("local", "area", "explore", "things to do", "around", "guide", "nearby", "neighbourhood", "visit", "attractions"), "fallback": "an Area guide page",
      "facts": {
          "where to eat nearby": re.compile(r"(?:where to eat|places to eat|local (?:restaurants|pubs|cafes|caf\u00e9s|bars|dining)|nearby (?:restaurants|pubs|cafes|caf\u00e9s|bars)|restaurants? (?:nearby|within|close)|within (?:walking distance|\d+\s*(?:minutes?|mins?|km|miles?)) (?:of|from)[^.\n]{0,40}(?:restaurant|pub|cafe|caf\u00e9|bar))", re.I),

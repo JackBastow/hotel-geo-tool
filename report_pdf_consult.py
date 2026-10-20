@@ -418,6 +418,50 @@ def competitor_section(cp):
     return out
 
 
+def gap_section(gap):
+    """Appendix: for every question where the hotel was not always named, who was named, the evidence, the pages the assistant cited, and the rivals' verified sites compared with the hotel's."""
+    if not gap or gap.get("status") != "ok" or not gap.get("gaps"):
+        return []
+    ms = {m["qid"]: m for m in gap["markets"]}
+    out = [para("Who the assistant named instead, and what the evidence shows", "h2"),
+           para("From the answers already collected: one assistant, a handful of answers, one day. Counts are answers naming a hotel out of the answers given. The observations are differences in the evidence, "
+                "never proven causes of the assistant's choice.", "tiny")]
+    for q in gap["gaps"]:
+        m = ms.get(q)
+        if not m:
+            continue
+        out.append(para(f"“{m['question']}”: the hotel was named in {m['named']} of {m['of']} answers", "h3"))
+        out.append(table([["Hotel named instead", "Answers", "Best place", "The assistant's reason"]] + [[r["name"], f"{r['answers']} of {r['of']}", str(r["best_rank"] or "-"), "; ".join(r["reasons"])[:160] or "-"] for r in m["rivals"]],
+                         [0.3, 0.12, 0.1, 0.48]))
+        obs = (gap.get("observations") or {}).get(q) or []
+        if obs:
+            out += R.bullets([o["text"] for o in obs])
+        steps = (gap.get("investigate") or {}).get(q) or []
+        if steps:
+            out.append(para("What to look into: " + " ".join(steps), "tiny"))
+    arts = gap.get("articles") or []
+    if arts:
+        out.append(para("The pages the assistant cited for those questions", "h3"))
+        rows = [["Page", "Kind", "Cited", "Names the hotel", "Rivals it names", "Note"]]
+        for a in arts[:14]:
+            hin = "not read" if a["hotel_in"] is None else ("yes" if a["hotel_in"] else "no")
+            rows.append([cat(link(a["url"], (a["title"] or a["domain"])[:60]), Markup("<br/>") , esc(a["domain"])), a["kind"], str(a["cited"]), hin, ", ".join(a["rivals_in"][:3]) or "-",
+                         "opportunity: an editorial list that omits the hotel" if a.get("opportunity") else (a.get("note") or "")[:90]])
+        out.append(table(rows, [0.3, 0.14, 0.06, 0.1, 0.2, 0.2]))
+    comp = gap.get("comparison")
+    if comp and comp.get("rows"):
+        out.append(para("The hotel and the rivals whose own sites were verified and read", "h3"))
+        names = [r["name"] for r in comp["rivals"]]
+        word = {"strong": "in detail", "some": "mentioned"}
+        rows = [["Facility", "The hotel"] + names]
+        for r in comp["rows"]:
+            rows.append([r["facility"], word.get(r["hotel"], "not mentioned")] + [word.get(r["rivals"].get(n), "not mentioned") for n in names])
+        out.append(table(rows, [0.22, 0.16] + [0.62 / max(1, len(names))] * len(names)))
+        out.append(para("Read from the pages of each site, politely and within robots.txt. 'Not mentioned' means not found on the pages read.", "tiny"))
+    out.append(para("Limits: " + " ".join(gap.get("limits") or []), "tiny"))
+    return out
+
+
 def ai_test_section(ai, hotel=""):
     import ai_sample
     log = ai_sample.test_log(ai)
@@ -568,6 +612,7 @@ def sections(c, H1, web=None, ai=None, reviews=None, ins=None, listings=None, pa
     out += external_section(c.get("external"))
     out += booking_section(c.get("booking"))
     out += competitor_section(c.get("competitors"))
+    out += gap_section((rep or {}).get("ai_gap"))
     out += ai_test_section(ai, (rep or {}).get("meta", {}).get("hotel", ""))
 
     # ---- recommendation register: every recommendation once; worked examples only where they exist

@@ -65,6 +65,7 @@ import urllib.parse
 import requests
 from concurrent.futures import ThreadPoolExecutor
 
+import ai_gap
 import ai_insights
 import ai_niche
 import ai_sample
@@ -1042,6 +1043,21 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         except Exception as e:  # noqa: BLE001 - an extra; the sample itself still shows
             ai_insight_result = {"source": ai_insights.SOURCE, "status": "unavailable", "reason": f"The analysis of the answers failed ({type(e).__name__}).", "cost_usd": 0.0}
 
+    # Who the assistant named instead of the hotel, which pages it cited, and what the evidence shows about the difference: the answers already collected, plus a few polite page reads.
+    ai_gap_result = None
+    if isinstance(ai_insight_result, dict) and ai_insight_result.get("extracted_answers"):
+        say("Looking at who the assistant recommended instead, and the pages it cited...")
+        try:
+            _o = ((corpus.get("sources") or {}).get("osm_context") or {})
+            _octx = (_o.get("items") or [None])[0] if _o.get("status") == "ok" else None
+            _h = urllib.parse.urlparse(base).netloc.lower()
+            _h = _h[4:] if _h.startswith("www.") else _h
+            ai_gap_result = ai_gap.run(ai_result, ai_insight_result, {"hotel": hotel, "city": city, "own_domain": _h, "brand_domains": (_h,) if site["meta"].get("scope") else (), "own_pages": own_pages,
+                                                                      "base": base, "osm_ctx": _octx}, api_key=anthropic_api_key, model=anthropic_model)
+        except Exception as e:  # noqa: BLE001 - an extra; the sample and its analysis still show
+            ai_gap_result = {"source": ai_gap.SOURCE, "status": "unavailable", "reason": f"The comparison with the hotels named instead did not finish ({type(e).__name__}).", "markets": [], "gaps": [],
+                             "articles": [], "opportunities": [], "rivals": [], "comparison": None, "observations": {}, "limits": ai_gap.LIMITS, "cost_usd": 0.0}
+
     # The consultant layer reads pages the crawl already fetched - no further requests (except the few polite ones of the competitor look, below).
     say("Working out what AI systems can and can't understand about the hotel...")
     competitors_result = None
@@ -1058,7 +1074,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         consult_result = consultant.analyse(
             own_pages=own_pages, pages_meta=guest.get("pages_meta", []), base=base, hotel=hotel, city=city,
             location=location, guest=guest, site=site, entities=ext["entities"], intel=intel_result,
-            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, listing_checks=listing_checks, reddit=reddit_result, booking=booking_result, external=external_result, competitors=competitors_result, text_only=bool(guest.get("read_via")),
+            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, ai_gap=ai_gap_result, listing_checks=listing_checks, reddit=reddit_result, booking=booking_result, external=external_result, competitors=competitors_result, text_only=bool(guest.get("read_via")),
             jsonld_example=fixes.hotel_jsonld({"base": base, "hotel": hotel, "location": location, "guest": guest,
                                                "discovery": discovery, "entities": ext["entities"], "site": site,
                                                "tavily": tavily_result}))
@@ -1107,6 +1123,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "market_profile": market_profile,
         "custom_prompts": [q["text"] for q in custom_qs],
         "ai_insights": ai_insight_result,
+        "ai_gap": ai_gap_result,
         "review_snapshot": review_result,
         "listing_lookup": {k: v for k, v in listing_result.items() if k not in ("pages", "passages")},
         "listing_checks": listing_checks,

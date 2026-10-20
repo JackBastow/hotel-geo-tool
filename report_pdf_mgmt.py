@@ -263,6 +263,21 @@ def story(rep, H1):
                     "Guest reviews could not be assessed (the platforms prohibit automated collection), so the absence of a finding here is not evidence of a healthy review profile. "
                     "Uploading the hotel's own review export adds this.", "tiny"))
 
+    # who the assistant named instead (a short view; the evidence is in the appendix)
+    gap = rep.get("ai_gap") or {}
+    if gap.get("status") == "ok" and gap.get("gaps"):
+        gms = {m["qid"]: m for m in gap["markets"]}
+        out.append(para("Where the hotel was not named, and who was", "h3"))
+        rows = [["Question put to the assistant", "Hotel named", "Named instead"]]
+        for q in gap["gaps"][:6]:
+            m = gms[q]
+            rows.append([short(m["question"], 110), f"{m['named']} of {m['of']} answers", ", ".join(f"{r['name']} ({r['answers']} of {r['of']})" for r in m["rivals"][:3])])
+        out.append(table(rows, [0.45, 0.15, 0.4]))
+        opp = [a for a in gap.get("articles") or [] if a.get("opportunity")]
+        if opp:
+            out.append(para("Editorial pages the assistant cited that name rivals and not the hotel: " + "; ".join(f"{a['domain']} ({short(a['title'], 60)})" for a in opp[:3]) + ".", "base"))
+        out.append(para("One assistant on one day: a lead to investigate, not a ranking or a cause. The evidence for each row, the cited pages and the comparison with the rivals' own sites are in the appendix.", "tiny"))
+
     # 5 -------------------------------------------------------------- commercial opportunities
     out.append(H1("Commercial opportunities"))
     hc = (c.get("hotel_class") or {}).get("classes") or []

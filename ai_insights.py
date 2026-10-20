@@ -572,6 +572,7 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
     if not extracted:
         return {**out, "status": "partial", "reason": "The answers could not be broken down into hotels and claims, so only the source analysis is shown.", "cost_usd": round(cost, 5)}
 
+    out["extracted_answers"] = extracted["answers"]           # the hotels each answer named, kept so ai_gap can say who was named instead, question by question
     lb = leaderboard(extracted, items, hotel)
     out.update(leaderboard=lb, alternatives=alternatives(extracted, hotel), matrix=question_rows(items, extracted))
     niche_rows = [m for m in out["matrix"] if m["kind"] == "niche"]

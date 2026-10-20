@@ -749,7 +749,8 @@ bare = consultant.analyse(own_pages=BARE, pages_meta=[{"url": p_["url"], "ok": T
                           entities=[], intel=None, osm_ctx=None)
 qs22 = {q["id"]: q for q in bare["questions"]}
 check("a site that says none of it is asked all three, in plain questions", {"rate_inclusions", "room_configuration", "area_guide"} <= set(qs22), set(qs22))
-check("they are raised as guest-information gaps (standard), not as optional segment opportunities, because every hotel needs them", all(qs22[k]["source"] == "standard" for k in ("rate_inclusions", "room_configuration", "area_guide")))
+check("what a rate includes and how rooms are set up are guest-information gaps (standard) because every hotel needs them; 'what is nearby / open late / when it rains' is optional, since nothing shows guests need it from this hotel",
+      all(qs22[k]["source"] == "standard" for k in ("rate_inclusions", "room_configuration")) and qs22["area_guide"]["source"] == "extended")
 check("what the rate includes and what costs extra is treated as high value (it decides the price a guest expects)", qs22["rate_inclusions"]["high_value"] and not qs22["area_guide"]["high_value"])
 check("each says exactly what is missing and gives wording to fill in", qs22["rate_inclusions"]["missing"] == ["what the rate includes", "what costs extra"] and "[city tax" in qs22["rate_inclusions"]["example"]
       and "sleeps" in qs22["room_configuration"]["example"] and "Walking times" in qs22["area_guide"]["example"])

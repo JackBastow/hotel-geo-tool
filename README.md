@@ -254,6 +254,17 @@ After the rule-based guest-question check, one Claude request (default `claude-s
 - **What was left out is shown, with the reason** ('Considered but not asked'), in the web report and the PDF, so the questions are never a mystery.
 - **Your own prompts:** the start page has a box for up to five prompts (one per line, 8-220 characters). Each is put to the assistant exactly as written, twice, with live web search. The report has a 'Your own prompts' card at the top of the AI tab (named or not, recommended or not, position, the answers and their sources) and the prompts are in the test log. They are counted on their own, never in the town-wide or niche counts or any score. A prompt that contains the hotel's name is flagged: it tests what the assistant knows, not whether it volunteers the hotel. Needs the hotel's name, town and the service's Anthropic key. Tests: `test_niche_relevance.py`.
 
+### Who the assistant named instead, the pages it cited, and what the evidence shows (`ai_gap.py`)
+
+Built from the answers the audit already collects, so the main cost is a few polite page reads (and at most a few cents of web search, capped at $0.20 an audit).
+
+1. **The gap, question by question.** For every question put to the assistant: whether the hotel was named (n of m answers) and, where it was not always named, the hotels named instead with how many answers named each, their best place in the list, any rating quoted and the reason the assistant itself gave. 'Every answer named the same leading hotel' is said only when there were two or more answers and they all agreed.
+2. **The cited pages.** Editorial pages (travel media, tourism boards, guides) the assistant cited for those questions are read politely (robots.txt respected, honest user agent, hard time limit) to see whether they mention the hotel and which rivals. **An outreach suggestion names the exact article and is made only for an editorial list that is not sponsored, names rivals and omits the hotel**; it tells the hotel not to pay for placement presented as editorial. Review sites and booking platforms are listed but never read.
+3. **The comparison.** The top three rivals' official sites are found (the map's website tag, a cited page's domain, or one web search) and each is **verified** before use: its homepage must name the hotel and the town. Their homepage and up to two facility pages are read politely and profiled like the hotel's own (stars, size, facilities); differences are reported as observations ('their pages describe the spa in detail; the hotel's pages do not mention it'). An unverified site is never used.
+4. **What it will not say.** It never claims why an assistant chose a hotel, never says more content will fix it, and labels every finding an experimental inference from one assistant on one day. Specific investigations ('Not named when asked ...: A, B were') replace the general 'not named in a sample' notes, and a named article replaces the generic 'consider a travel publication'.
+5. **Shown in** the AI tab of the web report ('Who the assistant named instead'), a short table in the management PDF and the full evidence in the appendix. Tests: `test_ai_gap.py`.
+- The generic 'what is nearby / open late / when it rains' question is now optional for every hotel, as nothing shows guests need it from that hotel.
+
 ## Back end: saved audits, the admin page and the monthly pack
 
 Set a `DATABASE_URL` secret (a Postgres connection string; Neon's free plan needs no card) and **every** finished audit is

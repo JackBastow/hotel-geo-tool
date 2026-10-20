@@ -1039,6 +1039,62 @@ def custom_prompts_card(ai, prompts):
                     st.caption("Sources it used: " + ", ".join(md_safe(d) for d in a["domains"][:6]))
 
 
+def ai_gap_card(gap):
+    """Where the hotel was not named, who was named instead, the pages the assistant cited, and what the evidence shows. A sample with its limits stated: never a ranking and never a cause."""
+    st.markdown("##### Who the assistant named instead")
+    if not gap:
+        st.caption("Not run for this report.")
+        return
+    if gap.get("status") != "ok":
+        st.info(md_safe(gap.get("reason") or "Not run."))
+        return
+    if not gap.get("gaps"):
+        st.success(md_safe(gap.get("reason") or "The hotel was named in every answer to every question."))
+        return
+    st.caption("From the answers already collected: one assistant, a handful of answers, one day. 'n of m answers' counts answers that named a hotel. What is shown under each question is a difference in "
+               "the evidence, not a proven reason for the assistant's choice.")
+    ms = {m["qid"]: m for m in gap["markets"]}
+    for q in gap["gaps"]:
+        m = ms.get(q)
+        if not m:
+            continue
+        icon = "🔴" if m["status"] == "not_named" else "🟡"
+        st.markdown(f"{icon} **{md_safe(m['question'])}**  \nThe hotel was named in {m['named']} of {m['of']} answer(s)." + (" Every answer named the same leading hotel." if m.get("consistent") else ""))
+        df([{"Named instead": r["name"], "Answers": f"{r['answers']} of {r['of']}", "Best place": r["best_rank"] or "-", "Rating quoted": "; ".join(r["ratings"]) or "-",
+             "The assistant's reason": "; ".join(r["reasons"]) or "-"} for r in m["rivals"]])
+        obs = (gap.get("observations") or {}).get(q) or []
+        if obs:
+            st.markdown("**Observed differences** *(not proven causes)*")
+            for o in obs:
+                links = " ".join(f"[page]({u})" for u in o.get("urls") or [] if str(u).startswith(("http://", "https://")))
+                st.markdown(f"- {md_safe(o['text'])} {links}")
+        steps = (gap.get("investigate") or {}).get(q) or []
+        if steps:
+            with st.expander("What to look into"):
+                for s_ in steps:
+                    st.markdown(f"- {md_safe(s_)}")
+    arts = gap.get("articles") or []
+    if arts:
+        st.markdown("###### The pages the assistant cited for these questions")
+        st.caption("Editorial pages were read politely (robots.txt respected) to see whether they mention the hotel. Review sites and booking platforms are listed but not read. A page the assistant cites shows what it read, not why it chose a hotel.")
+        yn = {True: "yes", False: "no", None: "not read"}
+        df([{"Page": a["title"][:70] or a["domain"], "Site": a["domain"], "Kind": a["kind"], "Cited": a["cited"], "Names the hotel": yn[a["hotel_in"]], "Names rivals": ", ".join(a["rivals_in"][:3]) or "-",
+             "Opportunity": "an editorial list that omits the hotel" if a.get("opportunity") else (a.get("note") or "")[:80], "Link": a["url"]} for a in arts[:14]])
+    comp = gap.get("comparison")
+    if gap.get("rivals"):
+        st.markdown("###### The rivals' own websites")
+        df([{"Hotel": r["name"], "Named in": f"{r['answers']} answers", "Official site": r.get("url") or "not verified", "How found": r.get("via") or "-", "Check": r.get("why") or ""} for r in gap["rivals"]])
+    if comp and comp.get("rows"):
+        names = [r["name"] for r in comp["rivals"]]
+        word = {"strong": "in detail", "some": "mentioned"}
+        st.markdown("###### What each site says about its facilities")
+        df([{"Facility": r["facility"], "The hotel": word.get(r["hotel"], "not mentioned"), **{n: word.get(r["rivals"].get(n), "not mentioned") for n in names}} for r in comp["rows"]])
+        st.caption("Read from the pages of each site. 'Not mentioned' means not found on the pages read, which is not proof the hotel lacks it.")
+    with st.expander("Limits of this analysis"):
+        for l in gap.get("limits") or []:
+            st.markdown(f"- {md_safe(l)}")
+
+
 def ai_test_card(ai, hotel=""):
     """The genuine AI test log, and a checklist for the assistants this tool cannot query. Observed visibility stays NOT MEASURED for those."""
     import ai_sample

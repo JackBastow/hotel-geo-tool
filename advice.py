@@ -464,6 +464,50 @@ def _from_ai(ai):
         summary="Not named in a sample of AI hotel-suggestion answers")] + niche
 
 
+def _from_ai_gap(gap):
+    """
+    Investigations and outreach, only from what the sampled answers and the pages read actually show. An investigation says: the hotel was not named for this question, these hotels were, this is what the
+    evidence shows about the difference, look into it. It never says more content will fix it, and never promises to change what an assistant says. An outreach suggestion names the exact article and
+    is made only for an editorial list that is not sponsored, names rivals and leaves the hotel out.
+    """
+    if not gap or gap.get("status") != "ok" or not gap.get("gaps"):
+        return []
+    ms = {m["qid"]: m for m in gap.get("markets") or []}
+    obs, steps, arts = gap.get("observations") or {}, gap.get("investigate") or {}, gap.get("articles") or []
+    order = sorted((ms[q] for q in gap["gaps"] if q in ms), key=lambda m: (not m["consistent"], m["status"] != "not_named", m["kind"] not in ("niche", "custom"), m["qid"]))
+    out = []
+    for k, m in enumerate(order[:3], 1):
+        names = ", ".join(r["name"] for r in m["rivals"][:3])
+        counts = "; ".join(f"{r['name']} in {r['answers']} of {r['of']}" for r in m["rivals"][:3])
+        q = m["question"] if len(m["question"]) <= 95 else m["question"][:92].rstrip() + "..."
+        ev = [{"url": (o["urls"] or [""])[0], "snippet": o["text"][:260]} for o in obs.get(m["qid"], [])[:4]] or [{"url": "", "snippet": f"Named instead: {counts}."}]
+        out.append(_rec(
+            "AG-" + m["qid"], "authority", f"Not named when asked “{q}”: {names} {'were' if len(m['rivals']) > 1 else 'was'}",
+            f"When one assistant was asked “{m['question']}”, it named the hotel in {m['named']} of {m['of']} answers. It named instead: {counts}."
+            + (" Every answer named the same leading hotel." if m["consistent"] else "") + " One assistant on one day is a sample.",
+            "A traveller who asks an assistant this question is shown those hotels, not this one. The sample cannot say why the assistant chose them, but the observations show where the evidence about the hotel differs from the evidence about them.",
+            ev, " ".join((steps.get(m["qid"]) or [])[:3]) or "Compare what the named hotels state and which independent sources feature them with what the hotel's pages and outside sources say.",
+            "medium" if m["consistent"] else "low", "medium", confidence=EXPER, team="marketing", source="ai", tag=f"AG{k}", summary=f"Not named for: {q}"))
+        out[-1]["kind_hint"] = "opportunity"
+    n = 0
+    for a in arts:
+        if not a.get("opportunity") or n >= 3:
+            continue
+        n += 1
+        qs = [ms[x]["question"] for x in a.get("questions") or [] if x in ms]
+        dated = f" It is dated {a['published']}; check it is still being kept up to date." if a.get("published") else " Its date could not be read, so check it is current."
+        out.append(_rec(
+            f"AG-OUT-{n}", "authority", f"Ask {a['domain']} whether the hotel can be included in “{a['title'][:80]}”",
+            f"The assistant cited this page when asked “{qs[0] if qs else 'a hotel question'}”. It names {', '.join(a['rivals_in'][:3])} and does not mention the hotel.{dated}",
+            "A page the assistant reads and cites is one place it learns which hotels to name. Being fairly described in a page like this is a legitimate way to be found; it is not a guarantee of being recommended.",
+            [{"url": a["url"], "snippet": a.get("rival_sentence") or a.get("passage") or a["title"]}],
+            "If the hotel genuinely fits what the article covers, write to the publication's editor with accurate, factual information (what the hotel offers, where it is, anything new). Do not pay for a placement presented as editorial, "
+            "and do not ask for changes to reviews. Check the page is current first.",
+            "low", "medium", confidence=EXPER, team="PR", source="ai", tag=f"AGO{n}", summary="An editorial list the assistant cited that omits the hotel"))
+        out[-1]["kind_hint"] = "opportunity"
+    return out
+
+
 def _from_ai_insights(ins):
     """Two things the sample can support: what the assistant said that differs from the hotel's own record, and sources it leaned on where the hotel is not evidenced."""
     if not ins or ins.get("status") not in ("ok", "partial"):
@@ -907,7 +951,7 @@ def _from_intel(intel):
 
 # ---------------------------------------------------------------------- assemble
 
-def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, traveller=None, booking=None, external=None, competitors=None, suppressed=None):
+def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, traveller=None, booking=None, external=None, competitors=None, suppressed=None, ai_gap=None):
     coverage = coverage or {}
     # the requirement checks say more, and more exactly, than the extended guest questions they cover
     superseded = {q for seg in (traveller or {}).get("assessed", []) for q in TRAVELLER_SUPERSEDES.get(seg, ())}
@@ -929,6 +973,11 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
     recs += _from_ai(ai)
     recs += _from_reviews(reviews)
     recs += _from_ai_insights(ai_insights)
+    gap_recs = _from_ai_gap(ai_gap)
+    if gap_recs:
+        # the specific finding (not named for THIS question, and who was) replaces the general 'not named in a sample' notes, and a named article replaces the generic 'consider a travel publication'
+        recs = [r for r in recs if r["id"] not in ("AI1", "AI4") and not (r["id"].startswith("X-S-editorial_outreach") and any(g["id"].startswith("AG-OUT") for g in gap_recs))]
+        recs += gap_recs
     recs += _from_listing_checks(listing_checks)
     recs += _from_reddit(reddit)
     recs += _from_traveller(traveller, coverage, site)

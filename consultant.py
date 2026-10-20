@@ -51,7 +51,7 @@ def crawl_coverage(pages_read, pages_meta):
 
 
 def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, entities, intel,
-            osm_ctx, jsonld_example="", web=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, booking=None, external=None, competitors=None):
+            osm_ctx, jsonld_example="", web=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, booking=None, external=None, competitors=None, ai_gap=None):
     s = ic.Site(own_pages, base, hotel, city)
     s.osm_ctx = osm_ctx
     cov = crawl_coverage(len(s.pages), pages_meta)
@@ -101,7 +101,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
                 p.update(score=None, band="not assessed", assessed=False, drivers=["the pages were read as plain text, so this was not assessed"], evidence=None)
     suppressed = []
     recs = advice.build(questions=questions, location=loc, consistency=cons, hidden=hidden, structured=sd,
-                        machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai, reviews=reviews, text_only=text_only, ai_insights=ai_insights, listing_checks=listing_checks, reddit=reddit, traveller=travel, booking=booking, external=external, competitors=competitors, suppressed=suppressed)
+                        machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai, reviews=reviews, text_only=text_only, ai_insights=ai_insights, ai_gap=ai_gap, listing_checks=listing_checks, reddit=reddit, traveller=travel, booking=booking, external=external, competitors=competitors, suppressed=suppressed)
     recs, dropped = advice.validate(recs, cov, s)
     if (site.get("meta") or {}).get("scope"):
         for r in recs:
