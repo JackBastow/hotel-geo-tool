@@ -263,8 +263,12 @@ def _names_hotel(text, hotel, city=""):
     return bool(core) and all(t in low for t in core)
 
 
-def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=1.60, workers=WORKERS, progress=None, repeats=REPEATS):
-    """Put the questions to the assistant a few at a time. -> (items in question order, estimated spend, reason it stopped early or '')."""
+def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=1.60, workers=WORKERS, progress=None, repeats=REPEATS, country=None):
+    """
+    Put the questions to the assistant a few at a time. -> (items in question order, estimated spend, reason it stopped early or '').
+    `country` (a two-letter code) tells the search tool to search as if from that country, so the answers reflect what a searcher there sees; if the API will not take the setting the question is asked
+    without it and the item says no country was applied.
+    """
     import threading
     from concurrent.futures import ThreadPoolExecutor
     own = _host(own_domain)
@@ -283,11 +287,26 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
                 state["why"] = state["why"] or "Stopped early to stay within the per-audit budget."
                 return None
         say(f"Asking an AI assistant: {q['text']}")
+        applied = None
         try:
             extra = {"output_config": {"effort": "low"}} if model in EFFORT_MODELS else {}       # older models reject the effort setting
-            resp = client.messages.create(
-                model=model, max_tokens=MAX_TOKENS, system=SYSTEM, tools=[dict(SEARCH_TOOL)],
-                messages=[{"role": "user", "content": q["text"]}], **extra)
+
+            def call(with_country):
+                tool = dict(SEARCH_TOOL)
+                if with_country and country:
+                    tool["user_location"] = {"type": "approximate", "country": country}
+                return client.messages.create(model=model, max_tokens=MAX_TOKENS, system=SYSTEM, tools=[tool], messages=[{"role": "user", "content": q["text"]}], **extra)
+            if country and not state.get("loc_off"):
+                try:
+                    resp, applied = call(True), country
+                except Exception as e:  # noqa: BLE001 - a rejected location setting is not a failed audit: ask again without it
+                    if getattr(e, "status_code", None) == 400 or type(e).__name__ == "BadRequestError":
+                        state["loc_off"] = True
+                        resp = call(False)
+                    else:
+                        raise
+            else:
+                resp = call(False)
         except Exception as e:  # noqa: BLE001 - never fail the audit
             with lock:
                 state["why"] = state["why"] or _reason_for(e)
@@ -300,7 +319,7 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
         if not answer:
             return {**q, "answer": "", "mentioned": None, "position": None, "domains": domains, "searches": searches, "cost_usd": c,
                     "note": "The assistant returned no answer text."}
-        return {**q, "names_hotel": _names_hotel(q["text"], hotel, city), "answer": answer, "mentioned": mentioned(answer, hotel, city), "recommended": recommended(answer, hotel, city), "position": list_position(answer, hotel),
+        return {**q, "search_country": applied, "names_hotel": _names_hotel(q["text"], hotel, city), "answer": answer, "mentioned": mentioned(answer, hotel, city), "recommended": recommended(answer, hotel, city), "position": list_position(answer, hotel),
                 "domains": domains, "pages": parse_sources(resp), "searches": searches, "cost_usd": c,
                 "own_site_cited": bool(own and any(d == own or d.endswith("." + own) for d in domains)),
                 "platform": f"Claude ({model}) with web search", "tested_on": time.strftime("%Y-%m-%d", time.gmtime())}
@@ -334,7 +353,7 @@ def summarise(items):
 
 
 def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", budget_usd=1.60, client=None, progress=None,
-        max_questions=MAX_QUESTIONS, workers=WORKERS, repeats=REPEATS):
+        max_questions=MAX_QUESTIONS, workers=WORKERS, repeats=REPEATS, country=None):
     """Ask the questions. `client` is injectable for tests; otherwise the official SDK is created from `api_key`."""
     model = model or MODEL_DEFAULT
     if not hotel or not (city or "").strip():
@@ -347,14 +366,14 @@ def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", bu
         except Exception as e:  # noqa: BLE001
             return _envelope("unavailable", f"The Anthropic library could not be started ({type(e).__name__}), so this was not run.")
     items, spent, why = ask_all(hotel, city, build_questions(hotel, city, segments, max_questions), client=client, model=model, own_domain=own_domain,
-                                budget_usd=budget_usd, workers=workers, progress=progress, repeats=repeats)
+                                budget_usd=budget_usd, workers=workers, progress=progress, repeats=repeats, country=country)
     if not items:
         return _envelope("unavailable", why or "No question could be asked.", model=model, cost_usd=round(spent, 5))
     return _envelope("ok", why, model=model, items=items, summary=summarise(items), cost_usd=round(spent, 5), partial=bool(why),
-                     run_at=time.strftime("%Y-%m-%d", time.gmtime()))
+                     run_at=time.strftime("%Y-%m-%d", time.gmtime()), search_country=next((i["search_country"] for i in items if i.get("search_country")), None))
 
 
-def run_extra(hotel, city, questions, *, api_key=None, model=None, own_domain="", budget_usd=0.80, client=None, progress=None, workers=WORKERS, repeats=REPEATS):
+def run_extra(hotel, city, questions, *, api_key=None, model=None, own_domain="", budget_usd=0.80, client=None, progress=None, workers=WORKERS, repeats=REPEATS, country=None):
     """
     A second round of questions, planned from what the audit learned about the hotel (ai_niche.py). -> {"items", "cost_usd", "reason"}.
     Never raises; an empty result means the extra questions were not asked.
@@ -370,8 +389,8 @@ def run_extra(hotel, city, questions, *, api_key=None, model=None, own_domain=""
         except Exception as e:  # noqa: BLE001
             return {"items": [], "cost_usd": 0.0, "reason": f"The Anthropic library could not be started ({type(e).__name__})."}
     items, spent, why = ask_all(hotel, city, questions, client=client, model=model, own_domain=own_domain, budget_usd=budget_usd, workers=workers, progress=progress,
-                                repeats=repeats)
-    return {"items": items, "cost_usd": round(spent, 5), "reason": why}
+                                repeats=repeats, country=country)
+    return {"items": items, "cost_usd": round(spent, 5), "reason": why, "search_country": next((i["search_country"] for i in items if i.get("search_country")), None)}
 
 
 PLATFORMS_NOT_TESTED = ["ChatGPT", "Google Gemini", "Microsoft Copilot", "Google AI Overviews", "Perplexity"]
@@ -430,7 +449,8 @@ def merge(ai, extra):
     if not ai or ai.get("status") != "ok" or not extra or not extra.get("items"):
         return ai
     items = ai["items"] + extra["items"]
-    out = {**ai, "items": items, "summary": summarise(items), "cost_usd": round((ai.get("cost_usd") or 0) + (extra.get("cost_usd") or 0), 5)}
+    out = {**ai, "items": items, "summary": summarise(items), "cost_usd": round((ai.get("cost_usd") or 0) + (extra.get("cost_usd") or 0), 5),
+           "search_country": ai.get("search_country") or extra.get("search_country")}
     if extra.get("reason"):
         out["partial"], out["reason"] = True, (ai.get("reason") or extra["reason"])
     return out

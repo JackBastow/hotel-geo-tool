@@ -159,10 +159,13 @@ def propose(client, model, facts, city, n=MAX_PROPOSALS + 2):
 
 # --------------------------------------------------------------------- build
 
-def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repeats=2, features=None):
+def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repeats=2, features=None, benchmark=None):
     """
     -> {"questions": [...], "facts": [...], "rejected": [...], "cost_usd": float}. Core questions are asked base_repeats + 1 times (at most 4), secondary ones base_repeats times; every question carries
     its priority, its repeat count and why it was asked. Never empty when ai_niche can write at least one question.
+
+    benchmark: the prompts frozen at this hotel's FIRST audit ([{text, angle, why}]). When given they are asked again, word for word, as the core questions, so a later audit measures the same thing and a
+    change means something; this audit's fresh questions are added as exploratory (secondary) ones. When there is none, this audit's core questions become the benchmark ('benchmark_prompts' in the result).
     """
     facts = fact_list(prof, anchor_list or [], features)
     tmpl = ai_niche.questions(prof, hotel, city, n=12) if prof else []
@@ -187,8 +190,18 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
         out.append(q)
     core = [q for q in out if q["priority"] == "core"][:MAX_CORE]
     sec = [q for q in out if q["priority"] != "core"][:MAX_SECONDARY]
+    bench_out = []
+    if benchmark:
+        frozen = [{"id": f"niche_bench{i}", "kind": "niche", "angle": b.get("angle") or "Benchmark", "text": b["text"], "priority": "core", "source": "benchmark",
+                   "why": ((b.get("why") or "").rstrip(".") + ". " if b.get("why") else "") + "A benchmark prompt kept from this hotel's first audit and asked again word for word, so the results can be compared over time."} for i, b in enumerate(benchmark[:MAX_CORE], 1) if b.get("text")]
+        fresh = [q for q in core + sec if not any(_similar(q["text"], f["text"], 0.8) for f in frozen)]
+        for q in fresh:
+            q["priority"], q["source"] = "secondary", q.get("source") or "new"
+        core, sec = frozen, fresh[:MAX_SECONDARY + 2]
+    else:
+        bench_out = [{"text": q["text"], "angle": q["angle"], "why": q["why"]} for q in core]
     for q in core:
         q["repeats"] = min(4, base_repeats + 1)
     for q in sec:
         q["repeats"] = base_repeats
-    return {"questions": core + sec, "facts": facts, "rejected": rejected, "cost_usd": round(cost, 5)}
+    return {"questions": core + sec, "facts": facts, "rejected": rejected, "cost_usd": round(cost, 5), "benchmark_prompts": bench_out, "benchmark_reused": bool(benchmark)}

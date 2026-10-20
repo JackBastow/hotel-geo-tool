@@ -12,7 +12,7 @@ import full_audit
 import store
 
 TAVILY_CREDITS_PER_AUDIT = 12
-CLAUDE_MILLIDOLLARS_PER_AUDIT = 1500      # reserved per audit ($1.50: the repeated sample, the niche round, the reviews snapshot, the analysis; about $0.60 in practice)
+CLAUDE_MILLIDOLLARS_PER_AUDIT = 4000      # reserved per audit ($4: the repeated sample, the niche round with its core prompts asked three times, the reviews snapshot, the analysis, the gap work)
 
 TIERS = {"luxury": "luxury", "upscale": "upscale", "midscale": "midscale", "budget": "budget"}
 
@@ -81,12 +81,21 @@ def run(params, cfg, progress=None):
     use_amadeus = cfg.amadeus_key if (cfg.amadeus_key and cfg.amadeus_secret and _within_quota("amadeus")) else None
     use_gemini_reader = cfg.gemini_reader if (cfg.gemini_reader and _within_quota("gemini_reader")) else None
     use_anthropic = cfg.anthropic if (cfg.anthropic and _within_quota("claude", CLAUDE_MILLIDOLLARS_PER_AUDIT)) else None
+    benchmark = []
+    if cfg.database_url:
+        try:
+            import backend
+            import urlscope
+            db = backend.open_store(cfg.database_url)
+            benchmark = db.get_benchmark(backend.hotel_key({"meta": {"base": urlscope.normalise(params["website"])[0]}})) if db else []
+        except Exception:  # noqa: BLE001 - without a stored benchmark the audit simply sets a new one
+            benchmark = []
     valid_aud = {k for k, *_r in ai_niche.AUDIENCES}
     fa_res = full_audit.run_full_audit(
         params["website"], params.get("hotel", ""), params.get("city", ""), progress=progress,
         tavily_api_key=use_tavily, amadeus_api_key=use_amadeus, amadeus_api_secret=cfg.amadeus_secret if use_amadeus else None,
         gemini_reader_key=use_gemini_reader, youtube_api_key=cfg.youtube, wider=bool(params.get("wider", True)), pagespeed_api_key=cfg.pagespeed,
-        anthropic_api_key=use_anthropic, anthropic_model=cfg.anthropic_model, anthropic_repeats=cfg.repeats, custom_prompts=params.get("prompts") or None,
+        anthropic_api_key=use_anthropic, anthropic_model=cfg.anthropic_model, anthropic_repeats=cfg.repeats, custom_prompts=params.get("prompts") or None, benchmark=benchmark or None,
         market_hint={"tier": TIERS.get(params.get("tier")), "audiences": [a for a in params.get("audiences") or [] if a in valid_aud]})
     if params.get("review_rows"):
         fa_res = _with_review_export(fa_res, params["review_rows"], params.get("review_mapping") or {})

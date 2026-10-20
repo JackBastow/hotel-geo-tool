@@ -97,8 +97,11 @@ def _ai_line(rep):
     if not log:
         return ("Not measured. No AI assistant was asked about the hotel in this audit, so nothing here shows whether ChatGPT, Gemini, Copilot or any other assistant recommends it.", False)
     s = log["summary"]
-    return (f"Sampled on one assistant only: {log['platform']}, on {log['date'] or 'the audit date'}. It named the hotel in {s['appeared']} of {s['non_branded_answers']} answers to {s['prompts']} questions that do not "
-            f"mention the hotel, and recommended it in {s['recommended']}. ChatGPT, Gemini and Copilot were NOT tested, so this is a sample, not a measure of AI visibility.", True)
+    import trend
+    where = f" Searches were run as if from {ai['search_country']}." if ai.get("search_country") else ""
+    return (f"Sampled on one assistant only: {log['platform']}, on {log['date'] or 'the audit date'}.{where} It named the hotel in {s['appeared']} of {s['non_branded_answers']} answers to {s['prompts']} questions that do not "
+            f"mention the hotel ({trend.band(s['appeared'], s['non_branded_answers'])}; from that many answers the true rate is plausibly {round(100 * trend.wilson(s['appeared'], s['non_branded_answers'])[0])}% to "
+            f"{round(100 * trend.wilson(s['appeared'], s['non_branded_answers'])[1])}%), and recommended it in {s['recommended']}. ChatGPT, Gemini and Copilot were NOT tested, so this is a sample, not a measure of AI visibility.", True)
 
 
 def _exec_sentences(c, h, top, hotel):

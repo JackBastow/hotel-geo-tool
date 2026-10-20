@@ -228,7 +228,7 @@ def _tools(fa_res, token):
 TABS = [("overview", "Overview"), ("action", "Action plan"), ("ai", "AI visibility"), ("site", "Your website"), ("reputation", "Reputation & listings"), ("score", "Scorecard"), ("tools", "Tools & method")]
 
 
-def render(fa_res, token=None, prev=None, private=None):
+def render(fa_res, token=None, prev=None, private=None, prev_full=None):
     """
     -> the HTML of the report body (notices, then seven tabs) for a finished audit report. `prev` is the hotel's previous audit's summary row, when there is one, for 'since last audit'.
     The tabs are Overview and Action plan (dashboard_view.py, built for acting on) and the evidence tabs (the Streamlit screens drawn through htmlst).
@@ -256,6 +256,9 @@ def render(fa_res, token=None, prev=None, private=None):
                 st.divider()
             if fa_res.get("ai_gap"):
                 ui_consult.ai_gap_card(fa_res["ai_gap"])
+                st.divider()
+            if prev_full and (prev_full.get("ai_sample") or {}).get("status") == "ok":
+                ui_consult.ai_trend_card(fa_res.get("ai_sample"), prev_full, fa_res.get("benchmark"))
                 st.divider()
             ui_consult.ai_test_card(fa_res.get("ai_sample"), fa_res["meta"].get("hotel", ""))
             st.divider()

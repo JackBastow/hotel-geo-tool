@@ -68,6 +68,10 @@ class Reports:
             db = self._db()
             if db:
                 self.ids[token] = db.save_run(report, token=token)
+                bm = report.get("benchmark") or {}
+                if bm.get("prompts") and not bm.get("reused"):
+                    import backend
+                    db.save_benchmark(backend.hotel_key(report), bm["prompts"])          # frozen at the hotel's first audit; never overwritten
         except Exception:  # noqa: BLE001 - saving must never break an audit
             self.ids.pop(token, None)
         self._trim()
@@ -99,6 +103,15 @@ class Reports:
         try:
             db = self._db()
             return db.previous_run(rid) if (db and rid) else None
+        except Exception:  # noqa: BLE001
+            return None
+
+    def previous_full(self, token):
+        """The hotel's previous audit as a whole report (for the per-prompt comparison), or None."""
+        rid = self.ids.get(token)
+        try:
+            db = self._db()
+            return db.previous_report(rid) if (db and rid) else None
         except Exception:  # noqa: BLE001
             return None
 
@@ -326,7 +339,7 @@ def create_app(cfg=None, run_fn=None):
         if hit and hit[0] == sig and not private:
             body = hit[1]
         else:
-            body = report_view.render(rep, token=token, prev=reports.previous(token), private=private)
+            body = report_view.render(rep, token=token, prev=reports.previous(token), private=private, prev_full=reports.previous_full(token))
             if not private:
                 reports.html[token] = (sig, body)
         meta = rep["meta"]

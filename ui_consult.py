@@ -647,7 +647,7 @@ def ai_sample_card(ai, ins=None):
     s = ai["summary"]
     reps = s.get("repeats", 1)
     asked_txt = (f"{s['asked']} questions" if reps <= 1 else f"{s.get('questions', s['asked'])} different questions ({s['asked']} answers, the town-wide and niche ones asked {reps} times each so one odd answer does not decide it)")
-    st.caption(f"One model ({md_safe(ai.get('model', ''))}) with live web search was asked {asked_txt} on {md_safe(ai.get('run_at', ''))}. "
+    st.caption(f"One model ({md_safe(ai.get('model', ''))}) with live web search" + (f", searching as if from {md_safe(ai['search_country'])}," if ai.get("search_country") else "") + f" was asked {asked_txt} on {md_safe(ai.get('run_at', ''))}. "
                "This is a sample: answers change between runs and between assistants, and it is not a ranking. It is not part of any score.")
     market_card(ai.get("market"))
     sb = (ins or {}).get("scoreboard") or {}
@@ -1009,6 +1009,22 @@ def competitor_card(cp):
     df([{"Hotel": c["name"], "Why comparable": "; ".join(c["why_comparable"]), "Distance": f"{c['km']} km", "Pages read": c["pages_read"], "Website": c["url"]} for c in cp["competitors"]], link_cols=("Website",))
     for x in cp["comparisons"]:
         (st.warning if x["behind"] else st.success)(x["statement"])
+
+
+def ai_trend_card(ai, prev_full, benchmark=None):
+    """The same prompts now and at the hotel's last audit, with a change called only when the ranges do not overlap."""
+    import trend
+    prev_ai = (prev_full or {}).get("ai_sample") or {}
+    cmp_ = trend.compare((ai or {}).get("items"), prev_ai.get("items"), [p["text"] for p in (benchmark or {}).get("prompts") or []] or None)
+    st.markdown("##### Compared with the last audit")
+    if not cmp_["rows"]:
+        st.caption("No prompt was asked in both audits, so nothing can be compared yet. This audit's benchmark prompts are kept and asked again, word for word, next time.")
+        return
+    when = (prev_full.get("meta") or {}).get("run_at", "")[:10]
+    st.caption(f"The prompts asked in both audits (the last was {md_safe(when)}), compared by their exact wording. A change is called a change only when the likely ranges do not overlap; with this few answers most changes are not clear, "
+               "and that is stated rather than hidden. One assistant on one day each time.")
+    st.markdown(f"**All these prompts together:** now {md_safe(trend.describe(*cmp_['now']))}; at the last audit {md_safe(trend.describe(*cmp_['before']))}. **{md_safe((cmp_['change'] or 'no clear change').capitalize())}.**")
+    df([{"Prompt": r["text"], "Now": f"{r['now'][0]} of {r['now'][1]}", "Last audit": f"{r['before'][0]} of {r['before'][1]}", "Change": r["change"]} for r in cmp_["rows"]])
 
 
 def custom_prompts_card(ai, prompts):

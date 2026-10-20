@@ -77,6 +77,7 @@ import competitors as competitors_mod
 import evidence
 import external_presence
 import ai_extract
+import netguard
 import claude_reader
 import review_replies
 import audit
@@ -606,7 +607,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
                    youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None,
-                   anthropic_repeats=None, market_hint=None, custom_prompts=None):
+                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -688,11 +689,21 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                       for k in tavily_check.detect_segments(site.get("topics_covered"))]
     # A few real questions put to an AI assistant (needs a name and a town; runs beside everything else).
     ai_ex = ai_future = rv_future = ll_future = rd_future = None
+    # The country the searches are run as if from: the hotel's own (its website's ending, or where one search of the map places it). No market picker: one sensible default, stated in the report.
+    import anchors as _am
+    import phones as _ph0
+    search_country = _ph0.region_from_host(urllib.parse.urlparse(base).netloc)
+    if not search_country and hotel and city and anthropic_api_key:
+        try:
+            _g = _am.geocode(hotel, city, netguard.get, with_country=True)
+            search_country = _g[2] if _g else None
+        except Exception:  # noqa: BLE001
+            search_country = None
     if anthropic_api_key and hotel and city:
         ai_ex = ThreadPoolExecutor(max_workers=4)
         _rep = {} if anthropic_repeats is None else {"repeats": max(1, min(3, int(anthropic_repeats)))}      # how many times each list question is asked (default in ai_sample)
         ai_future = ai_ex.submit(ai_sample.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model,
-                                 segments=segment_labels, own_domain=base, **_rep)
+                                 segments=segment_labels, own_domain=base, country=search_country, **_rep)
         rv_future = ai_ex.submit(review_replies.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model)
         ll_future = ai_ex.submit(listing_lookup.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model)     # finds the hotel's listing on each major site
         rd_future = ai_ex.submit(reddit_check.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model)       # Reddit threads about the hotel and the town
@@ -843,7 +854,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             amadeus_result = {"configured": True, "found": False, "error": str(e)}
 
     # Questions for the markets this hotel actually competes in (airport, district, price level, what it is known for), from facts now in hand.
-    niche_ex = niche_future = market_profile = question_plan = None
+    niche_ex = niche_future = market_profile = question_plan = benchmark_info = None
     custom_qs = ai_niche.custom_questions(custom_prompts)          # the person's own prompts, asked exactly as typed
     if anthropic_api_key and hotel and city:
         nqs = []
@@ -861,12 +872,14 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             market_profile = ai_niche.describe(prof)
             # the questions rest on verified facts and a real place the hotel is close to (the hotel's own pages, then Wikipedia's well-known places around its coordinates)
             _anch = anchors_mod.find(own_pages, hotel, city, _osm_ctx, location)
+            search_country = search_country or _anch.get("country")
             try:
                 _qclient = ai_sample._make_client(anthropic_api_key, timeout=60.0)
             except Exception:  # noqa: BLE001
                 _qclient = None
-            built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or ai_sample.REPEATS), features=_feats0)
+            built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or ai_sample.REPEATS), features=_feats0, benchmark=benchmark)
             nqs = built["questions"]
+            benchmark_info = {"prompts": built["benchmark_prompts"] or [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why")} for b in (benchmark or [])], "reused": built["benchmark_reused"]}
             question_plan = {"facts": built["facts"], "rejected": built["rejected"], "anchors": _anch["anchors"][:6], "coords_source": _anch["coords_source"], "cost_usd": built["cost_usd"]}
             market_profile["anchors"] = _anch["anchors"][:4]
         except Exception:  # noqa: BLE001 - the planner is an extra; the standard questions still run
@@ -876,7 +889,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             try:
                 _host0 = urllib.parse.urlparse(base).netloc.lower()
                 niche_ex = ThreadPoolExecutor(max_workers=1)
-                niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model, budget_usd=3.0,
+                niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model, budget_usd=3.0, country=search_country,
                                                own_domain=_host0[4:] if _host0.startswith("www.") else _host0, **({} if anthropic_repeats is None else {"repeats": max(1, min(3, int(anthropic_repeats)))}))
             except Exception:  # noqa: BLE001
                 niche_future = None
@@ -1133,6 +1146,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "ai_sample": ai_result,
         "market_profile": market_profile,
         "question_plan": question_plan,
+        "benchmark": benchmark_info,
         "custom_prompts": [q["text"] for q in custom_qs],
         "ai_insights": ai_insight_result,
         "ai_gap": ai_gap_result,

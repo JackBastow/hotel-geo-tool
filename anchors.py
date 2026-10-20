@@ -63,8 +63,8 @@ def from_pages(own_pages, hotel, osm_ctx=None, max_km=2.5):
     return out
 
 
-def geocode(hotel, city, fetch):
-    """(lat, lon) for the hotel from one Nominatim search, accepted only if the result is in the hotel's town. None when it cannot be found or placed."""
+def geocode(hotel, city, fetch, with_country=False):
+    """(lat, lon) for the hotel from one Nominatim search, accepted only if the result is in the hotel's town; with_country also returns the two-letter country code. None when it cannot be found or placed."""
     q = f"{hotel}, {city}".strip(", ")
     try:
         r = fetch(NOMINATIM + "?" + urllib.parse.urlencode({"q": q, "format": "json", "limit": 3, "addressdetails": 1}), headers={"User-Agent": UA}, timeout=10)
@@ -77,7 +77,8 @@ def geocode(hotel, city, fetch):
         where = evidence.fold(" ".join(str(a.get(k, "")) for k in ("city", "town", "village", "municipality", "suburb", "county")) + " " + row.get("display_name", ""))
         if town and town in where:
             try:
-                return float(row["lat"]), float(row["lon"])
+                xy = float(row["lat"]), float(row["lon"])
+                return (xy + ((a.get("country_code") or "").upper() or None,)) if with_country else xy
             except (KeyError, ValueError):
                 continue
     return None
@@ -110,7 +111,7 @@ def find(own_pages, hotel, city, osm_ctx=None, location=None, fetch=None, deadli
     -> {"anchors": [...best first...], "coords": (lat, lon)|None, "coords_source": str}. The hotel's own words come first; Wikipedia's well-known places fill in around them. Never raises.
     """
     own = from_pages(own_pages, hotel, osm_ctx)
-    out = {"anchors": [], "coords": None, "coords_source": ""}
+    out = {"anchors": [], "coords": None, "coords_source": "", "country": None}
     coords = (location or {}).get("lat"), (location or {}).get("lon")
     if all(isinstance(c, (int, float)) for c in coords):
         out["coords"], out["coords_source"] = coords, "the hotel's own pages"
@@ -121,9 +122,9 @@ def find(own_pages, hotel, city, osm_ctx=None, location=None, fetch=None, deadli
     wiki = []
     try:
         if out["coords"] is None and hotel and city and time.time() - t0 < deadline_s:
-            g = geocode(hotel, city, fetch)
+            g = geocode(hotel, city, fetch, with_country=True)
             if g:
-                out["coords"], out["coords_source"] = g, "OpenStreetMap search (Nominatim)"
+                out["coords"], out["coords_source"], out["country"] = (g[0], g[1]), "OpenStreetMap search (Nominatim)", g[2]
         if out["coords"] and time.time() - t0 < deadline_s:
             wiki = wikipedia_nearby(out["coords"][0], out["coords"][1], fetch)
     except Exception:  # noqa: BLE001

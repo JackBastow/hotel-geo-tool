@@ -192,6 +192,7 @@ class Store:
             self._ensure_columns(conn, "runs", {c: ("TEXT" if c in text_cols else "DOUBLE PRECISION" if (c in real_cols and self.kind != "sqlite") else "REAL" if c in real_cols else "INTEGER")
                                                 for c in RUN_COLS})
             self._run(conn, "CREATE TABLE IF NOT EXISTS usage_counters (service TEXT, month TEXT, calls INTEGER, audits INTEGER, updated TEXT, PRIMARY KEY (service, month))")
+            self._run(conn, "CREATE TABLE IF NOT EXISTS benchmark (hotel_key TEXT PRIMARY KEY, created TEXT, prompts_json TEXT)")
             self._run(conn, f"CREATE TABLE IF NOT EXISTS feedback (id {pk}, created TEXT, run_id INTEGER, ref TEXT, verdict TEXT, note TEXT, label TEXT, source TEXT, title TEXT)")
             self._ensure_columns(conn, "runs", {"access_token": "TEXT"})
             self._ensure_columns(conn, "ai_competitors", {"coverage_pct": "INTEGER", "sentiment": "INTEGER", "positive": "INTEGER", "negative": "INTEGER"})
@@ -285,6 +286,37 @@ class Store:
         rows = self._rows(f"SELECT {cols} FROM runs WHERE hotel_key = ? AND (run_at < ? OR (run_at = ? AND id < ?)) ORDER BY run_at DESC, id DESC LIMIT 1",
                           (cur[0]["hotel_key"], cur[0]["run_at"], cur[0]["run_at"], run_id))
         return rows[0] if rows else None
+
+    def get_benchmark(self, hotel_key):
+        """The prompts frozen at this hotel's first audit, or []."""
+        rows = self._rows("SELECT prompts_json FROM benchmark WHERE hotel_key = ?", (hotel_key,))
+        try:
+            return json.loads(rows[0]["prompts_json"]) if rows else []
+        except (ValueError, TypeError):
+            return []
+
+    def save_benchmark(self, hotel_key, prompts):
+        """Freeze a hotel's benchmark prompts at its first audit. An existing benchmark is never overwritten: that is what makes later audits comparable."""
+        if not hotel_key or not prompts or self.get_benchmark(hotel_key):
+            return False
+        conn = self._connect()
+        try:
+            self._run(conn, "INSERT INTO benchmark (hotel_key, created, prompts_json) VALUES (?, ?, ?)", (hotel_key, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), json.dumps(prompts)))
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+
+    def previous_report(self, run_id):
+        """The full report of the hotel's audit just before this one, or None (for per-prompt comparison)."""
+        row = self.previous_run(run_id)
+        if not row:
+            return None
+        rows = self._rows("SELECT report_json FROM runs WHERE id = ?", (row["id"],))
+        try:
+            return json.loads(rows[0]["report_json"]) if rows else None
+        except (ValueError, TypeError):
+            return None
 
     def add_feedback(self, row):
         """One 'useful' / 'wrong' mark on one recommendation of one saved audit: {run_id, ref, verdict, note, label, source, title}. The text is the visitor's own words about the finding, stored without any
