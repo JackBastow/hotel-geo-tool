@@ -176,6 +176,17 @@ check("the investigations and the outreach clear the action-plan threshold (they
 plan = ranking.plan_30_60_90(rk, set())
 check("so they are in the plan", {r["id"] for r in rk} <= {i for b in plan.values() for i in b}, str(plan))
 
+print("6. what the outreach says about the page")
+check("the publication's own contact page is found among the article's links, only on its own site", g._contact_url(["https://x.com/a", "https://www.telegraph.co.uk/about-us/", "https://other.com/contact"], "telegraph.co.uk") == "https://www.telegraph.co.uk/about-us/" and g._contact_url(["https://other.com/contact"], "telegraph.co.uk") == "")
+check("a page's age in months comes from its stated date, and is unknown when there is none", g._age_months(time_str := __import__("time").strftime("%Y-%m-%d", __import__("time").gmtime())) == 0 and g._age_months("2020-01-15") > 60 and g._age_months(None) is None)
+art = {"url": ART, "title": "The best luxury hotels near Opera Garnier", "domain": "telegraph.co.uk", "kind": "Travel media", "cited": 2, "questions": ["niche_luxury"], "passage": "", "read": "ok", "note": "", "hotel_in": False,
+       "rivals_in": ["Hotel Alpha Opera", "Maison Beta Paris"], "lists_hotels": True, "rival_sentence": "Hotel Alpha Opera is our top pick.", "hotel_sentence": "", "sponsored": False, "published": "2022-03-01",
+       "opportunity": True, "contact_url": "https://www.telegraph.co.uk/about-us/", "affiliate": True, "age_months": 55, "hotels_listed": 10, "byline": False}
+rec = advice._from_ai_gap({**res, "articles": [art], "chain": True})
+out1 = next(r for r in rec if r["id"] == "AG-OUT-1")
+check("it says the page is over two years old, that it carries affiliate wording, that no author could be read, gives the contact page, and for a chain names the brand's team",
+      "over two years ago" in out1["finding"] and "affiliate wording" in out1["finding"] and "No author or publisher" in out1["finding"] and "about-us" in out1["finding"] and "brand's PR or regional marketing team" in out1["action"], out1["finding"][:300])
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

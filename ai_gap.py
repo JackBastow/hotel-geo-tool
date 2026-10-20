@@ -36,6 +36,8 @@ DEADLINE_S = 45
 SEARCH_BUDGET_USD = 0.20
 EDITORIAL = ("Travel media", "Tourism board", "Other")
 _LIST_TITLE = re.compile(r"\b(?:best|top|where to stay|guide|hotels? (?:in|near)|\d+\s+(?:best|top|great)|recommended|favou?rite|round-?up)\b", re.I)
+_CONTACT = re.compile(r"/(?:contact|contact-us|about|about-us|write-for-us|submit|advertis\w*|pitch\w*|press|media-kit|work-with-us)(?:/|\.|$)", re.I)
+_AFFILIATE = re.compile(r"affiliate|we may earn|earn a commission|commission from|paid links|sponsored links", re.I)
 _URL = re.compile(r"https?://[^\s)\]>\"'<]+")
 LIMITS = [
     "One assistant with web search was asked a handful of questions on one day. 'n of m answers' counts answers, not a market ranking, and the assistant's choices vary between runs.",
@@ -169,7 +171,26 @@ def _read_article(url, reader):
     if not f.get("ok") or not pg or len(pg.get("text") or "") < 300:
         return {"read": "unread", "why": f.get("error") or "no readable text (paywall, or built with scripts)"}
     return {"read": "ok", "why": "", "text": pg["text"], "title": pg.get("title") or "", "publisher": pg.get("publisher") or "", "published": pg.get("published"),
-            "sponsored": bool(pg.get("sponsored_cue")), "press_release": bool(pg.get("press_release_cue"))}
+            "sponsored": bool(pg.get("sponsored_cue")), "press_release": bool(pg.get("press_release_cue")), "links": pg.get("links") or [], "sections_n": len(pg.get("sections") or []),
+            "author": pg.get("author") or ""}
+
+
+def _contact_url(links, domain):
+    """The publication's own contact, about or write-for-us page, if the article links to one on its own site. Only surfaced for the hotel to use: nothing is ever sent."""
+    host = (domain or "").lower().removeprefix("www.")
+    for l in links or []:
+        p = urllib.parse.urlparse(l)
+        if (p.netloc.lower().removeprefix("www.") == host or p.netloc.lower().endswith("." + host)) and _CONTACT.search(p.path):
+            return l
+    return ""
+
+
+def _age_months(published):
+    m = re.match(r"(\d{4})-(\d{2})", str(published or ""))
+    if not m:
+        return None
+    now = time.gmtime()
+    return (now.tm_year - int(m.group(1))) * 12 + (now.tm_mon - int(m.group(2)))
 
 
 def articles(pages, rivals_all, hotel, city, reader, deadline_s, limit=MAX_ARTICLES):
@@ -191,7 +212,8 @@ def articles(pages, rivals_all, hotel, city, reader, deadline_s, limit=MAX_ARTIC
     out = []
     for p, a in read:
         row = {**{k: p[k] for k in ("url", "title", "domain", "kind", "cited", "questions", "passage")}, "read": a["read"], "note": a.get("why", ""), "hotel_in": None, "rivals_in": [],
-               "lists_hotels": None, "rival_sentence": "", "hotel_sentence": "", "sponsored": False, "published": None, "opportunity": False}
+               "lists_hotels": None, "rival_sentence": "", "hotel_sentence": "", "sponsored": False, "published": None, "opportunity": False,
+               "contact_url": "", "affiliate": None, "age_months": None, "hotels_listed": None, "byline": None}
         if a["read"] == "ok":
             text = a["text"]
             row["title"] = a.get("title") or row["title"]
@@ -203,6 +225,11 @@ def articles(pages, rivals_all, hotel, city, reader, deadline_s, limit=MAX_ARTIC
             row["lists_hotels"] = len(row["rivals_in"]) >= 3 or (bool(_LIST_TITLE.search(row["title"])) and len(row["rivals_in"]) >= 2)
             row["rival_sentence"] = _sentence_with(text, row["rivals_in"][0]) if row["rivals_in"] else ""
             row["hotel_sentence"] = _sentence_with(text, hotel) if row["hotel_in"] else ""
+            row["contact_url"] = _contact_url(a.get("links"), p["domain"])
+            row["affiliate"] = bool(_AFFILIATE.search(text[:3000] + " " + text[-2500:]))
+            row["age_months"] = _age_months(a.get("published"))
+            row["hotels_listed"] = max(a.get("sections_n") or 0, len(row["rivals_in"]))
+            row["byline"] = bool(a.get("author") or a.get("publisher"))
             row["opportunity"] = bool(row["lists_hotels"] and not row["hotel_in"] and row["rivals_in"] and not row["sponsored"])
             if row["sponsored"]:
                 row["note"] = "this page looks sponsored or like a republished press release, so it is not treated as an editorial opportunity"
@@ -483,7 +510,7 @@ def run(ai, ins, ctx, *, api_key=None, model=None, client=None, reader=None, fet
     gaps = [m for m in ms if m["gap"]]
     out = env("ok", "" if gaps else ("The hotel was named in every answer to every question, so there is no gap to analyse." if all(m["status"] == "named" for m in ms) else
                                       "The hotel was not named in some answers, but only hotels in a different category were: that is not a competitive gap."),
-              markets=ms, gaps=[m["qid"] for m in gaps], hotel_tier=ctx.get("hotel_tier"))
+              markets=ms, gaps=[m["qid"] for m in gaps], hotel_tier=ctx.get("hotel_tier"), chain=bool(ctx.get("brand_domains")))
     if not gaps:
         return out
     if reader is None:

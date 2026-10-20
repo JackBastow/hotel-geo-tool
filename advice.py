@@ -495,14 +495,18 @@ def _from_ai_gap(gap):
             continue
         n += 1
         qs = [ms[x]["question"] for x in a.get("questions") or [] if x in ms]
-        dated = f" It is dated {a['published']}; check it is still being kept up to date." if a.get("published") else " Its date could not be read, so check it is current."
+        old = a.get("age_months") is not None and a["age_months"] > 24
+        dated = (f" It is dated {a['published']}" + (f", over two years ago, so check it is still being kept up to date." if old else "; check it is still being kept up to date.")) if a.get("published") else " Its date could not be read, so check it is current."
+        notes = (" The page carries affiliate wording, so its list may reflect commercial arrangements: ask how hotels are chosen." if a.get("affiliate") else "") + \
+                (" No author or publisher could be read on the page, so check the publication is credible and independent before approaching it." if a.get("byline") is False else "") + \
+                (f" Its own contact page: {a['contact_url']}." if a.get("contact_url") else "")
         out.append(_rec(
             f"AG-OUT-{n}", "authority", f"Ask {a['domain']} whether the hotel can be included in “{a['title'][:80]}”",
-            f"The assistant cited this page when asked “{qs[0] if qs else 'a hotel question'}”. It names {', '.join(a['rivals_in'][:3])} and does not mention the hotel.{dated}",
+            f"The assistant cited this page when asked “{qs[0] if qs else 'a hotel question'}”. It names {', '.join(a['rivals_in'][:3])} and does not mention the hotel.{dated}{notes}",
             "A page the assistant reads and cites is one place it learns which hotels to name. Being fairly described in a page like this is a legitimate way to be found; it is not a guarantee of being recommended.",
             [{"url": a["url"], "snippet": a.get("rival_sentence") or a.get("passage") or a["title"]}],
             "If the hotel genuinely fits what the article covers, write to the publication's editor with accurate, factual information (what the hotel offers, where it is, anything new). Do not pay for a placement presented as editorial, "
-            "and do not ask for changes to reviews. Check the page is current first.",
+            "and do not ask for changes to reviews. Check the page is current first." + (" For a chain hotel this is normally the brand's PR or regional marketing team, not the hotel." if gap.get("chain") else ""),
             "low", "medium", confidence=EXPER, team="PR", source="ai", tag=f"AGO{n}", summary="An editorial list the assistant cited that omits the hotel"))
         out[-1]["kind_hint"] = "opportunity"
     return out
