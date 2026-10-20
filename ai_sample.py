@@ -249,7 +249,7 @@ def expand(questions, repeats=REPEATS):
     """List-type questions (town-wide and niche) are asked `repeats` times; questions about the hotel itself once. Each answer gets its own id: 'best', 'best#2'."""
     out = []
     for q in questions:
-        n = repeats if q["kind"] in REPEAT_KINDS else 1
+        n = q.get("repeats") or (repeats if q["kind"] in REPEAT_KINDS else 1)        # a question can carry its own count: the hotel's core market is asked more often than the rest
         for k in range(n):
             out.append({**q, "qid": q["id"], "id": q["id"] if k == 0 else f"{q['id']}#{k + 1}", "repeat": k + 1, "repeats": n})
     return out

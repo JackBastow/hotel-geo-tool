@@ -257,6 +257,13 @@ def audiences(prof, level, flevel, stated=None):
                 if key not in (stated or []):
                     continue
         elif key not in (stated or []) and lv:
+            tkey = (prof.get("tier") or {}).get("key")
+            if key == "luxury" and tkey != "luxury":
+                prof.setdefault("skipped", []).append({"key": key, "label": label, "why": f"the hotel is {(prof.get('tier') or {}).get('label', 'not luxury')}, so a luxury question would be answered by palace hotels that are not its competitors"})
+                continue
+            if key == "value" and tkey not in ("midscale", "budget"):
+                prof.setdefault("skipped", []).append({"key": key, "label": label, "why": "the hotel is not mid-range or budget, so 'cheap but clean' is not its market"})
+                continue
             if classes is not None and key in NEEDS_CLASS and not (classes & NEEDS_CLASS[key]):
                 prof.setdefault("skipped", []).append({"key": key, "label": label, "why": GATE_WHY.get(key, "the hotel's kind does not support it")})
                 continue

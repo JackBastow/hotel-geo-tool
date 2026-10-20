@@ -629,6 +629,8 @@ def market_card(m):
                    + ". Brand level is an inference; correct it with 'Who is the hotel for?' when you run the audit.")
         if m.get("venue"):
             st.caption(f"Near a venue: the hotel's own pages put {md_safe(m['venue']['name'])} close ({md_safe(m['venue']['distance'])}).")
+        if m.get("anchors"):
+            st.caption("**Places the questions are built around:** " + " · ".join(f"{md_safe(a['name'])} ({md_safe(a.get('distance') or (str(a['km']) + ' km'))}, {md_safe(a['source'])})" for a in m["anchors"][:3]))
         if m.get("skipped"):
             st.caption("**Considered but not asked, because the hotel's kind does not support it:** " + " · ".join(f"{md_safe(x['label'])}: {md_safe(x['why'])}" for x in m["skipped"]) + ". Add any of these as your own prompt if you want them tested.")
 

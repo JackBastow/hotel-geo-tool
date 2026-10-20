@@ -66,6 +66,8 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 
 import ai_gap
+import ai_questions
+import anchors as anchors_mod
 import ai_insights
 import ai_niche
 import ai_sample
@@ -841,7 +843,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             amadeus_result = {"configured": True, "found": False, "error": str(e)}
 
     # Questions for the markets this hotel actually competes in (airport, district, price level, what it is known for), from facts now in hand.
-    niche_ex = niche_future = market_profile = None
+    niche_ex = niche_future = market_profile = question_plan = None
     custom_qs = ai_niche.custom_questions(custom_prompts)          # the person's own prompts, asked exactly as typed
     if anthropic_api_key and hotel and city:
         nqs = []
@@ -857,7 +859,16 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             _classes0 = _hc0.classify(_site0, _feats0, _ints0, _osm_ctx, hotel)["keys"] if _site0 else None      # the kinds of hotel this is decide which markets are worth asking about
             prof = ai_niche.profile(hotel, city, ext["entities"], _osm_ctx, own_pages, _feats0, _ints0, hint=market_hint, domain=_host1, classes=_classes0)
             market_profile = ai_niche.describe(prof)
-            nqs = ai_niche.questions(prof, hotel, city, n=8)
+            # the questions rest on verified facts and a real place the hotel is close to (the hotel's own pages, then Wikipedia's well-known places around its coordinates)
+            _anch = anchors_mod.find(own_pages, hotel, city, _osm_ctx, location)
+            try:
+                _qclient = ai_sample._make_client(anthropic_api_key, timeout=60.0)
+            except Exception:  # noqa: BLE001
+                _qclient = None
+            built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or ai_sample.REPEATS), features=_feats0)
+            nqs = built["questions"]
+            question_plan = {"facts": built["facts"], "rejected": built["rejected"], "anchors": _anch["anchors"][:6], "coords_source": _anch["coords_source"], "cost_usd": built["cost_usd"]}
+            market_profile["anchors"] = _anch["anchors"][:4]
         except Exception:  # noqa: BLE001 - the planner is an extra; the standard questions still run
             nqs = []
         nqs = nqs + custom_qs
@@ -865,7 +876,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             try:
                 _host0 = urllib.parse.urlparse(base).netloc.lower()
                 niche_ex = ThreadPoolExecutor(max_workers=1)
-                niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model,
+                niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model, budget_usd=3.0,
                                                own_domain=_host0[4:] if _host0.startswith("www.") else _host0, **({} if anthropic_repeats is None else {"repeats": max(1, min(3, int(anthropic_repeats)))}))
             except Exception:  # noqa: BLE001
                 niche_future = None
@@ -1121,6 +1132,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "web_signals": web,
         "ai_sample": ai_result,
         "market_profile": market_profile,
+        "question_plan": question_plan,
         "custom_prompts": [q["text"] for q in custom_qs],
         "ai_insights": ai_insight_result,
         "ai_gap": ai_gap_result,
