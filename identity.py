@@ -63,6 +63,7 @@ def name_variants_seen(hotel, corpus, entities, own_name, ledger):
     def note(text, source, url=""):
         for m in rx.finditer(text or ""):
             v = re.sub(r"\s+", " ", m.group(0)).strip(" &,-")
+            v = re.sub(r"\b(\w+)(?:\s+\1\b)+", r"\1", v, flags=re.I)         # 'Opera Ambassador Hotel Hotel' (the name, then the next word of the sentence) is one form, not a second one
             # drop a dangling connector ("Brooklands Hotel and") but keep "& Spa"
             v = re.sub(r"\s+(?:and|&)$", "", v, flags=re.I).strip(" &,-")
             # a bare distinctive word ("Brooklands") is not a name form of the hotel

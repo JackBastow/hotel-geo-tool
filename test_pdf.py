@@ -97,7 +97,7 @@ if pymupdf is not None:
     check("each evidence-strength level is shown beside component scores", "evidence" in mtext and "Evidence strength" in mtext)
     for fld in ("Issue", "Why it matters", "Evidence", "Action", "owner", "Expected outcome"):
         check(f"each top action shows: {fld}", mtext.count(fld) >= 3, mtext.count(fld))
-    check("each top action shows priority, effort, confidence (verified finding or reasonable inference) and owner", all(w in mtext for w in ("priority - effort", "owner:")) and ("Verified finding" in mtext or "Reasonable inference" in mtext))
+    check("each top action shows priority, effort, confidence (Confirmed, Likely or Worth checking) and owner", all(w in mtext for w in ("priority - effort", "owner:")) and ("Confirmed" in mtext or "Likely" in mtext or "Worth checking" in mtext))
     check("readiness and observed AI visibility sit side by side, and the score's calculation is shown", "Observed AI visibility" in mtext and "How the readiness score is calculated" in mtext and "Share of the measured weight" in mtext)
     check("the 2/5 food hygiene rating reaches the management report", "Food hygiene rating" in mtext)
     check("at most seven top actions", mtext.count("Appendix reference") <= 7, mtext.count("Appendix reference"))

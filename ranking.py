@@ -28,11 +28,27 @@ The numbers below are judgements, written down so they can be argued with.
 """
 
 import math
+import re
 
 EFFORT_COST = {"low": 1.0, "medium": 1.8, "high": 3.0}
-CONF_FACTOR = {"Established good practice": 1.0, "Reasonable inference": 0.8, "Experimental": 0.55}
+# One evidence ladder for the whole report, three rungs. It is decided by the evidence a recommendation carries, not by how confident the code is:
+#   Confirmed       the issue is shown by a quotation (with its page) the audit checked, from a source the audit read itself (not a sample), and the finding is not an absence on a part-read site
+#   Likely          the evidence points to it but cannot show it: an absence on pages that may not be all there is, a fact only inferred, a count from a small sample of pages
+#   Worth checking  a lead from a sample (one assistant on one day, a search result) or an experimental reading: look at it, do not act on it yet
+CONF_FACTOR = {"Confirmed": 1.0, "Likely": 0.8, "Worth checking": 0.55}
+CONFIRMABLE = {"machine", "structured", "consistency", "booking", "listings", "questions", "traveller", "location", "hidden", "review_pack", "external", "competitors", "intel"}
+_NOTE = re.compile(r"^(?:pages inspected|no page about|audit note|still not stated|[^:]{0,60}: (?:pages inspected|still not stated))", re.I)
 # What the reader sees: a finding the evidence directly supports, or an inference drawn from it. (Internal basis names stay as they are.)
-CONF_LABEL = {"Established good practice": "Verified finding", "Reasonable inference": "Reasonable inference", "Experimental": "Reasonable inference (experimental)"}
+
+
+def evidence_label(r):
+    """'Confirmed', 'Likely' or 'Worth checking' for one recommendation, from the evidence it carries (see above)."""
+    if r.get("confidence") == "Experimental" or r.get("source") in ("ai", "reddit", "reviews"):
+        return "Worth checking"
+    quotes = [e for e in r.get("evidence") or [] if e.get("url") and (e.get("snippet") or "").strip() and not _NOTE.match((e.get("snippet") or "").strip())]
+    if r.get("confidence") == "Established good practice" and quotes and r.get("source") in CONFIRMABLE and not r.get("absence_based"):
+        return "Confirmed"
+    return "Likely"
 
 # (source, tag) -> (risk, traveller, visibility, kind)
 F = {
@@ -138,10 +154,12 @@ def annotate(recs, questions):
     qmap = {q["id"]: q for q in questions or []}
     for r in recs:
         risk, trav, vis, kind = factors(r, qmap)
-        conf = CONF_FACTOR.get(r["confidence"], 0.8)
+        r["kind"] = kind
+        lab = evidence_label(r)
+        conf = CONF_FACTOR[lab]
         value = 100.0 * (0.40 * risk + 0.25 * trav + 0.20 * vis) / 4.25 * conf
         r["factors"] = {"risk": risk, "traveller": trav, "visibility": vis, "confidence": conf}
-        r["confidence_label"] = CONF_LABEL.get(r["confidence"], "Reasonable inference")
+        r["confidence_label"] = lab
         r["owner"] = (r.get("team") or "web").capitalize()
         r["kind"] = kind
         r["value"] = round(value, 1)
@@ -151,7 +169,26 @@ def annotate(recs, questions):
     return recs
 
 
-def top_actions(recs, n=7, per_category=4, floor=35):
+def relabel(recs):
+    """Recompute the evidence label, value, rank and priority of recommendations whose evidence or confidence changed after they were first ranked (the validation gate removes evidence and downgrades)."""
+    for r in recs:
+        f = r.get("factors")
+        if not f:
+            continue
+        lab = evidence_label(r)
+        f["confidence"] = CONF_FACTOR[lab]
+        value = 100.0 * (0.40 * f["risk"] + 0.25 * f["traveller"] + 0.20 * f["visibility"]) / 4.25 * f["confidence"]
+        r["confidence_label"], r["value"] = lab, round(value, 1)
+        r["rank"] = round(value / math.sqrt(EFFORT_COST[r["effort"]]), 1)
+        r["priority"] = label(value, f["risk"], f["visibility"])
+        if r.get("absence_cap") and r["priority"] in ("high", "critical"):
+            r["priority"] = "medium"
+        r["impact"] = {"critical": "high", "high": "high", "medium": "medium", "low": "low"}[r["priority"]]
+        r["score"] = r["rank"]
+    return recs
+
+
+def top_actions(recs, n=7, per_category=3, floor=35):
     """The few required fixes most worth doing, from the whole audit."""
     picked, used = [], {}
     for r in sorted((x for x in recs if x["kind"] == "fix" and x["value"] >= floor), key=lambda x: -x["rank"]):

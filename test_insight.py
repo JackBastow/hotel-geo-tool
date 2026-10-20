@@ -432,7 +432,7 @@ planned = [i for k in ("30", "60", "90") for i in res13["plan"][k]]
 check("the 30/60/90 plan lists each recommendation at most once", len(planned) == len(set(planned)))
 # a pure unit check on the model
 mk = lambda src, tag, eff="low", conf=advice.BEST, cat="understanding": {"id": tag, "source": src, "tag": tag, "effort": eff, "confidence": conf,  # noqa: E731
-                                                                         "category": cat, "question_ids": []}
+                                                                         "category": cat, "question_ids": [], "evidence": [{"url": "https://example.com/page", "snippet": "a passage quoted from the page"}]}
 fsa_u, sd_u = mk("intel", "F1", "medium"), mk("structured", "SD1")
 ranking.annotate([fsa_u, sd_u], [])
 check("model: hygiene (risk 5, traveller 5) scores well above markup", fsa_u["value"] > sd_u["value"] * 1.4, (fsa_u["value"], sd_u["value"]))

@@ -27,6 +27,8 @@ STATE_COL = {"confirmed": R.GOOD, "partial": R.WARN, "missing": R.BAD, "unknown"
 STATE_TXT = {"confirmed": "Confirmed", "partial": "Partially confirmed", "missing": "Missing", "unknown": "Unknown", "not_offered": "Stated as not available"}
 EXT_COL = {"verified": R.GOOD, "identified": R.GOOD, "contradicts": R.BAD, "unclear": R.WARN, "limited": R.WARN, "not_verified": R.GREY}
 
+CONF_KEY = ("Confirmed: shown by a quotation from the hotel's own pages or a source the audit read, which the audit checked. Likely: the evidence points to it but cannot show it (for example something not found on pages that may "
+            "not be all there is). Worth checking: a lead from a sample, such as one assistant on one day; look into it before acting.")
 NOREAD = "Not assessed: the website could not be read, so nothing can be said about this either way."
 
 
@@ -63,7 +65,7 @@ def _ev1(r):
 
 
 def _conf(r):
-    return r.get("confidence_label") or ("Verified finding" if r.get("confidence") == "Established good practice" else "Reasonable inference")
+    return r.get("confidence_label") or "Likely"
 
 
 def action_card(i, r):
@@ -119,7 +121,7 @@ def story(rep, H1):
     hotel = meta.get("hotel", "the hotel")
     h = rep.get("headline") or headline_mod.build(rep)
     recs = {r["id"]: r for r in c["recommendations"]}
-    top = [recs[i] for i in c["top_actions"] if recs[i]["kind"] == "fix"][:5]
+    top = [recs[i] for i in c["top_actions"] if recs[i]["kind"] == "fix" and recs[i].get("confidence_label") != "Worth checking"][:5]
     out = [R.Spacer(1, 6 * R.mm), para("Management report", "title"), para(hotel, "h1"),
            R.P(link(meta.get("base", ""), meta.get("website", "")) + " - " + esc(meta.get("city", "")) +
                " - audit run " + esc(R._date(meta.get("run_at"))), "base"), Spacer(1, 4),
@@ -328,9 +330,10 @@ def story(rep, H1):
         order, phase = [], {}
         for label, key in (("Days 1-30", "30"), ("Days 31-60", "60"), ("Days 61-90", "90")):
             for rid in c["plan"].get(key, []):
-                if rid not in phase and recs[rid]["kind"] == kind:
+                if rid not in phase and recs[rid]["kind"] == kind and _conf(recs[rid]) != "Worth checking":
                     order.append(rid)
                     phase[rid] = label
+        order = order[:8 if kind == "fix" else 5]            # a short list a manager can act on; everything else is in the appendix
         out.append(para(heading, "h3"))
         out.append(para(intro, "tiny"))
         if order:
@@ -342,6 +345,11 @@ def story(rep, H1):
         else:
             out.append(para("None.", "base"))
     out.append(para("Days 1-30: serious and quick items. Days 31-60: medium-effort fixes. Days 61-90: larger pieces of work. Re-run the audit afterwards to check what changed.", "tiny"))
+    leads = sorted((r for r in recs.values() if _conf(r) == "Worth checking"), key=lambda r: -r["rank"])
+    if leads:
+        out.append(para("Leads worth looking into (not yet findings)", "h3"))
+        out.append(para("These come from a sample (one assistant on one day, a search result) or an experimental reading. Look at them before acting; the evidence for each is in the appendix.", "tiny"))
+        out.append(table([["Lead", "Owner", "Ref"]] + [[short(r.get("short_title") or r["title"], 100), r.get("owner") or r["team"].capitalize(), r["ref"]] for r in leads[:5]], [0.7, 0.15, 0.15]))
 
     # 7 -------------------------------------------------------------- methodology and limitations
     out.append(H1("Methodology and limitations"))
@@ -356,11 +364,12 @@ def story(rep, H1):
     if cnc:
         out.append(para("Could not be confirmed either way (no recommendation made)", "h3"))
         out += R.bullets([f"{x['topic']}: {x['why']}" for x in cnc])
-    n_ver = sum(1 for r in c["recommendations"] if _conf(r) == "Verified finding")
+    n_ver = sum(1 for r in c["recommendations"] if _conf(r) == "Confirmed")
     out.append(para("Confidence", "h3"))
-    out.append(para(f"{n_ver} of the {len(c['recommendations'])} recommendations are verified findings (the evidence directly shows the issue on pages that were read). The rest are reasonable inferences: "
-                    "they carry lower confidence because the crawl was limited, a page had sections that could not be read, the finding depends on a sample, or the benefit is an estimate. "
-                    f"{len(c.get('dropped_recommendations') or [])} candidate recommendation(s) were withheld for lacking evidence or a specific action.", "base"))
+    n_lik = sum(1 for r in c["recommendations"] if _conf(r) == "Likely")
+    n_chk = sum(1 for r in c["recommendations"] if _conf(r) == "Worth checking")
+    out.append(para(f"Of the {len(c['recommendations'])} findings in this audit, {n_ver} are Confirmed, {n_lik} Likely and {n_chk} Worth checking. " + CONF_KEY + " "
+                    f"{len(c.get('dropped_recommendations') or [])} candidate finding(s) were withheld for lacking evidence or a specific action.", "base"))
     out.append(para("AI recommendation testing", "h3"))
     out.append(para(("Genuine tests were run on one assistant only (" + (rep.get("ai_sample") or {}).get("model", "Claude") + " with web search); every prompt and answer is logged in the appendix, and a checklist is provided to test the "
                      "other assistants by hand. No test of ChatGPT, Gemini or Copilot took place, so nothing here describes what they recommend. Observed AI visibility stays separate from the readiness score.")

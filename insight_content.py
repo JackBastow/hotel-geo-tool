@@ -23,6 +23,7 @@ import evidence
 import lexicon
 import pagetarget
 import places
+import phones
 import textutil
 import urlscope
 
@@ -742,25 +743,49 @@ def _phone_label(blob, start):
     return best
 
 
+def _phone_key(raw, region):
+    """-> (key, info). A real number is keyed by its international form; text that looks international but is not a valid number (a booking reference, an id, digits run together) is not a telephone number at all
+    (None); a national-format number on a site whose country is unknown keeps the old digits key."""
+    s = str(raw or "").strip()
+    info = phones.parse(s, region)
+    if info:
+        return info["e164"], info
+    if phones.phonenumbers is not None and (s.startswith("+") or s.startswith("00") or (len(_digits(s)) >= 11 and not _digits(s).startswith("0"))):
+        return None, None
+    return _norm_phone(s), None
+
+
 def _phone_analysis(site):
     """-> (issues, notes). A second number is not an inconsistency when it is labelled as a department's line (events, spa, restaurant...) or appears only on that department's own page;
     only unexplained, different numbers are raised. The explained ones are returned as notes, with the text that labels them."""
-    nums = defaultdict(lambda: {"pages": [], "labels": set(), "quote": ""})
+    nums = defaultdict(lambda: {"pages": [], "labels": set(), "quote": "", "central": False})
+    region = phones.region_from_host(urllib.parse.urlparse(site.base).netloc)
     for p in site.content_pages:
         for t in p.get("tels", []):
             if len(_digits(t)) >= 9:
-                nums[_norm_phone(t)]["pages"].append(p["url"])
+                k, inf = _phone_key(t, region)
+                if k:
+                    nums[k]["pages"].append(p["url"])
+                    nums[k]["central"] = nums[k]["central"] or bool(inf and inf["central"])
         blob = p.get("footer_text", "") + " \n " + p["text"][:1500]
         for m in _PHONE.finditer(blob):
-            n = _norm_phone(m.group())
-            if len(n) < 9:
+            n, inf = _phone_key(m.group(), region)
+            if not n or len(_digits(n)) < 9:
                 continue
             d = nums[n]
+            d["central"] = d["central"] or bool(inf and inf["central"])
             d["pages"].append(p["url"])
             lab = _phone_label(blob, m.start())
             if lab:
                 d["labels"].add(lab)
                 d["quote"] = d["quote"] or evidence.clip(blob, m.start() - 40, m.end() + 20)
+    # the same number with stray digits after it (an extension, or a neighbouring figure run on) is one number
+    for a in sorted(nums, key=len):
+        for b in [k for k in nums if k != a and k.startswith(a) and len(_digits(a)) >= 10]:
+            nums[a]["pages"] += nums[b]["pages"]
+            nums[a]["labels"] |= nums[b]["labels"]
+            nums[a]["quote"] = nums[a]["quote"] or nums[b]["quote"]
+            del nums[b]
     if len(nums) < 2:
         return [], []
     info = {}
@@ -769,8 +794,8 @@ def _phone_analysis(site):
         dept_labels = d["labels"] - {"main"}
         on_dept_pages = bool(pages) and all(_DEPT_PAGE.search(urllib.parse.urlparse(u).path) for u in pages)
         info[n] = {"pages": pages, "labels": d["labels"], "quote": d["quote"],
-                   "explained": bool(dept_labels) or (on_dept_pages and not ("main" in d["labels"] and len(pages) > 1)),
-                   "why": (f"labelled {sorted(dept_labels)[0]}" if dept_labels else "appears only on a page about that department" if on_dept_pages else "")}
+                   "explained": bool(dept_labels) or d.get("central") or (on_dept_pages and not ("main" in d["labels"] and len(pages) > 1)),
+                   "why": (f"labelled {sorted(dept_labels)[0]}" if dept_labels else "a freephone or central-reservations line" if d.get("central") else "appears only on a page about that department" if on_dept_pages else "")}
     open_ = [n for n, d in info.items() if not d["explained"]]
     notes = [{"type": "phone_department", "title": "A separate telephone line is used on " + (urllib.parse.urlparse(d["pages"][0]).path if d["pages"] else "one page") + (f" ({d['why'].replace('labelled ', '')})" if d["why"].startswith("labelled") else ""),
               "values": [{"value": n, "url": d["pages"][0] if d["pages"] else "", "pages": len(d["pages"])}], "detail": ("Recognised as a department's own number, so it is not treated as an inconsistency. " + (f"The page says: \u201c{d['quote']}\u201d. " if d["quote"] else "")).strip()}

@@ -82,11 +82,51 @@ _LABELS = (r"Airport shuttle|Shuttle|Fitness cent(?:er|re)|Business cent(?:er|re
 _LABEL_RUN = re.compile(rf"(?:\b(?:{_LABELS})\b[ \t]+){{3,}}\b(?:{_LABELS})\b")
 
 
-def strip_label_runs(text):
-    """The text without amenity-filter strips (four or more feature labels in a row, each capitalised as a label is). Anything else is left exactly as it was."""
+# A brand's amenity template ('Center Complimentary On-Site Laundry No Fire Pit + Grill Grate No Chairs + Picnic Table Complimentary Wi-Fi Free for Marriott Bonvoy...') is a list of labels with no verb:
+# it says nothing about this hotel, and quoting it as evidence is wrong. A stretch of text with no sentence in it and five or more different amenity words is a template.
+_AMENITY_WORDS = re.compile(
+    r"fire pit|grill|picnic|chairs?|laundry|wi-?fi|swimming pool|pool|spa\b|gym|fitness|parking|valet|pets?\b|shuttle|concierge|lounge|\bbar\b|restaurant|breakfast|kitchen|balcon(?:y|ies)|terrace|garden|"
+    r"\btv\b|safe\b|minibar|iron\b|hair ?dryer|air[- ]conditioning|heating|elevator|\blift\b|cribs?|room service|business cent(?:er|re)|meeting rooms?|ev charging|accessible|smoking|towels?|bathrobes?", re.I)
+_SENT_VERB = re.compile(r"\b(?:is|are|was|were|has|have|had|offers?|offering|enjoy|will|can|may|must|located|situated|provides?|features?|welcomes?|serves?|open|opens|costs?|charges?)\b", re.I)
+
+
+def looks_like_list(text, min_words=10):
+    """A run of capitalised labels with no sentence in it ('Center Complimentary On-Site Laundry No Fire Pit + Grill Grate ...'): a template or a menu, never evidence."""
+    toks = re.findall(r"[A-Za-z\u00c0-\u024f][\w'\u2019-]*", text or "")
+    if len(toks) < min_words or re.search(r"[.!?;](?:\s|$)", (text or "").strip(" .")) is not None and len(toks) < 25:
+        return False
+    cap = sum(1 for w in toks if w[:1].isupper())
+    return cap / len(toks) >= 0.6 and not _SENT_VERB.search(text or "")
+
+
+def strip_amenity_templates(text, window=12):
+    """
+    Remove amenity templates: any run of `window` words with no punctuation, no verb and five or more different amenity words. A real sentence that lists amenities has commas or a verb ('The hotel has a pool, a
+    spa and a gym'), so it is kept; a template is labels run together.
+    """
     if not text:
         return text
-    return _LABEL_RUN.sub(" ", text)
+    toks = text.split(" ")
+    if len(toks) < window:
+        return text
+    bad = [False] * len(toks)
+    found = False
+    for i in range(len(toks) - window + 1):
+        seg = " ".join(toks[i:i + window])
+        if re.search(r"[,.;:!?\n]", seg) or _SENT_VERB.search(seg):
+            continue
+        if len({m.group(0).lower() for m in _AMENITY_WORDS.finditer(seg)}) >= 5:
+            found = True
+            for j in range(i, i + window):
+                bad[j] = True
+    return " ".join(t for t, b in zip(toks, bad) if not b) if found else text
+
+
+def strip_label_runs(text):
+    """The text without amenity-filter strips (four or more feature labels in a row, each capitalised as a label is) and without brand amenity templates. Anything else is left exactly as it was."""
+    if not text:
+        return text
+    return strip_amenity_templates(_LABEL_RUN.sub(" ", text))
 
 
 def address_text(v):

@@ -24,6 +24,7 @@ import evidence
 import lexicon
 import pagetarget
 import places
+import urlscope
 from textutil import is_negated, looks_like_nav, sentence_of
 
 CONFIRMED, PARTIAL, MISSING, UNKNOWN, NOT_OFFERED = "confirmed", "partial", "missing", "unknown", "not_offered"
@@ -164,8 +165,11 @@ def _topic_pages(site, slugs):
     """Pages that exist on the topic: (read pages whose address or title matches, links to such pages that were not read)."""
     read = [p for p in site.content_pages if any(evidence.fold(s) in evidence.fold(site.path(p) + " " + p.get("title", "")) for s in slugs) and not lexicon.BOOKING_PAGE.search(site.path(p))]
     seen, unread = {site_key for site_key in site.by_key}, []
+    scope = urlscope.normalise(site.base)[1]            # a chain page: only links inside this hotel's own folder are 'a page on this topic' (not the brand's meeting-planning or corporate pages)
     for p in site.pages:
         for l in p.get("links", []):
+            if not urlscope.in_scope(l, scope):
+                continue
             k = _key(l)
             path = urllib.parse.urlparse(l).path.lower()
             if k not in seen and any(s in path for s in slugs) and not re.search(r"\.(?:jpg|png|pdf|css|js)$", path) and l not in unread and urllib.parse.urlparse(l).netloc.lower().removeprefix("www.") == urllib.parse.urlparse(site.base).netloc.lower().removeprefix("www."):

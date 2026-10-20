@@ -15,6 +15,7 @@ import re
 
 import evidence
 import identity
+import phones
 from ai_insights import _time
 from guest_questions import _TIME
 
@@ -102,7 +103,13 @@ def compare(listings, site):
             lv, sv = l.get(fact), site.get(fact)
             if lv is None or sv is None:
                 continue
-            same = (lv[-7:] == sv[-7:]) if fact == "phone" else (lv == sv)
+            if fact == "phone":
+                verdict, _why = phones.compare(sv, lv)
+                if verdict == "not_comparable":
+                    continue                       # a chain's freephone line, or digits that are not a number: neither confirms nor contradicts the hotel's own number
+                same = verdict == "same"
+            else:
+                same = lv == sv
             rows.append({"platform": plat, "fact": LABEL[fact], "listing_says": (f"{lv}-star" if fact == "stars" else lv), "site_says": (f"{sv}-star" if fact == "stars" else sv),
                          "status": "matches" if same else "differs", "url": l["url"], "passage": l["quotes"].get(fact, "")})
     return rows

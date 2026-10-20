@@ -310,10 +310,14 @@ vague = {**good, "id": "E", "title": "Something about breakfast times", "action"
 kept, dropped = advice.validate([good, noev, slogan, dup, vague])
 check("only the evidenced, specific, original recommendation survives", [r["id"] for r in kept] == ["A"], [r["id"] for r in kept])
 check("each withheld one says why", {d["id"]: d["reason"] for d in dropped} == {"B": "no supporting evidence", "C": "generic wording", "D": "repeats A", "E": "no specific action"}, dropped)
-rr = {"id": "R", "source": "x", "tag": "x", "confidence": advice.BEST, "effort": "low", "team": "web", "category": "content", "kind": "fix", "title": "t", "evidence": [], "question_ids": []}
-ri = {**rr, "id": "I", "confidence": advice.INFER}
-ranking.annotate([rr, ri], [])
-check("confidence is shown as 'Verified finding' or 'Reasonable inference', and every recommendation has an owner", rr["confidence_label"] == "Verified finding" and ri["confidence_label"] == "Reasonable inference" and rr["owner"] == "Web")
+rr = {"id": "R", "source": "machine", "tag": "x", "confidence": advice.BEST, "effort": "low", "team": "web", "category": "content", "kind": "fix", "title": "t", "evidence": [{"url": "https://h.example/p", "snippet": "a passage the audit checked"}], "question_ids": []}
+ri = {**rr, "id": "I", "confidence": advice.INFER, "evidence": []}
+rx = {**rr, "id": "X", "source": "ai", "confidence": advice.EXPER}
+rq = {**rr, "id": "Q", "evidence": [{"url": "https://h.example/p", "snippet": "Pages inspected for this: /rooms/"}]}
+ranking.annotate([rr, ri, rx, rq], [])
+check("the three-rung ladder: a checked quotation is Confirmed, an inference without a quotation is Likely, a sample or experimental lead is Worth checking, and an audit note is not a quotation",
+      rr["confidence_label"] == "Confirmed" and ri["confidence_label"] == "Likely" and rx["confidence_label"] == "Worth checking" and rq["confidence_label"] == "Likely" and rr["value"] > ri["value"] > rx["value"])
+check("every recommendation has an owner", rr["owner"] == "Web")
 
 # ================================================================ 10. the whole pipeline on a synthetic site, and the PDF
 print("10. the pipeline and the PDF with the new sections")

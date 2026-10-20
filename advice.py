@@ -998,9 +998,11 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
     ranking.annotate(recs, questions)
     if limited_note:
         for r in recs:
-            if r["source"] in ("questions", "location", "hidden") and r["priority"] in ("high", "critical"):
-                r["priority"] = "medium"
-                r["impact"] = "medium"
+            if r["source"] in ("questions", "location", "hidden"):
+                r["absence_cap"] = True                      # kept through any later re-ranking: an 'it is not stated' finding is never above medium while part of the site was not read
+                if r["priority"] in ("high", "critical"):
+                    r["priority"] = "medium"
+                    r["impact"] = "medium"
     for r in recs:
         r["ref"] = r["id"]
         r["expected_outcome"] = ranking.expected_outcome(r)
@@ -1030,13 +1032,15 @@ def validate(recs, coverage=None, site=None):
       5. no overlap with an earlier recommendation: one underlying issue is one recommendation.
     `recs` is expected best-first. -> (kept, dropped); each dropped row says why, so nothing disappears silently.
     """
-    from textutil import looks_like_nav
+    from textutil import looks_like_list, looks_like_nav
     coverage = coverage or {}
     limited = bool(coverage.get("limited") or coverage.get("text_only"))
     kept, dropped, covered = [], [], {}
     for r in recs:
-        # 1. evidence: menu strips and bare navigation are never evidence
-        r["evidence"] = [e for e in r.get("evidence") or [] if ((e.get("snippet") or "").strip() or (e.get("url") or "").strip()) and not looks_like_nav((e.get("snippet") or "")[:160])]
+        # 1. evidence: menu strips, bare navigation, amenity templates and a quotation about something else are never evidence for this recommendation
+        r["evidence"] = [e for e in r.get("evidence") or [] if ((e.get("snippet") or "").strip() or (e.get("url") or "").strip()) and not looks_like_nav((e.get("snippet") or "")[:160])
+                         and not looks_like_list(_quoted_part(e.get("snippet") or ""))
+                         and _on_topic(_quoted_part(e.get("snippet") or ""), r.get("topics"))]
         ev = r["evidence"]
         why = None
         if not ev:
@@ -1074,7 +1078,55 @@ def validate(recs, coverage=None, site=None):
         for t in r.get("topics") or []:
             covered.setdefault(t, r["id"])
         kept.append(r)
+    ranking.relabel(kept)               # the evidence a recommendation ends with (after the gate removed rows and downgraded) decides its label and its rank
+    kept.sort(key=lambda r: -r.get("rank", 0))
     return kept, dropped
+
+
+_NOTE = re.compile(r"^(?:pages inspected|no page about|audit note|still not stated|[^:]{0,60}: (?:pages inspected|still not stated))", re.I)
+_FOUND = re.compile(r"^found\s*-\s*[^:]{1,80}:\s*", re.I)
+TOPIC_VOCAB = {
+    "parking": r"park|garage|valet|\bcars?\b|vehicle",
+    "transport": (r"(?<!egg-)station|metro|subway|underground|\btrain|\btram|\bbus\b|airport|taxi|transfer|shuttle|terminal|\brer\b|\blines?\b",
+                  r"walk|minutes?|\bmins?\b|\bkm\b|miles?|drive|distance|\d+\s?m\b|near|from|\bby\b|outside|opposite|next to|beside|adjacent|steps|direct|connected|access|reach"),
+    "wifi": r"wi-?fi|internet|wireless|broadband",
+    "breakfast": r"breakfast|buffet|brunch|continental",
+    "checkin_out": r"check-?\s?(?:in|out)|arriv|depart|early|late|\d{1,2}[:.h]\d{2}|\b\d{1,2}\s?(?:am|pm)\b",
+    "pets": r"\bpets?\b|\bdogs?\b|animals?|cats?\b",
+    "accessibility": r"accessib|wheelchair|step-?free|lift\b|elevator|mobility|adapted|disab|ramp|roll-?in|grab rail|hearing|visual",
+    "family_rooms": r"famil|child|kids?|cot|crib|connecting|interconnecting|adjoining|extra bed|sleeps?",
+    "cancellation": r"cancel|refund|non-?refundable|flexible|deposit|no-?show|penalt|charge",
+    "meetings": r"meeting|conference|event|delegate|boardroom|capacity|theatre|banquet|seat|guests|equipment|projector|catering",
+    "weddings": r"wedding|ceremony|reception|marriage|civil",
+    "spa": r"\bspa\b|wellness|treatment|massage|sauna|steam|pool|gym|fitness|thermal",
+    "restaurant_detail": r"restaurant|dining|menu|chef|brasserie|bar\b|lunch|dinner|breakfast|table|cuisine|open",
+    "room_config": r"room|suite|bed|sleeps?|king|queen|twin|double|single|occupancy|guests|adults",
+    "rate_inclusions": r"includ|rate|breakfast|wi-?fi|complimentary|free|extra|fee|charge|cost|per (?:night|person|day)|\bcity tax|tax|parking",
+    "area_guide": r"nearby|near\b|walk|restaurants?|attractions?|sights?|museum|explore|area|neighbourhood|district|minutes?",
+    "room_count": r"\d+\s*(?:rooms?|suites?|bedrooms?)",
+    "ev": r"\bev\b|electric|charging|charger|tesla",
+    "business_amenities": r"desk|work|laundry|reception|room service|business|iron|wi-?fi",
+    "airport_transfer": r"airport|shuttle|transfer|taxi|terminal",
+    "airport_early_late": r"early|late|24|reception|check-?in|check-?out|breakfast|flight|departure|arrival",
+    "airport_stopover": r"stopover|layover|transit|day ?use|short stay|overnight|flight",
+    "attractions": r"museum|attraction|sights?|minutes?|walk|near|opposite|palace|tower|park|square|gallery|theatre",
+    "venues": r"venue|arena|stadium|centre|center|exhibition|congress|minutes?|walk|near",
+    "journeys": r"minutes?|walk|drive|km\b|miles?|distance|train|metro|taxi",
+}
+
+
+def _quoted_part(snippet):
+    """The words quoted from a page, without the 'Found - topic: ' label the audit puts in front of them."""
+    return _FOUND.sub("", snippet or "", count=1)
+
+
+def _on_topic(text, topics):
+    """Is a quotation about the thing the recommendation is about? Audit notes (what was inspected) are not quotations and pass; a quotation with none of the topic's vocabulary ('breakfast ... Brasserie'
+    offered as evidence for a station distance) is dropped. Recommendations with no topic are not judged here."""
+    if not topics or not text or _NOTE.search(text.strip()):
+        return True
+    rxs = [[re.compile(p, re.I) for p in ((TOPIC_VOCAB[t],) if isinstance(TOPIC_VOCAB[t], str) else TOPIC_VOCAB[t])] for t in topics if t in TOPIC_VOCAB]
+    return True if not rxs else any(all(rx.search(text) for rx in group) for group in rxs)      # some topics need two kinds of word together (a transport place AND how far or how)
 
 
 def pagetarget_topic(canon):

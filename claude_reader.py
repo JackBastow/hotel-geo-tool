@@ -8,7 +8,7 @@ too, we report that and nothing else.
 
 Rules:
   * used only as a FALLBACK, when our own reader got fewer than three pages;
-  * only pages inside the hotel's own folder (urlscope), at most MAX_PAGES (default 6);
+  * only pages inside the hotel's own folder (urlscope), at most MAX_PAGES (default 14), fetched four at a time;
   * we keep the RAW fetched text (taken from the tool's result blocks, never from the model's summary of it);
   * pages are marked text_only: there is no HTML, so markup, canonical, alt-text and other technical checks are
     NOT assessed from them (the analysis is told, and says so);
@@ -24,7 +24,8 @@ import lexicon
 import textutil
 
 FETCH_TOOL = "web_fetch_20250910"
-MAX_PAGES = 6
+MAX_PAGES = 14                 # a chain hotel's facts sit on many pages (rooms, dining, meetings, getting here, parking, accessibility, FAQ); six left too much 'not read'
+BATCH = 4                      # pages per request, so a long page set never overruns the model's context
 SOURCE = "Claude page reader"
 
 ACCESS = (
@@ -128,9 +129,11 @@ def read_hotel_pages(start_url, *, api_key=None, model=None, client=None, max_pa
         pages = [home]
         if targets:
             say(f"Reading {len(targets)} more of the hotel's pages...")
-            more, (tin, tout) = _fetch(client, model, targets[: max_pages - 1])
-            cost += ai_sample.cost_usd(model, tin, tout, 0)
-            pages += more
+            want = targets[: max_pages - 1]
+            for k in range(0, len(want), BATCH):
+                more, (tin, tout) = _fetch(client, model, want[k:k + BATCH])
+                cost += ai_sample.cost_usd(model, tin, tout, 0)
+                pages += more
     except Exception as e:  # noqa: BLE001 - never fail the audit
         return out("unavailable", ai_sample._reason_for(e), [], cost, model)
     return out("ok", "", pages, cost, model)
