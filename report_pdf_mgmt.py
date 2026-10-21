@@ -147,6 +147,14 @@ def _markets_block(rep, c):
             out.append(para("Editorial pages the assistant cited that name rivals and not the hotel: " + "; ".join(f"{a['domain']} ({short(a['title'], 60)})" for a in opp[:3]) + ".", "base"))
         elif not gm and any(m["status"] != "named" for m in gap["markets"]):
             out.append(para(gap.get("reason") or "", "base"))
+        cit = rep.get("citations") or {}
+        if cit.get("basis") == "named":
+            out.append(para(f"When the assistant names the hotel it cites: the hotel's own website in {cit.get('own_answers', 0)} of {cit['answers']} answers, booking and comparison sites in {cit.get('ota_answers', 0)}"
+                            + (f"; the source that came up most is {cit['rows'][0]['domain']}" if cit.get("rows") else "") + ".", "base"))
+        fr = rep.get("forums") or {}
+        n_live = len([o for o in fr.get("opportunities") or [] if o["can_comment"] != "closed"])
+        if n_live:
+            out.append(para(f"{n_live} open forum conversation(s) where travellers ask for hotels like this one's are listed, with links, in the appendix.", "base"))
         out.append(para("One assistant on one day: a lead to investigate, not a ranking or a cause. Hotels in a different category from this one are not counted as competitors. The evidence for each row, the pages the assistant cited and the "
                         "comparison with the rivals' own sites are in the appendix.", "tiny"))
     elif ai.get("status") == "ok":

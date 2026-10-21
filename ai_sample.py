@@ -183,13 +183,13 @@ def parse_sources(resp, limit=15):
                 for r in res:
                     u = _get(r, "url", "") or ""
                     if u and u not in pages:
-                        pages[u] = {"url": u[:300], "title": (_get(r, "title", "") or "")[:140], "cited": False, "cited_text": ""}
+                        pages[u] = {"url": u[:300], "title": (_get(r, "title", "") or "")[:140], "cited": False, "cited_text": "", "age": str(_get(r, "page_age", "") or "")[:40]}
         elif bt == "text":
             for c in _get(b, "citations", None) or []:
                 u = _get(c, "url", "") or ""
                 if not u:
                     continue
-                pg = pages.setdefault(u, {"url": u[:300], "title": (_get(c, "title", "") or "")[:140], "cited": False, "cited_text": ""})
+                pg = pages.setdefault(u, {"url": u[:300], "title": (_get(c, "title", "") or "")[:140], "cited": False, "cited_text": "", "age": ""})
                 pg["cited"] = True
                 pg["cited_text"] = pg["cited_text"] or re.sub(r"\s+", " ", str(_get(c, "cited_text", "") or ""))[:200]
     ordered = sorted(pages.values(), key=lambda p: (not p["cited"]))

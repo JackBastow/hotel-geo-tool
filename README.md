@@ -375,6 +375,13 @@ check success. Each is labelled **documented guidance**, **hypothesis** or
 **observation**. None promises an AI recommendation, and none advises fake or
 incentivised reviews, keyword-stuffed guest reviews or indiscriminate outreach.
 
+## Citations, booking direct, and open forum conversations
+
+- **Wider, more specific questions.** Each facility the hotel's own pages show strongly (meeting rooms, parking, gym, pets, family, accessible, airport transfer, weddings, and so on) becomes one extra unbranded question anchored on a nearby landmark, only when the kind of hotel supports it (`ai_questions.FEATURE_ASKS`). Core questions rose from 10 to 14, secondary from 6 to 8. Questions never name the hotel and never combine facilities so tightly that only this hotel could fit: coverage stays a fair test. The AI tab shows coverage against the owner's aim of around 30% (`ui_ai.COVERAGE_TARGET_PCT`); it is a target, never forced.
+- **Citation ranking** (`citations.py`). When the assistant names the hotel, every source it cited is ranked by how many of those answers it came up in, with its kind, its share, and how often it came up where the hotel was not named. A second ranking covers the questions asked about the hotel by name.
+- **Own site against booking sites.** `citations.direct_findings` lists the facts the assistant quoted from booking and comparison sites (rating, price, cancellation, distance, breakfast, parking, facilities, times) that the hotel's own pages do not state, and whether the own pages give any reason to book direct. `advice._from_direct` turns that into DS1 and DS2: opportunities, marked as inference, that promise no saving and no extra bookings.
+- **Open forum conversations** (`forums.py`). One web search limited to Reddit, Quora, Travel Stack Exchange, FlyerTalk and Fodor's (never Tripadvisor) finds recent threads where a traveller asks where to stay. A thread counts only if it was in the search results; the model's words are discarded. Plain rules decide relevance, and whether it can still take a comment (Reddit archives about six months after posting; those are listed apart). FM1 tells the hotel to answer once, as itself, never as a guest, never to seed reviews or offer anything in return. Nothing is ever posted by the tool.
+
 ## Running it yourself, locally
 
 ```powershell

@@ -148,6 +148,7 @@ def profile(hotel, city, entities, osm_ctx, own_pages, features, intents, hint=N
     flevel = {r["key"]: r.get("level") for r in features or []}
     prof = {"district": district(entities, city), "region": region(entities, city), "landmark": landmark(osm_ctx, hotel), "airport": airport, "stars": stars,
             "features": [f["key"] for f in features or [] if f.get("level") == "strong"] + [f["key"] for f in features or [] if f.get("level") == "some"],
+            "strong_features": [f["key"] for f in features or [] if f.get("level") == "strong"],
             "segments": [r["label"] for r in intents or [] if r.get("level") == "strong"]}
     prof["airport_hotel"] = bool(airport and airport["km"] <= AIRPORT_HOTEL_KM)
     prof["tier"] = tier_of(hotel, domain, stars, level, (hint or {}).get("tier"))

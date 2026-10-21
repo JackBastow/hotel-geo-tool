@@ -512,6 +512,73 @@ def _from_ai_gap(gap):
     return out
 
 
+FACT_PAGE = {"rating": "the homepage and the hotel-information page", "price": "the rooms or offers page", "cancellation": "the booking or policies page", "location": "the location page", "breakfast": "the dining page",
+             "parking": "the location or hotel-information page", "facilities": "the facilities pages", "times": "the hotel-information or FAQ page"}
+
+
+def _from_direct(cit):
+    """
+    When the assistant names the hotel it cites sources. If booking and comparison sites (which charge commission) are cited in more of those answers than the hotel's own website, say so with the counts and name the specific
+    facts the assistant quoted from the agents that the hotel's own pages do not state: those are the concrete things to put on the hotel's own pages, in plain text, so the assistant can cite the hotel instead. It never promises
+    fewer commissions or more direct bookings: it shows what one assistant used in one sample.
+    """
+    if not cit or cit.get("basis") != "named" or cit.get("answers", 0) < 1:
+        return []
+    N, own, ota = cit["answers"], cit.get("own_answers", 0), cit.get("ota_answers", 0)
+    dr = cit.get("direct_findings") or {}
+    out = []
+    if ota > own:
+        agents = [r for r in cit["rows"] if r["kind"] == "Booking and comparison site"][:3]
+        gaps = [f for f in dr.get("facts", []) if f["key"] in dr.get("gaps", [])]
+        ev = [{"url": (r["pages"][0]["url"] if r["pages"] else ""), "snippet": f"{r['domain']} came up in {r['came_up']} of {N} answers that named the hotel" + (f", cited in {r['cited']}" if r["cited"] else "")
+               + (f": \u201c{r['pages'][0]['passage'][:140]}\u201d" if r["pages"] and r["pages"][0].get("passage") else "")} for r in agents]
+        for f in gaps[:3]:
+            a = f["from_agents"][0]
+            ev.append({"url": a["url"], "snippet": f"The assistant took {f['label']} from {a['domain']} (\u201c{a['snippet'][:140]}\u201d); the hotel's own pages read do not state it."})
+        own_row = next((r for r in cit["rows"] if r["is_own"]), None)
+        ev.append({"url": "", "snippet": (f"The hotel's own website came up in {own_row['came_up']} of {N} answers." if own_row else f"The hotel's own website did not come up in any of the {N} answers that named the hotel.")})
+        todo = "; ".join(f"state {f['label']} on {FACT_PAGE.get(f['key'], 'the page where it belongs')}" for f in gaps[:4])
+        out.append(_rec(
+            "DS1", "authority", f"When AI names the hotel it cites booking sites in {ota} of {N} answers and the hotel's own site in {own}",
+            f"In the {N} sampled answers that named the hotel, booking and comparison sites (which take commission) came up in {ota}; the hotel's own website came up in {own}. "
+            + (f"Facts the assistant quoted from those sites that the hotel's own pages do not state: {', '.join(f['label'] for f in gaps)}." if gaps else "The facts it quoted from them are already on the hotel's own pages, so the difference is not in what is written."),
+            "An assistant that names a hotel tends to link the page it got its facts from. When that page belongs to an agent, the traveller is sent to the agent. This is one assistant in one sample: it shows what it used, not what travellers do, and it does not promise fewer commissions.",
+            ev, ("Make the hotel's own pages the best source of what the assistant quotes: " + todo + ". State only what is true, in plain text near the top of the page, and keep it identical to the booking sites." if gaps else
+                 "The facts the assistant quoted are on the hotel's pages, so check they can be read: AI crawlers are allowed in robots.txt, the key pages show their text without scripts, and the same facts are in plain text near the top of each page."),
+            "medium", "low", confidence=INFER, team="distribution", source="direct", tag="DS1", summary="AI cites agents more than the hotel's own site"))
+        out[-1]["kind_hint"] = "opportunity"
+    bd = dr.get("book_direct") or {}
+    if ota >= 1 and not bd.get("stated") and dr.get("own_pages_read", 0) >= 3:
+        out.append(_rec(
+            "DS2", "authority", "The hotel's own pages do not say why booking direct is better",
+            f"Booking sites came up in {ota} of {N} answers that named the hotel, and none of the {dr.get('own_pages_read')} pages of the hotel's own site that were read states a reason to book direct (a rate promise, flexibility or a perk).",
+            "A traveller (or an assistant answering for one) who finds the hotel through an agent has no reason, on the hotel's own pages, to leave it. A benefit stated in plain words is also something an assistant can quote.",
+            [{"url": "", "snippet": f"No book-direct statement was found on the {dr.get('own_pages_read')} pages read (looked for a best-rate or price promise, member or exclusive rates, a perk for booking direct)."}],
+            "If the hotel really offers a benefit for booking direct (a best-rate promise, free cancellation terms, an upgrade, breakfast, a member rate), say it plainly on the home page, the rooms page and the booking page. Do not state a benefit the hotel does not honour.",
+            "medium", "low", confidence=INFER, team="distribution", source="direct", tag="DS2", summary="No reason to book direct stated"))
+        out[-1]["kind_hint"] = "opportunity"
+    return out
+
+
+def _from_forums(fr):
+    """Open conversations where travellers are asking for hotels like this one's: a lead to join them honestly, with the links."""
+    ops = (fr or {}).get("opportunities") or []
+    live = [o for o in ops if o["can_comment"] in ("open", "likely open", "check")]
+    if not live:
+        return []
+    top = live[:4]
+    ev = [{"url": o["url"], "snippet": f"{o['forum']}: {o['title']}" + (f" ({o['age']})" if o.get("age") else "") + f". {o['can_comment_why']}." + (" An AI answer in this audit cited it." if o.get("cited_by_ai") else "")} for o in top]
+    r = _rec(
+        "FM1", "authority", f"{len(live)} open conversation{'s' if len(live) != 1 else ''} where travellers are asking for hotels like yours",
+        f"The searches found {len(live)} thread(s) on open forums (Reddit and similar) where someone is asking where to stay in the hotel's market" + (f"; {sum(1 for o in live if o.get('cited_by_ai'))} were cited by an AI answer in this audit." if any(o.get("cited_by_ai") for o in live) else "."),
+        "Assistants read and cite open conversations when they answer where-to-stay questions. A helpful, honest answer from the hotel in a thread that is still open is one of the few places a hotel can add to what assistants find, without paying for it.",
+        ev, "Open each link, check the thread still takes comments, and read the forum's rules on businesses. Answer the question that was asked, say you work for the hotel, give facts (location, what is included, who it suits) and be honest about who it does not suit. Reply once, do not paste an advert, "
+            "and never post as a guest, seed reviews, buy upvotes or offer anything in return. Reddit locks threads about six months after they were posted.",
+        "low", "low", confidence=EXPER, team="marketing", source="reddit", tag="FM1", summary="Open conversations to join")
+    r["kind_hint"] = "opportunity"
+    return [r]
+
+
 def _from_ai_insights(ins):
     """Two things the sample can support: what the assistant said that differs from the hotel's own record, and sources it leaned on where the hotel is not evidenced."""
     if not ins or ins.get("status") not in ("ok", "partial"):
@@ -955,7 +1022,7 @@ def _from_intel(intel):
 
 # ---------------------------------------------------------------------- assemble
 
-def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, traveller=None, booking=None, external=None, competitors=None, suppressed=None, ai_gap=None):
+def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, traveller=None, booking=None, external=None, competitors=None, suppressed=None, ai_gap=None, citations=None, forums=None):
     coverage = coverage or {}
     # the requirement checks say more, and more exactly, than the extended guest questions they cover
     superseded = {q for seg in (traveller or {}).get("assessed", []) for q in TRAVELLER_SUPERSEDES.get(seg, ())}
@@ -982,6 +1049,8 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
         # the specific finding (not named for THIS question, and who was) replaces the general 'not named in a sample' notes, and a named article replaces the generic 'consider a travel publication'
         recs = [r for r in recs if r["id"] not in ("AI1", "AI4") and not (r["id"].startswith("X-S-editorial_outreach") and any(g["id"].startswith("AG-OUT") for g in gap_recs))]
         recs += gap_recs
+    recs += _from_direct(citations)
+    recs += _from_forums(forums)
     recs += _from_listing_checks(listing_checks)
     recs += _from_reddit(reddit)
     recs += _from_traveller(traveller, coverage, site)

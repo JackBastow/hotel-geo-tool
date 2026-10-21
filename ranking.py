@@ -85,6 +85,8 @@ F = {
     ("ai", "AI3"): (3, 4, 3, "fix"), ("ai", "AI2"): (1, 3, 3, "opportunity"),     # AI3: the assistant's statement differs from the hotel's own record
     ("ai", "AG1"): (3, 4, 4, "opportunity"), ("ai", "AG2"): (3, 4, 4, "opportunity"), ("ai", "AG3"): (3, 4, 4, "opportunity"),     # not named for a question the hotel is positioned for, with the evidence beside it
     ("ai", "AGO1"): (2, 3, 4, "opportunity"), ("ai", "AGO2"): (2, 3, 4, "opportunity"), ("ai", "AGO3"): (2, 3, 4, "opportunity"),     # a named editorial list that omits the hotel
+    ("direct", "DS1"): (3, 4, 4, "opportunity"), ("direct", "DS2"): (2, 4, 4, "opportunity"),     # AI leans on agents rather than the hotel's own site: the fee-saving opportunity
+    ("reddit", "FM1"): (2, 4, 4, "opportunity"),     # open conversations the hotel could honestly join
     ("ai", "AI1"): (1, 3, 3, "opportunity"),     # one sampled model did not name the hotel: upside to explore, not a defect
     ("traveller", "TR-families"): (2, 4, 3, "fix"), ("traveller", "TR-business"): (2, 4, 3, "fix"), ("traveller", "TR-spa_couples"): (2, 4, 3, "fix"), ("traveller", "TR-location"): (2, 4, 4, "fix"), ("traveller", "TR-airport_stay"): (3, 5, 4, "fix"),
     ("competitors", "CP-spa_detail"): (2, 3, 3, "opportunity"), ("competitors", "CP-meeting_detail"): (2, 4, 3, "opportunity"), ("competitors", "CP-restaurant_detail"): (2, 3, 3, "opportunity"),

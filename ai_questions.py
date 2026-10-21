@@ -17,7 +17,24 @@ import ai_niche
 import ai_sample
 import evidence
 
-MAX_CORE, MAX_SECONDARY, MAX_PROPOSALS = 8, 4, 4
+MAX_CORE, MAX_SECONDARY, MAX_PROPOSALS = 14, 8, 8
+# What a traveller asks for when a facility decides the booking, and what kind of hotel makes the question fit. Asked only for a facility the hotel's own pages show STRONGLY, and (where it needs one) a kind of hotel
+# that supports it, so a gym does not become a spa question. Each is anchored on a real place the hotel is close to: a narrower search is a fairer test of the market the hotel really competes in than a town-wide list.
+FEATURE_ASKS = {
+    "meeting_rooms": ("Meetings and events", "have meeting rooms for a team offsite", {"business", "conference"}),
+    "parking": ("Parking", "have parking for guests", None),
+    "spa": ("Spa and wellness", "have a spa", {"spa_hotel", "resort"}),
+    "pool": ("Spa and wellness", "have a swimming pool", {"spa_hotel", "resort"}),
+    "gym": ("Facilities", "have a gym", None),
+    "restaurant": ("Dining", "have a good restaurant", {"luxury", "boutique", "resort", "spa_hotel"}),
+    "ev": ("EV charging", "have EV charging for guests", None),
+    "family": ("Families", "suit a family with young children", {"family_focused", "resort"}),
+    "pets": ("Pet-friendly", "welcome dogs", None),
+    "accessible": ("Accessibility", "have step-free accessible rooms", None),
+    "airport_transfer": ("Airport", "offer an airport shuttle", {"airport"}),
+    "weddings": ("Weddings", "can host a wedding with rooms for the guests", {"resort", "luxury", "boutique", "spa_hotel"}),
+}
+MAX_FEATURE_QUESTIONS = 6
 CORE_ANGLES = {"Price level", "Neighbourhood", "Near a venue", "Near a landmark", "Meetings and events", "Business travel", "Airport", "City breaks", "Traveller intent", "Near a place"}
 LUXURY_WORDS = re.compile(r"\b(?:luxury|palace|5[- ]star|five[- ]star|splurge|lavish|ultra)\b", re.I)
 BUDGET_WORDS = re.compile(r"\b(?:cheap|budget|bargain|hostel)\b", re.I)
@@ -57,7 +74,7 @@ def fact_list(prof, anchor_list, features=None):
         add("airport", f"{ap['km']:g} km from {ap['name']}")
     if (prof or {}).get("district"):
         add("district", f"in the {prof['district']} area")
-    for key in ((prof or {}).get("features") or [])[:6]:
+    for key in ((prof or {}).get("strong_features") or (prof or {}).get("features") or [])[:8]:
         add("feature", f"offers {key.replace('_', ' ')} (strong evidence on its own pages)")
     for a in (prof or {}).get("audiences") or []:
         if a["level"] in ("strong", "stated"):
@@ -84,7 +101,38 @@ def anchor_questions(prof, hotel, city, anchor_list):
             out.append((f"anchor_break{k}", "City breaks", f"Where should I stay for a weekend near {name}, in a {tp}hotel within walking distance?", f"Kind of hotel: city-centre; {where}.", "core"))
         if k == 1 and a.get("source", "").startswith("the hotel"):
             out.append((f"anchor_second{k}", "Near a place", f"Which {tp}hotels are closest to {name}?", where.capitalize() + ".", "secondary"))
+        if k == 1 and tier:
+            out.append((f"anchor_value{k}", "Price level", f"Which {tp}hotels near {name} give the best quality for the price?", f"Hotel level: {tier['label']} ({tier['why']}); {where}.", "secondary"))
+    for st_ in [a for a in anchor_list or [] if a.get("kind") == "station"][:1]:
+        if tier:
+            out.append(("station_value", "Near transport", f"Which {tp}hotels within walking distance of {st_['name']} are good value?", f"The hotel's own pages put {st_['name']} close ({st_['distance']}).", "secondary"))
     return [{"id": f"niche_{cid}", "kind": "niche", "angle": ang, "text": text, "why": why, "priority": pr} for cid, ang, text, why, pr in out if ai_niche._safe(text, hotel)]
+
+
+def feature_questions(prof, hotel, city, anchor_list):
+    """
+    One question for each facility the hotel's pages show strongly (and whose kind of hotel fits), built around the best place the hotel is close to, or its area when no place is known:
+    'Which 4-star hotels near the Opera Garnier have meeting rooms for a team offsite?'. Narrower than 'best hotels in Paris', and every part of it is true of the hotel.
+    """
+    tier = (prof or {}).get("tier")
+    tp = ai_niche._tier_phrase(tier, (prof or {}).get("stars"))
+    classes = set((prof or {}).get("classes") or []) if (prof or {}).get("classes") is not None else None
+    best = an_best(anchor_list, 1)
+    where = f"near {best[0]['name']}" if best else f"in {(prof or {}).get('district') or (city or '').split(',')[0].strip()}"
+    basis = (f"the hotel's own pages put {best[0]['name']} close ({best[0]['distance']})" if best and best[0].get("distance") else f"{best[0]['name']} is {best[0]['km']:g} km from the hotel ({best[0]['source']})") if best else "the hotel's area"
+    out = []
+    for key in (prof or {}).get("strong_features") or []:
+        spec = FEATURE_ASKS.get(key)
+        if not spec:
+            continue
+        angle, phrase, needs = spec
+        if needs and (classes is None or not (classes & needs)):
+            continue
+        text = f"Which {tp}hotels {where} {phrase}?"
+        out.append({"id": f"niche_feat_{key}", "kind": "niche", "angle": angle, "text": text, "why": f"The hotel's own pages show {key.replace('_', ' ')} strongly; {basis}.", "priority": "core" if len(out) < 4 else "secondary", "source": "feature"})
+        if len(out) >= MAX_FEATURE_QUESTIONS:
+            break
+    return [q for q in out if ai_niche._safe(q["text"], hotel)]
 
 
 def an_best(anchor_list, n):
@@ -176,7 +224,8 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
     for angle in ("Price level", "Business travel", "City breaks"):            # an anchored version of a question replaces its town-wide twin; the other kinds are added
         if any(q["angle"] == angle for q in anch):
             tmpl = [q for q in tmpl if q["angle"] != angle]
-    pool = anch + tmpl
+    feat = feature_questions(prof, hotel, city, anchor_list or [])
+    pool = anch + feat + tmpl
     cost, rejected = 0.0, []
     if client is not None and facts:
         props, cost = propose(client, model or ai_sample.MODEL_DEFAULT, facts, city)

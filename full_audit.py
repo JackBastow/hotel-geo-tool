@@ -66,6 +66,8 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 
 import ai_gap
+import citations as citations_mod
+import forums as forums_mod
 import ai_questions
 import anchors as anchors_mod
 import ai_insights
@@ -854,7 +856,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             amadeus_result = {"configured": True, "found": False, "error": str(e)}
 
     # Questions for the markets this hotel actually competes in (airport, district, price level, what it is known for), from facts now in hand.
-    niche_ex = niche_future = market_profile = question_plan = benchmark_info = None
+    niche_ex = niche_future = market_profile = question_plan = benchmark_info = forum_ex = forum_future = None
     custom_qs = ai_niche.custom_questions(custom_prompts)          # the person's own prompts, asked exactly as typed
     if anthropic_api_key and hotel and city:
         nqs = []
@@ -885,6 +887,14 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         except Exception:  # noqa: BLE001 - the planner is an extra; the standard questions still run
             nqs = []
         nqs = nqs + custom_qs
+        # Open community conversations (Reddit and similar) where travellers ask for hotels like this one's; searched while the questions are being asked
+        try:
+            _core_q = [q["text"] for q in nqs if q.get("priority") == "core" and q.get("kind") == "niche"][:6]
+            _terms = [a["name"] for a in ((question_plan or {}).get("anchors") or [])[:4]] + ([(locals().get("prof") or {}).get("district")] if (locals().get("prof") or {}).get("district") else [])
+            forum_ex = ThreadPoolExecutor(max_workers=1)
+            forum_future = forum_ex.submit(forums_mod.run, hotel, city, _core_q, _terms, api_key=anthropic_api_key, model=anthropic_model)
+        except Exception:  # noqa: BLE001
+            forum_future = None
         if nqs:
             try:
                 _host0 = urllib.parse.urlparse(base).netloc.lower()
@@ -972,6 +982,28 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             niche_ex.shutdown(wait=False, cancel_futures=True)
     if market_profile and isinstance(ai_result, dict) and ai_result.get("status") == "ok":
         ai_result["market"] = market_profile                         # how the hotel's market was read, shown beside the answers
+    forums_result = None
+    if forum_future is not None:
+        try:
+            forums_result = forum_future.result(timeout=150)
+        except Exception as e:  # noqa: BLE001 - an extra
+            forums_result = {"source": forums_mod.SOURCE, "status": "unavailable", "reason": f"The forum search did not finish ({type(e).__name__}).", "opportunities": [], "closed": [], "searches": 0, "cost_usd": 0.0, "forums": []}
+        finally:
+            forum_ex.shutdown(wait=False, cancel_futures=True)
+    citations_result = None
+    if isinstance(ai_result, dict) and ai_result.get("status") == "ok":
+        try:
+            _hh = urllib.parse.urlparse(base).netloc.lower()
+            _hh = _hh[4:] if _hh.startswith("www.") else _hh
+            _brand = (_hh,) if site["meta"].get("scope") else ()
+            citations_result = citations_mod.ranking(ai_result["items"], _hh, _brand)
+            citations_result["direct_findings"] = citations_mod.direct_findings(ai_result["items"], own_pages, _hh, _brand)
+            if forums_result and forums_result.get("opportunities") is not None:
+                _cited = {citations_mod._dom(p["url"]) + urllib.parse.urlparse(p["url"]).path for i in ai_result["items"] for p in (i.get("pages") or []) if p.get("cited") and p.get("url")}
+                for o in forums_result["opportunities"] + forums_result.get("closed", []):
+                    o["cited_by_ai"] = (citations_mod._dom(o["url"]) + urllib.parse.urlparse(o["url"]).path) in _cited
+        except Exception:  # noqa: BLE001 - an extra; the sample itself still shows
+            citations_result = None
     if ai_visibility_cat is None:
         ai_visibility_cat = scoring.score_ai_sample(ai_result)       # one model's sample: scored, but always labelled low-evidence
     try:
@@ -1098,7 +1130,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         consult_result = consultant.analyse(
             own_pages=own_pages, pages_meta=guest.get("pages_meta", []), base=base, hotel=hotel, city=city,
             location=location, guest=guest, site=site, entities=ext["entities"], intel=intel_result,
-            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, ai_gap=ai_gap_result, listing_checks=listing_checks, reddit=reddit_result, booking=booking_result, external=external_result, competitors=competitors_result, text_only=bool(guest.get("read_via")),
+            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, ai_gap=ai_gap_result, citations=citations_result, forums=forums_result, listing_checks=listing_checks, reddit=reddit_result, booking=booking_result, external=external_result, competitors=competitors_result, text_only=bool(guest.get("read_via")),
             jsonld_example=fixes.hotel_jsonld({"base": base, "hotel": hotel, "location": location, "guest": guest,
                                                "discovery": discovery, "entities": ext["entities"], "site": site,
                                                "tavily": tavily_result}))
@@ -1150,6 +1182,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "custom_prompts": [q["text"] for q in custom_qs],
         "ai_insights": ai_insight_result,
         "ai_gap": ai_gap_result,
+        "citations": citations_result,
+        "forums": forums_result,
         "review_snapshot": review_result,
         "listing_lookup": {k: v for k, v in listing_result.items() if k not in ("pages", "passages")},
         "listing_checks": listing_checks,

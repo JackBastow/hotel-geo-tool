@@ -71,7 +71,7 @@ texts = [q["text"] for q in b["questions"]]
 check("the price question is anchored on the landmark and carries the star level", any("4-star" in t and "near Palais Garnier" in t and "quality for the price" in t for t in texts), texts)
 check("the business question is anchored too, and asks for what a business traveller needs", any("near Palais Garnier" in t and "business trip" in t and "meeting space" in t for t in texts), texts)
 check("a city-centre hotel gets a weekend question around its landmark", any("weekend near Palais Garnier" in t for t in texts), texts)
-check("no luxury, palace or splurge question for a 4-star hotel, and no town-wide price question once an anchored one exists", not any(ai_questions_word in t.lower() for t in texts for ai_questions_word in ("luxury", "splurge", "palace")) and sum("quality for the price" in t for t in texts) == 1, texts)
+check("no luxury, palace or splurge question for a 4-star hotel, and no town-wide price question once an anchored one exists", not any(ai_questions_word in t.lower() for t in texts for ai_questions_word in ("luxury", "splurge", "palace")) and not any("in Paris give the best quality" in t for t in texts) and sum("quality for the price" in t for t in texts) <= 2, texts)
 check("no question names the hotel, and every question says why it was asked", all("marriott" not in t.lower() for t in texts) and all(q["why"] for q in b["questions"]))
 core = [q for q in b["questions"] if q["priority"] == "core"]
 sec = [q for q in b["questions"] if q["priority"] != "core"]
@@ -82,20 +82,20 @@ nb = aq.build(prof, HOTEL, CITY, [], base_repeats=2)
 check("with no anchor the earlier planner still produces questions", len(nb["questions"]) >= 1 and nb["cost_usd"] == 0.0, str(nb["questions"]))
 
 print("3. proposals written by Claude are checked by code")
-GOOD = "Which 4-star hotels near Palais Garnier have meeting rooms for a team offsite in Paris?"
+GOOD = "Where can a team of twenty stay near Palais Garnier in a 4-star hotel with space for a workshop in Paris?"
 props = [{"text": GOOD, "facts": ["f1", "f3"]},
          {"text": "Is Paris Marriott Opera Ambassador Hotel good for a business trip to Paris?", "facts": ["f1"]},
          {"text": "Which luxury palace hotels in Paris are worth the splurge for a special occasion?", "facts": ["f1"]},
          {"text": "Which Paris hotels have a spa and a pool for a relaxing weekend away?", "facts": ["f1"]},
          {"text": "What are good hotels for a business trip with a big budget?", "facts": ["f1"]},
-         {"text": "Which 4-star hotels near Palais Garnier have meeting rooms for a team offsite in Paris today?", "facts": ["f1"]},
+         {"text": "Where can a team of twenty stay near Palais Garnier in a 4-star hotel with space for a workshop in Paris today?", "facts": ["f1"]},
          {"text": "Best 4-star hotel in Paris near Palais Garnier for a quiet stay?", "facts": ["f99"]}]
 kept, rej = aq.validate(props, b["facts"], HOTEL, CITY, ["Palais Garnier"], "upscale", existing=[])
 why = {r["text"][:20]: r["why"] for r in rej}
 check("the sound proposal is kept, labelled as proposed, with the facts it rests on", [k["text"] for k in kept] == [GOOD] and kept[0]["source"] == "proposed" and "Written from" in kept[0]["why"], str(kept))
 check("one that names the hotel, one with luxury wording, one that brings in a spa the facts do not support, one with no place, a near-duplicate and one citing an unknown fact are all rejected, each with its reason",
       "names the hotel" in why["Is Paris Marriott Opera"[:20]] and "luxury wording" in why["Which luxury palace hotels"[:20]] and "do not support" in why["Which Paris hotels have a spa"[:20]] and "neither the town" in why["What are good hotels for a business"[:20]]
-      and "repeats another question" in why["Which 4-star hotels near Palais"[:20]] and "no listed fact" in why["Best 4-star hotel in Paris"[:20]], str(why))
+      and "repeats another question" in why["Where can a team of twenty"[:20]] and "no listed fact" in why["Best 4-star hotel in Paris"[:20]], str(why))
 
 
 class FakeClaude:

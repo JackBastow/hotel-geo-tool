@@ -472,6 +472,31 @@ def gap_section(gap):
     return out
 
 
+def citations_section(cit, fr=None):
+    """Appendix: what the assistant cited when it named the hotel (ranked), the facts quoted from booking sites that the hotel's own pages lack, and the open forum conversations with their links."""
+    out = []
+    if cit and cit.get("basis") != "none":
+        N = cit["answers"]
+        out.append(para("What the assistant cited when it named the hotel, ranked" if cit["basis"] == "named" else "What the assistant relied on in the hotel's market (it never named the hotel)", "h2"))
+        out.append(para(f"Across {N} answers" + (" that named the hotel" if cit["basis"] == "named" else "") + ". 'Came up' = answers the source appeared in (cited or returned by the assistant's search). One assistant, one sample.", "tiny"))
+        out.append(table([["#", "Source", "Kind", "Came up in", "Cited in"]] + [[str(i), r["domain"] + (" (your website)" if r["is_own"] else ""), r["kind"], f"{r['came_up']} of {r['of']}", str(r["cited"])] for i, r in enumerate(cit["rows"], 1)],
+                         [0.06, 0.36, 0.26, 0.18, 0.14]))
+        if cit["basis"] == "named":
+            out.append(para(f"The hotel's own website came up in {cit.get('own_answers', 0)} of {N} answers; booking and comparison sites in {cit.get('ota_answers', 0)}.", "base"))
+        dr = cit.get("direct_findings") or {}
+        if dr.get("facts"):
+            out.append(para("Facts the assistant quoted from booking sites, and whether the hotel's own pages state them", "h3"))
+            out.append(table([["Fact", "Quoted from", "The hotel's own pages"]] + [[f["label"], ", ".join(sorted({a["domain"] for a in f["from_agents"]})), "state it" if f["on_own_site"] else "do not state it (on the pages read)"] for f in dr["facts"]], [0.34, 0.36, 0.3]))
+    ops = (fr or {}).get("opportunities") or []
+    if ops:
+        out.append(para("Open conversations the hotel could join", "h2"))
+        out.append(para("Found by searching open forums (not Tripadvisor). Check each thread still takes comments before replying; answer as the hotel, say so, and follow the forum's rules.", "tiny"))
+        word = {"open": "open", "likely open": "likely open", "check": "check the link", "closed": "closed"}
+        out.append(table([["Where", "Thread", "Can you comment?", "Link"]] + [[o["forum"], o["title"][:80], word[o["can_comment"]] + (f" ({o['age']})" if o.get("age") else ""), cat(link(o["url"], o["url"][:50]))] for o in ops],
+                         [0.14, 0.4, 0.2, 0.26]))
+    return out
+
+
 def ai_test_section(ai, hotel=""):
     import ai_sample
     log = ai_sample.test_log(ai)
@@ -623,6 +648,7 @@ def sections(c, H1, web=None, ai=None, reviews=None, ins=None, listings=None, pa
     out += booking_section(c.get("booking"))
     out += competitor_section(c.get("competitors"))
     out += gap_section((rep or {}).get("ai_gap"))
+    out += citations_section((rep or {}).get("citations"), (rep or {}).get("forums"))
     out += ai_test_section(ai, (rep or {}).get("meta", {}).get("hotel", ""))
 
     # ---- recommendation register: every recommendation once; worked examples only where they exist

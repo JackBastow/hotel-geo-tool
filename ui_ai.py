@@ -16,6 +16,9 @@ import ui_theme
 from htmlst import st
 
 
+COVERAGE_TARGET_PCT = 30      # the owner's aim for how often the hotel is named; shown as a target, never forced
+
+
 def _short(text, n=100):
     t = " ".join(str(text or "").split())
     return t if len(t) <= n else t[: n - 1].rstrip() + "…"
@@ -59,7 +62,10 @@ def _stands_out(fa_res, gap, ins, prev_full):
         c = trend.compare((fa_res.get("ai_sample") or {}).get("items"), prev_full["ai_sample"].get("items"), [p["text"] for p in (fa_res.get("benchmark") or {}).get("prompts") or []] or None)
         if c["rows"] and c["change"] in ("more often", "less often"):
             out.append(f"Since the last audit the hotel is named {c['change']} in the prompts asked both times ({trend.describe(*c['now'])}; before: {c['before'][0]} of {c['before'][1]}).")
-    return out[:4]
+    cit = fa_res.get("citations") or {}
+    if cit.get("basis") == "named" and cit.get("ota_answers", 0) > cit.get("own_answers", 0):
+        out.append(f"When the assistant names the hotel it cites booking sites in {cit['ota_answers']} of {cit['answers']} answers and the hotel's own website in {cit.get('own_answers', 0)}.")
+    return out[:5]
 
 
 def _section(title, body, expanded=False):
@@ -102,6 +108,11 @@ def ai_tab(fa_res, consult, prev_full=None):
     cols[1].metric("In its own markets", f"{s['niche_named']} of {s['niche_asked']}" if s.get("niche_asked") else "n/a", help="Answers to the narrower searches written for this hotel's category, place and audiences")
     cols[2].metric("Most-named rival", f"{top[0]}" if top else (sb.get("top_competitor") or "none"), help="The hotel in the same category the assistant named most across the searches where this hotel was not named")
     cols[3].metric("Own website cited", (f"{osr['own_cited']} of {osr['answers']} answers" if osr.get("answers") else ("yes" if s.get("own_site_cited") else "no")), help="Whether the assistant used the hotel's own website as a source")
+    if n:
+        pct, tgt = round(100 * named / n), COVERAGE_TARGET_PCT
+        own = f"; in the searches written for this hotel's own market, {round(100 * s['niche_named'] / s['niche_asked'])}%" if s.get("niche_asked") else ""
+        gapnote = f"{tgt - pct} points to go" if pct < tgt else "target reached"
+        st.caption(f"Coverage: named in **{pct}%** of answers{own}. The aim is around {tgt}% ({gapnote}). The searches stay unbranded and realistic, so the figure is a fair test, not one set up to flatter the hotel.")
     rows = _search_rows(ai, gap)
     if rows:
         st.markdown('<span class="hk-label">How often each search named the hotel</span>', unsafe_allow_html=True)
@@ -112,7 +123,19 @@ def ai_tab(fa_res, consult, prev_full=None):
         for t in notes:
             st.markdown("- " + ui_consult.md_safe(t))
 
+    # ---------------------------------------------------------------- what it cites when it names the hotel
+    cit = fa_res.get("citations")
+    if cit and cit.get("basis") != "none":
+        st.markdown("#### When the assistant names the hotel, what does it cite?" if cit["basis"] == "named" else "#### What the assistant relies on in this hotel's market")
+        ui_consult.citations_card(cit)
+
     # ---------------------------------------------------------------- everything else, one click away
+    if cit and cit.get("basis") != "none":
+        _section("The full citation ranking, the facts quoted from booking sites, and what is cited when asked about the hotel by name", lambda: ui_consult.citations_card(cit, full=True))
+    fr = fa_res.get("forums")
+    if fr:
+        n_open = len([o for o in fr.get("opportunities") or [] if o["can_comment"] != "closed"])
+        _section(f"Conversations you can join ({n_open})", lambda: ui_consult.forums_card(fr), expanded=bool(n_open))
     gaps = (gap or {}).get("gaps") or []
     if gap and gap.get("status") == "ok":
         _section(f"Who was named instead, and what the evidence shows ({len(gaps)} search{'es' if len(gaps) != 1 else ''} with a gap)" if gaps else "Who was named instead", lambda: ui_consult.ai_gap_card(gap), expanded=bool(gaps))

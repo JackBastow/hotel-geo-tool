@@ -1075,6 +1075,67 @@ def competitor_card(cp):
         (st.warning if x["behind"] else st.success)(x["statement"])
 
 
+def citations_card(cit, full=False):
+    """What the assistant cited when it named the hotel (or, when it never did, what it relied on in the hotel's market), ranked by how many answers each source came up in, and what that says about agents against the hotel's own site."""
+    if not cit or cit.get("basis") == "none":
+        st.info("No answer could be judged, so there are no citations to rank.")
+        return
+    N = cit["answers"]
+    if cit["basis"] == "all":
+        st.info(f"The hotel was not named in any of the {N} answers, so there are no citations to rank for it. This is what the assistant relied on in the answers to the hotel's market searches: the sources it would draw on if it named a hotel like this one.")
+    else:
+        st.caption(f"Across the {N} answers that named the hotel. 'Came up' counts the answers a source appeared in (cited, or returned by the assistant's search); 'cited' counts the answers that cited one of its pages. One assistant, one sample.")
+    colour = {"The hotel's own website": "#1B873F", "The hotel's brand website": "#1B873F", "Booking and comparison site": "#D9822B"}
+    ui_theme.count_bars([{"label": k["kind"], "named": k["answers"], "of": k["of"], "colour": colour.get(k["kind"])} for k in cit["by_kind"][:8]], neutral=True)
+    rows = cit["rows"] if full else cit["rows"][:6]
+    df([{"#": i, "Source": r["domain"] + ("  (your website)" if r["is_own"] else ""), "Kind": r["kind"], "Came up in": f"{r['came_up']} of {r['of']} answers", "Cited in": r["cited"],
+         "Also came up where the hotel was not named": r["elsewhere"] if cit["basis"] == "named" else "-", "Most-cited page": (r["pages"][0]["title"] or r["pages"][0]["url"])[:70] if r["pages"] else "-",
+         "Link": r["pages"][0]["url"] if r["pages"] else ""} for i, r in enumerate(rows, 1)], link_cols=("Link",))
+    if cit["basis"] == "named":
+        own, ota = cit.get("own_answers", 0), cit.get("ota_answers", 0)
+        (st.success if own >= ota else st.warning)(f"**The hotel's own website came up in {own} of {N} answers; booking and comparison sites in {ota}.** " + ("The assistant is using the hotel's own pages at least as often as the agents." if own >= ota
+                                                    else "Agents that charge commission are cited more often than the hotel's own pages when the hotel is named."))
+    dr = cit.get("direct_findings") or {}
+    if full and dr.get("facts"):
+        st.markdown("**Facts the assistant quoted from booking sites, and whether the hotel's own pages state them**")
+        df([{"Fact": f["label"], "Quoted from": ", ".join(sorted({a["domain"] for a in f["from_agents"]})), "What it quoted": f["from_agents"][0]["snippet"][:140],
+             "The hotel's own pages": ("states it: " + (f["own_evidence"]["snippet"][:90] if f["own_evidence"] else "")) if f["on_own_site"] else "do not state it (on the pages read)"} for f in dr["facts"]])
+        bd = dr.get("book_direct") or {}
+        st.caption("A reason to book direct " + (f"is stated on the hotel's own pages: \u201c{md_safe((bd.get('evidence') or {}).get('snippet', '')[:120])}\u201d." if bd.get("stated") else "was not found on the hotel's own pages that were read."))
+    d = cit.get("direct") or {}
+    if full and d.get("rows"):
+        st.markdown("**What the assistant cited when it was asked about the hotel by name**")
+        df([{"#": i, "Source": r["domain"] + ("  (your website)" if r["is_own"] else ""), "Kind": r["kind"], "Came up in": f"{r['came_up']} of {r['of']} answers", "Cited in": r["cited"]} for i, r in enumerate(d["rows"], 1)])
+
+
+def forums_card(fr):
+    """Open conversations where travellers ask for hotels like this one's, with the link, how old, and whether it can still be commented on."""
+    if not fr:
+        st.caption("The open forums were not searched for this report.")
+        return
+    if fr.get("status") != "ok":
+        st.info(md_safe(fr.get("reason") or "Not searched."))
+        return
+    st.caption("Places where anyone can post (" + ", ".join(fr.get("forums") or []) + "; not Tripadvisor). Found by searching those sites, so a thread the search cannot see is not here. The hotel can answer in its own name: it never posts for you.")
+    ops = fr.get("opportunities") or []
+    if not ops:
+        st.info(md_safe(fr.get("reason") or "No open conversation matching the hotel's market turned up."))
+    word = {"open": "🟢 open", "likely open": "🟢 likely open", "check": "🟡 check the link", "closed": "🔴 closed"}
+    if ops:
+        df([{"Where": o["forum"], "Thread": o["title"], "Can you comment?": word[o["can_comment"]] + (f" ({o['age']})" if o.get("age") else ""), "About your market": ", ".join(o["matches"]) or "-",
+             "An AI answer cited it": "yes" if o.get("cited_by_ai") else "no", "Link": o["url"]} for o in ops], link_cols=("Link",))
+    if fr.get("closed"):
+        with st.expander(f"{len(fr['closed'])} older thread(s) that can no longer be commented on, but that assistants may still read"):
+            df([{"Where": o["forum"], "Thread": o["title"], "Age": o.get("age") or "-", "An AI answer cited it": "yes" if o.get("cited_by_ai") else "no", "Link": o["url"]} for o in fr["closed"]], link_cols=("Link",))
+    with st.expander("How to take part without it backfiring"):
+        st.markdown("- Open the link and check the thread still takes comments (Reddit locks threads about six months after they were posted). Read the forum's rules on businesses first.\n"
+                    "- Answer the question that was asked. Say you work for the hotel, give facts (where it is, what is included, who it suits) and be honest about who it does not suit.\n"
+                    "- Reply once. Do not paste an advert or a booking link unless the thread asks for one.\n"
+                    "- Never post as a guest, seed reviews, buy upvotes, or offer anything in return for a post or a changed comment: forums ban for it and assistants learn to discount it.")
+        st.code("Hi, I work at [hotel name], so take this with that in mind. [One or two facts that answer their question: where it is, what is included, who it suits.] "
+                "[One honest sentence on who it is not right for.] Happy to answer questions about the hotel; for independent opinions the other replies and recent reviews are the better guide.", language=None)
+
+
 def ai_trend_card(ai, prev_full, benchmark=None):
     """The same prompts now and at the hotel's last audit, with a change called only when the ranges do not overlap."""
     import trend
