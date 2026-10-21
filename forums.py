@@ -23,7 +23,7 @@ import identity
 SOURCE = "Open community conversations (Reddit and similar)"
 FORUMS = ["reddit.com", "quora.com", "travel.stackexchange.com", "flyertalk.com", "fodors.com"]
 LABEL = {"reddit.com": "Reddit", "quora.com": "Quora", "travel.stackexchange.com": "Travel Stack Exchange", "flyertalk.com": "FlyerTalk", "fodors.com": "Fodor's forum"}
-MAX_SEARCHES = 5
+MAX_SEARCHES = 8
 MAX_TOKENS = 2500
 REDDIT_ARCHIVE_MONTHS = 6
 _ASK = re.compile(r"where (?:to|should|can|do)|recommend|suggest|looking for|best (?:hotel|place|area|neighbou?rhood)|which hotel|hotels? (?:near|in|around|for)|any (?:ideas|tips|advice)|advice|stay(?:ing)? (?:near|in|at)|accommodation|"
@@ -31,12 +31,78 @@ _ASK = re.compile(r"where (?:to|should|can|do)|recommend|suggest|looking for|bes
 _THREAD = re.compile(r"/r/([^/]+)/comments/([a-z0-9]+)", re.I)
 SYSTEM = ("You find open forum threads where travellers ask for hotel recommendations. Use the web search tool, which is limited to open forums. Prefer threads from the last twelve months. "
           "List each thread you found with its link, in one line. Do not summarise the hotels recommended in them. If you find nothing relevant, say so plainly.")
-PROMPT = ("Search for forum threads where a traveller asks for hotel recommendations like these (they are the questions a hotel in {city} is chosen for):\n{questions}\n"
-          "Find recent threads in {city}'s travel communities and on Reddit, Quora and travel forums, where someone is asking where to stay for a reason like those. List the threads you found, one per line, with the link.")
+PROMPT = ("Search for forum threads where travellers ask where to stay. Cover these topics, including general 'best hotels' threads as well as specific ones:\n{topics}\n"
+          "and questions like these (they are what a hotel in {city} is chosen for):\n{questions}\n"
+          "Find recent threads in {city}'s travel communities and on Reddit, Quora and travel forums. Search each topic separately. List the threads you found, one per line, with the link.")
+AIRPORT_CODE = {"charles de gaulle": "CDG", "orly": "ORY", "heathrow": "LHR", "gatwick": "LGW", "stansted": "STN", "luton": "LTN", "schiphol": "AMS", "frankfurt": "FRA", "munich": "MUC", "zurich": "ZRH", "zürich": "ZRH",
+                "fiumicino": "FCO", "barajas": "MAD", "el prat": "BCN", "dublin": "DUB", "kennedy": "JFK", "newark": "EWR", "laguardia": "LGA", "o'hare": "ORD", "dubai": "DXB", "changi": "SIN", "suvarnabhumi": "BKK"}
+BRAND_WORDS = {"hilton", "garden", "inn", "hampton", "doubletree", "marriott", "courtyard", "sheraton", "westin", "hyatt", "regency", "holiday", "express", "crowne", "plaza", "ibis", "novotel", "mercure", "sofitel",
+               "pullman", "radisson", "blu", "best", "western", "premier", "travelodge", "hotel", "hotels", "by", "the", "and", "&", "resort", "spa", "suites", "apartments", "at", "de", "du", "la", "le", "city", "centre", "center"}
 
 
 def _envelope(status, reason="", **kw):
-    return {"source": SOURCE, "status": status, "reason": reason, "opportunities": [], "closed": [], "searches": 0, "cost_usd": 0.0, "forums": [LABEL[d] for d in FORUMS], **kw}
+    return {"source": SOURCE, "status": status, "reason": reason, "opportunities": [], "closed": [], "searches": 0, "cost_usd": 0.0, "forums": [LABEL[d] for d in FORUMS], "topics": [], **kw}
+
+
+def airport_code(name):
+    n = (name or "").lower()
+    return next((c for k, c in AIRPORT_CODE.items() if k in n), "")
+
+
+def topics(hotel, city, prof=None, anchors=()):
+    """The general and specific topics travellers start threads about in the hotel's market, up to six: 'best hotels near Charles de Gaulle Airport (CDG)', 'best hotels in Paris', 'where to stay near the Louvre'."""
+    town = (city or "").split(",")[0].strip()
+    prof = prof or {}
+    out = []
+    ap = prof.get("airport")
+    if ap and prof.get("airport_hotel"):
+        code = airport_code(ap["name"])
+        label = ap["name"] + (f" ({code})" if code else "")
+        out += [f"best hotels near {label}", f"where to stay near {label} for an early flight or a layover"]
+    if town:
+        out += [f"best hotels in {town}", f"where to stay in {town}"]
+    if prof.get("district") and town:
+        out.append(f"best area to stay in {town}: {prof['district']}")
+    for a in list(anchors or [])[:2]:
+        out.append(f"where to stay near {a['name']}")
+    aud = {"business", "meetings", "conference"} & {c for c in (prof.get("classes") or [])}
+    if aud and town:
+        out.append(f"best hotel in {town} for a business trip")
+    seen, res = set(), []
+    for t in out:
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            res.append(t)
+    return res[:6]
+
+
+def place_terms(hotel, city, prof=None, anchors=()):
+    """Words that show a thread is about the hotel's market: the town, the district, the places the questions are built around, the airport with its code, and what is left of the hotel's name once brand words are removed."""
+    prof = prof or {}
+    town = (city or "").split(",")[0].strip()
+    out = [town] + [a["name"] for a in list(anchors or [])[:4]] + ([prof["district"]] if prof.get("district") else [])
+    ap = prof.get("airport")
+    if ap and prof.get("airport_hotel"):
+        out += [ap["name"], airport_code(ap["name"])]
+        short_name = re.sub(r"\b(?:international|airport)\b", "", ap["name"], flags=re.I).strip(" -")
+        if short_name and len(short_name) > 3:
+            out.append(short_name)
+    rest = " ".join(w for w in re.split(r"\s+", hotel or "") if w.lower().strip(",.-") not in BRAND_WORDS)
+    if rest and len(rest) > 3:
+        out.append(rest)
+    return [t for t in dict.fromkeys(x.strip() for x in out if x and x.strip())]
+
+
+def search_links(topic_list, forums=("reddit.com", "quora.com")):
+    """Search pages on the open forums for each topic, for the hotel to open itself (we never open them for it): [{topic, forum, url}]. These are searches, not threads we found."""
+    out = []
+    for t in topic_list or []:
+        q = urllib.parse.quote_plus(re.sub(r"\s*\(([A-Z]{3})\)", r" \1", t))
+        if "reddit.com" in forums:
+            out.append({"topic": t, "forum": "Reddit", "url": f"https://www.reddit.com/search/?q={q}&type=link&t=year"})
+        if "quora.com" in forums:
+            out.append({"topic": t, "forum": "Quora", "url": f"https://www.quora.com/search?q={q}"})
+    return out
 
 
 def _domain(url):
@@ -114,7 +180,7 @@ def judge(pages, passages, hotel, city, place_terms, ai_cited_urls=()):
         blob = evidence.fold(f"{title} {passage} {url}")
         about = bool(identity.names_hotel(url, title, passage, hotel))
         asks = bool(_ASK.search(f"{title} {passage}"))
-        matched = [t for t in terms if t in blob]
+        matched = [t for t in terms if re.search(r"(?<![a-z0-9])" + re.escape(t) + r"(?![a-z0-9])", blob)]
         if not (asks or about) or not matched and not about:
             continue
         months = age_months(p.get("age"))
@@ -127,7 +193,7 @@ def judge(pages, passages, hotel, city, place_terms, ai_cited_urls=()):
     return [o for o in ops if o["can_comment"] != "closed"][:12], [o for o in ops if o["can_comment"] == "closed"][:6]
 
 
-def run(hotel, city, questions, place_terms=(), *, api_key=None, model=None, client=None, ai_cited_urls=()):
+def run(hotel, city, questions, place_terms=(), *, topics=(), api_key=None, model=None, client=None, ai_cited_urls=()):
     """-> the envelope {"status", "reason", "opportunities", "closed", "searches", "cost_usd", "forums"}. Never raises. `questions` are the hotel's market questions (their wording is what the search looks for)."""
     model = model or ai_sample.MODEL_DEFAULT
     if not hotel or not (city or "").strip():
@@ -143,7 +209,8 @@ def run(hotel, city, questions, place_terms=(), *, api_key=None, model=None, cli
     qs = [q for q in (questions or [])][:6] or [f"Where should I stay in {town}?"]
     extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
     tool = {**ai_sample.SEARCH_TOOL, "max_uses": MAX_SEARCHES, "allowed_domains": list(FORUMS)}
-    messages = [{"role": "user", "content": PROMPT.format(city=town, questions="\n".join("- " + q for q in qs))}]
+    topics = list(topics or [])[:6] or [f"best hotels in {town}", f"where to stay in {town}"]
+    messages = [{"role": "user", "content": PROMPT.format(city=town, topics="\n".join("- " + t for t in topics), questions="\n".join("- " + q for q in qs))}]
     pages, passages, searches, tin, tout = {}, [], 0, 0, 0
     try:
         for _ in range(3):
@@ -158,7 +225,7 @@ def run(hotel, city, questions, place_terms=(), *, api_key=None, model=None, cli
                 continue
             break
     except Exception as e:  # noqa: BLE001 - never fail the audit
-        return _envelope("unavailable", ai_sample._reason_for(e), searches=searches, cost_usd=round(ai_sample.cost_usd(model, tin, tout, searches), 5))
+        return _envelope("unavailable", ai_sample._reason_for(e), searches=searches, topics=topics, cost_usd=round(ai_sample.cost_usd(model, tin, tout, searches), 5))
     ops, closed = judge(list(pages.values()), passages, hotel, town, [town] + list(place_terms or []), ai_cited_urls)
     reason = "" if ops or closed else "No open conversation matching the hotel's market turned up in these searches. That is what the searches saw, not proof there are none: threads the search cannot see are not counted."
-    return _envelope("ok", reason, opportunities=ops, closed=closed, searches=searches, cost_usd=round(ai_sample.cost_usd(model, tin, tout, searches), 5))
+    return _envelope("ok", reason, opportunities=ops, closed=closed, searches=searches, topics=topics, cost_usd=round(ai_sample.cost_usd(model, tin, tout, searches), 5))

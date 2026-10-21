@@ -133,9 +133,10 @@ def ai_tab(fa_res, consult, prev_full=None):
     if cit and cit.get("basis") != "none":
         _section("The full citation ranking, the facts quoted from booking sites, and what is cited when asked about the hotel by name", lambda: ui_consult.citations_card(cit, full=True))
     fr = fa_res.get("forums")
-    if fr:
+    if fr and fr.get("status") == "ok":
         n_open = len([o for o in fr.get("opportunities") or [] if o["can_comment"] != "closed"])
-        _section(f"Conversations you can join ({n_open})", lambda: ui_consult.forums_card(fr), expanded=bool(n_open))
+        if n_open:
+            st.markdown(f'<div class="alert info"><b>{n_open} open forum conversation{"s" if n_open != 1 else ""}</b> where travellers are asking where to stay: see the <button type="button" class="link" data-goto="talk">Join the conversation</button> tab.</div>', unsafe_allow_html=True)
     gaps = (gap or {}).get("gaps") or []
     if gap and gap.get("status") == "ok":
         _section(f"Who was named instead, and what the evidence shows ({len(gaps)} search{'es' if len(gaps) != 1 else ''} with a gap)" if gaps else "Who was named instead", lambda: ui_consult.ai_gap_card(gap), expanded=bool(gaps))

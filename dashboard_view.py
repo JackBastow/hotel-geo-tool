@@ -17,7 +17,7 @@ htmlst.install()
 
 TEAM_LABEL = {"web": "Website", "reputation management": "Reputation", "distribution": "Distribution", "marketing": "Marketing", "operations": "Operations", "PR": "PR"}
 PRI_TONE = {"critical": "bad", "high": "bad", "medium": "warn", "low": ""}
-GOTO = {"overview": "Overview", "action": "Action plan", "ai": "AI visibility", "site": "Your website", "reputation": "Reputation & listings", "score": "Scorecard"}
+GOTO = {"overview": "Overview", "action": "Action plan", "ai": "AI visibility", "talk": "Join the conversation", "site": "Your website", "reputation": "Reputation & listings", "score": "Scorecard"}
 
 
 def chip(text, kind=""):
@@ -178,6 +178,16 @@ def _ordered(cons):
     return top + fixes + opps, {r["id"] for r in top}
 
 
+def _talk_callout(rep):
+    fr = rep.get("forums") or {}
+    ops = [o for o in fr.get("opportunities") or [] if o.get("can_comment") != "closed"]
+    if fr.get("status") != "ok" or not ops:
+        return ""
+    ex = "; ".join(f'{esc(o["forum"])}: {esc(short(o["title"], 70).rstrip("?.! "))}' for o in ops[:2])
+    return (f'<section class="talk-callout"><div><h3>{len(ops)} open conversation{"s" if len(ops) != 1 else ""} where travellers are asking where to stay</h3><p>{ex}. AI assistants read these. '
+            f'Each has a link and suggested wording.</p></div><button type="button" class="btn primary" data-goto="talk">See the threads &rarr;</button></section>')
+
+
 def overview(rep, prev=None):
     cons = rep.get("consultant") or {}
     h = rep.get("headline") or {}
@@ -197,6 +207,7 @@ def overview(rep, prev=None):
     parts.append('<div class="kpis">' + "".join(_kpi_html(k) for k in kpis(rep, prev)) + "</div>")
 
     # --- start here
+    parts.append(_talk_callout(rep))
     ordered, top_ids = _ordered(cons)
     num = {r["id"]: i + 1 for i, r in enumerate(ordered)}
     tops = [r for r in ordered if r["id"] in top_ids][:3]
@@ -282,3 +293,89 @@ def action_plan(rep):
     plan_html = ('<div class="sec-head"><h3>30 / 60 / 90-day plan</h3></div><p class="caption">30 days: serious and quick items. 60 days: medium-effort required fixes. 90 days: opportunities and larger work. Re-run the audit afterwards to check what changed.</p>'
                  f'<div class="plan-cols">{"".join(cols)}</div>')
     return head + top + filters + '<div id="rec-list">' + "".join(groups) + "</div>" + plan_html
+
+
+# ----------------------------------------------------------------------------- the Join the conversation tab
+
+import re as _re
+
+STATUS_CHIP = {"open": ("Open: you can reply", "good"), "likely open": ("Likely open", "good"), "check": ("Check it still takes replies", "warn"), "closed": ("Closed", "bad")}
+
+
+def _link(url):
+    return url if str(url or "").startswith(("http://", "https://")) else "#"
+
+
+def _points(rep):
+    """Up to three true facts about the hotel to draw on in a reply, from the verified facts the questions rest on, worded as parts of a sentence. The person checks each before posting."""
+    out = []
+    for f in ((rep.get("question_plan") or {}).get("facts") or []):
+        t = _re.sub(r"\s*\([^)]*\)", "", f.get("text", "")).strip()
+        if f["kind"] in ("airport", "anchor", "district", "feature") and t:
+            t = t if t.startswith("offers") else "is " + t
+            if t not in out:
+                out.append(t)
+    return out[:3]
+
+
+def _reply(hotel, points, place):
+    lead = f"Since you are looking near {place}: " if place else ""
+    pts = ("The hotel " + (", ".join(points[:-1]) + " and " + points[-1] if len(points) > 1 else points[0]) + ". ") if points else "[Two facts that answer their question: where the hotel is, what is included, who it suits.] "
+    return (f"Hi, I work at {hotel}, so please weigh this accordingly. {lead}{pts}"
+            "[One honest sentence on who it is not the best fit for.] Happy to answer questions about the hotel; for independent views, recent guest reviews and the other replies here are the better guide.")
+
+
+def _nice(t):
+    return t.upper() if len(t) <= 3 else t.title()
+
+
+def _thread_card(o, hotel, points):
+    word, tone = STATUS_CHIP.get(o["can_comment"], ("Check", "warn"))
+    o = {**o, "matches": [_nice(m) for m in o.get("matches") or []]}
+    place = o["matches"][0] if o.get("matches") else ""
+    chips = chip(o["site"], "brand") + chip(word + (f" ({o['age']})" if o.get("age") else ""), tone) + (chip("An AI answer in this audit cited this thread", "good") if o.get("cited_by_ai") else "") + (chip("Already mentions the hotel", "warn") if o.get("about_hotel") else "")
+    why = ("It matches your market: " + ", ".join(o["matches"]) + ".") if o.get("matches") else "It already names the hotel."
+    ask = f'<p class="th-ask">&ldquo;{esc(short(o["passage"], 220))}&rdquo;</p>' if o.get("passage") else ""
+    return (f'<article class="thread"><div class="chips">{chips}</div><h4 class="th-title">{esc(o["title"])}</h4>{ask}<p class="th-why">{esc(why)} {esc((o.get("can_comment_why") or "")[:1].upper() + (o.get("can_comment_why") or "")[1:])}.</p>'
+            f'<a class="btn primary" href="{esc(_link(o["url"]))}" target="_blank" rel="noopener noreferrer">Open this thread &rarr;</a>'
+            f'<div class="th-reply"><div class="th-reply-h"><b>What to say</b> <span class="hk-muted">edit the brackets, check every fact is true, then post it yourself</span>'
+            f'<button type="button" class="btn small" data-copy>Copy</button></div><pre class="reply">{esc(_reply(hotel, points, place))}</pre></div></article>')
+
+
+def talk_tab(rep):
+    fr = rep.get("forums")
+    hotel = (rep.get("meta") or {}).get("hotel", "the hotel")
+    head = ('<h2 class="tk-h">Join the conversation</h2>'
+            '<p class="lede">People ask strangers online where to stay, in places anyone can answer: Reddit, Quora, travel forums. AI assistants read those answers. '
+            'Below are the open threads we found for your market, each with the link and what to say. You post it yourself, as the hotel.</p>')
+    steps = ('<ol class="steps"><li><b>Open the thread</b>Use the button on each card.</li><li><b>Check it still takes replies</b>Reddit locks threads after about six months. Read the forum&rsquo;s rules on businesses.</li>'
+             '<li><b>Reply once, as the hotel</b>Edit the suggested wording, keep it honest, and do not paste an advert.</li></ol>')
+    if not fr:
+        return head + '<div class="alert info">The forums were not searched for this report. Run a new audit to find open conversations.</div>'
+    topics = fr.get("topics") or []
+    import forums as _forums
+    links = _forums.search_links(topics)
+    searches = ""
+    if links:
+        by = {}
+        for l in links:
+            by.setdefault(l["topic"], []).append(f'<a href="{esc(l["url"])}" target="_blank" rel="noopener noreferrer">{esc(l["forum"])}</a>')
+        searches = ('<details class="details tk-search"><summary>Search these topics yourself</summary><div class="details-body"><p class="caption">These open each forum&rsquo;s own search for the topic. They are searches, not threads we found.</p><ul>'
+                    + "".join(f"<li>{esc(t)}: {' &middot; '.join(ls)}</li>" for t, ls in by.items()) + "</ul></div></details>")
+    if fr.get("status") != "ok":
+        return head + steps + f'<div class="alert warning"><b>The forum search did not run.</b> {esc(fr.get("reason") or "")}</div>' + searches
+    ops = fr.get("opportunities") or []
+    points = _points(rep)
+    parts = [head, steps]
+    if ops:
+        parts.append(f'<div class="sec-head"><h3>{len(ops)} thread{"s" if len(ops) != 1 else ""} to reply to</h3></div>')
+        parts.append('<div class="threads">' + "".join(_thread_card(o, hotel, points) for o in ops) + "</div>")
+    else:
+        parts.append(f'<div class="alert info"><b>No open thread matched your market this time.</b> {esc(fr.get("reason") or "")}</div>')
+    parts.append(searches)
+    if fr.get("closed"):
+        rows = "".join(f'<li><a href="{esc(_link(o["url"]))}" target="_blank" rel="noopener noreferrer">{esc(o["title"])}</a> <span class="hk-muted">{esc(o["forum"])}, {esc(o.get("age") or "age unknown")}</span></li>' for o in fr["closed"])
+        parts.append(f'<details class="details"><summary>{len(fr["closed"])} older thread(s) that no longer take replies (assistants may still read them)</summary><div class="details-body"><ul>{rows}</ul></div></details>')
+    parts.append('<section class="panel tk-rules"><h4>What we will never suggest</h4><ul><li>Posting as a guest, or from an account that hides who you work for.</li><li>Writing reviews, asking for upvotes, or offering anything in return for a post or a changed comment.</li>'
+                 '<li>Replying to the same thread more than once, or pasting a booking link where the thread did not ask for one.</li></ul><p class="caption">We only list threads that appeared in the search results, so a thread the search could not see is not here. Nothing is posted for you.</p></section>')
+    return "".join(parts)

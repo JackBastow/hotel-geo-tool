@@ -165,3 +165,24 @@ iframe.dash { width: 100%; border: 1px solid var(--line); border-radius: 12px; b
 .rec-body { padding: 0 18px 14px 58px; } .rec-body .rec-why { margin-top: 0; }
 @media (max-width: 720px) { .rec-d > summary { flex-wrap: wrap; } .rec-body { padding-left: 16px; } }
 @media (max-width: 720px) { .hk-bar.wide { grid-template-columns: 1fr auto; } .hk-bar.wide > div:first-child { grid-column: 1 / -1; } }
+
+/* Join the conversation */
+.tk-h { margin-top: 4px; }
+.steps { list-style: none; counter-reset: s; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 0; margin: 14px 0 6px; }
+.steps li { counter-increment: s; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 14px 52px; position: relative; font-size: .92rem; color: var(--muted); box-shadow: var(--shadow); }
+.steps li::before { content: counter(s); position: absolute; left: 14px; top: 14px; width: 28px; height: 28px; border-radius: 99px; background: var(--brand); color: #fff; font-weight: 700; display: grid; place-items: center; }
+.steps li b { display: block; color: var(--ink); font-size: .98rem; margin-bottom: 2px; }
+.threads { display: grid; gap: 14px; }
+.thread { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--good); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
+.th-title { margin: 8px 0 4px; font-size: 1.12rem; }
+.th-ask { color: var(--ink); background: #f8f9fc; border-radius: 10px; padding: 8px 12px; margin: 6px 0; font-size: .92rem; }
+.th-why { color: var(--muted); font-size: .88rem; margin: 6px 0 10px; }
+.th-reply { background: #f6f7ff; border: 1px solid #e4e7ff; border-radius: 12px; padding: 10px 14px; margin-top: 12px; }
+.th-reply-h { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: .84rem; } .th-reply-h b { text-transform: uppercase; letter-spacing: .06em; font-size: .72rem; color: var(--brand-dark); }
+.th-reply-h .btn { margin-left: auto; padding: .25rem .8rem; font-size: .82rem; }
+pre.reply { white-space: pre-wrap; margin: 8px 0 2px; font-family: inherit; font-size: .92rem; line-height: 1.5; }
+.tk-rules { margin-top: 22px; } .tk-search { margin-top: 14px; }
+.talk-callout { display: flex; gap: 18px; align-items: center; justify-content: space-between; background: var(--soft); border: 1px solid #d9dcff; border-radius: 16px; padding: 16px 22px; margin: 18px 0 0; }
+.talk-callout h3 { margin: 0 0 2px; font-size: 1.08rem; } .talk-callout p { margin: 0; color: var(--muted); font-size: .9rem; }
+button.link { background: none; border: 0; padding: 0; color: var(--brand); font: inherit; cursor: pointer; text-decoration: underline; }
+@media (max-width: 900px) { .steps { grid-template-columns: 1fr; } .talk-callout { flex-direction: column; align-items: flex-start; } }

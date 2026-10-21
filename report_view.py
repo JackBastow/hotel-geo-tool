@@ -222,12 +222,12 @@ def _by_hand(fa_res, meta):
             "(public preview). It does **not** cover ChatGPT, Gemini or Perplexity. [How it works](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)")
 
 
-TABS = [("overview", "Overview"), ("action", "Action plan"), ("ai", "AI visibility"), ("site", "Your website"), ("reputation", "Reputation & listings"), ("score", "Scorecard"), ("tools", "Tools & method")]
+TABS = [("overview", "Overview"), ("action", "Action plan"), ("ai", "AI visibility"), ("talk", "Join the conversation"), ("site", "Your website"), ("reputation", "Reputation & listings"), ("score", "Scorecard"), ("tools", "Tools & method")]
 
 
 def render(fa_res, token=None, prev=None, private=None, prev_full=None):
     """
-    -> the HTML of the report body (notices, then seven tabs) for a finished audit report. `prev` is the hotel's previous audit's summary row, when there is one, for 'since last audit'.
+    -> the HTML of the report body (notices, then eight tabs) for a finished audit report. `prev` is the hotel's previous audit's summary row, when there is one, for 'since last audit'.
     The tabs are Overview and Action plan (dashboard_view.py, built for acting on) and the evidence tabs (the Streamlit screens drawn through htmlst).
     """
     import dashboard_view
@@ -292,6 +292,7 @@ def render(fa_res, token=None, prev=None, private=None, prev_full=None):
         "overview": htmlst.build(overview),
         "action": dashboard_view.action_plan(fa_res),
         "ai": htmlst.build(ai),
+        "talk": dashboard_view.talk_tab(fa_res),
         "site": htmlst.build(site),
         "reputation": htmlst.build(reputation),
         "score": htmlst.build(_scorecard, fa_res),

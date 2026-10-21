@@ -160,13 +160,34 @@ ns = {"__name__": "t"}
 with contextlib.redirect_stdout(io.StringIO()):
     exec(compile(src, "test_ai_gap.py", "exec"), ns)
 REP = json.load(open(os.path.join("tests_data", "sample_report.json"), encoding="utf8"))
-REP["ai_gap"], REP["citations"], REP["forums"] = ns["res"], cit, {"status": "ok", "reason": "", "opportunities": ops, "closed": closed, "forums": ["Reddit", "Quora"], "searches": 3, "cost_usd": 0.03}
+REP["ai_gap"], REP["citations"], REP["forums"] = ns["res"], cit, {"status": "ok", "reason": "", "opportunities": ops, "closed": closed, "forums": ["Reddit", "Quora"], "topics": ["best hotels in Paris"], "searches": 3, "cost_usd": 0.03}
 html = report_view.render(copy.deepcopy(REP), token="t" * 32)
 ai = re.search(r'<div class="tab-panel[^"]*" id="tab-ai">(.*?)(?=<div class="tab-panel|$)', html, re.S).group(1)
 glance = ai[:ai.index("<details")]
 check("the AI tab shows, before any section, what is cited when the hotel is named: bars by kind and the ranked sources", "When the assistant names the hotel, what does it cite?" in glance and "booking.com" in glance and "Came up in" in glance and "3 of 3 answers" in glance)
 check("it says plainly how the own site compares with the agents", "own website came up in 1 of 3 answers" in glance and "booking and comparison sites in 3" in glance)
-check("the conversations to join are a section with the links and whether each can still be commented on", "Conversations you can join (" in ai and "ParisTravelGuide" in ai and "Can you comment?" in ai and "How to take part without it backfiring" in ai and "reddit.com/r/ParisTravelGuide" in ai)
+tk = re.search(r'<div class="tab-panel[^"]*" id="tab-talk">(.*?)(?=<div class="tab-panel|$)', html, re.S).group(1)
+check("there is a tab of its own, titled plainly, with the three steps first", "Join the conversation" in html and "Open the thread" in tk and "Reply once, as the hotel" in tk and tk.index("steps") < tk.index('class="thread"'))
+check("each thread has its forum, a button that opens the link in a new tab, whether it takes replies, and wording to say", "ParisTravelGuide" in tk and 'href="https://www.reddit.com/r/ParisTravelGuide' in tk and "Open this thread" in tk and 'target="_blank"' in tk and "What to say" in tk and "Hi, I work at" in tk and "Open: you can reply" in tk)
+check("the AI tab and the overview both point to it", 'data-goto="talk"' in ai and 'data-goto="talk"' in re.search(r'id="tab-overview">(.*?)id="tab-action"', html, re.S).group(1))
+check("the reply never invites posting as a guest, and says who it is", "work at" in tk and "as a guest" in tk and "never suggest" in tk.lower() or "What we will never suggest" in tk)
+check("closed threads are listed apart and the search-it-yourself links are searches, not found threads", "no longer take replies" in tk and "Search these topics yourself" in tk and "reddit.com/search" in tk)
+REP2 = copy.deepcopy(REP)
+REP2["forums"] = {"status": "unavailable", "reason": "The forum search did not finish.", "opportunities": [], "closed": [], "topics": ["best hotels in Paris"], "forums": []}
+tk2 = re.search(r'<div class="tab-panel[^"]*" id="tab-talk">(.*?)(?=<div class="tab-panel|$)', report_view.render(REP2, token="t" * 32), re.S).group(1)
+check("when the search could not run the tab says so and still gives links to search by hand", "did not run" in tk2 and "reddit.com/search" in tk2)
+
+print("7. finding the 'best hotels' threads for an airport hotel")
+pa = {"airport": {"name": "Charles de Gaulle Airport", "km": 2.0}, "airport_hotel": True, "district": None, "classes": ["airport", "business"]}
+tp = fm.topics("Hilton Paris Charles de Gaulle Airport", "Paris", pa, [{"name": "Parc Asterix"}])
+check("the topics include 'best hotels near the airport (CDG)' and 'best hotels in Paris'", tp[0] == "best hotels near Charles de Gaulle Airport (CDG)" and "best hotels in Paris" in tp and len(tp) <= 6, tp)
+pt = fm.place_terms("Hilton Paris Charles de Gaulle Airport", "Paris", pa, [{"name": "Parc Asterix"}])
+check("the place words include the airport, its code and the town", {"Paris", "CDG", "Charles de Gaulle Airport"} <= set(pt), pt)
+gen = [P("https://www.reddit.com/r/travel/comments/1zzz/best_hotels_near_cdg_airport/", "Best hotels near CDG airport?", "Looking for a hotel near cdg with a shuttle", "1 week ago"),
+       P("https://www.reddit.com/r/travel/comments/1yyy/best_hotels_near_heathrow/", "Best hotels near Heathrow?", "looking for hotel near LHR", "1 week ago")]
+og, _c = fm.judge(gen, [], "Hilton Paris Charles de Gaulle Airport", "Paris", pt)
+check("a general 'best hotels near CDG' thread is found; one about another airport is not", [o["url"] for o in og] == [gen[0]["url"]], [o["url"] for o in og])
+check("the search prompt asks for each topic, general ones included", "best hotels near Charles de Gaulle Airport (CDG)" in fm.PROMPT.format(city="Paris", topics="- best hotels near Charles de Gaulle Airport (CDG)", questions="- q"))
 check("the coverage figure is shown against the aim of around 30%", "Coverage: named in" in glance and "around 30%" in glance)
 check("the full ranking, the facts quoted from booking sites and the by-name ranking are one click away", "The full citation ranking" in ai and "Facts the assistant quoted from booking sites" in ai)
 

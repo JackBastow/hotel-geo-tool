@@ -173,3 +173,12 @@
   if (rp) { upload("#rp-go", "#rp-file", "#rp-status", "#rp-result", "/api/r/" + rp.getAttribute("data-token") + "/review-pack", function (fd) { fd.append("platform", $("#rp-platform").value); }); }
   if (cmp) { upload("#cmp-go", "#cmp-file", "#cmp-status", "#cmp-result", "/api/r/" + cmp.getAttribute("data-token") + "/compare"); }
 })();
+
+/* copy the suggested reply */
+document.addEventListener("click", function (ev) {
+  var b = ev.target.closest("[data-copy]");
+  if (!b) { return; }
+  var pre = b.closest(".th-reply").querySelector("pre");
+  var done = function () { var t = b.textContent; b.textContent = "Copied"; setTimeout(function () { b.textContent = t; }, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(pre.innerText).then(done, function () {}); }
+});
