@@ -23,6 +23,7 @@ import decimal
 import json
 import re
 import sqlite3
+import threading
 import time
 import urllib.parse
 
@@ -122,10 +123,31 @@ def pages(rep):
 
 # ------------------------------------------------------------------- the store
 
+class _Lease:
+    """A database connection on loan: everything is passed through, except that close() ends the open transaction and KEEPS the connection for the next call on this thread (opening a connection to a
+    hosted database takes a fraction of a second; a page that makes several queries used to open one for each)."""
+
+    def __init__(self, conn):
+        self._c = conn
+
+    def __getattr__(self, name):
+        return getattr(self._c, name)
+
+    def close(self):
+        try:
+            self._c.rollback()                      # a read ends here; a write was committed by the caller; an error leaves nothing half-done
+        except Exception:  # noqa: BLE001
+            pass
+
+
+IDLE_PING_S = 20          # a connection idle longer than this is tested with one cheap query before it is used again (the host closes idle ones)
+
+
 class Store:
     def __init__(self, url):
         self.url = url or ""
         self.kind = "sqlite" if self.url.startswith("sqlite") else "postgres"
+        self._tl = threading.local()
 
     # connection ---------------------------------------------------------------
     def _connect(self):
@@ -136,7 +158,24 @@ class Store:
             return conn
         import psycopg
         from psycopg.rows import dict_row
-        return psycopg.connect(self.url, row_factory=dict_row, connect_timeout=10)
+        c, now = getattr(self._tl, "conn", None), time.time()
+        if c is not None and (c.closed or now - getattr(self._tl, "used", 0) > IDLE_PING_S):
+            try:
+                if c.closed:
+                    raise RuntimeError("closed")
+                c.execute("SELECT 1")
+                c.rollback()
+            except Exception:  # noqa: BLE001 - the host dropped it while idle: open a fresh one
+                try:
+                    c.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                c = None
+        if c is None:
+            c = psycopg.connect(self.url, row_factory=dict_row, connect_timeout=10)
+            self._tl.conn = c
+        self._tl.used = now
+        return _Lease(c)
 
     def _sql(self, sql):
         return sql if self.kind == "sqlite" else sql.replace("?", "%s")
@@ -457,13 +496,28 @@ class Store:
         return self._rows(f"SELECT id, {cols} FROM runs ORDER BY run_at DESC, id DESC")
 
 
+_STORES = {}
+_STORES_LOCK = threading.Lock()
+
+
 def open_store(url):
-    """A ready Store for the connection string, or None when none is configured. The schema is created on first use."""
+    """
+    A ready Store for the connection string, or None when none is configured. The schema is created on first use. For a hosted database the ready Store is kept for the life of the process: the schema
+    check is dozens of statements and used to run on every page view, which is what made the admin pages slow. A local file database is checked each time (it is cheap, and the file may have been replaced).
+    """
     if not url:
         return None
-    s = Store(url)
-    s.init()
-    return s
+    if url.startswith("sqlite"):
+        s = Store(url)
+        s.init()
+        return s
+    with _STORES_LOCK:
+        s = _STORES.get(url)
+        if s is None:
+            s = Store(url)
+            s.init()
+            _STORES[url] = s
+        return s
 
 
 def to_csv(rows):
