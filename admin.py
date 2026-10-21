@@ -88,7 +88,9 @@ def register(app, cfg):
             if len(_failed[ip]) >= 5:
                 error = "Too many wrong passwords. Try again in ten minutes."
             elif hmac.compare_digest((request.form.get("password") or "").encode(), str(password()).encode()):
+                keep = {k: True for k in ("site_ok",) if session.get(k) is True}      # signing in to the admin pages must not sign you out of the site: with a site password set that sent you straight back to its sign-in
                 session.clear()
+                session.update(keep)
                 session["admin_ok"] = True
                 session.permanent = True
                 app.permanent_session_lifetime = 8 * 3600
@@ -101,7 +103,8 @@ def register(app, cfg):
 
     @app.post("/admin/logout")
     def admin_logout():
-        session.clear()
+        session.pop("admin_ok", None)                 # leaves the site sign-in alone
+        session.pop("csrf", None)
         return redirect(url_for("admin_login"))
 
     @app.get("/admin")

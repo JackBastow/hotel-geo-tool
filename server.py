@@ -210,7 +210,9 @@ def create_app(cfg=None, run_fn=None):
             if len(failed[ip]) >= 6:
                 error = "Too many wrong passwords. Please try again in ten minutes."
             elif hmac.compare_digest((request.form.get("password") or "").encode(), cfg.site_password.encode()):
+                keep = {k: True for k in ("admin_ok",) if session.get(k) is True}      # signing in to the site must not sign you out of the admin pages
                 session.clear()
+                session.update(keep)
                 session["site_ok"] = True
                 session.permanent = True
                 return redirect(nxt)
