@@ -29,6 +29,28 @@ NICE = {"run_at": "Run", "hotel": "Hotel", "city": "City", "headline_status": "H
         "ai_rank_in_table": "Place in table", "ai_top_competitor": "Top competitor", "reviews_replied": "Replies seen", "reviews_examined": "Reviews examined", "pack_reviews": "Reviews in export",
         "pack_reply_rate": "Export reply rate %", "pagespeed_perf": "Mobile speed", "recs_total": "Recommendations", "ai_cost_usd": "AI cost $", "id": "Run id"}
 _failed = collections.defaultdict(list)
+TIME_COLS = ("run_at", "created")
+NBSP = " "
+
+
+def uk_time(value):
+    """A saved UTC timestamp (text such as 2026-10-21T15:15:21+00:00, or a datetime) as clear UK time: 'Tue 21 Oct 2026, 16:15 BST' (GMT in winter, BST in summer). Anything it cannot read comes back as it was."""
+    import datetime as _dt
+    if value in (None, ""):
+        return ""
+    try:
+        d = value if isinstance(value, _dt.datetime) else _dt.datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=_dt.timezone.utc)
+        try:
+            import zoneinfo
+            d = d.astimezone(zoneinfo.ZoneInfo("Europe/London"))
+            zone = d.tzname()
+        except Exception:  # noqa: BLE001 - no timezone database on this machine: say it is UTC rather than guess
+            d, zone = d.astimezone(_dt.timezone.utc), "UTC"
+        return NBSP.join([d.strftime("%a"), str(d.day), d.strftime("%b"), str(d.year) + ",", d.strftime("%H:%M"), zone])
+    except Exception:  # noqa: BLE001
+        return str(value)
 
 
 def _table(rows, cols=None, rename=NICE):
@@ -38,7 +60,7 @@ def _table(rows, cols=None, rename=NICE):
             st.caption("Nothing to show yet.")
             return
         use = cols or list(rows[0])
-        st.dataframe([{rename.get(c, c): ("" if r.get(c) is None else r[c]) for c in use} for r in rows])
+        st.dataframe([{rename.get(c, c) + (" (UK time)" if c in TIME_COLS else ""): (uk_time(r.get(c)) if c in TIME_COLS else ("" if r.get(c) is None else r[c])) for c in use} for r in rows])
     return htmlst.build(body)
 
 
@@ -127,6 +149,7 @@ def register(app, cfg):
             c.metric("Audits this month", len(this))
             d.metric("AI cost this month (est.)", f"${sum((r['ai_cost_usd'] or 0) for r in this):.2f}")
             st.markdown("##### Latest audits")
+            st.caption("All times on the admin pages are UK time (GMT in winter, BST in summer).")
         return shell("overview", "Admin: saved audits", _page_body(body) + _table(runs[:15], PUB_COLS[1:]))
 
     def _page_body(fn):
@@ -146,9 +169,9 @@ def register(app, cfg):
         form = (f'<form class="filters" method="get"><label class="field"><span>Hotel or website contains</span><input type="search" name="q" value="{htmlst.html.escape(text, quote=True)}"></label>'
                 f'<label class="field"><span>City</span><select name="city">{opts}</select></label><label class="field"><span>Since (YYYY-MM-DD)</span>'
                 f'<input type="text" name="since" value="{htmlst.html.escape(since, quote=True)}"></label><button class="btn primary" type="submit">Filter</button></form>')
-        links = "".join(f'<tr><td><a href="/admin/run/{r["id"]}">#{r["id"]}</a></td><td>{htmlst.html.escape(str(r["run_at"])[:10])}</td><td>{htmlst.html.escape(r["hotel"] or r["hotel_key"])}</td></tr>' for r in rows[:60])
+        links = "".join(f'<tr><td><a href="/admin/run/{r["id"]}">#{r["id"]}</a></td><td>{htmlst.html.escape(uk_time(r["run_at"]))}</td><td>{htmlst.html.escape(r["hotel"] or r["hotel_key"])}</td></tr>' for r in rows[:60])
         return shell("runs", "Runs", form + f'<p class="caption">{len(rows)} run(s)</p>' + _table(rows, PUB_COLS)
-                     + '<h5>Open a run</h5><div class="table-wrap"><table class="table"><thead><tr><th>Run</th><th>Date</th><th>Hotel</th></tr></thead><tbody>' + links + '</tbody></table></div>')
+                     + '<h5>Open a run</h5><div class="table-wrap"><table class="table"><thead><tr><th>Run</th><th>Date and time (UK time)</th><th>Hotel</th></tr></thead><tbody>' + links + '</tbody></table></div>')
 
     @app.get("/admin/run/<int:run_id>")
     def admin_run(run_id):
@@ -167,6 +190,7 @@ def register(app, cfg):
 
         def body():
             st.markdown(f"**{ui_theme_safe(meta.get('hotel', ''))}** · {ui_theme_safe(meta.get('website', ''))}")
+            st.write("Run: " + uk_time(meta.get("run_at")) + " (UK time)")
             st.write(f"Headline: {h.get('status', '-')} {'' if h.get('score') is None else str(h['score']) + '/100'} (coverage {h.get('coverage_pct', '-')}%)")
             for r in tops:
                 st.markdown(f"- **{ui_theme_safe(r['title'])}** ({r['priority']}, {ui_theme_safe(r['team'])})")

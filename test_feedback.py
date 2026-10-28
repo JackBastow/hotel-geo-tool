@@ -98,6 +98,12 @@ c3 = a2.test_client()
 c3.post("/login", data={"password": "site-gate"}); c3.post("/admin/login", data={"password": "open-sesame"}); c3.post("/login", data={"password": "site-gate"})
 check("signing in to the site again does not sign you out of the admin pages", c3.get("/admin").status_code == 200)
 
+print("6. the admin pages show UK time")
+import admin as _adm
+check("a UTC time in summer is shown as BST, one hour on, with the weekday and no wrapping", _adm.uk_time("2026-10-21T15:15:21+00:00") == "Wed 21 Oct 2026, 16:15 BST")
+check("in winter it is GMT, and the clock change is handled", _adm.uk_time("2026-01-15T09:00:00+00:00").endswith("09:00 GMT") and _adm.uk_time("2026-03-29T00:30:00+00:00").endswith("GMT") and _adm.uk_time("2026-03-29T01:30:00+00:00").endswith("02:30 BST"))
+check("nothing or unreadable text is passed through, not an error", _adm.uk_time(None) == "" and _adm.uk_time("junk") == "junk")
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)
