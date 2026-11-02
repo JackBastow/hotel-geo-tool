@@ -87,7 +87,7 @@ Honesty rules (state these plainly when relevant):
 - Anything that could not be measured is shown as "not assessed", never scored as zero.
 - "Not found on the pages checked" is not the same as "missing".
 
-Free check: a one-off report anyone can run at no cost, with no account and no card. A full run takes roughly four to five minutes.
+How it works: a customer subscribes and tells Presence Pro their hotel's website. Presence Pro prepares the report and emails it, then again every month. There is no self-service tool and no free version; do not say the visitor can run a report themselves.
 
 Paid plans (monthly subscription, cancel any time, takes effect at the end of the paid period; paid through Stripe, so Presence Pro never sees card details):
 {price_block}

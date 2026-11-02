@@ -5,9 +5,6 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
 
-  // links into the free check
-  $$("[data-app]").forEach(function (a) { if (cfg.APP_URL) { a.href = cfg.APP_URL; a.target = "_blank"; a.rel = "noopener"; } });
-
   // nav: solid once scrolled, mobile menu
   var nav = $("#nav"), links = $("#links"), btn = $("#menuBtn");
   function stick() { nav.classList.toggle("stuck", window.scrollY > 24); }

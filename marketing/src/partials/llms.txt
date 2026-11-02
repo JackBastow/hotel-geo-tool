@@ -16,7 +16,7 @@
 
 ## Pricing (GBP, plus VAT where it applies; monthly subscription, cancel any time)
 {{ llms_plans }}
-A free one-off check is available with no account.
+Reports are prepared for subscribers by Presence Pro; there is no self-service tool.
 
 ## Pages
 - {{ url }}/what-we-do.html

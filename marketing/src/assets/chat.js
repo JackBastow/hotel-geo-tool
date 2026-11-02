@@ -9,7 +9,7 @@
   var plans = (cfg.PLANS || []).map(function (p) { return p.name + " " + money(p.monthly) + " a month"; }).join(", ");
   var QUICK = [
     { q: "What do you check?", a: "We check three things for your hotel: whether your own website answers the questions guests ask, what an AI assistant says when travellers ask where to stay (and who it names instead), and where your hotel is listed across booking sites, maps and the press. You get a plain-English plan of what to fix first. There's more on the What we do page: /what-we-do.html" },
-    { q: "How much does it cost?", a: "There's a free one-off check with no account. Monthly reports are " + plans + " (plus VAT where it applies), or two months free if you pay yearly. Details: /pricing.html" },
+    { q: "How much does it cost?", a: "Monthly reports are " + plans + " (plus VAT where it applies), or two months free if you pay yearly. Details: /pricing.html" },
     { q: "Does it cover ChatGPT?", a: "Not directly, and we'd rather say so. The sampled answers come from one AI assistant with live web search, and the report labels them as a sample of one assistant on one day. For ChatGPT, Gemini and others the report gives you a checklist to test by hand. Nobody can honestly promise that an assistant will recommend your hotel." },
     { q: "How do I pay or cancel?", a: "You pay by card through Stripe, so we never see your card details. It's a monthly subscription you can cancel any time; it ends at the close of the period you've paid for. For anything about billing, email " + (cfg.EMAIL || "us") + "." }
   ];
