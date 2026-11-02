@@ -59,3 +59,6 @@ It runs inside the Flask app (`chat.py`, route `/api/chat`), so it needs nothing
 
 ## When someone subscribes
 Stripe emails you (and them a receipt) and the custom fields give you the hotel's name and website. Run their audit in the tool, send the PDFs, and repeat monthly. Nothing here is automated; automating delivery is a later build.
+
+## Moving this to another GitHub account later
+The site is published from this repository. To move it (for example to a personal account): Settings, Danger zone, Transfer ownership. The domain and DNS do not change. Afterwards re-check Settings, Pages (Source: GitHub Actions, custom domain) and re-link Render to the new owner.
