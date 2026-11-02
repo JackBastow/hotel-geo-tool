@@ -7,3 +7,6 @@ sample_output/
 dev_preview.py
 .claude/launch.json
 dev_flask.py
+
+# built marketing site
+marketing/public/

@@ -1,0 +1,26 @@
+# Presence Pro
+
+> Presence Pro shows hotels how AI assistants and open data describe them, which sources those answers rely on, and what to fix first. It re-tests every month. Every finding shows its evidence, and anything it cannot measure is marked "not assessed". Website: {{ url }}
+
+## What it does
+- Checks whether a hotel's own website answers the questions guests ask (parking, breakfast, check-in, pets, accessibility), quoting the exact words and page.
+- Asks an AI assistant with live web search real traveller questions, each more than once, and reports how often the hotel was named, who was named instead and which pages were cited. This is a labelled sample of one assistant on one day, never a market ranking.
+- Checks where the hotel is listed (booking and review sites, maps, open data, press) across 30 points.
+- Analyses the hotel's own review export (a CSV or Excel file) for reply rate, unanswered critical reviews and what guests praise and criticise.
+- Produces a management PDF, a technical and evidence appendix, and a monthly comparison.
+
+## What it does not do
+- It does not guarantee that any AI assistant will recommend a hotel.
+- It does not read Booking.com or Tripadvisor pages directly (their terms prohibit automated collection).
+- It does not score what it could not measure.
+
+## Pricing (GBP, plus VAT where it applies; monthly subscription, cancel any time)
+{{ llms_plans }}
+A free one-off check is available with no account.
+
+## Pages
+- {{ url }}/what-we-do.html
+- {{ url }}/sample-report.html
+- {{ url }}/pricing.html
+- {{ url }}/about.html
+- {{ url }}/contact.html

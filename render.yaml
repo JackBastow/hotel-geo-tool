@@ -9,6 +9,10 @@ services:
     startCommand: python wsgi.py
     healthCheckPath: /healthz
     autoDeploy: true
+    buildFilter:
+      ignoredPaths:
+        - marketing/**
+        - .github/**
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.7

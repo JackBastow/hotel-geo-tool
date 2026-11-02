@@ -1,0 +1,68 @@
+{
+  "name": "Presence Pro",
+  "domain": "presencepro.co.uk",
+  "url": "https://presencepro.co.uk",
+  "app_url": "https://hotel-ai-audit.onrender.com",
+  "form_endpoint": "",
+  "contact": {
+    "email": "hello@presencepro.co.uk"
+  },
+  "operator": {
+    "name": "",
+    "company_number": "",
+    "vat_number": "",
+    "address": ""
+  },
+  "stripe": {
+    "portal_url": "",
+    "links": {
+      "essential": { "monthly": "", "annual": "" },
+      "professional": { "monthly": "", "annual": "" },
+      "portfolio": { "monthly": "", "annual": "" }
+    }
+  },
+  "plans": [
+    {
+      "id": "essential",
+      "name": "Essential",
+      "monthly": 49,
+      "annual": 490,
+      "for": "One hotel, tracked every month.",
+      "features": [
+        "A full report for one hotel every month",
+        "Management PDF and technical evidence appendix",
+        "The same questions re-tested, with the change since last month",
+        "Findings on your website, listings and AI answers, each with its evidence",
+        "Email support"
+      ]
+    },
+    {
+      "id": "professional",
+      "name": "Professional",
+      "monthly": 99,
+      "annual": 990,
+      "highlight": true,
+      "for": "One hotel, with your own questions and your own reviews.",
+      "features": [
+        "Everything in Essential",
+        "Five questions of your own tested every month",
+        "Your review export analysed every month",
+        "Open forum conversations worth joining, with honest wording",
+        "Priority email support"
+      ]
+    },
+    {
+      "id": "portfolio",
+      "name": "Portfolio",
+      "monthly": 249,
+      "annual": 2490,
+      "for": "Up to five hotels, in one view.",
+      "features": [
+        "Everything in Professional, for up to five hotels",
+        "A monthly summary across all your hotels",
+        "A set-up call to choose your questions and markets",
+        "Need more hotels? Ask us"
+      ]
+    }
+  ]
+}

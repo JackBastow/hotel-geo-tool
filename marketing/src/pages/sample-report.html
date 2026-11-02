@@ -1,0 +1,126 @@
+---
+title: Sample report | Presence Pro
+description: A full sample Presence Pro report for a fictional hotel: readiness score with coverage, who the AI named instead, the action plan with evidence, and what was not assessed.
+nav: sample
+---
+<section class="page-hero dark">
+  <div class="wrap">
+    <p class="eyebrow">Sample report</p>
+    <h1>This is what lands in your inbox <em>each month.</em></h1>
+    <p class="lede">A condensed version of the management report for a fictional hotel. Every name and number here is invented for illustration. Your report uses your hotel's real evidence.</p>
+    <div class="cta-row"><a class="btn gold" href="/pricing.html">See pricing</a><a class="btn ghost" href="{{ app_url }}" data-app>Run the free check</a></div>
+  </div>
+</section>
+<div class="banner">Fictional hotel and invented figures, shown for illustration only</div>
+
+<section class="light" style="padding-top:56px">
+  <div class="wrap">
+    <div class="sr-head rv">
+      <div><h2>The Harbour Lane Hotel, Brightmouth</h2><p>Management report &middot; first report &middot; 4-star city hotel</p></div>
+      <div class="dial"><div class="ring" style="--v:72"><b>72</b></div><div><span class="chip-prov">Provisional</span><small>AI discoverability readiness, across 60% of the full model</small></div></div>
+    </div>
+
+    <div class="sr-grid rv">
+      <div class="metric"><small>Named by the assistant</small><b>5 of 14</b></div>
+      <div class="metric"><small>Plausible range</small><b>16% to 61%</b></div>
+      <div class="metric"><small>Position when named</small><b>2.8 on average</b></div>
+      <div class="metric"><small>Trend</small><b>Too early</b></div>
+    </div>
+    <p class="note" style="color:var(--muted);font-size:.9rem">Page one answers five questions: which AI searches name the hotel, who is named instead in its own category, what the evidence suggests differs, what to do first, and how sure we are.</p>
+
+    <div class="rep-sec rv">
+      <h2>1. Which searches name the hotel</h2>
+      <p>Each question is written from facts about the hotel and asked more than once. None contains the hotel's name.</p>
+      <div class="table-wrap" style="margin-top:18px"><table class="data">
+        <thead><tr><th>Traveller question</th><th class="num">Named in</th><th>Band</th></tr></thead>
+        <tbody>
+          <tr><td>Which hotels near the stadium suit a concert weekend?</td><td class="num">3 of 3</td><td><span class="pill ok">Usually</span></td></tr>
+          <tr><td>Best upscale hotel in Brightmouth with free parking?</td><td class="num">1 of 3</td><td><span class="pill lk">Sometimes</span></td></tr>
+          <tr><td>Where should I stay for an early flight from Brightmouth Airport?</td><td class="num">1 of 2</td><td><span class="pill lk">Sometimes</span></td></tr>
+          <tr><td>Family-friendly hotel near the old town?</td><td class="num">0 of 3</td><td><span class="pill hi">Not appearing</span></td></tr>
+          <tr><td>Hotels with meeting rooms near the station?</td><td class="num">0 of 2</td><td><span class="pill hi">Not appearing</span></td></tr>
+          <tr><td>Quiet hotel with a spa for a weekend break?</td><td class="num">0 of 1</td><td><span class="pill ck">Too few answers</span></td></tr>
+        </tbody></table></div>
+      <p class="legend">One assistant, with live web search, on one day. A sample, never a market ranking.</p>
+    </div>
+
+    <div class="rep-sec rv">
+      <h2>2. Who was named instead</h2>
+      <p>The hotels named across all 14 answers, with how often, where in the list, and how the assistant spoke of each. Net sentiment runs from -100 to +100.</p>
+      <div class="table-wrap" style="margin-top:18px"><table class="data">
+        <thead><tr><th>Hotel</th><th class="num">Coverage</th><th class="num">Avg position</th><th class="num">Net sentiment</th></tr></thead>
+        <tbody>
+          <tr><td>The Lantern House</td><td class="num">64% (9 of 14)</td><td class="num">1.8</td><td class="num">+60</td></tr>
+          <tr><td>Marlow &amp; Finch Hotel</td><td class="num">43% (6 of 14)</td><td class="num">2.4</td><td class="num">+33</td></tr>
+          <tr class="you"><td>The Harbour Lane Hotel (you)</td><td class="num">36% (5 of 14)</td><td class="num">2.8</td><td class="num">+40</td></tr>
+          <tr><td>Cathedral Close Inn</td><td class="num">29% (4 of 14)</td><td class="num">3.0</td><td class="num">+25</td></tr>
+          <tr><td>The Quayside</td><td class="num">21% (3 of 14)</td><td class="num">3.3</td><td class="num">0</td></tr>
+        </tbody></table></div>
+      <p class="legend">Only hotels in a comparable price band count towards a gap. Luxury and palace hotels are shown, not counted.</p>
+    </div>
+
+    <div class="rep-sec rv">
+      <h2>3. What to do first</h2>
+      <p>The actions most worth doing, in order. Each shows its evidence. Confirmed means a quotation checked on a page the audit read.</p>
+
+      <div class="sr-act"><header><h3>1. Say whether a parking space can be reserved, on your Parking page</h3><span class="pill ok">Confirmed</span></header>
+        <dl><dt>Found</dt><dd>The Parking page states a price but not whether a space can be reserved.</dd>
+        <dt>Evidence</dt><dd><blockquote>"Parking is available at £18 per night."</blockquote> <small>Page: /parking</small></dd>
+        <dt>Why it matters</dt><dd>"Best hotel with free parking" was one of the questions where the hotel was named in only 1 of 3 answers.</dd>
+        <dt>Do this</dt><dd>On the existing Parking page, state whether spaces can be booked in advance, how, and whether any are free for longer stays.</dd></dl></div>
+
+      <div class="sr-act"><header><h3>2. Two pages give different check-in times</h3><span class="pill ok">Confirmed</span></header>
+        <dl><dt>Found</dt><dd>Check-in is 15:00 on one page and 14:00 on another.</dd>
+        <dt>Evidence</dt><dd><blockquote>"Check-in from 15:00"</blockquote> <small>/rooms</small> <blockquote>"Arrive from 14:00"</blockquote> <small>/faq</small></dd>
+        <dt>Do this</dt><dd>Decide the real time and make both pages, and your listings, say the same.</dd></dl></div>
+
+      <div class="sr-act"><header><h3>3. Answer the critical reviews that have no reply</h3><span class="pill lk">Likely</span></header>
+        <dl><dt>Found</dt><dd>From your own review export: 11 of the 38 reviews rated 2 stars or below have no reply.</dd>
+        <dt>Do this</dt><dd>Reply to each, newest first, using the skeleton reply provided as a starting point. Never offer anything in return.</dd></dl></div>
+
+      <div class="sr-act"><header><h3>4. A city guide the assistant cited lists rivals but not you</h3><span class="pill ck">Worth checking</span></header>
+        <dl><dt>Found</dt><dd>An editorial "where to stay" article was cited in 4 answers. It names three rival hotels and not yours.</dd>
+        <dt>Do this</dt><dd>Use the article's own contact page to introduce the hotel, if it suits you. Do not pay for placement presented as editorial.</dd></dl></div>
+
+      <div class="sr-act"><header><h3>5. Add a line about early breakfast to the airport-stay page</h3><span class="pill lk">Likely</span></header>
+        <dl><dt>Found</dt><dd>The hotel serves breakfast from 6:30, but only on the Dining page. The "early flight" page doesn't mention it.</dd>
+        <dt>Do this</dt><dd>Add the breakfast time and a link to the Dining page, so the answer sits where a traveller would look.</dd></dl></div>
+    </div>
+
+    <div class="rep-sec rv">
+      <h2>4. How the score is made</h2>
+      <p>Only the categories that could be assessed count. Anything not measured is left out, never scored as zero.</p>
+      <div class="table-wrap" style="margin-top:18px"><table class="data">
+        <thead><tr><th>Category</th><th class="num">Weight</th><th class="num">Score</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Website and technical</td><td class="num">24%</td><td class="num">81</td><td>Assessed</td></tr>
+          <tr><td>OTAs and travel platforms</td><td class="num">20%</td><td class="num">62</td><td>Identified in search results, not read, so capped</td></tr>
+          <tr><td>Social and user content</td><td class="num">10%</td><td class="num">60</td><td>Partly assessed: presence only, capped at 60</td></tr>
+          <tr><td>Entity consistency</td><td class="num">6%</td><td class="num">90</td><td>Assessed</td></tr>
+          <tr><td>Reviews and reputation</td><td class="num">20%</td><td class="num">&ndash;</td><td>Not assessed</td></tr>
+          <tr><td>Editorial and blogs</td><td class="num">20%</td><td class="num">&ndash;</td><td>Not assessed</td></tr>
+        </tbody></table></div>
+      <p class="legend">Overall = the weighted average of the assessed categories: 72, resting on 60% of the model, so marked provisional.</p>
+    </div>
+
+    <div class="rep-sec rv">
+      <h2>5. What was not assessed</h2>
+      <p>Saying so plainly is part of the report.</p>
+      <div class="na-list">
+        <div class="na"><b>Guest reviews</b><span>Not assessed until the hotel's own review export is supplied. Booking and review sites prohibit automated collection.</span></div>
+        <div class="na"><b>Other assistants</b><span>ChatGPT, Gemini, Copilot and others are not tested. The appendix includes a checklist to test them by hand.</span></div>
+        <div class="na"><b>Social activity</b><span>Presence was checked from the website's links. Whether anyone is talking about the hotel there was not.</span></div>
+      </div>
+    </div>
+
+    <div class="callout rv" style="margin-top:56px"><h3>The full package</h3><p>Alongside this management report you receive a technical and evidence appendix with every quotation, page and source behind each finding, and a data file to compare next month.</p></div>
+  </div>
+</section>
+
+<section class="final dark">
+  <div class="wrap">
+    <h2 class="rv">Get one for your hotel.</h2>
+    <p class="rv d1">Start with a free check, or subscribe and get a report every month.</p>
+    <div class="cta-row rv d2"><a class="btn gold" href="{{ app_url }}" data-app>Run the free check &rarr;</a><a class="btn ghost" href="/pricing.html">See pricing</a></div>
+  </div>
+</section>

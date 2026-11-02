@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<meta name="description" content="{{ description }}">
+<link rel="canonical" href="{{ canonical }}">
+{{ robots_meta }}
+<meta name="theme-color" content="#0a0f1f">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Presence Pro">
+<meta property="og:locale" content="en_GB">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description" content="{{ description }}">
+<meta property="og:url" content="{{ canonical }}">
+{{ og_image }}
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/pages.css">
+</head>
+<body class="{{ body_class }}">
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="logo" href="/" aria-label="Presence Pro home">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#121a30"/><circle cx="16" cy="17" r="3.4" fill="#e0b567"/><path d="M9.6 17a6.4 6.4 0 0 1 12.8 0M5.8 17a10.2 10.2 0 0 1 20.4 0" stroke="#e0b567" stroke-width="1.7" stroke-linecap="round" opacity=".75"/><path d="M13 24.5h6" stroke="#38d6a0" stroke-width="1.7" stroke-linecap="round"/></svg>
+      <span>Presence <b>Pro</b></span>
+    </a>
+    <button class="menu-btn" id="menuBtn" aria-label="Menu" aria-expanded="false" aria-controls="links">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h14M3 10h14M3 14h14"/></svg>
+    </button>
+    <nav class="links" id="links" aria-label="Main">
+      <a href="/what-we-do.html"{{ cur_what }}>What we do</a>
+      <a href="/sample-report.html"{{ cur_sample }}>Sample report</a>
+      <a href="/pricing.html"{{ cur_pricing }}>Pricing</a>
+      <a href="/about.html"{{ cur_about }}>About</a>
+      <a href="/contact.html"{{ cur_contact }}>Contact</a>
+      <a class="btn gold sm" href="{{ app_url }}" data-app>Free check</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+{{ content }}
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="logo" href="/"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#121a30"/><circle cx="16" cy="17" r="3.4" fill="#e0b567"/><path d="M9.6 17a6.4 6.4 0 0 1 12.8 0M5.8 17a10.2 10.2 0 0 1 20.4 0" stroke="#e0b567" stroke-width="1.7" stroke-linecap="round" opacity=".75"/></svg><span>Presence <b>Pro</b></span></a>
+        <p>See how AI describes your hotel, and what to fix first.</p>
+      </div>
+      <nav aria-label="Product"><h4>Product</h4><a href="/what-we-do.html">What we do</a><a href="/sample-report.html">Sample report</a><a href="/pricing.html">Pricing</a><a href="{{ app_url }}" data-app>Free check</a></nav>
+      <nav aria-label="Company"><h4>Company</h4><a href="/about.html">About</a><a href="/contact.html">Contact</a><a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{{ portal_link }}</nav>
+      <nav aria-label="Legal"><h4>Legal</h4><a href="/terms.html">Terms of service</a><a href="/privacy.html">Privacy and cookies</a></nav>
+    </div>
+    <div class="foot-small">
+      <span>&copy; {{ year }} Presence Pro. Reads public sources only. AI answers are a labelled sample, never a ranking.</span>
+      <span>{{ business }}</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/config.js"></script>
+<script src="/site.js"></script>
+<script src="/chat.js" defer></script>
+</body>
+</html>

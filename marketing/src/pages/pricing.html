@@ -1,0 +1,70 @@
+---
+title: Pricing | Presence Pro
+description: Monthly AI visibility reports for your hotel from {{ lowest_price }} a month. Pay securely by card through Stripe, cancel any time. Free one-off check available.
+nav: pricing
+---
+<section class="page-hero dark">
+  <div class="wrap">
+    <p class="eyebrow">Pricing</p>
+    <h1>Pick the plan that fits your hotels. <em>Cancel any time.</em></h1>
+    <p class="lede">Every plan gives you a fresh report each month, the same questions re-tested so you can see what moved, and the evidence behind every finding.</p>
+    <div class="toggle" role="group" aria-label="Billing period">
+      <button type="button" data-interval="monthly" aria-pressed="true">Monthly</button>
+      <button type="button" data-interval="annual" aria-pressed="false">Yearly <small>2 months free</small></button>
+    </div>
+  </div>
+</section>
+
+<section class="light" style="padding-top:64px">
+  <div class="wrap">
+    {{ plans_cards }}
+    <div class="pay-note rv">
+      <span>Paid by card through Stripe. We never see your card details</span>
+      <span>Prices exclude VAT, added where it applies</span>
+      <span>Cancel any time, from your receipt email or by asking us</span>
+    </div>
+    <p class="plans-foot rv">Not sure yet? <a href="{{ app_url }}" data-app>Run the free check first</a>, no account needed. Running a bigger group or agency? <a href="/contact.html">Talk to us</a>.</p>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head rv"><p class="eyebrow">Compare</p><h2>What's in each plan</h2></div>
+    <div class="rv">{{ plans_compare }}</div>
+  </div>
+</section>
+
+<section class="light">
+  <div class="wrap">
+    <div class="sec-head rv"><p class="eyebrow">How a subscription works</p><h2>From payment to your first report</h2></div>
+    <div class="kv">
+      <div class="card rv"><b>1. Subscribe</b><p>Choose a plan and pay by card through Stripe. At checkout you give us the hotel's name and website so we know what to report on.</p></div>
+      <div class="card rv d1"><b>2. We set you up</b><p>We confirm your hotel and the markets it competes in, and ask for your review export if your plan includes it.</p></div>
+      <div class="card rv d2"><b>3. Reports every month</b><p>Each month you receive a new report by email, with the change since the last one, and a plan of what to do first.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head center rv" style="text-align:center"><p class="eyebrow">Billing questions</p><h2>The small print, in plain English</h2></div>
+    <div class="faq rv">
+      <details><summary>How do I pay?</summary><p>By debit or credit card, through Stripe. Stripe handles the payment securely and sends you a receipt. Presence Pro never sees or stores your card number.</p></details>
+      <details><summary>Is VAT included?</summary><p>Prices on this page are before VAT. VAT is added at checkout where it applies, and appears on your invoice.</p></details>
+      <details><summary>Can I cancel?</summary><p>Yes, at any time. Cancelling stops the next payment and your plan runs to the end of the period you've already paid for. There's no minimum term. Full terms are in our <a href="/terms.html">terms of service</a>.</p></details>
+      <details><summary>What's the difference between monthly and yearly?</summary><p>Yearly is ten months' price for twelve months, paid once. Monthly is billed every month. Reports are the same either way.</p></details>
+      <details><summary>Can I change plan?</summary><p>Yes. Email us and we'll move you up or down. A hotel group that needs more than five hotels can have a custom arrangement.</p></details>
+      <details><summary>Will the reports guarantee AI recommends my hotel?</summary><p>No, and no honest provider can promise that. The report shows what an AI assistant said, where it got its information and what your own pages leave unanswered, so you can fix real gaps. The AI answers are a labelled sample of one assistant on one day.</p></details>
+      <details><summary>What if I want to try it first?</summary><p>Run the <a href="{{ app_url }}" data-app>free check</a>. It's the same kind of report for a single run, with no account and no card.</p></details>
+      <details><summary>I need an invoice or have a billing problem</summary><p>Stripe emails a receipt with every payment. For an invoice in your company's name or anything else about billing, email <a href="mailto:{{ contact.email }}">{{ contact.email }}</a>.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="final dark">
+  <div class="wrap">
+    <h2 class="rv">Start with the free check.</h2>
+    <p class="rv d1">See what a report tells you about your own hotel before you commit to anything.</p>
+    <div class="cta-row rv d2"><a class="btn gold" href="{{ app_url }}" data-app>Run the free check &rarr;</a><a class="btn ghost" href="/sample-report.html">See a sample report</a></div>
+  </div>
+</section>

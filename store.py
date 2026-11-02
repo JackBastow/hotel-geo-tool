@@ -42,6 +42,7 @@ SERVICE_CAPS = {
                         # tighten this once real usage is observed
     "claude": int(float(os.environ.get("CLAUDE_MONTHLY_CAP_USD") or 600) * 1000),   # ESTIMATED spend in thousandths of a US dollar; $600 a month unless CLAUDE_MONTHLY_CAP_USD says otherwise. The hard stop is the spend limit on the workspace in
                         # the Anthropic Console; this is a best-effort second guard (the counter lives on the container's disk).
+    "chat": int(os.environ.get("CHAT_MONTHLY_CAP") or 3000),     # replies a month from the marketing site's chat assistant (chat.py)
     "gemini_reader": 500,   # calls/month, for gemini_reader.py's free ungrounded
                             # judging calls. Google does not publish an exact
                             # free-tier requests-per-day figure for this - public

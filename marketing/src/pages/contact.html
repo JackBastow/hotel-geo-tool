@@ -1,0 +1,40 @@
+---
+title: Contact | Presence Pro
+description: Get in touch with Presence Pro: questions about plans, a hotel group or agency arrangement, billing, or anything the report doesn't answer.
+nav: contact
+---
+<section class="page-hero dark">
+  <div class="wrap">
+    <p class="eyebrow">Contact</p>
+    <h1>Ask us <em>anything.</em></h1>
+    <p class="lede">Questions about a plan, a group or agency arrangement, billing, or what a report would show for your hotel. Write to us, or try the chat in the corner for a quick answer.</p>
+  </div>
+</section>
+
+<section class="light">
+  <div class="wrap contact-grid">
+    <div class="form-card rv">
+      <form class="form" id="contactForm" novalidate>
+        <div><label for="cn">Your name</label><input id="cn" name="name" autocomplete="name" required maxlength="120"></div>
+        <div><label for="ce">Email</label><input id="ce" name="email" type="email" autocomplete="email" required maxlength="200"></div>
+        <div><label for="cw">Hotel website <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input id="cw" name="website" autocomplete="url" placeholder="yourhotel.com" maxlength="300"></div>
+        <div><label for="ct">It's about</label><select id="ct" name="topic"><option value="">A general question</option><option value="essential">Essential plan</option><option value="professional">Professional plan</option><option value="portfolio">Portfolio plan</option><option value="group">More than five hotels, or an agency</option><option value="billing">Billing</option></select></div>
+        <div class="full"><label for="cm">Message</label><textarea id="cm" name="message" rows="5" required maxlength="2000"></textarea></div>
+        <input class="hp" type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <div class="full"><button class="btn gold" type="submit" style="width:100%;padding:1rem">Send message</button></div>
+      </form>
+      <div class="msg" id="formMsg" role="status"></div>
+    </div>
+
+    <div class="rv d1">
+      <ul class="side-list">
+        <li><b>Email</b><span><a href="mailto:{{ contact.email }}" style="color:var(--gold-d);font-weight:600">{{ contact.email }}</a></span></li>
+        <li><b>Already a customer?</b><span>Reply to any report email, or write to the address above with your hotel's name and we'll sort it.</span></li>
+        <li><b>Billing and cancellations</b><span>Stripe emails a receipt with every payment. For invoices, changing plan or cancelling, email us.</span></li>
+        <li><b>Hotel groups and agencies</b><span>More than five hotels, or managing hotels for clients? Tell us how many and we'll put together an arrangement.</span></li>
+        <li><b>Your data</b><span>To see, correct or delete what we hold, write to us. See the <a href="/privacy.html" style="color:var(--gold-d)">privacy notice</a>.</span></li>
+      </ul>
+      <p class="note" style="margin-top:22px;color:var(--muted);font-size:.9rem">{{ business }}</p>
+    </div>
+  </div>
+</section>

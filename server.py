@@ -27,6 +27,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import ai_niche
 import audit_service
+import chat
 import compare
 import headline
 import jobs
@@ -190,7 +191,7 @@ def create_app(cfg=None, run_fn=None):
     def site_gate():
         if not cfg.site_password or session.get("site_ok") is True:
             return None
-        if request.path in ("/healthz", "/login") or request.path.startswith("/static/"):
+        if request.path in ("/healthz", "/login", "/api/chat") or request.path.startswith("/static/"):      # the marketing site's chat only answers questions about the product, so a site password does not need to close it
             return None
         if request.path.startswith("/api/"):
             return jsonify(ok=False, error="Please sign in first."), 401
@@ -237,6 +238,13 @@ def create_app(cfg=None, run_fn=None):
         if request.path.startswith(("/r/", "/api/", "/admin")):
             resp.headers["Cache-Control"] = "no-store"
             resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+        origin = (request.headers.get("Origin") or "").rstrip("/")
+        if request.path == "/api/chat" and origin in chat.allowed_origins():       # only the chat route is open to the marketing site's address
+            resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+            resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+            resp.headers["Access-Control-Max-Age"] = "600"
+            resp.headers["Vary"] = "Origin"
         return resp
 
     @app.errorhandler(413)
@@ -252,6 +260,26 @@ def create_app(cfg=None, run_fn=None):
     @app.get("/healthz")
     def healthz():
         return "ok", 200, {"Cache-Control": "no-store"}
+
+    chat_limiter = chat.Limiter()
+
+    @app.route("/api/chat", methods=["POST", "OPTIONS"])
+    def api_chat():
+        """The marketing site's chat assistant (chat.py). Needs an allowed Origin, so it is not an open proxy for anyone's page; messages are never stored."""
+        if request.method == "OPTIONS":
+            return "", 204
+        if (request.headers.get("Origin") or "").rstrip("/") not in chat.allowed_origins():
+            return jsonify(ok=False, error="Not available from here."), 403
+        d = request.get_json(silent=True) or {}
+        msgs = chat.clean_messages(d.get("messages"))
+        if not msgs:
+            return jsonify(ok=False, error="Please type a question."), 400
+        if not chat_limiter.allow(visitor_id()):
+            return jsonify(ok=False, error="That is a lot of questions in a short time. Please try again in a few minutes, or use the contact page."), 429
+        try:
+            return jsonify(ok=True, reply=chat.reply(msgs, cfg.anthropic))
+        except chat.Unavailable as e:
+            return jsonify(ok=False, error=str(e)), 503
 
     @app.post("/api/audit")
     def api_audit():
