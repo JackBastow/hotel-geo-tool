@@ -24,22 +24,23 @@ def chip(text, kind=""):
     return f'<span class="hk-chip {kind}">{esc(text)}</span>'
 
 
-def trend_svg(points, w=640, h=190):
-    """The readiness score at each check as a line (0 to 100), labelled."""
+def trend_svg(points, w=640, h=190, maximum=100, name="Readiness score"):
+    """A value at each check as a labelled line (the readiness score on a 0 to 100 scale by default)."""
     pts = [p for p in points if p.get("score") is not None]
     if not pts:
         return '<p class="caption">No score yet.</p>'
     l, r, t, b = 36, 18, 14, 30
     iw, ih = w - l - r, h - t - b
     xs = [l + (iw * i / (len(pts) - 1) if len(pts) > 1 else iw / 2) for i in range(len(pts))]
-    ys = [t + ih * (1 - max(0, min(100, p["score"])) / 100) for p in pts]
-    grid = "".join(f'<line x1="{l}" y1="{t + ih * (1 - v / 100):.1f}" x2="{w - r}" y2="{t + ih * (1 - v / 100):.1f}" stroke="#eef0f6"/><text x="{l - 6}" y="{t + ih * (1 - v / 100) + 4:.1f}" font-size="10" text-anchor="end" fill="#667085">{v}</text>' for v in (0, 25, 50, 75, 100))
+    ys = [t + ih * (1 - max(0, min(maximum, p["score"])) / maximum) for p in pts]
+    ticks = sorted({round(maximum * q / 4) for q in range(5)})
+    grid = "".join(f'<line x1="{l}" y1="{t + ih * (1 - v / maximum):.1f}" x2="{w - r}" y2="{t + ih * (1 - v / maximum):.1f}" stroke="#eef0f6"/><text x="{l - 6}" y="{t + ih * (1 - v / maximum) + 4:.1f}" font-size="10" text-anchor="end" fill="#667085">{v}</text>' for v in ticks)
     line = f'<polyline fill="none" stroke="{BRAND}" stroke-width="2.6" stroke-linejoin="round" points="' + " ".join(f"{x:.1f},{y:.1f}" for x, y in zip(xs, ys)) + '"/>' if len(pts) > 1 else ""
     step = max(1, len(pts) // 8)
     dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4.2" fill="{BRAND}"/><text x="{x:.1f}" y="{y - 9:.1f}" font-size="11" font-weight="600" text-anchor="middle" fill="#1a1d29">{p["score"]:g}</text>'
                    + (f'<text x="{x:.1f}" y="{h - 8}" font-size="10" text-anchor="middle" fill="#667085">{esc(_short_date(p["run_at"]))}</text>' if i % step == 0 or i == len(pts) - 1 else "")
                    for i, (x, y, p) in enumerate(zip(xs, ys, pts)))
-    return f'<svg class="trend" viewBox="0 0 {w} {h}" role="img" aria-label="Readiness score at each check">{grid}{line}{dots}</svg>'
+    return f'<svg class="trend" viewBox="0 0 {w} {h}" role="img" aria-label="{esc(name)} at each check">{grid}{line}{dots}</svg>'
 
 
 def _short_date(iso):
@@ -166,6 +167,7 @@ def dashboard(sm, actions, runs, editable=True, csrf=""):
               'which is why they are given with a range.</p>')
     return (f'<div class="pt" data-csrf="{esc(csrf)}">{hero}{progress_line(sm)}{kpis(sm)}{caveat}'
             f'<div class="sec-head"><h3>Readiness score over time</h3></div><section class="panel">{trend_svg(sm["points"])}</section>'
+            f'<div class="sec-head"><h3>Actions completed over time</h3></div><section class="panel">{trend_svg(sm["completed_points"], maximum=max(4, sm["actions"]["total"] or 4), name="Actions completed")}</section>'
             f'<div class="sec-head"><h3>Your actions</h3></div>'
             + ('<p class="lede">Mark each action as you go. After every weekly check the list updates: fixed items are ticked off, and new ones are added.</p>' if editable else "")
             + f'<div id="act-list">{board}</div><div class="sec-head"><h3>Checks so far</h3></div>{history_table(runs)}</div>')

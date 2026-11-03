@@ -145,6 +145,19 @@ def _cov(row):
     return (named, asked) if asked else None
 
 
+def completion_date(a):
+    """When an action counts as completed: the check that found it fixed, or the day the hotel marked it done (and it is not flagged again). None when it is not completed."""
+    if classify(a) != "completed":
+        return None
+    return (a["resolved_at"] if a["state"] == "resolved" else a["done_at"]) or a["done_at"] or a["resolved_at"] or None
+
+
+def completed_series(actions, dates):
+    """Actions completed so far at each date: [{"run_at", "score"}] (score is the count, so the same chart code draws it)."""
+    done = sorted(d for d in (completion_date(a) for a in actions) if d)
+    return [{"run_at": d, "score": sum(1 for x in done if x <= d)} for d in dates]
+
+
 def hotel_summary(db, hotel):
     """Everything the dashboard and the portfolio need for one hotel."""
     hist = [r for r in db.history(hotel["hotel_key"])]
@@ -157,7 +170,7 @@ def hotel_summary(db, hotel):
     return {"hotel": hotel, "runs": len(hist), "first_run_at": first["run_at"] if first else None, "last_run_at": hist[-1]["run_at"] if hist else None,
             "first_score": first["headline_score"] if first else None, "latest_score": last["headline_score"] if last else None, "delta": delta,
             "points": [{"run_at": r["run_at"], "score": r["headline_score"], "id": r["id"]} for r in scored], "cov_first": cov0, "cov_latest": cov1, "actions": counts,
-            "latest_run_id": hist[-1]["id"] if hist else None}
+            "latest_run_id": hist[-1]["id"] if hist else None, "completed_points": completed_series(actions, [r["run_at"] for r in scored])}
 
 
 def portfolio_summary(db):
@@ -168,6 +181,26 @@ def portfolio_summary(db):
            "avg_first": round(sum(r["first_score"] for r in with_change) / len(with_change), 1) if with_change else None,
            "avg_latest": round(sum(r["latest_score"] for r in with_change) / len(with_change), 1) if with_change else None}
     return rows, tot
+
+
+def portfolio_series(db):
+    """The portfolio over time, one point per week that had a check: the average readiness score (each hotel's latest score as of that week) and the actions completed across all hotels so far."""
+    import datetime as dt
+    hotels = db.list_hotels(only_active=True)
+    hist = {h["id"]: [r for r in db.history(h["hotel_key"]) if r.get("headline_score") is not None] for h in hotels}
+    allruns = sorted(r["run_at"] for rows in hist.values() for r in rows)
+    if not allruns:
+        return [], []
+    def week_end(iso):
+        d = dt.datetime.fromisoformat(iso.replace("Z", "+00:00")).date()
+        return (d + dt.timedelta(days=6 - d.weekday())).isoformat() + "T23:59:59+00:00"
+    ends = sorted({week_end(x) for x in allruns})
+    actions = [a for h in hotels for a in db.list_actions(h["id"])]
+    avg = []
+    for e in ends:
+        latest = [max((r for r in rows if r["run_at"] <= e), key=lambda r: r["run_at"])["headline_score"] for rows in hist.values() if any(r["run_at"] <= e for r in rows)]
+        avg.append({"run_at": e, "score": round(sum(latest) / len(latest), 1)})
+    return avg, completed_series(actions, ends)
 
 
 def on_run_saved(db, report, run_id):

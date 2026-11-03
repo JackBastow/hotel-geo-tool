@@ -11,3 +11,4 @@ dev_flask.py
 # built marketing site
 marketing/public/
 dev_portal.py
+mockups/
