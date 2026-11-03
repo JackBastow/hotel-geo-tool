@@ -18,9 +18,10 @@ from flask import Response, abort, redirect, render_template, request, session, 
 import backend
 import htmlst
 import ui_theme
+from timeutil import uk_time
 from htmlst import st
 
-NAV = [("overview", "Overview"), ("runs", "Runs"), ("hotels", "Hotels"), ("markets", "Markets"), ("usage", "Usage"), ("feedback", "Feedback"), ("export", "Export")]
+NAV = [("overview", "Overview"), ("portfolio", "Portfolio"), ("runs", "Runs"), ("hotels", "Hotels"), ("markets", "Markets"), ("usage", "Usage"), ("feedback", "Feedback"), ("export", "Export")]
 PUB_COLS = ["id", "run_at", "hotel", "city", "headline_status", "headline_score", "coverage_pct", "ai_generic_named", "ai_generic_asked", "ai_niche_named", "ai_niche_asked",
             "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_rank_in_table", "ai_top_competitor", "reviews_replied", "reviews_examined", "pack_reviews", "pack_reply_rate", "pagespeed_perf",
             "recs_total", "ai_cost_usd"]
@@ -30,27 +31,7 @@ NICE = {"run_at": "Run", "hotel": "Hotel", "city": "City", "headline_status": "H
         "pack_reply_rate": "Export reply rate %", "pagespeed_perf": "Mobile speed", "recs_total": "Recommendations", "ai_cost_usd": "AI cost $", "id": "Run id"}
 _failed = collections.defaultdict(list)
 TIME_COLS = ("run_at", "created")
-NBSP = " "
 
-
-def uk_time(value):
-    """A saved UTC timestamp (text such as 2026-10-21T15:15:21+00:00, or a datetime) as clear UK time: 'Tue 21 Oct 2026, 16:15 BST' (GMT in winter, BST in summer). Anything it cannot read comes back as it was."""
-    import datetime as _dt
-    if value in (None, ""):
-        return ""
-    try:
-        d = value if isinstance(value, _dt.datetime) else _dt.datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
-        if d.tzinfo is None:
-            d = d.replace(tzinfo=_dt.timezone.utc)
-        try:
-            import zoneinfo
-            d = d.astimezone(zoneinfo.ZoneInfo("Europe/London"))
-            zone = d.tzname()
-        except Exception:  # noqa: BLE001 - no timezone database on this machine: say it is UTC rather than guess
-            d, zone = d.astimezone(_dt.timezone.utc), "UTC"
-        return NBSP.join([d.strftime("%a"), str(d.day), d.strftime("%b"), str(d.year) + ",", d.strftime("%H:%M"), zone])
-    except Exception:  # noqa: BLE001
-        return str(value)
 
 
 def _table(rows, cols=None, rename=NICE):
@@ -244,6 +225,9 @@ def register(app, cfg):
         if s:
             s.delete_run(run_id)
         return redirect(url_for("admin_runs"))
+
+    import admin_portfolio
+    admin_portfolio.register(app, cfg, guard, shell, store_or_msg, csrf)
 
     @app.get("/admin/hotels")
     def admin_hotels():

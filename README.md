@@ -301,6 +301,18 @@ with the caveats (a sample of one model, readiness is an indicator, blank means 
 saved and the admin page says so. SQLite (`sqlite:///file.db`) works for development and tests but is not durable on Streamlit
 Community Cloud, whose disk is wiped.
 
+## Hotel accounts, progress tracking and weekly checks
+
+Hotels get a login and a dashboard; the operator sees the whole portfolio. Built on the existing audit, report and database, with the same look.
+
+- **Accounts (invite only).** In `/admin/portfolio` the operator adds a hotel (name, website, town) and makes an invite link for each person (`accounts.py`: scrypt password hashes, link tokens stored as hashes, one use, 7 days). There is no email service: the operator sends the link. The same page makes password-reset links and can switch a user off.
+- **Hotels see only themselves.** `/portal` has its own sign-in, separate from the site password and the admin password. A hotel user can open only their own hotels' dashboards and reports, and nothing else (not the audit form, other hotels or admin).
+- **The dashboard** (`portal_view.py`): the progress line (score first check to latest, actions completed), headline numbers, the score trend, the action list, and the history of checks. The operator's hotel page shows exactly this, read-only.
+- **Actions** (`progress.py`). Each recommendation becomes an action the hotel marks To do / Working on it / Done / Not relevant. After every audit of the hotel's website (manual or weekly) the list updates: fixed items are ticked off ("checked: no longer found on the site" for site-read items; only "not flagged this time" for items from sampled AI answers or forums, which vary), new recommendations are added, and an item marked done that is still flagged is shown as such. An audit that read less than two pages changes nothing. The numbers show progress, never proof of cause.
+- **Portfolio view.** Hotels, last check, first and latest score, change, actions done / in progress / to do, and a roll-up sentence.
+- **Weekly checks** (`scheduler.py`, `.github/workflows/weekly-checks.yml`). The free host sleeps and has no scheduler, so a GitHub Actions job (Mondays) calls `POST /internal/weekly` with a secret token, then polls `/internal/weekly/status` to keep the host awake until the checks finish. Hotels run one at a time with their saved details; due means weekly is on and the latest audit is 6+ days old; a failed hotel is retried at most every 12 hours. Set `CRON_TOKEN` on Render and the GitHub secrets `APP_URL` and `CRON_TOKEN`.
+- Times in the admin pages and the dashboard are UK time (`timeutil.py`).
+
 ## The Flask site (Render) and the Streamlit app
 
 There are now two front ends over the same Python. **Streamlit** (`app.py`, deployed on Streamlit Community Cloud) is unchanged. The **Flask site** is `server.py`, served by Waitress

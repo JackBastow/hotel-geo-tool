@@ -1,0 +1,38 @@
+# Weekly checks of every registered hotel.
+# The free web host sleeps when idle and has no scheduler, so this job wakes it, asks it to run the checks that are due,
+# and keeps polling (which keeps it awake) until they finish. Needs two repository secrets:
+#   APP_URL     the site's address, e.g. https://hotel-ai-audit.onrender.com   (no trailing slash)
+#   CRON_TOKEN  the same value as the CRON_TOKEN environment variable set on the host
+name: Weekly hotel checks
+on:
+  schedule:
+    - cron: "0 5 * * 1"        # Mondays at 05:00 UTC (06:00 UK in summer, 05:00 in winter)
+  workflow_dispatch: {}
+permissions: {}
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Start the checks and wait for them
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+        run: |
+          set -u
+          if [ -z "${APP_URL:-}" ] || [ -z "${CRON_TOKEN:-}" ]; then echo "APP_URL and CRON_TOKEN secrets are needed"; exit 1; fi
+          ok=0
+          for i in 1 2 3 4 5 6; do          # a sleeping host can take a minute or two to wake
+            code=$(curl -s -o /tmp/start.json -w '%{http_code}' --max-time 120 -X POST -H "Authorization: Bearer $CRON_TOKEN" "$APP_URL/internal/weekly" || true)
+            echo "start attempt $i: HTTP $code"; cat /tmp/start.json 2>/dev/null; echo
+            if [ "$code" = "202" ]; then ok=1; break; fi
+            sleep 30
+          done
+          [ "$ok" = "1" ] || { echo "Could not start the weekly checks"; exit 1; }
+          for i in $(seq 1 120); do          # up to two hours, once a minute
+            sleep 60
+            body=$(curl -s --max-time 60 -H "Authorization: Bearer $CRON_TOKEN" "$APP_URL/internal/weekly/status" || true)
+            echo "$body" | head -c 400; echo
+            echo "$body" | grep -q '"running":true' || { echo "Finished"; exit 0; }
+          done
+          echo "Still running after two hours"; exit 1

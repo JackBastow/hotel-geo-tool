@@ -32,5 +32,7 @@ services:
         sync: false
       - key: YOUTUBE_API_KEY
         sync: false
+      - key: CRON_TOKEN
+        sync: false            # a long random value; the same one is stored as the CRON_TOKEN secret in GitHub for the weekly job
       - key: SECRET_KEY
         generateValue: true

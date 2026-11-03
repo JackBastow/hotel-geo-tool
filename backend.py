@@ -26,6 +26,7 @@ import sqlite3
 import threading
 import time
 import urllib.parse
+import portal_db
 
 SCHEMA_VERSION = 2
 
@@ -143,7 +144,7 @@ class _Lease:
 IDLE_PING_S = 20          # a connection idle longer than this is tested with one cheap query before it is used again (the host closes idle ones)
 
 
-class Store:
+class Store(portal_db.PortalMixin):
     def __init__(self, url):
         self.url = url or ""
         self.kind = "sqlite" if self.url.startswith("sqlite") else "postgres"
@@ -233,6 +234,7 @@ class Store:
             self._run(conn, "CREATE TABLE IF NOT EXISTS usage_counters (service TEXT, month TEXT, calls INTEGER, audits INTEGER, updated TEXT, PRIMARY KEY (service, month))")
             self._run(conn, "CREATE TABLE IF NOT EXISTS benchmark (hotel_key TEXT PRIMARY KEY, created TEXT, prompts_json TEXT)")
             self._run(conn, f"CREATE TABLE IF NOT EXISTS feedback (id {pk}, created TEXT, run_id INTEGER, ref TEXT, verdict TEXT, note TEXT, label TEXT, source TEXT, title TEXT)")
+            self._init_portal(conn, pk)
             self._ensure_columns(conn, "runs", {"access_token": "TEXT"})
             self._ensure_columns(conn, "ai_competitors", {"coverage_pct": "INTEGER", "sentiment": "INTEGER", "positive": "INTEGER", "negative": "INTEGER"})
             for sql in ("CREATE INDEX IF NOT EXISTS runs_key ON runs (hotel_key, run_at)", "CREATE INDEX IF NOT EXISTS runs_city ON runs (city)",

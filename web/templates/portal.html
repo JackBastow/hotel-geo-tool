@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block nav %}{% if user %}<span class="hk-muted">{{ user.email }}</span>{% for h in hotels if hotels|length > 1 %}<a href="/portal/hotel/{{ h.id }}">{{ h.name }}</a>{% endfor %}<form method="post" action="/portal/signout" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn" type="submit" style="margin-left:18px">Sign out</button></form>{% endif %}{% endblock %}
+{% block content %}{{ content|safe }}{% endblock %}
+{% block foot %}Your readiness score and actions are updated by a weekly check of your public website and public sources. AI answers are a labelled sample from one assistant, not a ranking.{% endblock %}

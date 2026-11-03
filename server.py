@@ -32,6 +32,9 @@ import compare
 import headline
 import jobs
 import netguard
+import portal
+import progress
+import scheduler
 import report_pdf
 import report_view
 import review_pack
@@ -69,6 +72,7 @@ class Reports:
             db = self._db()
             if db:
                 self.ids[token] = db.save_run(report, token=token)
+                progress.on_run_saved(db, report, self.ids[token])          # a registered hotel's action list is brought up to date from every audit of its website
                 bm = report.get("benchmark") or {}
                 if bm.get("prompts") and not bm.get("reused"):
                     import backend
@@ -191,6 +195,11 @@ def create_app(cfg=None, run_fn=None):
     def site_gate():
         if not cfg.site_password or session.get("site_ok") is True:
             return None
+        if request.path.startswith(("/portal", "/internal/")):         # the hotel portal has its own sign-in; the weekly-check routes need their own token
+            return None
+        m = re.match(r"^/(?:r|api/r)/([A-Za-z0-9_-]{20,64})(?:/|$)", request.path)
+        if session.get("uid") and ((m and app.extensions["portal_can_see_token"](m.group(1))) or request.path == "/api/feedback"):
+            return None                                                  # a signed-in hotel user may open their own hotel's reports
         if request.path in ("/healthz", "/login", "/api/chat") or request.path.startswith("/static/"):      # the marketing site's chat only answers questions about the product, so a site password does not need to close it
             return None
         if request.path.startswith("/api/"):
@@ -388,7 +397,7 @@ def create_app(cfg=None, run_fn=None):
             chips.append(("Location " + str(loc["source"])) if str(loc["source"]).startswith(("provided", "inferred")) else ("Location from " + str(loc["source"])))
         if (rep.get("guest_questions") or {}).get("read_via"):
             chips.append("Read through a fallback reader")
-        return render_template("report.html", rep=rep, meta=meta, chips=chips, body=body, token=token, saved=bool(cfg.database_url),
+        return render_template("report.html", rep=rep, meta=meta, chips=chips, body=body, token=token, saved=bool(cfg.database_url), portal_user=bool(session.get("uid")) and session.get("site_ok") is not True,
                                title=(meta.get("hotel") or meta.get("website") or "Report"))
 
     @app.get("/r/<token>/<part>.pdf")
@@ -453,6 +462,10 @@ def create_app(cfg=None, run_fn=None):
         except ValueError as e:
             return jsonify(ok=False, error=str(e)), 400
 
+    portal.register(app, cfg)
+    weekly = scheduler.Weekly(cfg, reports, run_fn or (lambda params, progress_cb: audit_service.run(params, cfg, progress_cb)))
+    app.extensions["weekly"] = weekly
+    scheduler.register(app, cfg, weekly)
     try:
         import admin
         admin.register(app, cfg)

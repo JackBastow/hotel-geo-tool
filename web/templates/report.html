@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ title }}: AI discoverability audit{% endblock %}
 {% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block nav %}{% if portal_user %}<a href="/portal">My dashboard</a>{% else %}<a href="/">New audit</a>{% endif %}{% endblock %}
 {% block content %}
 <section class="hero">
   <div>
@@ -8,7 +9,7 @@
     <div class="sub">{{ [meta.city, meta.website]|select|join(' · ') }}</div>
     <div class="hk-chips">{% for c in chips %}<span class="hk-chip{{ ' brand' if loop.first else '' }}">{{ c }}</span>{% endfor %}</div>
   </div>
-  <div><a class="btn" href="/">Run another audit</a></div>
+  <div>{% if portal_user %}<a class="btn" href="/portal">Back to my dashboard</a>{% else %}<a class="btn" href="/">Run another audit</a>{% endif %}</div>
 </section>
 <div class="downloads">
   <a class="btn primary" href="/r/{{ token }}/management.pdf">Download management report (PDF)</a>

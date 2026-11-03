@@ -182,3 +182,16 @@ document.addEventListener("click", function (ev) {
   var done = function () { var t = b.textContent; b.textContent = "Copied"; setTimeout(function () { b.textContent = t; }, 1500); };
   if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(pre.innerText).then(done, function () {}); }
 });
+
+/* hotel portal: mark an action */
+document.addEventListener("click", function (ev) {
+  var b = ev.target.closest(".act-set");
+  if (!b) { return; }
+  var card = b.closest(".act"), root = b.closest(".pt");
+  if (!card || !root) { return; }
+  b.disabled = true;
+  fetch("/portal/api/action", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF": root.getAttribute("data-csrf") }, body: JSON.stringify({ id: card.getAttribute("data-id"), status: b.getAttribute("data-v") }) })
+    .then(function (r) { return r.json(); })
+    .then(function (j) { if (j && j.ok) { window.location.reload(); } else { b.disabled = false; alert((j && j.error) || "That did not save. Please try again."); } })
+    .catch(function () { b.disabled = false; alert("That did not save. Please check your connection and try again."); });
+});

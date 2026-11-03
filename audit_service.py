@@ -43,6 +43,7 @@ class Config:
         self.admin_password = get("ADMIN_PASSWORD")
         self.site_password = get("SITE_PASSWORD")          # when set, every page except /healthz asks for it first
         self.secret_key = get("SECRET_KEY")
+        self.cron_token = get("CRON_TOKEN")                # lets the scheduled weekly-check job call /internal/weekly; without it those routes do not exist
         try:
             self.audits_per_hour = int(get("AUDITS_PER_HOUR_PER_VISITOR") or 4)
         except ValueError:

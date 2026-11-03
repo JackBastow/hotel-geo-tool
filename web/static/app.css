@@ -186,3 +186,13 @@ pre.reply { white-space: pre-wrap; margin: 8px 0 2px; font-family: inherit; font
 .talk-callout h3 { margin: 0 0 2px; font-size: 1.08rem; } .talk-callout p { margin: 0; color: var(--muted); font-size: .9rem; }
 button.link { background: none; border: 0; padding: 0; color: var(--brand); font: inherit; cursor: pointer; text-decoration: underline; }
 @media (max-width: 900px) { .steps { grid-template-columns: 1fr; } .talk-callout { flex-direction: column; align-items: flex-start; } }
+
+/* Hotel portal and portfolio */
+.pt-progress { background: #ecfdf3; border: 1px solid #abefc6; color: #05603a; border-radius: 14px; padding: 14px 18px; margin: 14px 0; font-size: 1.02rem; }
+svg.trend { width: 100%; height: auto; max-height: 230px; }
+.act { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: var(--radius); padding: 10px 16px; margin: 8px 0; box-shadow: var(--shadow); }
+.act.bad { border-left-color: var(--bad); } .act.warn { border-left-color: var(--warn); }
+.act-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-top: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { font: inherit; font-size: .84rem; font-weight: 600; padding: 6px 12px; border: 0; background: #fff; color: var(--muted); cursor: pointer; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; } .seg button.on { background: var(--brand); color: #fff; } .seg button:hover:not(.on) { background: #f4f5fb; }
