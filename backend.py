@@ -454,7 +454,7 @@ class Store(portal_db.PortalMixin):
         if not runs:
             return {"runs": [], "rows": []}
         data = self._rows("SELECT c.run_id AS run_id, c.competitor AS name, c.is_target AS is_target, c.mentions AS mentions, c.coverage_pct AS coverage_pct, c.sentiment AS sentiment, "
-                          "c.avg_rank AS avg_rank FROM ai_competitors c JOIN runs r ON r.id = c.run_id WHERE r.hotel_key = ? AND c.kind = 'all'", (key,))
+                          "c.avg_rank AS avg_rank, c.asked AS asked FROM ai_competitors c JOIN runs r ON r.id = c.run_id WHERE r.hotel_key = ? AND c.kind = 'all'", (key,))
         by = {}
         for d in data:
             by.setdefault(d["name"], {"name": d["name"], "is_target": bool(d["is_target"]), "total": 0, "at": {}})
@@ -468,7 +468,7 @@ class Store(portal_db.PortalMixin):
             for r in runs:
                 d = v["at"].get(r["run_id"])
                 pts.append({"run_id": r["run_id"], "coverage_pct": (d["coverage_pct"] if d and d["coverage_pct"] is not None else 0), "sentiment": d["sentiment"] if d else None,
-                            "avg_rank": d["avg_rank"] if d else None})
+                            "avg_rank": d["avg_rank"] if d else None, "mentions": d["mentions"] if d else 0, "asked": d["asked"] if d else None})
             rows.append({"name": v["name"], "is_target": v["is_target"], "points": pts})
         return {"runs": runs, "rows": rows}
 

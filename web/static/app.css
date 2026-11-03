@@ -189,10 +189,21 @@ button.link { background: none; border: 0; padding: 0; color: var(--brand); font
 
 /* Hotel portal and portfolio */
 .pt-progress { background: #ecfdf3; border: 1px solid #abefc6; color: #05603a; border-radius: 14px; padding: 14px 18px; margin: 14px 0; font-size: 1.02rem; }
-svg.trend { width: 100%; height: auto; max-height: 230px; }
+svg.trend { width: 100%; height: auto; max-height: 340px; }
 .act { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: var(--radius); padding: 10px 16px; margin: 8px 0; box-shadow: var(--shadow); }
 .act.bad { border-left-color: var(--bad); } .act.warn { border-left-color: var(--warn); }
 .act-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-top: 8px; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .seg button { font: inherit; font-size: .84rem; font-weight: 600; padding: 6px 12px; border: 0; background: #fff; color: var(--muted); cursor: pointer; border-right: 1px solid var(--line); }
 .seg button:last-child { border-right: 0; } .seg button.on { background: var(--brand); color: #fff; } .seg button:hover:not(.on) { background: #f4f5fb; }
+
+/* AI visibility tab */
+.tile-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 14px; background: #fff; }
+.tile-bar .tab.mt { display: flex; flex-direction: column; gap: 2px; white-space: normal; text-align: left; padding: 12px 18px; border-bottom: 3px solid transparent; border-right: 1px solid var(--line); margin: 0; color: var(--ink); }
+.tile-bar .tab.mt:last-child { border-right: 0; } .tile-bar .tab.mt.active { border-bottom-color: #e11d74; background: #fff8fb; }
+.tile-bar .kpi-label { text-decoration: underline dotted #98a2b3; text-underline-offset: 3px; }
+.lgs { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 8px 0 0; font-size: .86rem; } .lg { display: inline-flex; align-items: center; gap: 6px; } .lg i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.url { font-size: .78rem; word-break: break-all; } .table td a { color: var(--ink); } .table td a:hover { color: var(--brand); }
+.wl { list-style: none; padding: 0; margin: 0; } .wl li { padding: 7px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; } .wl li:last-child { border: 0; }
+.tab small { font-weight: 600; color: var(--muted); margin-left: 2px; }
+@media (max-width: 720px) { .tile-bar { grid-template-columns: 1fr; } .tile-bar .tab.mt { border-right: 0; border-bottom: 1px solid var(--line); } }

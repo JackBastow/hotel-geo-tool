@@ -11,6 +11,7 @@ import html
 from flask import abort, redirect, request, session
 
 import accounts
+import ai_dash
 import backend
 import netguard
 import portal_view
@@ -107,7 +108,7 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
                  + f'<form class="filters" method="post" action="/admin/hotel/{hid}/invite"><input type="hidden" name="csrf" value="{c}"><label class="field"><span>Invite someone (their email)</span><input type="email" name="email" required></label>'
                  '<button class="btn" type="submit">Make an invite link</button></form><p class="caption">There is no email service: you get a link to send them yourself. It works once and expires in 7 days.</p>'
                  + (f'<h6>Links still open</h6><ul>{invites}</ul>' if invites else "") + "</section>")
-        view = portal_view.dashboard(sm, s.list_actions(hid), s.hotel_runs(h["hotel_key"]), editable=False, csrf="")
+        view = portal_view.dashboard(sm, s.list_actions(hid), s.hotel_runs(h["hotel_key"]), editable=False, csrf="", ai=ai_dash.panel(s, h))
         return shell("portfolio", h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
 
     @app.get("/admin/hotel/<int:hid>")

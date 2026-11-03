@@ -158,6 +158,10 @@ class PortalMixin:
         return self._rows("SELECT id, run_at, access_token, headline_score, headline_status, coverage_pct, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked, recs_total "
                           "FROM runs WHERE hotel_key = ? ORDER BY run_at DESC, id DESC", (key,))
 
+    def run_pages(self, run_id):
+        """The pages the assistant cited in one audit: url, domain, title, how many answers cited it, whether it names the hotel or a competitor, whether it is the hotel's own site."""
+        return self._rows("SELECT url, domain, title, cited, questions, names_hotel, names_competitor, own_site FROM ai_pages WHERE run_id = ?", (run_id,))
+
     def hotel_key_for_token(self, token):
         r = self._rows("SELECT hotel_key FROM runs WHERE access_token = ?", (token,))
         return r[0]["hotel_key"] if r else None

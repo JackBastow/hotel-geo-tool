@@ -19,6 +19,7 @@ import time
 from flask import abort, jsonify, redirect, render_template, request, session
 
 import accounts
+import ai_dash
 import backend
 import portal_view
 import progress
@@ -156,7 +157,7 @@ def register(app, cfg):
     def dashboard_page(hotel, user, hotels):
         d = db()
         sm = progress.hotel_summary(d, hotel)
-        body = portal_view.dashboard(sm, d.list_actions(hotel["id"]), d.hotel_runs(hotel["hotel_key"]), editable=True, csrf=csrf())
+        body = portal_view.dashboard(sm, d.list_actions(hotel["id"]), d.hotel_runs(hotel["hotel_key"]), editable=True, csrf=csrf(), ai=ai_dash.panel(d, hotel))
         return shell(hotel["name"] + ": progress", body, user, hotels)
 
     @app.get("/portal")

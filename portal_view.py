@@ -146,7 +146,7 @@ def history_table(runs):
     return ('<div class="table-wrap"><table class="table"><thead><tr><th>Checked (UK time)</th><th>Readiness</th><th>Recommendations</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>")
 
 
-def dashboard(sm, actions, runs, editable=True, csrf=""):
+def dashboard(sm, actions, runs, editable=True, csrf="", ai=""):
     h = sm["hotel"]
     nxt = ""
     if h.get("weekly") and sm["last_run_at"]:
@@ -165,9 +165,13 @@ def dashboard(sm, actions, runs, editable=True, csrf=""):
     board = action_board(sm, actions, editable)
     caveat = ('<p class="caption">This shows progress: what has been done and how the score has moved. It does not prove that the actions caused the change. The AI figures come from a sample of answers from one assistant, '
               'which is why they are given with a range.</p>')
-    return (f'<div class="pt" data-csrf="{esc(csrf)}">{hero}{progress_line(sm)}{kpis(sm)}{caveat}'
-            f'<div class="sec-head"><h3>Readiness score over time</h3></div><section class="panel">{trend_svg(sm["points"])}</section>'
-            f'<div class="sec-head"><h3>Actions completed over time</h3></div><section class="panel">{trend_svg(sm["completed_points"], maximum=max(4, sm["actions"]["total"] or 4), name="Actions completed")}</section>'
-            f'<div class="sec-head"><h3>Your actions</h3></div>'
-            + ('<p class="lede">Mark each action as you go. After every weekly check the list updates: fixed items are ticked off, and new ones are added.</p>' if editable else "")
-            + f'<div id="act-list">{board}</div><div class="sec-head"><h3>Checks so far</h3></div>{history_table(runs)}</div>')
+    overview = (f'{progress_line(sm)}{kpis(sm)}{caveat}'
+                f'<div class="sec-head"><h3>Readiness score over time</h3></div><section class="panel">{trend_svg(sm["points"])}</section>'
+                f'<div class="sec-head"><h3>Actions completed over time</h3></div><section class="panel">{trend_svg(sm["completed_points"], maximum=max(4, sm["actions"]["total"] or 4), name="Actions completed")}</section>')
+    recs = (('<p class="lede">Mark each action as you go. After every weekly check the list updates: fixed items are ticked off, and new ones are added.</p>' if editable else "") + f'<div id="act-list">{board}</div>')
+    history = f'<p class="caption">Every check of this hotel, newest first.</p>{history_table(runs)}'
+    open_n = sm["actions"]["todo"] + sm["actions"]["working"] + sm["actions"]["still_flagged"]
+    tabs = [("overview", "Overview", overview), ("ai", "AI visibility", ai or '<div class="alert info">AI visibility appears after the first check.</div>'), ("actions", f"Recommendations ({open_n})", recs), ("history", "History", history)]
+    nav = "".join(f'<button type="button" class="tab{" active" if i == 0 else ""}" data-tab="tab-{k}" data-name="{k}">{esc(lbl)}</button>' for i, (k, lbl, _b) in enumerate(tabs))
+    body = "".join(f'<div class="tab-panel{" active" if i == 0 else ""}" id="tab-{k}">{b}</div>' for i, (k, _l, b) in enumerate(tabs))
+    return f'<div class="pt" data-csrf="{esc(csrf)}">{hero}<div class="tabs top"><div class="tab-bar" role="tablist">{nav}</div>{body}</div></div>'

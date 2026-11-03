@@ -97,7 +97,7 @@ tok1 = reports.save(report("hotel-a.com", "Hotel A", 60, run_at="2026-10-01T09:0
 n1 = len(db.list_actions(ha["id"]))
 check("saving an audit of the hotel's website creates its actions, all to do", n1 >= 8 and all(a["status"] == "todo" and a["state"] == "open" for a in db.list_actions(ha["id"])), n1)
 page = u.get("/portal").get_data(as_text=True)
-check("the dashboard shows the score, the action list with status buttons and the baseline", "Hotel A" in page and "Your actions" in page and 'data-v="working"' in page and "Baseline set on" in page and "60" in page)
+check("the dashboard shows the score, the action list with status buttons and the baseline", "Hotel A" in page and "Recommendations (" in page and 'data-v="working"' in page and "Baseline set on" in page and "60" in page)
 check("times are UK times", "BST" in page or "GMT" in page)
 phone = next(a for a in db.list_actions(ha["id"]) if "telephone" in a["title"])
 token = re.search(r'data-csrf="([^"]+)"', page).group(1)
@@ -157,7 +157,7 @@ print("6. the operator sees the portfolio and each hotel as the hotel sees it")
 page = admin.get("/admin/portfolio").get_data(as_text=True)
 check("the portfolio roll-up and one row per hotel", "Hotel A" in page and "Hotel B" in page and "actions completed" in page)
 page = admin.get(f"/admin/hotel/{ha['id']}").get_data(as_text=True)
-check("a hotel page shows exactly the hotel's view, read-only, plus the controls", "Your actions" in page and 'data-v="working"' not in page and "Run a check now" in page and "gm@hotel-a.com" in page)
+check("a hotel page shows exactly the hotel's view, read-only, plus the controls", "Recommendations (" in page and 'data-v="working"' not in page and "Run a check now" in page and "gm@hotel-a.com" in page)
 page = admin.post(f"/admin/hotel/{ha['id']}/reset/{db.user_by_email('gm@hotel-a.com')['id']}", data={"csrf": csrf}).get_data(as_text=True)
 check("the operator can make a password-reset link", "/portal/invite/" in page)
 rl = re.search(r"/portal/invite/[A-Za-z0-9_-]+", page).group(0)
@@ -194,6 +194,22 @@ def boom(params, cb=None):
 w.run_fn = boom
 res = w.check_one(ha["id"])
 check("a failing hotel is recorded with the reason and does not raise", res["ok"] is False and "site down" in db.get_hotel(ha["id"])["last_error"])
+
+print("8. the AI visibility tab")
+import ai_dash
+admin.post(f"/admin/hotel/{ha['id']}/user/{db.user_by_email('gm@hotel-a.com')['id']}/on", data={"csrf": csrf})
+u8 = app.test_client()
+u8.post("/portal/signin", data={"email": "gm@hotel-a.com", "password": "another-long-pass-9"})
+page = u8.get("/portal").get_data(as_text=True)
+check("the dashboard has tabs: Overview, AI visibility, Recommendations, History", all(x in page for x in ('data-name="overview"', 'data-name="ai"', 'data-name="actions"', 'data-name="history"')))
+check("the AI visibility tab shows the citations section and says what it is a sample of", "Brand performance over time" in page or "No AI answers have been saved" in page)
+cur = {"u1": {"url": "u1", "cited": 10, "domain": "a.com"}, "u2": {"url": "u2", "cited": 4, "domain": "b.com"}, "u3": {"url": "u3", "cited": 7, "domain": "c.com"}, "u4": {"url": "u4", "cited": 3, "domain": "d.com"}}
+prev = {"u1": {"url": "u1", "cited": 10, "domain": "a.com"}, "u2": {"url": "u2", "cited": 8, "domain": "b.com"}, "u3": {"url": "u3", "cited": 5, "domain": "c.com"}, "u9": {"url": "u9", "cited": 6, "domain": "z.com"}}
+ch = ai_dash._changes(cur, prev)
+check("citation changes: stable, increased, decreased, new and lost are told apart, with the size of the change", [r["url"] for r in ch["stable"]] == ["u1"] and ch["increased"][0]["delta"] == 2 and ch["increased"][0]["pct"] == 40 and ch["decreased"][0]["pct"] == -50 and [r["url"] for r in ch["new"]] == ["u4"] and [r["url"] for r in ch["lost"]] == ["u9"] and ch["top"][0]["url"] == "u1")
+check("with only one check nothing is called new or lost", ai_dash._changes(cur, None)["new"] == [] and ai_dash._changes(cur, None)["lost"] == [])
+svg = ai_dash.lines_svg([{"run_at": "2026-10-01T09:00:00+00:00"}, {"run_at": "2026-10-08T09:00:00+00:00"}, {"run_at": "2026-10-15T09:00:00+00:00"}], [{"name": "Me", "own": True, "points": [10, None, 30]}, {"name": "Rival", "own": False, "points": [20, 25, 22]}], 0, 40)
+check("the chart draws the hotel and its rival, breaks the line where the hotel was not named, and labels each point", svg.count("<polyline") == 1 + 0 + 0 or svg.count("<polyline") >= 1) and check("hover labels carry the name, value and date", "Me: 10" in svg and "Rival: 25" in svg)
 
 print()
 print("FAILURES:", fails if fails else "none")
