@@ -263,6 +263,8 @@ def create_app(cfg=None, run_fn=None):
     # ------------------------------------------------------------------ pages
     @app.get("/")
     def index():
+        if session.get("uid") and session.get("site_ok") is not True:        # a signed-in hotel user belongs on their dashboard, not the team's audit form
+            return redirect("/portal")
         pre = {k: (request.args.get(k) or "").strip()[:300] for k in ("website", "hotel", "city")}
         return render_template("index.html", audiences=[(k, lbl) for k, lbl, *_r in ai_niche.AUDIENCES], saves=bool(cfg.database_url), pre=pre)
 

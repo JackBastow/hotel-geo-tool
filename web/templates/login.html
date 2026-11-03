@@ -1,16 +1,25 @@
 {% extends "base.html" %}
-{% block title %}Sign in: Hotel AI Discoverability Audit{% endblock %}
+{% block title %}Sign in: Hotel AI Discoverability{% endblock %}
 {% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {% block nav %}{% endblock %}
 {% block content %}
 <section class="lead" style="margin-top:34px">
-  <h1>Hotel AI Discoverability Audit</h1>
-  <p>This service is for invited users. Enter the password you were given.</p>
+  <h1>Hotel AI Discoverability</h1>
+  <p>See how AI assistants find your hotel, what to fix, and how you are progressing.</p>
 </section>
-<form class="panel" method="post" style="max-width:420px">
-  <input type="hidden" name="next" value="{{ nxt }}">
-  <label class="field"><span>Password</span><input type="password" name="password" autofocus autocomplete="current-password"></label>
-  <button class="btn primary" type="submit">Continue</button>
-  {% if error %}<div class="err" style="margin-top:14px">{{ error }}</div>{% endif %}
-</form>
+<div class="grid2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;max-width:900px">
+  <section class="panel">
+    <h4>Hotel sign-in</h4>
+    <p class="caption">For hotel teams. You get an invite link from the person who set up your hotel; it lets you create your login.</p>
+    <a class="btn primary" href="/portal/signin">Sign in with your email</a>
+  </section>
+  <form class="panel" method="post">
+    <h4>Team access</h4>
+    <p class="caption">For the team that runs the audits. Enter the team password.</p>
+    <input type="hidden" name="next" value="{{ nxt }}">
+    <label class="field"><span>Team password</span><input type="password" name="password" autocomplete="current-password"></label>
+    <button class="btn" type="submit">Continue</button>
+    {% if error %}<div class="err" style="margin-top:14px">{{ error }}</div>{% endif %}
+  </form>
+</div>
 {% endblock %}
