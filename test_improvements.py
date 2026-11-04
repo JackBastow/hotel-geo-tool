@@ -344,7 +344,7 @@ try:
     at = " ".join(p.get_text() for p in pymupdf.open(stream=pdf_a, filetype="pdf"))
     flat = " ".join(mt.split())
     check("the seven management sections are there, in order", all(flat.find(h_) >= 0 for h_ in ("Executive summary", "Discoverability and technical readiness", "Traveller recommendation readiness", "External presence and reputation",
-                                                                                                "Commercial opportunities", "Prioritised action plan", "Methodology and limitations")))
+                                                                                                "Commercial opportunities", "What to do first: the action plan", "Methodology and limitations")))
     check("it says only one assistant was sampled and which were not tested", "Sampled on one assistant only" in flat and "NOT tested" in flat)
     check("the appendix carries the evidence, the AI test log and the hand-testing checklist", all(w in " ".join(at.split()) for w in ("Traveller requirements: the evidence for each", "External presence: each source", "AI recommendation tests: the log", "Checklist to test by hand")))
     html = report_view.render(rep, token="t" * 32)

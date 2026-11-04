@@ -90,12 +90,12 @@ if pymupdf is not None:
     adoc, atext, _ = inspect(report_pdf.build_pdf(rep, "appendix"))
     check("the appendix is separate and much longer than the management report", len(adoc) >= 3 * len(mdoc), (len(adoc), len(mdoc)))
     for heading in ("Executive summary", "Discoverability and technical readiness", "Traveller recommendation readiness", "External presence and reputation", "Commercial opportunities",
-                    "Prioritised action plan", "Methodology and limitations"):
+                    "What to do first: the action plan", "Competitors: who AI recommends instead", "Where AI gets its information", "Methodology and limitations"):
         check(f"management section present: {heading}", heading in mtext)
     check("the score is shown WITH its coverage and a provisional label", "Measurement coverage" in mtext and "PROVISIONAL" in mtext)
     check("what was not measured is stated", "Not measured" in mtext and "AI Visibility" in mtext)
     check("each evidence-strength level is shown beside component scores", "evidence" in mtext and "Evidence strength" in mtext)
-    for fld in ("Issue", "Why it matters", "Evidence", "Action", "owner", "Expected outcome"):
+    for fld in ("Issue", "Why it matters", "Evidence", "Action", "owner", "How you will know"):
         check(f"each top action shows: {fld}", mtext.count(fld) >= 3, mtext.count(fld))
     check("each top action shows priority, effort, confidence (Confirmed, Likely or Worth checking) and owner", all(w in mtext for w in ("priority - effort", "owner:")) and ("Confirmed" in mtext or "Likely" in mtext or "Worth checking" in mtext))
     check("readiness and observed AI visibility sit side by side, and the score's calculation is shown", "Observed AI visibility" in mtext and "How the readiness score is calculated" in mtext and "Share of the measured weight" in mtext)

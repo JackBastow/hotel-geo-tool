@@ -75,9 +75,11 @@ def action_card(i, r):
     rows = [["Issue", short(r["finding"], 250)],
             ["Evidence", _ev1(r)],
             ["Why it matters", short(r["why"], 230)],
-            ["Action", short(r["action"], 300)],
-            ["Expected outcome", short(r["expected_outcome"], 210)],
-            ["Detail", f"Appendix reference {r['ref']}"]]
+            ["Action", short(r["action"], 300)]]
+    if r.get("example") and "[" in str(r["example"]):
+        rows.append(["Example wording", short(r["example"], 330)])
+    rows += [["How you will know", short(r.get("success_check") or r["expected_outcome"], 210)],
+             ["Detail", f"Appendix reference {r['ref']}"]]
     return [KeepTogether([head, meta, table(rows, [0.17, 0.83], header=False, zebra=False), Spacer(1, 5)])]
 
 
@@ -147,10 +149,6 @@ def _markets_block(rep, c):
             out.append(para("Editorial pages the assistant cited that name rivals and not the hotel: " + "; ".join(f"{a['domain']} ({short(a['title'], 60)})" for a in opp[:3]) + ".", "base"))
         elif not gm and any(m["status"] != "named" for m in gap["markets"]):
             out.append(para(gap.get("reason") or "", "base"))
-        cit = rep.get("citations") or {}
-        if cit.get("basis") == "named":
-            out.append(para(f"When the assistant names the hotel it cites: the hotel's own website in {cit.get('own_answers', 0)} of {cit['answers']} answers, booking and comparison sites in {cit.get('ota_answers', 0)}"
-                            + (f"; the source that came up most is {cit['rows'][0]['domain']}" if cit.get("rows") else "") + ".", "base"))
         fr = rep.get("forums") or {}
         n_live = len([o for o in fr.get("opportunities") or [] if o["can_comment"] != "closed"])
         if n_live:
@@ -162,6 +160,223 @@ def _markets_block(rep, c):
         log = __import__("ai_sample").test_log(ai)
         rows = [["A search a traveller might make", "Names the hotel"]] + [[short(g["text"], 120), f"{g['named']} of {g['of']} ({trend.band(g['named'], g['of'])})"] for g in __import__("ai_sample").by_question([i for i in ai["items"] if i["kind"] != "direct"])][:7]
         out.append(table(rows, [0.7, 0.3]))
+    return out
+
+
+# ----------------------------------------------------------------------------- at a glance: where the hotel does well and where it does not
+
+AREA_MEANING = {"ai_visibility": "How often AI assistants name the hotel (sampled)", "otas": "Is the hotel listed, and consistent, on booking platforms?", "reviews": "Guest reviews and the hotel's replies",
+                "editorial": "Coverage by travel writers and blogs", "website": "The hotel's own website: content and technical set-up", "social": "Social media and community presence",
+                "entity": "Is the hotel described the same way everywhere?", "freshness": "How up to date the published information is"}
+AI_AIM_PCT = 30            # the owner's aim for how often the hotel is named; shown as an aim, never forced
+
+
+def _verdict(score):
+    if score is None:
+        return "Not measured", R.GREY
+    return ("Strong", R.GOOD) if score >= 75 else ("Partly there", R.WARN) if score >= 50 else ("Weak", R.BAD)
+
+
+def _bar(score, colour, w=76, h=8):
+    from reportlab.graphics.shapes import Drawing, Rect
+    from reportlab.lib import colors
+    d = Drawing(w, h)
+    d.add(Rect(0, 0, w, h, fillColor=colors.HexColor("#e6e8ee"), strokeColor=None))
+    if score is not None:
+        d.add(Rect(0, 0, w * max(0, min(100, score)) / 100, h, fillColor=colors.HexColor(colour), strokeColor=None))
+    return d
+
+
+def _scoreboard(rep, h):
+    """Every area the readiness score covers, as a bar and a plain verdict, plus the AI sample against the 30% aim."""
+    from reportlab.platypus import Table, TableStyle
+    cats = (rep.get("scorecard") or {}).get("categories") or []
+    rows = [(c["label"], c.get("score") if c.get("assessed") else None, AREA_MEANING.get(c["key"], ""), c["key"], c.get("partial")) for c in cats if c["key"] != "ai_visibility"]
+    rows.sort(key=lambda r: (r[1] is None, -(r[1] or 0)))
+    ai = rep.get("ai_sample") or {}
+    ai_row = None
+    if ai.get("status") == "ok":
+        import ai_sample
+        sm = (ai_sample.test_log(ai) or {}).get("summary") or {}
+        if sm.get("non_branded_answers"):
+            pct = round(100 * sm["appeared"] / sm["non_branded_answers"])
+            ai_row = ("AI visibility (sampled)", pct, f"Named in {sm['appeared']} of {sm['non_branded_answers']} answers (aim: about {AI_AIM_PCT}%)", pct >= AI_AIM_PCT)
+    data = [[R.Paragraph("<b>Area</b>", R.S["cellb"]), R.Paragraph("<b>Score</b>", R.S["cellb"]), "", R.Paragraph("<b>Verdict</b>", R.S["cellb"]), R.Paragraph("<b>What it covers</b>", R.S["cellb"])]]
+    style = [("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LINEBELOW", (0, 0), (-1, -1), 0.25, R.RULE), ("BACKGROUND", (0, 0), (-1, 0), R.HEAD_BG), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]
+    for label, score, meaning, _k, partial in rows:
+        word, col = _verdict(score)
+        data.append([R.Paragraph(esc(label + (" (partial)" if partial else "")), R.S["cell"]), R.Paragraph(f"<b>{score}</b>" if score is not None else "-", R.S["cell"]), _bar(score, col),
+                     R.Paragraph(R.coloured(word, col), R.S["cell"]), R.Paragraph(esc(meaning), R.S["cell"])])
+    if ai_row:
+        label, pct, meaning, ok = ai_row
+        col = R.GOOD if ok else R.WARN
+        data.append([R.Paragraph(f"<b>{esc(label)}</b>", R.S["cell"]), R.Paragraph(f"<b>{pct}%</b>", R.S["cell"]), _bar(pct, col),
+                     R.Paragraph(R.coloured("Meets the aim" if ok else "Below the aim", col), R.S["cell"]), R.Paragraph(esc(meaning), R.S["cell"])])
+    t = Table(data, colWidths=[w * R.W for w in (0.24, 0.07, 0.17, 0.13, 0.39)], repeatRows=1)
+    t.setStyle(TableStyle(style))
+    return [para("Scorecard at a glance", "h3"), t,
+            para("Strong is 75 or more, partly there 50 to 74, weak under 50. AI visibility is a sample from one assistant and is not part of the readiness score.", "tiny")]
+
+
+def _strengths_weaknesses(rep, c, h, top):
+    """Two plain lists the manager reads first: what is working, and what is not, each item concrete and taken from the audit."""
+    good, bad = [], []
+    for cat_ in (rep.get("scorecard") or {}).get("categories") or []:
+        if cat_.get("assessed") and cat_.get("score") is not None and cat_["key"] != "ai_visibility":
+            line = f"{cat_['label']}: {cat_['score']}/100. {short(AREA_MEANING.get(cat_['key'], ''), 80)}"
+            (good if cat_["score"] >= 75 else bad if cat_["score"] < 60 else []).append(line)
+    for sig in (c.get("understanding") or {}).get("strong_signals", [])[:2]:
+        good.append(f"The website clearly shows: {short(sig, 90)}")
+    for seg in (c.get("traveller") or {}).get("segments", []):
+        cn = seg["counts"]
+        tot = cn["confirmed"] + cn["partial"] + cn["missing"]
+        if tot and cn["confirmed"] >= max(2, tot * 0.6):
+            good.append(f"{seg['label']}: {cn['confirmed']} of {tot} things travellers need to know are stated on the website")
+        elif tot and cn["missing"] >= max(2, tot * 0.4):
+            miss = [r["label"] for r in seg["requirements"] if r["state"] == "missing"][:3]
+            bad.append(f"{seg['label']}: {cn['missing']} of {tot} things travellers need to know are missing ({', '.join(miss)})")
+    gap = rep.get("ai_gap") or {}
+    for m in (gap.get("markets") or []):
+        q = short(m["question"], 80)
+        if m["named"] and m["named"] >= m["of"] / 2:
+            good.append(f"AI names the hotel for \u201c{q}\u201d ({m['named']} of {m['of']} answers)")
+        elif m["gap"] and m["rivals"]:
+            bad.append(f"AI does not name the hotel for \u201c{q}\u201d ({m['named']} of {m['of']}); it names {m['rivals'][0]['name']} instead")
+    cit = rep.get("citations") or {}
+    if cit.get("basis") == "named":
+        if cit.get("own_answers", 0) >= cit["answers"] / 2:
+            good.append(f"The hotel's own website is one of the sources AI uses when it names the hotel ({cit['own_answers']} of {cit['answers']} answers)")
+        elif cit.get("ota_answers", 0) > cit.get("own_answers", 0):
+            bad.append(f"When AI names the hotel it cites booking sites in {cit['ota_answers']} of {cit['answers']} answers and the hotel's own website in {cit.get('own_answers', 0)}")
+    for r in top[:3]:
+        bad.append(short(r.get("short_title") or r["title"], 120))
+    if not any("hygiene" in b.lower() or "risk" in b.lower() for b in bad) and not [r for r in c["recommendations"] if r["source"] == "intel" and r["kind"] == "fix" and r["priority"] in ("critical", "high")]:
+        good.append("No serious reputation or consistency problem was found in the outside sources checked")
+    seen = set()
+    good = [x for x in good if not (x in seen or seen.add(x))][:6]
+    bad = [x for x in dict.fromkeys(bad)][:7]
+    from reportlab.platypus import Table, TableStyle
+    from reportlab.lib import colors
+
+    def col(title, items, colour, empty):
+        cells = [R.Paragraph(f"<font color='{colour}'><b>{title}</b></font>", R.S["h3"])]
+        cells += [R.Paragraph("&bull; " + esc(x), R.S["cell"]) for x in items] or [R.Paragraph(esc(empty), R.S["cell"])]
+        return cells
+    left, right = col("Where the hotel does well", good, R.GOOD, "Nothing stood out as strong in what could be measured."), col("Where it does not", bad, R.BAD, "No clear weakness was found.")
+    t = Table([[left, right]], colWidths=[0.5 * R.W, 0.5 * R.W])
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f1f8f3")), ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#fdf3f2")),
+                           ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8), ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                           ("LINEAFTER", (0, 0), (0, 0), 3, colors.white)]))
+    return [Spacer(1, 4), t]
+
+
+# ----------------------------------------------------------------------------- competitors and sources
+
+def _competitor_block(rep):
+    """Every hotel the assistant named, ranked: how often, where in its list, and how it described each. The hotel is marked."""
+    ins = rep.get("ai_insights") or {}
+    br = ins.get("brand_ranking") or {}
+    rows = br.get("all") or br.get("rows") or []
+    if not rows:
+        return [para("No ranking of the hotels the assistant names could be made in this audit (the AI sample was not run, or it named no hotels).", "base")]
+    rows = sorted(rows, key=lambda r: (-(r.get("mentions") or 0), r.get("avg_rank") or 99))
+    me = next((r for r in rows if r.get("is_target")), None)
+    pos = rows.index(me) + 1 if me else None
+    first = rows[0]
+    answers = max((r.get("of") or 0) for r in rows)
+    hotel = (rep.get("meta") or {}).get("hotel", "the hotel")
+    intro = (f"Across {answers} sampled answers the assistant named {len(rows)} different hotels. " + (f"{hotel} came {pos} of {len(rows)}, named in {me['mentions']} answers ({me.get('coverage_pct', 0)}%). " if me else f"{hotel} was not named. ")
+             + (f"The most-named hotel was {first['name']} ({first.get('coverage_pct', 0)}%)." if first is not me else "The hotel was the most-named."))
+    show = rows[:8]
+    if me and me not in show:
+        show = show[:7] + [me]
+    table_rows = [["#", "Hotel", "Named in", "Average position", "How it was described"]]
+    for r in show:
+        n = rows.index(r) + 1
+        name = Markup(f"<b>{esc(r['name'])} (this hotel)</b>") if r.get("is_target") else r["name"]
+        sent = r.get("sentiment")
+        table_rows.append([str(n), name, f"{r.get('mentions', 0)} of {r.get('of', 0)} ({r.get('coverage_pct', 0)}%)", "-" if r.get("avg_rank") is None else f"{r['avg_rank']:g}",
+                           "not judged" if sent is None else ("positive" if sent >= 40 else "negative" if sent <= -40 else "mixed") + f" ({sent:+d})"])
+    return [KeepTogether([para(intro, "base"), table(table_rows, [0.05, 0.37, 0.2, 0.15, 0.23])]),
+            para("Average position: the hotel's place in the hotels an answer listed (1 is first). One assistant, a sample of answers on one day: a guide to who the assistant reaches for, not a ranking of hotels.", "tiny")]
+
+
+def _sources_block(rep):
+    """The sources that came up first: ranked by how many answers used them, with the kind of site, and whether the hotel's own site is among them."""
+    cit = rep.get("citations") or {}
+    if cit.get("rows"):
+        n = cit["answers"] if cit["basis"] == "named" else cit.get("answers_all") or cit["answers"]
+        basis = "the answers that named the hotel" if cit["basis"] == "named" else "all the answers (none of them named the hotel)"
+        rows = [["#", "Source", "Type of site", f"Came up in (of {n} answers)", "Share"]]
+        for i, r in enumerate(cit["rows"][:8], 1):
+            nm = Markup(f"<b>{esc(r['domain'])} (the hotel's own site)</b>") if r["is_own"] else r["domain"]
+            rows.append([str(i), nm, r["kind"], str(r["came_up"]), f"{r['share_pct']}%"])
+        out = [para(f"The sources the assistant used, in {basis}, most-used first.", "base"), table(rows, [0.05, 0.33, 0.27, 0.23, 0.12])]
+        kinds = [f"{k['kind'].lower()} {k['answers']} of {k['of']}" for k in cit.get("by_kind") or []][:4]
+        if kinds:
+            out.append(para("By type of site: " + "; ".join(kinds) + ".", "base"))
+        if cit["basis"] == "named":
+            if cit.get("ota_answers", 0) > cit.get("own_answers", 0):
+                out.append(para(f"Booking and comparison sites (which charge commission) were cited in {cit['ota_answers']} of {cit['answers']} answers; the hotel's own website in {cit.get('own_answers', 0)}. "
+                                "Getting the hotel's own pages quoted instead is one of the actions below.", "note"))
+            else:
+                out.append(para(f"The hotel's own website was cited in {cit.get('own_answers', 0)} of {cit['answers']} answers, as often as the booking sites ({cit.get('ota_answers', 0)}).", "base"))
+        pages = sorted((p for r in cit["rows"] for p in r.get("pages") or []), key=lambda p: -p["n"])[:5]
+        if pages:
+            out.append(para("Pages cited most", "h3"))
+            out += R.bullets([cat(link(p["url"], short(p.get("title") if p.get("title") and p["title"] != "t" else p["url"], 70)), f" - cited in {p['n']} answers") for p in pages])
+        return out
+    ins = rep.get("ai_insights") or {}
+    srcs = ins.get("sources") or []
+    if srcs:
+        rows = [["#", "Source", "Type of site", "Answers that used it"]] + [[str(i), s_["domain"], s_["kind"], str(s_["answers"])] for i, s_ in enumerate(srcs[:8], 1)]
+        return [para("The sources the assistant used across its answers, most-used first.", "base"), table(rows, [0.06, 0.4, 0.34, 0.2])]
+    return [para("No sources were recorded: the AI sample was not run or used no web pages.", "base")]
+
+
+def _action_plan(c, recs, top, H1):
+    out = []
+    out.append(R.PageBreak())
+    out.append(H1("What to do first: the action plan"))
+    out.append(para("Chosen and ordered from the whole audit by one ranking model: commercial and operational importance, relevance to discovery and traveller decisions, confidence in the evidence, and implementation "
+                    "effort. Every action rests on evidence from the pages or sources named. None guarantees that any AI assistant will recommend the hotel.", "muted"))
+    for i, r in enumerate(top, 1):
+        out += action_card(i, r)
+    plan = c["plan"]
+    order, phase = [], {}
+    for label, key in (("Days 1-30", "30"), ("Days 31-60", "60"), ("Days 61-90", "90")):
+        for rid in plan.get(key, []):
+            if rid not in phase:
+                order.append(rid)
+                phase[rid] = label
+    for heading, kind, intro in (("Confirmed problems: suggested implementation order", "fix", "Things the audit found missing, wrong or broken on evidence it holds."),
+                                  ("Optional opportunities: not deficiencies", "opportunity", "Ways to strengthen a market the hotel may want. None of these is a fault, and none is needed unless the hotel wants that market.")):
+        order, phase = [], {}
+        for label, key in (("Days 1-30", "30"), ("Days 31-60", "60"), ("Days 61-90", "90")):
+            for rid in c["plan"].get(key, []):
+                if rid not in phase and recs[rid]["kind"] == kind and _conf(recs[rid]) != "Worth checking":
+                    order.append(rid)
+                    phase[rid] = label
+        order = order[:8 if kind == "fix" else 5]            # a short list a manager can act on; everything else is in the appendix
+        out.append(para(heading, "h3"))
+        out.append(para(intro, "tiny"))
+        if order:
+            rows = [["#", "Action", "Owner", "Priority", "Effort", "When", "Ref"]]
+            for n, rid in enumerate(order, 1):
+                r = recs[rid]
+                rows.append([str(n), short(r.get("short_title") or r["title"], 90), r.get("owner") or r["team"].capitalize(), R.coloured(r["priority"], PRI_COL[r["priority"]]), r["effort"], phase[rid], r["ref"]])
+            out.append(table(rows, [0.04, 0.38, 0.13, 0.1, 0.08, 0.12, 0.15]))
+        else:
+            out.append(para("None.", "base"))
+    out.append(para("Days 1-30: serious and quick items. Days 31-60: medium-effort fixes. Days 61-90: larger pieces of work. Re-run the audit afterwards to check what changed.", "tiny"))
+    leads = sorted((r for r in recs.values() if _conf(r) == "Worth checking"), key=lambda r: -r["rank"])
+    if leads:
+        out.append(para("Leads worth looking into (not yet findings)", "h3"))
+        out.append(para("These come from a sample (one assistant on one day, a search result) or an experimental reading. Look at them before acting; the evidence for each is in the appendix.", "tiny"))
+        out.append(table([["Lead", "Owner", "Ref"]] + [[short(r.get("short_title") or r["title"], 100), r.get("owner") or r["team"].capitalize(), r["ref"]] for r in leads[:5]], [0.7, 0.15, 0.15]))
+
+    out.append(para("How sure we are", "h3"))
+    out.append(para(CONF_KEY, "tiny"))
     return out
 
 
@@ -197,16 +412,17 @@ def story(rep, H1):
     for s in _exec_sentences(c, h, top, hotel):
         out.append(para(s, "base"))
         out.append(Spacer(1, 2))
+    out += _scoreboard(rep, h)
+    out += _strengths_weaknesses(rep, c, h, top)
     out.append(para("Readiness and observed AI visibility are kept separate on purpose: a well-prepared hotel can still not be recommended, and a hotel can be recommended by chance while poorly prepared. "
                     "This report scores readiness. It does not claim to measure visibility.", "tiny"))
+    out.append(R.PageBreak())
+    out.append(H1("Competitors: who AI recommends instead"))
+    out += _competitor_block(rep)
     out += _markets_block(rep, c)
-    out.append(para(f"What to do first: the {len(top)} highest-priority actions" if top else "What to do first", "h3"))
-    if top:
-        out += R.bullets([cat(Markup(f"<b>{esc(short(r['title'], 95))}</b>"), f" - {r.get('owner') or r['team'].capitalize()}, {r['priority']} priority, {_conf(r)} ({r['ref']})") for r in top])
-    else:
-        out.append(para("Nothing in this audit met the bar for a required fix.", "base"))
-    out.append(para("How sure we are", "h3"))
-    out.append(para(CONF_KEY, "tiny"))
+    out.append(H1("Where AI gets its information"))
+    out += _sources_block(rep)
+    out += _action_plan(c, recs, top, H1)
 
     # 2 -------------------------------------------------------------- discoverability and technical readiness
     out.append(H1("Discoverability and technical readiness"))
@@ -351,46 +567,6 @@ def story(rep, H1):
         out += R.bullets([x["statement"] for x in behind] or ["On the facilities compared, the hotel's pages state as much as the comparable hotels' pages."])
     else:
         out.append(para((cp.get("reason") or "A competitor comparison was not possible in this run.") + " The hotel's own opportunity analysis above stands without it.", "base"))
-
-    # 6 -------------------------------------------------------------- prioritised action plan
-    out.append(R.PageBreak())
-    out.append(H1("Prioritised action plan"))
-    out.append(para("Chosen and ordered from the whole audit by one ranking model: commercial and operational importance, relevance to discovery and traveller decisions, confidence in the evidence, and implementation "
-                    "effort. Every action rests on evidence from the pages or sources named. None guarantees that any AI assistant will recommend the hotel.", "muted"))
-    for i, r in enumerate(top, 1):
-        out += action_card(i, r)
-    plan = c["plan"]
-    order, phase = [], {}
-    for label, key in (("Days 1-30", "30"), ("Days 31-60", "60"), ("Days 61-90", "90")):
-        for rid in plan.get(key, []):
-            if rid not in phase:
-                order.append(rid)
-                phase[rid] = label
-    for heading, kind, intro in (("Confirmed problems: suggested implementation order", "fix", "Things the audit found missing, wrong or broken on evidence it holds."),
-                                  ("Optional opportunities: not deficiencies", "opportunity", "Ways to strengthen a market the hotel may want. None of these is a fault, and none is needed unless the hotel wants that market.")):
-        order, phase = [], {}
-        for label, key in (("Days 1-30", "30"), ("Days 31-60", "60"), ("Days 61-90", "90")):
-            for rid in c["plan"].get(key, []):
-                if rid not in phase and recs[rid]["kind"] == kind and _conf(recs[rid]) != "Worth checking":
-                    order.append(rid)
-                    phase[rid] = label
-        order = order[:8 if kind == "fix" else 5]            # a short list a manager can act on; everything else is in the appendix
-        out.append(para(heading, "h3"))
-        out.append(para(intro, "tiny"))
-        if order:
-            rows = [["#", "Action", "Owner", "Priority", "Effort", "When", "Ref"]]
-            for n, rid in enumerate(order, 1):
-                r = recs[rid]
-                rows.append([str(n), short(r.get("short_title") or r["title"], 90), r.get("owner") or r["team"].capitalize(), R.coloured(r["priority"], PRI_COL[r["priority"]]), r["effort"], phase[rid], r["ref"]])
-            out.append(table(rows, [0.04, 0.38, 0.13, 0.1, 0.08, 0.12, 0.15]))
-        else:
-            out.append(para("None.", "base"))
-    out.append(para("Days 1-30: serious and quick items. Days 31-60: medium-effort fixes. Days 61-90: larger pieces of work. Re-run the audit afterwards to check what changed.", "tiny"))
-    leads = sorted((r for r in recs.values() if _conf(r) == "Worth checking"), key=lambda r: -r["rank"])
-    if leads:
-        out.append(para("Leads worth looking into (not yet findings)", "h3"))
-        out.append(para("These come from a sample (one assistant on one day, a search result) or an experimental reading. Look at them before acting; the evidence for each is in the appendix.", "tiny"))
-        out.append(table([["Lead", "Owner", "Ref"]] + [[short(r.get("short_title") or r["title"], 100), r.get("owner") or r["team"].capitalize(), r["ref"]] for r in leads[:5]], [0.7, 0.15, 0.15]))
 
     # 7 -------------------------------------------------------------- methodology and limitations
     out.append(H1("Methodology and limitations"))
