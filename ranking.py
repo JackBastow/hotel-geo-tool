@@ -36,7 +36,7 @@ EFFORT_COST = {"low": 1.0, "medium": 1.8, "high": 3.0}
 #   Likely          the evidence points to it but cannot show it: an absence on pages that may not be all there is, a fact only inferred, a count from a small sample of pages
 #   Worth checking  a lead from a sample (one assistant on one day, a search result) or an experimental reading: look at it, do not act on it yet
 CONF_FACTOR = {"Confirmed": 1.0, "Likely": 0.8, "Worth checking": 0.55}
-CONFIRMABLE = {"machine", "structured", "consistency", "booking", "listings", "questions", "traveller", "location", "hidden", "review_pack", "external", "competitors", "intel"}
+CONFIRMABLE = {"facility", "machine", "structured", "consistency", "booking", "listings", "questions", "traveller", "location", "hidden", "review_pack", "external", "competitors", "intel"}
 _NOTE = re.compile(r"^(?:pages inspected|no page about|audit note|still not stated|[^:]{0,60}: (?:pages inspected|still not stated))", re.I)
 # What the reader sees: a finding the evidence directly supports, or an inference drawn from it. (Internal basis names stay as they are.)
 
@@ -85,6 +85,7 @@ F = {
     ("ai", "AI3"): (3, 4, 3, "fix"), ("ai", "AI2"): (1, 3, 3, "opportunity"),     # AI3: the assistant's statement differs from the hotel's own record
     ("ai", "AG1"): (3, 4, 4, "opportunity"), ("ai", "AG2"): (3, 4, 4, "opportunity"), ("ai", "AG3"): (3, 4, 4, "opportunity"),     # not named for a question the hotel is positioned for, with the evidence beside it
     ("ai", "AGO1"): (2, 3, 4, "opportunity"), ("ai", "AGO2"): (2, 3, 4, "opportunity"), ("ai", "AGO3"): (2, 3, 4, "opportunity"),     # a named editorial list that omits the hotel
+    ("facility", "FD"): (3, 4, 4, "fix"),                # a facility the pages mention but barely describe: nothing for an assistant to quote
     ("direct", "DS1"): (3, 4, 4, "opportunity"), ("direct", "DS2"): (2, 4, 4, "opportunity"),     # AI leans on agents rather than the hotel's own site: the fee-saving opportunity
     ("reddit", "FM1"): (2, 4, 4, "opportunity"),     # open conversations the hotel could honestly join
     ("ai", "AI1"): (1, 3, 3, "opportunity"),     # one sampled model did not name the hotel: upside to explore, not a defect

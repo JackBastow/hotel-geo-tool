@@ -1044,6 +1044,40 @@ def build_scorecard(site, entities, consistency, location, discovery,
     }
 
 
+IDENTITY_NAME_PENALTY = 20          # points off Entity Consistency when sources use more than one form of the hotel's name
+IDENTITY_FACT_PENALTY = 8           # per fact (address, phone, rating...) where a listing and the website disagree
+IDENTITY_MAX_PENALTY = 40
+
+
+def apply_identity(scorecard, name_forms, fact_differences):
+    """
+    The entity score is first worked out from the hotel's own markup and open data. The consultant later reads the OUTSIDE sources and may find the hotel under more than one name, or a listing that
+    disagrees with the website. A score of 100 beside that finding would contradict it, so the score is lowered, and the evidence line says by how much and why. The overall score is worked out again
+    from the categories (one place, so the headline, scorecard and PDF still agree). -> the penalty applied (0 when nothing changed).
+    """
+    cats = scorecard.get("categories") or []
+    ent = next((c for c in cats if c["key"] == "entity"), None)
+    pen = (IDENTITY_NAME_PENALTY if name_forms > 1 else 0) + IDENTITY_FACT_PENALTY * max(0, fact_differences)
+    pen = min(IDENTITY_MAX_PENALTY, pen)
+    if not ent or not ent.get("assessed") or ent.get("score") is None or pen <= 0:
+        return 0
+    before = ent["score"]
+    ent["score"] = max(0, before - pen)
+    why = []
+    if name_forms > 1:
+        why.append(f"the hotel appears under {name_forms} different forms of its name across sources")
+    if fact_differences:
+        why.append(f"{fact_differences} fact(s) differ between a listing and the website")
+    ent["evidence"] = list(ent.get("evidence") or []) + [f"Lowered from {before} to {ent['score']}: " + "; ".join(why)]
+    ent["detail"] = (ent.get("detail") or "") + " Lowered because outside sources disagree about the name or facts."
+    tot = totals(cats)
+    assessed = [c for c in cats if c["key"] not in SEPARATE and c["assessed"]]
+    scorecard.update(overall=tot["overall"], coverage_pct=tot["coverage_pct"], assessed_weight=tot["assessed_weight"], breakdown=tot["breakdown"], simple_average=tot["simple_average"], method=tot["method"])
+    if assessed:
+        scorecard["caveat"] = (scorecard.get("caveat") or "") + f" Entity Consistency was lowered from {before} to {ent['score']} after the outside sources were read."
+    return before - ent["score"]
+
+
 def all_recommendations(scorecard):
     """Every recommendation, worst first, tagged with the category it came from."""
     rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}

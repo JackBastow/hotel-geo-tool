@@ -165,9 +165,9 @@ def _markets_block(rep, c):
 
 # ----------------------------------------------------------------------------- at a glance: where the hotel does well and where it does not
 
-AREA_MEANING = {"ai_visibility": "How often AI assistants name the hotel (sampled)", "otas": "Is the hotel listed, and consistent, on booking platforms?", "reviews": "Guest reviews and the hotel's replies",
+AREA_MEANING = {"ai_visibility": "How often AI assistants name the hotel (sampled)", "otas": "Found on booking platforms (presence only)", "reviews": "Guest reviews and the hotel's replies",
                 "editorial": "Coverage by travel writers and blogs", "website": "The hotel's own website: content and technical set-up", "social": "Social media and community presence",
-                "entity": "Is the hotel described the same way everywhere?", "freshness": "How up to date the published information is"}
+                "entity": "Outside sources agree on name, address and phone", "freshness": "How up to date the published information is"}
 AI_AIM_PCT = 30            # the owner's aim for how often the hotel is named; shown as an aim, never forced
 
 
@@ -218,6 +218,32 @@ def _scoreboard(rep, h):
             para("Strong is 75 or more, partly there 50 to 74, weak under 50. AI visibility is a sample from one assistant and is not part of the readiness score.", "tiny")]
 
 
+def _engines_band(rep):
+    """One band near the top of page 1: which assistants were asked, and which were not."""
+    import engines
+    from reportlab.platypus import Table, TableStyle
+    from reportlab.lib import colors
+    rows = engines.rows(rep)
+    yes = [e["name"] for e in rows if e["tested"]]
+    no = [e["name"] for e in rows if not e["tested"]]
+    cells = [[R.Paragraph("<font color='%s'><b>TESTED</b></font><br/>%s" % (R.GOOD, esc(", ".join(yes) or "none")), R.S["cell"]),
+              R.Paragraph("<font color='%s'><b>NOT TESTED</b></font><br/>%s" % (R.BAD, esc(", ".join(no))), R.S["cell"])]]
+    t = Table(cells, colWidths=[0.3 * R.W, 0.7 * R.W])
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f1f8f3")), ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#fdf3f2")),
+                           ("LEFTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("LINEAFTER", (0, 0), (0, 0), 3, colors.white)]))
+    return [Spacer(1, 3), para("AI assistants asked in this report", "h3"), t]
+
+
+def _engines_block(rep):
+    """Which assistants were really asked, and which were not: so nobody reads the report as saying what ChatGPT or Gemini recommend."""
+    import engines
+    rows = [["AI assistant", "Tested?", "What was done"]]
+    for e in engines.rows(rep):
+        rows.append([e["name"] + " (" + e["maker"] + ")", R.coloured("TESTED", R.GOOD) if e["tested"] else R.coloured("NOT TESTED", R.BAD), e["detail"]])
+    return [para("Which AI assistants this report tested", "h3"), table(rows, [0.24, 0.13, 0.63]),
+            para("A result for one assistant says nothing about another: they use different sources and often give different answers. " + ("Asked in this audit: " + ", ".join(e["name"] for e in engines.rows(rep) if e["tested"]) + "." if any(e["tested"] for e in engines.rows(rep)) else "No assistant was asked in this audit."), "tiny")]
+
+
 def _strengths_weaknesses(rep, c, h, top):
     """Two plain lists the manager reads first: what is working, and what is not, each item concrete and taken from the audit."""
     good, bad = [], []
@@ -235,6 +261,12 @@ def _strengths_weaknesses(rep, c, h, top):
         elif tot and cn["missing"] >= max(2, tot * 0.4):
             miss = [r["label"] for r in seg["requirements"] if r["state"] == "missing"][:3]
             bad.append(f"{seg['label']}: {cn['missing']} of {tot} things travellers need to know are missing ({', '.join(miss)})")
+    for f in c.get("facility_depth") or []:
+        n_ = len(f["found"])
+        if f["thin"]:
+            bad.append(f"{f['label']} is mentioned but only {n_} of {f['total']} details are stated (missing: {', '.join(m['label'].split(' (')[0].lower() for m in f['missing'][:3])})")
+        else:
+            good.append(f"{f['label']}: {n_} of {f['total']} details are stated on the website")
     gap = rep.get("ai_gap") or {}
     for m in (gap.get("markets") or []):
         q = short(m["question"], 80)
@@ -334,6 +366,51 @@ def _sources_block(rep):
     return [para("No sources were recorded: the AI sample was not run or used no web pages.", "base")]
 
 
+def _facility_block(c):
+    """How completely the website describes each facility it has: the details stated, and the ones left out that an assistant would need to quote."""
+    fd = c.get("facility_depth") or []
+    if not fd:
+        return []
+    rows = [["Facility", "Details stated", "Left out (an assistant has nothing to quote)"]]
+    for f in fd:
+        n = len(f["found"])
+        col = R.GOOD if not f["thin"] else (R.BAD if n <= 1 else R.WARN)
+        rows.append([f["label"], R.coloured(f"{n} of {f['total']}", col), short("; ".join(m["label"] for m in f["missing"]) or "nothing important", 230)])
+    return [para("How completely the website describes its facilities", "h3"),
+            para("A facility that is only mentioned (“we have event space”) gives an assistant nothing to answer “which hotels can host 120 people?”. Stating each size, capacity and the events hosted is what lets it name the hotel.", "tiny"),
+            table(rows, [0.22, 0.13, 0.65])]
+
+
+def _forums_block(rep):
+    """Open conversations (Reddit and similar) where travellers ask for hotels like this one's: each with its link, whether a comment is still possible, and what to do."""
+    fr = rep.get("forums") or {}
+    ops = [o for o in fr.get("opportunities") or [] if o.get("can_comment") != "closed"]
+    hotel = (rep.get("meta") or {}).get("hotel", "the hotel")
+    if fr.get("status") != "ok":
+        return [para("The open forums were not searched in this audit" + (": " + short(fr.get("reason"), 160) if fr.get("reason") else "") + ".", "base")]
+    if not ops:
+        import forums as _forums
+        links = _forums.search_links(fr.get("topics") or [], ("reddit.com",))[:3]
+        out = [para("No open thread matching this market turned up in this audit's searches. That shows what the search saw, not that none exist.", "base")]
+        if links:
+            out.append(para("Search Reddit yourself:", "h3"))
+            out += R.bullets([cat(link(x["url"], x["topic"])) for x in links])
+        return out
+    rows = [["Forum", "Thread (opens the link)", "Can you reply?", "Age", "Cited by AI"]]
+    word = {"open": "Yes", "likely open": "Probably", "check": "Check the link"}
+    for o in ops[:7]:
+        rows.append([o["forum"], link(o["url"], short(o["title"], 80)), word.get(o["can_comment"], "Check"), o.get("age") or "-", "Yes" if o.get("cited_by_ai") else "No"])
+    n_cited = sum(1 for o in ops if o.get("cited_by_ai"))
+    out = [para(f"{len(ops)} open conversation{'s' if len(ops) != 1 else ''} where travellers are asking where to stay in this hotel's market" + (f"; {n_cited} of them {'was' if n_cited == 1 else 'were'} cited by an AI answer in this audit." if n_cited else "."), "base"),
+           table(rows, [0.17, 0.47, 0.14, 0.12, 0.1])]
+    out.append(para("What to do", "h3"))
+    out += R.bullets(["Open each link, check the thread still takes comments (Reddit locks threads about six months after they were posted) and read the forum's rules on businesses.",
+                      f"Reply once, as {hotel}, and say you work there. Answer the question that was asked with facts: where the hotel is, what is included, who it suits and who it does not.",
+                      "Never post as a guest, write reviews, ask for upvotes or offer anything in return: forums ban it and assistants learn to discount it.",
+                      "The web dashboard gives suggested wording for each thread."])
+    return out
+
+
 def _action_plan(c, recs, top, H1):
     out = []
     out.append(R.PageBreak())
@@ -409,19 +486,23 @@ def story(rep, H1):
                        cat(R.coloured("SAMPLED, ONE ASSISTANT" if ai_sampled else "NOT MEASURED", R.WARN if ai_sampled else R.BAD), Markup("<br/>"), ai_text)]],
                      [0.18, 0.27, 0.55], zebra=False))
     out.append(Spacer(1, 3))
-    for s in _exec_sentences(c, h, top, hotel):
+    for s in _exec_sentences(c, h, top, hotel)[1:]:
         out.append(para(s, "base"))
         out.append(Spacer(1, 2))
+    out += _engines_band(rep)
     out += _scoreboard(rep, h)
     out += _strengths_weaknesses(rep, c, h, top)
     out.append(para("Readiness and observed AI visibility are kept separate on purpose: a well-prepared hotel can still not be recommended, and a hotel can be recommended by chance while poorly prepared. "
                     "This report scores readiness. It does not claim to measure visibility.", "tiny"))
     out.append(R.PageBreak())
     out.append(H1("Competitors: who AI recommends instead"))
+    out += _engines_block(rep)
     out += _competitor_block(rep)
     out += _markets_block(rep, c)
     out.append(H1("Where AI gets its information"))
     out += _sources_block(rep)
+    out.append(H1("Open conversations you can join"))
+    out += _forums_block(rep)
     out += _action_plan(c, recs, top, H1)
 
     # 2 -------------------------------------------------------------- discoverability and technical readiness
@@ -499,6 +580,7 @@ def story(rep, H1):
                 det = short(r.get("why", ""), 150)
             rows.append([r["label"], R.coloured(STATE_TXT[r["state"]], STATE_COL[r["state"]]), short(det, 190)])
         out.append(table(rows, [0.3, 0.2, 0.5]))
+    out += _facility_block(c)
     if trv.get("skipped"):
         out.append(para("Not assessed (the site shows no sign the hotel serves these travellers): " + ", ".join(s["label"] for s in trv["skipped"]) + ".", "tiny"))
 

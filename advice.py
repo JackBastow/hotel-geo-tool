@@ -560,6 +560,50 @@ def _from_direct(cit):
     return out
 
 
+def _from_facility_depth(fd):
+    """
+    A facility the pages mention but barely describe. An assistant asked 'which hotels near X can host 120 people for a gala?' can only name a hotel whose pages say so; a page that says 'we have event space'
+    and nothing else gives it nothing to quote. One recommendation per thin facility, naming the details that are missing, quoting what the page does say, and giving wording to fill in with the hotel's real facts.
+    """
+    out = []
+    for f in fd or []:
+        if not f.get("thin") or not f.get("missing"):
+            continue
+        n, tot = len(f["found"]), f["total"]
+        miss = [m["label"] for m in f["missing"]]
+        ev = [{"url": f["url"], "snippet": f["quote"]}] if f.get("quote") else []
+        ev.append({"url": "", "snippet": f"Pages inspected for this: {', '.join(f['pages'])}. Not stated on them: " + "; ".join(miss) + "."})
+        for d in f["found"][:2]:
+            ev.append({"url": d["url"], "snippet": d["quote"]})
+        evt = f["key"] == "events"
+        names = f.get("names") or []
+        if evt:
+            ex = (("For each space, on its own heading: " + ("; ".join(f"{x}" for x in names[:3]) if names else "[room name]") + " - [x] m² ([y] sq ft), ceiling [z] m, natural light [yes/no]. "
+                   "Capacity: theatre [n], boardroom [n], banquet [n], cabaret [n], reception [n]. Suited to: weddings, galas, conferences, product launches, private dinners (list only what you really host). "
+                   "Included: [screens, microphones, Wi-Fi, stage]. Catering: [coffee breaks, set menus, drinks receptions]. Enquire: [events email and phone] or download the capacity chart: [link]."))
+            title = "The event space is mentioned but not described: no sizes, capacities or events hosted" if not f["found"] or len(f["found"]) < 2 else "The event space is only partly described"
+            why = ("Planners, and AI assistants answering them, ask which hotels can host a particular size and kind of event ('a 120-person gala dinner near the Opera'). They can only name a hotel whose pages say so: "
+                   "a page that lists an event space without its size, capacity or the events it hosts gives them nothing to quote, so a rival whose page does is named instead.")
+            action = ("On the events page, give every space its own heading and state, in plain text (not an image or a PDF only): its name, size in m² and sq ft, capacity for each layout, the kinds of events you host "
+                      "(for example weddings, galas, conferences, launches, private dinners), what is included, catering options and how to enquire. Add a downloadable capacity chart as well, and keep the figures identical to your brochure. "
+                      "State only what is true.")
+        else:
+            ex = " ; ".join(f"{m['label']}: {m['example']}" for m in f["missing"][:5])
+            title = f"{f['label']} is mentioned but only partly described on the website"
+            why = (f"Travellers and AI assistants choose between hotels on specifics. {f['short'].capitalize()} is mentioned, but the pages do not state: {', '.join(m.lower() for m in miss[:4])}. "
+                   "An assistant can only quote what a page says, so the hotels that state it are the ones it describes.")
+            action = (f"On the page about {f['short']}, state in plain text: " + "; ".join(m.lower() for m in miss[:5]) + ". Use the hotel's real facts only, and keep them identical to what you tell guests and booking sites.")
+        r = _rec(f"FD-{f['key']}", "content", title,
+                 f"The website mentions {f['short']} but states only {n} of the {tot} details a traveller or an assistant would need. Missing: " + "; ".join(miss) + ".", why, ev, action,
+                 "high" if (evt and n <= 2) else "medium", "low" if not evt else "medium", example=ex, confidence=BEST,
+                 technical="Content-completeness gap: the page names the facility without the attributes an assistant would quote. Write each one as plain text under its own heading (not only in an image or a PDF). Optionally mark the space up with schema.org (for example amenityFeature with a floorSize and occupancy) once the plain text is there.", team="marketing" if f["key"] != "rooms" else "web",
+                 source="facility", tag="FD", short_title=("Describe the event space: sizes, capacities, events hosted" if evt else f"Describe {f['short']} in more detail"),
+                 summary="; ".join(miss[:4]), success="The page states these details as plain text, and the next audit finds them.")
+        r["topics"] = [f["key"], f["short"]]
+        out.append(r)
+    return out
+
+
 def _from_forums(fr):
     """Open conversations where travellers are asking for hotels like this one's: a lead to join them honestly, with the links."""
     ops = (fr or {}).get("opportunities") or []
@@ -1022,7 +1066,7 @@ def _from_intel(intel):
 
 # ---------------------------------------------------------------------- assemble
 
-def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, traveller=None, booking=None, external=None, competitors=None, suppressed=None, ai_gap=None, citations=None, forums=None):
+def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, traveller=None, booking=None, external=None, competitors=None, suppressed=None, ai_gap=None, citations=None, forums=None, facility=None):
     coverage = coverage or {}
     # the requirement checks say more, and more exactly, than the extended guest questions they cover
     superseded = {q for seg in (traveller or {}).get("assessed", []) for q in TRAVELLER_SUPERSEDES.get(seg, ())}
@@ -1049,6 +1093,7 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
         # the specific finding (not named for THIS question, and who was) replaces the general 'not named in a sample' notes, and a named article replaces the generic 'consider a travel publication'
         recs = [r for r in recs if r["id"] not in ("AI1", "AI4") and not (r["id"].startswith("X-S-editorial_outreach") and any(g["id"].startswith("AG-OUT") for g in gap_recs))]
         recs += gap_recs
+    recs += _from_facility_depth(facility)
     recs += _from_direct(citations)
     recs += _from_forums(forums)
     recs += _from_listing_checks(listing_checks)

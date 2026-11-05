@@ -1136,6 +1136,17 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                                                "tavily": tavily_result}))
     except Exception as e:  # noqa: BLE001 - the audit must survive a failed analysis
         consult_result = {"error": f"{type(e).__name__}: {e}"}
+    try:       # the outside sources were read after the scorecard was made: a hotel found under several names, or contradicted by a listing, cannot keep a perfect consistency score
+        _recs = {r.get("id"): r for r in (consult_result.get("recommendations") or [])}
+        _names = 2 if "I1" in _recs else 0
+        _facts = 0
+        if "I2" in _recs:
+            import re as _re_i2
+            _m = _re_i2.match(r"(\d+)", _recs["I2"].get("title", ""))
+            _facts = int(_m.group(1)) if _m else 1
+        scoring.apply_identity(scorecard, _names, _facts)
+    except Exception:  # noqa: BLE001 - an adjustment; the scorecard stands as it was
+        pass
 
     result = {
         "meta": {
