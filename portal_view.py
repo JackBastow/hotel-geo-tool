@@ -157,7 +157,17 @@ def history_table(runs):
     return ('<div class="table-wrap"><table class="table"><thead><tr><th>Checked (UK time)</th><th>Readiness</th><th>Recommendations</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>")
 
 
-def dashboard(sm, actions, runs, editable=True, csrf="", ai=""):
+def live_panel(state, url):
+    """A box that shows a check while it runs and reloads the page when it finishes. Empty when nothing is running (and nothing has been checked yet, a first check is expected soon)."""
+    st = (state or {}).get("state", "idle")
+    if st not in ("queued", "running"):
+        return ""
+    msgs = "".join(f"<li>{esc(m)}</li>" for m in (state.get("messages") or [])[-6:])
+    return (f'<section class="live" data-url="{esc(url)}" data-state="{st}"><div class="live-h"><span class="spinner"></span><b>{"Waiting for its turn" if st == "queued" else "Checking the hotel now"}</b> '
+            f'<span class="hk-muted">This takes a few minutes. This page updates by itself.</span></div><ul class="live-m">{msgs}</ul></section>')
+
+
+def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_url=""):
     h = sm["hotel"]
     nxt = ""
     if h.get("weekly") and sm["last_run_at"]:
@@ -185,4 +195,4 @@ def dashboard(sm, actions, runs, editable=True, csrf="", ai=""):
     tabs = [("overview", "Overview", overview), ("ai", "AI visibility", ai or '<div class="alert info">AI visibility appears after the first check.</div>'), ("actions", f"Recommendations ({open_n})", recs), ("history", "History", history)]
     nav = "".join(f'<button type="button" class="tab{" active" if i == 0 else ""}" data-tab="tab-{k}" data-name="{k}">{esc(lbl)}</button>' for i, (k, lbl, _b) in enumerate(tabs))
     body = "".join(f'<div class="tab-panel{" active" if i == 0 else ""}" id="tab-{k}">{b}</div>' for i, (k, _l, b) in enumerate(tabs))
-    return f'<div class="pt" data-csrf="{esc(csrf)}">{hero}<div class="tabs top"><div class="tab-bar" role="tablist">{nav}</div>{body}</div></div>'
+    return f'<div class="pt" data-csrf="{esc(csrf)}">{hero}{live_panel(live, live_url)}<div class="tabs top"><div class="tab-bar" role="tablist">{nav}</div>{body}</div></div>'

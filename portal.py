@@ -144,6 +144,12 @@ def register(app, cfg):
                 if inv["hotel_id"]:
                     d.link_user(uid, inv["hotel_id"])
             d.use_invite(inv["id"])
+            try:        # the first time anyone sets up a login for a hotel that has never been checked, start its first check, so the dashboard is full when they land on it
+                hh = d.get_hotel(inv["hotel_id"]) if inv["hotel_id"] else None
+                if hh and hh["active"] and not d.hotel_runs(hh["hotel_key"]):
+                    app.extensions["weekly"].start(force_ids={hh["id"]})
+            except Exception:  # noqa: BLE001 - never block the sign-up
+                pass
             keep = {k: True for k in ("admin_ok", "site_ok") if session.get(k) is True}
             session.clear()
             session.update(keep)
@@ -158,7 +164,8 @@ def register(app, cfg):
         d = db()
         progress.ensure_actions(d, hotel)
         sm = progress.hotel_summary(d, hotel)
-        body = portal_view.dashboard(sm, d.list_actions(hotel["id"]), d.hotel_runs(hotel["hotel_key"]), editable=True, csrf=csrf(), ai=ai_dash.panel(d, hotel))
+        body = portal_view.dashboard(sm, d.list_actions(hotel["id"]), d.hotel_runs(hotel["hotel_key"]), editable=True, csrf=csrf(), ai=ai_dash.panel(d, hotel),
+                                     live=app.extensions["weekly"].hotel_state(hotel["id"]), live_url=f"/portal/api/status/{hotel['id']}")
         return shell(hotel["name"] + ": progress", body, user, hotels)
 
     @app.get("/portal")
@@ -184,6 +191,13 @@ def register(app, cfg):
         if h is None:
             abort(404)
         return dashboard_page(h, user, hotels)
+
+    @app.get("/portal/api/status/<int:hotel_id>")
+    def portal_status(hotel_id):
+        user, hotels = current()
+        if not user or hotel_id not in {h["id"] for h in hotels}:
+            return jsonify(ok=False), 404
+        return jsonify(ok=True, **app.extensions["weekly"].hotel_state(hotel_id))
 
     @app.post("/portal/api/action")
     def portal_action():

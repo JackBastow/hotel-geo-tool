@@ -195,3 +195,20 @@ document.addEventListener("click", function (ev) {
     .then(function (j) { if (j && j.ok) { window.location.reload(); } else { b.disabled = false; alert((j && j.error) || "That did not save. Please try again."); } })
     .catch(function () { b.disabled = false; alert("That did not save. Please check your connection and try again."); });
 });
+
+/* a check in progress: show its messages, and reload the page when it finishes */
+(function () {
+  var box = document.querySelector(".live[data-url]");
+  if (!box) { return; }
+  var url = box.getAttribute("data-url");
+  function tick() {
+    fetch(url, { headers: { "Accept": "application/json" } }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !j.ok) { setTimeout(tick, 6000); return; }
+      if (j.state === "done" || j.state === "error" || j.state === "idle") { window.location.reload(); return; }
+      var ul = box.querySelector(".live-m");
+      if (ul) { ul.innerHTML = ""; (j.messages || []).slice(-6).forEach(function (m) { var li = document.createElement("li"); li.textContent = m; ul.appendChild(li); }); }
+      setTimeout(tick, 3000);
+    }).catch(function () { setTimeout(tick, 6000); });
+  }
+  setTimeout(tick, 2500);
+})();

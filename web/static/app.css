@@ -211,3 +211,8 @@ svg.trend { width: 100%; height: auto; max-height: 340px; }
 .rec-row { display: grid; grid-template-columns: 9rem 1fr; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: .92rem; } .rec-row:last-child { border: 0; }
 .rec-row b { color: var(--muted); font-size: .74rem; letter-spacing: .05em; text-transform: uppercase; padding-top: 2px; }
 @media (max-width: 720px) { .rec-row { grid-template-columns: 1fr; gap: 2px; } }
+
+.live { background: #eef4ff; border: 1px solid #c7d7fe; border-radius: 14px; padding: 14px 18px; margin: 14px 0; }
+.live-h { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; } .live-m { margin: 8px 0 0; padding-left: 1.2em; color: var(--muted); font-size: .88rem; }
+.spinner { width: 16px; height: 16px; border: 3px solid #c7d7fe; border-top-color: var(--brand); border-radius: 50%; display: inline-block; animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

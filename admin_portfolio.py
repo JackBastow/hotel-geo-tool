@@ -67,11 +67,15 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
             f'<td>{esc(r["hotel"]["last_error"] or "")}</td></tr>' for r in rows)
         table = ('<div class="table-wrap"><table class="table"><thead><tr><th>Hotel</th><th>Last check</th><th>Checks</th><th>First score</th><th>Latest score</th><th>Change</th><th>Actions done</th>'
                  '<th>Working on</th><th>To do</th><th>Weekly</th><th>Last problem</th></tr></thead><tbody>' + (body or '<tr><td colspan="11">No hotels registered yet.</td></tr>') + "</tbody></table></div>")
+        c_ = csrf()
+        runs = (f'<p><form method="post" action="/admin/portfolio/run-all" style="display:inline"><input type="hidden" name="csrf" value="{c_}"><button class="btn primary" type="submit">Run a check on every hotel now</button></form> '
+                f'<form method="post" action="/admin/portfolio/run-due" style="display:inline"><input type="hidden" name="csrf" value="{c_}"><button class="btn" type="submit">Run only the checks that are due</button></form></p>'
+                '<p class="caption">Each hotel is checked one after another; open a hotel to watch its check live. The weekly job does the same every Monday.</p>')
         add = (f'<h5>Add a hotel</h5><form class="filters" method="post" action="/admin/portfolio/add"><input type="hidden" name="csrf" value="{csrf()}">'
                '<label class="field"><span>Hotel name</span><input name="name" required></label><label class="field"><span>Website address</span><input name="website" placeholder="hotel-site.com/the-hotel" required></label>'
                '<label class="field"><span>Town or city</span><input name="city" required></label><button class="btn primary" type="submit">Add hotel</button></form>'
                '<p class="caption">Adding a hotel does not run a check by itself: use &ldquo;Run a check now&rdquo; on its page, or the next weekly check picks it up. Audits already saved for the same website count as its history.</p>')
-        return shell("portfolio", "Portfolio", line + '<p class="caption">Progress, not proof: the score moving after actions were completed does not show the actions caused it. Times are UK time.</p>' + charts + table + add)
+        return shell("portfolio", "Portfolio", line + '<p class="caption">Progress, not proof: the score moving after actions were completed does not show the actions caused it. Times are UK time.</p>' + charts + runs + table + add)
 
     @app.post("/admin/portfolio/add")
     def admin_portfolio_add():
@@ -109,8 +113,31 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
                  + f'<form class="filters" method="post" action="/admin/hotel/{hid}/invite"><input type="hidden" name="csrf" value="{c}"><label class="field"><span>Invite someone (their email)</span><input type="email" name="email" required></label>'
                  '<button class="btn" type="submit">Make an invite link</button></form><p class="caption">There is no email service: you get a link to send them yourself. It works once and expires in 7 days.</p>'
                  + (f'<h6>Links still open</h6><ul>{invites}</ul>' if invites else "") + "</section>")
-        view = portal_view.dashboard(sm, s.list_actions(hid), s.hotel_runs(h["hotel_key"]), editable=False, csrf="", ai=ai_dash.panel(s, h))
+        view = portal_view.dashboard(sm, s.list_actions(hid), s.hotel_runs(h["hotel_key"]), editable=False, csrf="", ai=ai_dash.panel(s, h),
+                                     live=app.extensions["weekly"].hotel_state(hid), live_url=f"/admin/hotel/{hid}/status")
         return shell("portfolio", h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
+
+    @app.get("/admin/hotel/<int:hid>/status")
+    def admin_hotel_status(hid):
+        if not session.get("admin_ok"):
+            return {"ok": False}, 401
+        return {"ok": True, **app.extensions["weekly"].hotel_state(hid)}
+
+    @app.post("/admin/portfolio/run-due")
+    def admin_run_due():
+        bad, s = checked_post()
+        if bad:
+            return bad
+        app.extensions["weekly"].start()
+        return redirect("/admin/portfolio")
+
+    @app.post("/admin/portfolio/run-all")
+    def admin_run_all():
+        bad, s = checked_post()
+        if bad:
+            return bad
+        app.extensions["weekly"].start(force_ids={h["id"] for h in s.list_hotels(only_active=True)})
+        return redirect("/admin/portfolio")
 
     @app.get("/admin/hotel/<int:hid>")
     def admin_hotel_page(hid):
@@ -179,6 +206,4 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         if not s.get_hotel(hid):
             abort(404)
         started, n = app.extensions["weekly"].start(force_ids={hid})
-        note = ('<div class="alert success">A check has started. It takes a few minutes; reload this page to see it appear under &ldquo;Checks so far&rdquo;.</div>' if started
-                else '<div class="alert warning">Another batch of checks is still running. Try again in a few minutes.</div>')
-        return hotel_page(s, hid, note)
+        return redirect(f"/admin/hotel/{hid}")            # the page shows the check running, live

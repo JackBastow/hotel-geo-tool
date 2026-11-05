@@ -44,6 +44,8 @@ class Weekly:
         self.queue = []
         self.done = []
         self.started = None
+        self.live = {}                  # hotel id -> {"state": queued|running|done|error, "messages": [...], "started", "finished", "error", "manual"}: what the admin and hotel pages show while a check runs
+        self.manual = set()             # hotels asked for by a person (a button or a new account): these get the thorough test; the Monday batch gets the lighter one
 
     def _db(self):
         return backend.open_store(self.cfg.database_url) if self.cfg.database_url else None
@@ -69,21 +71,42 @@ class Weekly:
             out.append(h)
         return out
 
+    def active(self, hotel_id):
+        s = (self.live.get(hotel_id) or {}).get("state")
+        return s in ("queued", "running")
+
     def start(self, force_ids=None):
-        """Begin the checks in the background. -> (started, how many hotels). False when a batch is already running."""
+        """
+        Begin checks in the background. -> (started, how many hotels were added). A hotel asked for by name (force_ids) joins the queue even while a batch is running, unless it is already queued or running;
+        with no ids it queues every hotel that is due.
+        """
         with self.lock:
-            if self.running:
-                return False, len(self.queue)
-            hotels = self.due(force_ids=force_ids)
+            hotels = [h for h in self.due(force_ids=force_ids) if not self.active(h["id"])]
             if not hotels:
                 return True, 0
+            for h in hotels:
+                self.live[h["id"]] = {"state": "queued", "messages": ["Waiting for its turn..."], "started": time.time(), "finished": None, "error": "", "manual": force_ids is not None}
+                if force_ids is not None:
+                    self.manual.add(h["id"])
+            if self.running:
+                self.queue += [h["id"] for h in hotels]
+                return True, len(hotels)
             self.running, self.queue, self.done, self.started, self.current = True, [h["id"] for h in hotels], [], time.time(), ""
         threading.Thread(target=self._loop, name="weekly", daemon=True).start()
         return True, len(hotels)
 
-    def params_for(self, h):
+    def hotel_state(self, hotel_id):
+        """What to show for one hotel's check: {"state": idle|queued|running|done|error, "messages": [last few], "elapsed", "error"}."""
+        with self.lock:
+            s = self.live.get(hotel_id)
+            if not s:
+                return {"state": "idle", "messages": [], "elapsed": 0, "error": ""}
+            return {"state": s["state"], "messages": list(s["messages"][-8:]), "elapsed": round((s["finished"] or time.time()) - s["started"]), "error": s["error"]}
+
+    def params_for(self, h, manual=False):
+        depth = getattr(self.cfg, "ai_depth", "deep") if manual else getattr(self.cfg, "weekly_ai_depth", "standard")
         return {"website": h["website"], "hotel": h["name"], "city": h["city"], "wider": True, "tier": h["tier"] or None,
-                "audiences": [a for a in (h["audiences"] or "").split(",") if a], "depth": getattr(self.cfg, "weekly_ai_depth", "standard")}
+                "audiences": [a for a in (h["audiences"] or "").split(",") if a], "depth": depth}
 
     def check_one(self, hotel_id):
         """Run one hotel's audit now and save it. -> {"hotel", "ok", "token" or "error"}. Never raises."""
@@ -94,14 +117,28 @@ class Weekly:
             res["error"] = "unknown hotel"
             return res
         db.set_hotel(hotel_id, last_attempt=portal_db.now_iso())
+        with self.lock:
+            st = self.live.setdefault(hotel_id, {"state": "running", "messages": [], "started": time.time(), "finished": None, "error": "", "manual": False})
+            st.update(state="running", started=st["started"] or time.time())
+            st["messages"] = ["Starting the check..."]
+            manual = hotel_id in self.manual
+            self.manual.discard(hotel_id)
+
+        def progress(msg):
+            with self.lock:
+                st["messages"].append(str(msg)[:200])
+                del st["messages"][:-30]
         try:
-            rep = self.run_fn(self.params_for(h), None)
+            rep = self.run_fn(self.params_for(h, manual), progress)
             res["token"] = self.reports.save(rep)
             res["ok"] = True
             db.set_hotel(hotel_id, last_error="")
         except Exception as e:  # noqa: BLE001 - one hotel failing must not stop the others
             res["error"] = f"{type(e).__name__}: {str(e)[:200]}"
             db.set_hotel(hotel_id, last_error=res["error"])
+        with self.lock:
+            st.update(state="done" if res["ok"] else "error", finished=time.time(), error=res.get("error", ""))
+            st["messages"].append("Finished." if res["ok"] else "The check did not finish: " + res.get("error", ""))
         return res
 
     def _loop(self):

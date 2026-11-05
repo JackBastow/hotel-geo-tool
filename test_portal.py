@@ -84,7 +84,28 @@ c2 = re.search(r'name="csrf" value="([^"]+)"', form).group(1)
 bad = u.post(link, data={"csrf": c2, "name": "GM", "password": "short", "password2": "short"}).get_data(as_text=True)
 check("a short password is refused with the reason", "at least 10 characters" in bad)
 check("two different passwords are refused", "not the same" in u.post(link, data={"csrf": c2, "name": "GM", "password": "a-long-password-1", "password2": "a-long-password-2"}).get_data(as_text=True))
+W = app.extensions["weekly"]
+real_run, first_calls = W.run_fn, []
+
+
+def stub(params, cb=None):
+    first_calls.append(params)
+    if cb:
+        cb("Reading the website...")
+    raise RuntimeError("stub: no audit in this test")
+
+
+W.run_fn = stub
 ok = u.post(link, data={"csrf": c2, "name": "GM", "password": "a-long-password-1", "password2": "a-long-password-1"}, follow_redirects=False)
+for _ in range(50):
+    if not W.active(ha["id"]) and first_calls:
+        break
+    time.sleep(0.1)
+W.run_fn = real_run
+check("the first time a login is set up for a hotel that has never been checked, its first check starts by itself, with the thorough test", len(first_calls) == 1 and first_calls[0]["website"] == "hotel-a.com" and first_calls[0]["depth"] == "deep", first_calls)
+check("its progress is visible while it runs (and the reason if it fails)", W.hotel_state(ha["id"])["state"] == "error" and "Reading the website..." in W.hotel_state(ha["id"])["messages"])
+db.set_hotel(ha["id"], last_attempt="", last_error="")
+W.live.clear()
 check("a good password creates the login and signs them in", ok.status_code == 302 and ok.headers["Location"].endswith("/portal"))
 check("the password is stored hashed", db.user_by_email("gm@hotel-a.com")["pw_hash"].startswith("scrypt$") and "a-long-password-1" not in db.user_by_email("gm@hotel-a.com")["pw_hash"])
 check("the invite link works once only", app.test_client().get(link).status_code == 410)
@@ -219,6 +240,40 @@ pg = admin.get(f"/admin/hotel/{hc}").get_data(as_text=True)
 check("opening the hotel builds its action list from the latest saved audit, so the dashboard is not empty", len(db.list_actions(hc)) >= 8 and "Recommendations (" in pg and "Recommendations (0)" not in pg, len(db.list_actions(hc)))
 check("each recommendation shows the issue, the evidence, why it matters, what to do and how you will know", all(w in pg for w in ("The issue", "Evidence", "Why it matters", "What to do", "How you will know")))
 check("a stale 'next check' date is shown as the next weekly run, not a date in the past", "at the next weekly run" in pg or "Next automatic check: around" in pg)
+
+print("10. running a check whenever you like, and watching it live")
+import threading
+gate = threading.Event()
+
+
+def slow(params, cb=None):
+    if cb:
+        cb("Reading the website...")
+    gate.wait(5)
+    return fake_run(params, cb)
+
+
+W.run_fn = slow
+r = admin.post(f"/admin/hotel/{hb_id}/run", data={"csrf": csrf})
+check("'Run a check now' starts it and takes you to the hotel page", r.status_code == 302 and r.headers["Location"].endswith(f"/admin/hotel/{hb_id}"))
+time.sleep(0.4)
+stt = admin.get(f"/admin/hotel/{hb_id}/status").get_json()
+check("the status endpoint shows it running, with what it is doing", stt["ok"] and stt["state"] == "running" and "Reading the website..." in stt["messages"], stt)
+pg = admin.get(f"/admin/hotel/{hb_id}").get_data(as_text=True)
+check("the hotel page shows a live box that refreshes itself", 'class="live"' in pg and "Checking the hotel now" in pg and f"/admin/hotel/{hb_id}/status" in pg)
+check("the status endpoint is closed to anyone not signed in to admin", app.test_client().get(f"/admin/hotel/{hb_id}/status").status_code == 401)
+check("asking again while it runs does not start a second one", admin.post(f"/admin/hotel/{hb_id}/run", data={"csrf": csrf}).status_code == 302 and sum(1 for _ in [1]) == 1 and W.hotel_state(hb_id)["state"] == "running")
+gate.set()
+for _ in range(100):
+    if W.hotel_state(hb_id)["state"] in ("done", "error"):
+        break
+    time.sleep(0.1)
+check("when it finishes the state is done, and the page no longer shows the live box", W.hotel_state(hb_id)["state"] == "done" and 'class="live"' not in admin.get(f"/admin/hotel/{hb_id}").get_data(as_text=True))
+W.run_fn = real_run
+check("the portfolio page has buttons to run every hotel, or only the due ones", "Run a check on every hotel now" in admin.get("/admin/portfolio").get_data(as_text=True))
+u9 = app.test_client()
+u9.post("/portal/signin", data={"email": "gm@hotel-a.com", "password": "another-long-pass-9"})
+check("a hotel user can see the status of their own hotel's check only", u9.get(f"/portal/api/status/{ha['id']}").status_code == 200 and u9.get(f"/portal/api/status/{hb_id}").status_code == 404)
 
 print()
 print("FAILURES:", fails if fails else "none")
