@@ -583,11 +583,12 @@ def story(rep, H1):
         nm = (rep.get("listing_checks") or {}).get("names") or []
         if nm:
             out.append(para("How each booking platform shows the hotel's name", "h3"))
+            out.append(para(f"The website calls the hotel \u201c{short((rep.get('listing_checks') or {}).get('summary', {}).get('site_name') or hotel, 80)}\u201d.", "base"))
             rows_n = [["Platform", "Name shown", "Same as the website?", "Difference"]]
             by_row = {(r["platform"], r["fact"]): r for r in (rep.get("listing_checks") or {}).get("rows", [])}
             for n_ in nm:
                 rw = by_row.get((n_["platform"], "Hotel name")) or {}
-                rows_n.append([n_["platform"], short(n_["shown_name"], 70), R.coloured("Yes", R.GOOD) if n_["status"] == "matches" else R.coloured("No", R.BAD), short(rw.get("note") or "-", 90)])
+                rows_n.append([n_["platform"], short(n_["shown_name"], 70), R.coloured("Yes", R.GOOD) if n_["status"] == "matches" else (R.coloured("Close: wording differs", R.WARN) if n_.get("level") == "close" else R.coloured("No", R.BAD)), short(rw.get("note") or "-", 90)])
             out.append(table(rows_n, [0.18, 0.36, 0.16, 0.30]))
             out.append(para("Read from the titles and quoted passages in public search results, not from the platforms' own pages. Check the live listing before changing anything.", "tiny"))
         diffs = [f"{r['platform']}: {r['fact'].lower()} shows {r['listing_says']}, the website says {r['site_says']}" for r in (rep.get("listing_checks") or {}).get("rows", []) if r["status"] == "differs"]

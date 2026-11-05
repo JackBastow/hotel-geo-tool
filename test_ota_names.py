@@ -23,10 +23,17 @@ def check(name, cond, detail=""):
 HOTEL = "Hilton Paris Charles de Gaulle Airport"
 print("1. the name a platform shows")
 check("the platform's own name, prices and the town are removed from a title", lf.shown_name("Hilton Paris Charles de Gaulle Airport, Roissy-en-France (France) - Booking.com") == HOTEL)
-check("an identical name is the same", lf.name_verdict(HOTEL, HOTEL)[0] == "same" and lf.name_verdict("Hilton Paris Charles de Gaulle Airport Hotel", HOTEL)[0] == "same")
+check("an identical name is the same, whatever the capitals, accents or punctuation", lf.name_verdict(HOTEL, HOTEL)[0] == "same" and lf.name_verdict(HOTEL.upper(), HOTEL)[0] == "same")
+check("an extra 'Hotel' on the end is NOT the same: it is a close wording difference, and says so", lf.name_verdict("Hilton Paris Charles de Gaulle Airport Hotel", HOTEL)[0] == "close")
 check("'CDG' and 'Charles de Gaulle' are the same airport written two ways", lf.name_verdict("Hilton Paris CDG Airport", HOTEL)[0] == "same")
 v, why = lf.name_verdict("Hilton Hotel Paris Airport", HOTEL)
-check("a name that drops words is a variant, and says which words", v == "variant" and "charles" in why, (v, why))
+check("a name that drops identifying words is different, and says which words", v == "differs" and "charles" in why, (v, why))
+BH, PL = "Brooklands Hotel", "Surrey/Weybridge"
+sn = lambda t: lf.shown_name(t, BH, PL)      # noqa: E731
+check("'Brooklands Hotel & Spa' and 'Hotel Brooklands' are close but not the same, and the difference is stated", lf.name_verdict(sn("Brooklands Hotel & Spa - Booking.com"), BH, PL) == ("close", "the listing adds and, spa") and lf.name_verdict(sn("Hotel Brooklands - Trivago"), BH, PL)[0] == "close")
+check("'Brooklands Hotel', in capitals, with the town added is the same", lf.name_verdict(sn("BROOKLANDS HOTEL - Tripadvisor"), BH, PL)[0] == "same" and lf.name_verdict(sn("Brooklands Hotel Surrey: Reviews & 2026 prices | Trip.com"), BH, PL)[0] == "same")
+check("a title that holds no name at all ('rate per night') is not shown, never a difference", sn("Hotels in Weybridge - rate per night - Kayak") == "")
+check("an added identifying word is a different name", lf.name_verdict(sn("Brooklands Country Club Hotel - Hotels.com"), BH, PL)[0] == "differs")
 check("a different property's name is flagged as different", lf.name_verdict("Brooklands Hotel", HOTEL)[0] == "differs")
 
 print("2. passages in, comparison rows out")
@@ -40,7 +47,7 @@ check("the name each platform shows is captured", listings["Booking.com"]["name"
 rows = lf.compare(listings, SITE)
 by = {(r["platform"], r["fact"]): r for r in rows}
 check("Booking.com's name matches and its check-in matches", by[("Booking.com", "Hotel name")]["status"] == "matches" and by[("Booking.com", "Check-in time")]["status"] == "matches")
-check("Expedia's shortened name and later check-in time are differences, with the difference in words", by[("Expedia", "Hotel name")]["status"] == "differs" and "charles" in by[("Expedia", "Hotel name")]["note"] and by[("Expedia", "Check-in time")]["status"] == "differs")
+check("Expedia's shortened name and later check-in time are differences, with the difference in words", by[("Expedia", "Hotel name")]["status"] == "differs" and by[("Expedia", "Hotel name")]["level"] == "differs" and "charles" in by[("Expedia", "Hotel name")]["note"] and by[("Expedia", "Check-in time")]["status"] == "differs")
 lc = {"rows": rows, "listings": {}, "former_name": [], "names": [{"platform": p, "shown_name": l["name"], "status": by[(p, "Hotel name")]["status"], "url": l["url"]} for p, l in listings.items()]}
 recs = advice._from_listing_checks(lc)
 check("the differences become one recommendation that names them", recs and "hotel name" in recs[0]["finding"] and "Expedia" in recs[0]["finding"], recs[0]["finding"] if recs else "")
@@ -61,6 +68,9 @@ d = scoring.apply_listings(s1, lc)
 ota = next(c for c in s1["categories"] if c["key"] == "otas")
 check("differences lower the OTA score (10 points each) and the evidence says why", d < 0 and ota["score"] == 75 - 10 * len([r for r in rows if r["status"] == "differs"]) and "Lowered from 75" in ota["evidence"][-1], (ota["score"], ota["evidence"][-1]))
 check("the overall score is worked out again", s1["overall"] != base["overall"])
+sc_close = sc()
+scoring.apply_listings(sc_close, {"rows": [{"platform": "A", "fact": "Hotel name", "status": "differs", "level": "close", "listing_says": "x", "site_says": "y", "url": "u", "passage": ""}]})
+check("a wording-only difference costs 3 points, not 10", next(c for c in sc_close["categories"] if c["key"] == "otas")["score"] == 72)
 good = [{"platform": p, "fact": f, "listing_says": "x", "site_says": "x", "status": "matches", "url": "u", "passage": ""} for p in ("Booking.com", "Expedia") for f in ("Hotel name", "Check-in time", "Telephone")]
 s2 = sc()
 scoring.apply_listings(s2, {"rows": good})

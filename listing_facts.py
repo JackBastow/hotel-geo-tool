@@ -36,31 +36,65 @@ _TITLE_SPLIT = re.compile(r"\s[-|\u2013\u2014]\s|\s\|\s|,\s|\s\(")
 _TITLE_NOISE = re.compile(r"\b(?:updated\s+)?20\d\d\s+prices?\b|\bfrom\s+[£€$]\s?\d+\b|\breviews?\b|\bphotos?\b|\bdeals?\b|\bbooking\.com\b|\btripadvisor\b|\bexpedia\b|\bhotels\.com\b|\btrivago\b|\bagoda\b|\bkayak\b|\btrip\.com\b|\blastminute\.com\b|\bbook now\b|\bsave\b", re.I)
 
 
-def shown_name(title):
-    """The hotel's name as a platform's page title shows it: the first part of the title, without the platform's own name, prices, 'reviews' or the town after a comma."""
-    first = _TITLE_SPLIT.split(title or "")[0]
-    first = _TITLE_NOISE.sub(" ", first)
-    return " ".join(first.split()).strip(" -|:,")
+def _words(text):
+    """Lower-case words with accents and punctuation removed and '&' read as 'and': the plain wording of a name."""
+    t = evidence.fold(text).replace("&", " and ")
+    return re.findall(r"[a-z0-9]+", t)
 
 
-def name_verdict(shown, hotel):
-    """('same' | 'variant' | 'differs', why): the name a platform shows against the hotel's own, on the words that identify it (brand, place, distinctive terms), not on 'hotel' or 'the'."""
-    a, b = set(evidence.distinctive_tokens(hotel)), set(evidence.distinctive_tokens(shown))
-    import forums
-    for k, code in forums.AIRPORT_CODE.items():              # 'CDG' and 'Charles de Gaulle' are the same airport written two ways
-        kt = set(evidence.fold(k).split())
-        if code.lower() in b and kt <= a:
-            b = (b - {code.lower()}) | kt
-        elif code.lower() in a and kt <= b:
-            a = (a - {code.lower()}) | kt
-    if not a or not b:
+def _place_words(place):
+    return set(_words(place or "")) | {"england", "uk", "united", "kingdom", "france", "scotland", "wales"}
+
+
+def shown_name(title, hotel="", place=""):
+    """
+    The hotel's name as a platform's page title shows it. The title is cut at its separators, the piece that is most like the hotel's name is kept, and the platform's own name, prices, years, 'reviews' and the town
+    are taken off. When no piece looks like the hotel's name at all (a title such as 'rate per night'), nothing is returned: a name that cannot be read is 'not shown', never a difference.
+    """
+    parts = [p for p in re.split(r"\s[-|\u2013\u2014]\s|\s\|\s|:\s|,\s|\s\(", title or "") if p.strip()]
+    want = set(evidence.distinctive_tokens(hotel)) if hotel else set()
+    best, best_score = None, 0
+    for p in parts[:4]:
+        cleaned = " ".join(_TITLE_NOISE.sub(" ", p).split()).strip(" -|:,&")
+        cleaned = re.sub(r"\b20\d\d\b", " ", cleaned)
+        words = _words(cleaned)
+        while words and words[-1] in _place_words(place):               # 'Brooklands Hotel Surrey' -> the town or county is not part of the name
+            words.pop()
+        cleaned = " ".join(cleaned.split()[: len(words)]) if words else ""
+        score = len(want & set(_words(cleaned))) if want else (1 if cleaned else 0)
+        if score > best_score:
+            best, best_score = cleaned.strip(" -|:,&"), score
+    return best or ""
+
+
+GENERIC_NAME = {"hotel", "hotels", "spa", "resort", "the", "and", "inn", "suites", "suite", "lodge", "apartments", "house"}
+
+
+def name_verdict(shown, hotel, place=""):
+    """
+    ('same' | 'close' | 'differs', why) for the name a platform shows against the hotel's own.
+      same     the same words, ignoring capitals, accents and punctuation ('&' = 'and'), and the town
+      close    the same identifying words, but with extra or missing 'Hotel', 'Spa', 'and', 'The', or in another order ('Brooklands Hotel & Spa', 'Hotel Brooklands')
+      differs  an identifying word is added or missing ('Brooklands Country Club Hotel')
+    """
+    pw = _place_words(place)
+    sa, sb = [w for w in _words(hotel) if w not in pw], [w for w in _words(shown) if w not in pw]
+    for k, code in __import__("forums").AIRPORT_CODE.items():              # 'CDG' and 'Charles de Gaulle' are the same airport written two ways
+        kt = _words(k)
+        c = code.lower()
+        for lst, other in ((sb, sa), (sa, sb)):
+            if c in lst and all(w in other for w in kt):
+                i = lst.index(c)
+                lst[i:i + 1] = kt
+    if not sa or not sb:
         return "same", ""
-    if a == b:
+    if sa == sb:
         return "same", ""
-    only_site, only_listing = sorted(a - b), sorted(b - a)
-    ratio = len(a & b) / len(a | b)
-    why = ("the listing adds " + ", ".join(only_listing) if only_listing else "") + ("; " if only_listing and only_site else "") + ("the listing leaves out " + ", ".join(only_site) if only_site else "")
-    return ("variant" if ratio >= 0.5 else "differs"), why
+    ca, cb = {w for w in sa if w not in GENERIC_NAME}, {w for w in sb if w not in GENERIC_NAME}
+    only_site, only_listing = [w for w in sa if w not in sb], [w for w in sb if w not in sa]
+    bits = (["the listing adds " + ", ".join(only_listing)] if only_listing else []) + (["the listing leaves out " + ", ".join(only_site)] if only_site else [])
+    why = "; ".join(bits) or "the words are in a different order"
+    return ("close" if ca == cb else "differs"), why
 
 
 def _postcode(text):
@@ -105,8 +139,9 @@ def listing_facts(passages, hotel, site=None):
             if not ((pc and pc.upper().replace(" ", "") in blob.upper().replace(" ", "")) or (len(ph) >= 9 and ph[-9:] in re.sub(r"\D", "", blob))):
                 continue
         r = out.setdefault(plat, {"url": p["url"], "title": p.get("title", ""), "check_in": None, "check_out": None, "stars": None, "phone": None, "name": None, "postcode": None, "quotes": {}})
-        if not r["name"] and shown_name(p.get("title", "")):
-            r["name"], r["quotes"]["name"] = shown_name(p.get("title", "")), (p.get("title") or "")[:200]
+        nm_ = shown_name(p.get("title", ""), hotel, (site or {}).get("place", ""))
+        if not r["name"] and nm_:
+            r["name"], r["quotes"]["name"] = nm_, (p.get("title") or "")[:200]
         pc = _postcode(text) or _postcode(p.get("title", ""))
         if pc and not r["postcode"]:
             r["postcode"], r["quotes"]["postcode"] = pc, text[:200]
@@ -144,6 +179,7 @@ def site_facts(guest, own_pages, hotel="", location=None):
         k["postcode"] = pc
     if hotel:
         k["name"] = hotel
+    k["place"] = " ".join(x for x in ((location or {}).get("city"), (location or {}).get("region")) if x)
     return k
 
 
@@ -159,8 +195,8 @@ def compare(listings, site):
             if lv is None or sv is None:
                 continue
             if fact == "name":
-                verdict, why = name_verdict(lv, sv)
-                rows.append({"platform": plat, "fact": LABEL[fact], "listing_says": lv, "site_says": sv, "status": "matches" if verdict == "same" else "differs", "note": why,
+                verdict, why = name_verdict(lv, sv, site.get("place", ""))
+                rows.append({"platform": plat, "fact": LABEL[fact], "listing_says": lv, "site_says": sv, "status": "matches" if verdict == "same" else "differs", "level": verdict, "note": why,
                              "url": l["url"], "passage": l["quotes"].get(fact, "")})
                 continue
             if fact == "phone":
@@ -215,7 +251,8 @@ def build(lookup, hotel, guest, own_pages, former, location=None):
     rows = compare(listings, site)
     hits = former_name_hits(passages, (lookup or {}).get("pages"), former, hotel)
     shown = {p: {k: v for k, v in l.items() if k != "quotes"} for p, l in listings.items()}
-    names = [{"platform": p, "shown_name": l["name"], "status": next((r["status"] for r in rows if r["platform"] == p and r["fact"] == "Hotel name"), "matches"), "url": l["url"]} for p, l in listings.items() if l.get("name")]
+    names = [{"platform": p, "shown_name": l["name"], "status": next((r["status"] for r in rows if r["platform"] == p and r["fact"] == "Hotel name"), "matches"),
+              "level": next((r.get("level") for r in rows if r["platform"] == p and r["fact"] == "Hotel name"), "same"), "url": l["url"]} for p, l in listings.items() if l.get("name")]
     return {"source": SOURCE, "listings": shown, "rows": rows, "former_name": hits, "names": names,
             "summary": {"platforms_quoted": len(listings), "compared": len(rows), "differs": sum(1 for r in rows if r["status"] == "differs"), "former_name": len(hits),
-                        "names_shown": len(names), "names_differ": sum(1 for n in names if n["status"] == "differs")}}
+                        "names_shown": len(names), "names_differ": sum(1 for n in names if n["status"] == "differs"), "site_name": hotel}}

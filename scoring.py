@@ -1078,6 +1078,7 @@ def apply_identity(scorecard, name_forms, fact_differences):
     return before - ent["score"]
 
 
+LISTING_CLOSE_PENALTY = 3          # a name that differs only in 'Hotel', 'Spa', 'and' or word order costs less than a different name or a different fact
 LISTING_DIFF_PENALTY = 10           # points off OTAs & Travel Platforms for each fact (name, address, phone, check-in...) a platform shows differently from the website
 LISTING_VERIFIED_BONUS = 15         # presence alone is capped at 75; platforms whose quoted details were checked and agree can lift it to 90 (never higher: the platforms' own pages are not read)
 LISTING_MIN_COMPARISONS = 4
@@ -1105,7 +1106,8 @@ def apply_listings(scorecard, listing_checks):
     plats = {r["platform"] for r in rows}
     before = ota["score"]
     if diffs:
-        ota["score"] = max(0, before - LISTING_DIFF_PENALTY * min(len(diffs), 4))
+        pen = sum(LISTING_CLOSE_PENALTY if r.get("level") == "close" else LISTING_DIFF_PENALTY for r in diffs)
+        ota["score"] = max(0, before - min(pen, 4 * LISTING_DIFF_PENALTY))
         line = f"Lowered from {before} to {ota['score']}: {len(diffs)} detail(s) on {', '.join(sorted({r['platform'] for r in diffs}))} differ from the website (" + "; ".join(f"{r['fact'].lower()}" for r in diffs[:4]) + ")"
     elif len(rows) >= LISTING_MIN_COMPARISONS and len(plats) >= 2:
         ota["score"] = min(90, before + LISTING_VERIFIED_BONUS)

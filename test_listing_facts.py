@@ -56,7 +56,7 @@ check("Expedia's 15:00 matches, and 'before noon' is read as 12:00, which matche
 check("a fact only one side states is not a row (that is 'not shown', not a difference)", ("TripAdvisor", "Check-in time") not in by and len(lf.compare(ls, {})) == 0)
 check("the site's facts come from its fact sheet and star rating",
       lf.site_facts({"fact_sheet": [{"fact": "Check-in time", "value": "from 15:00"}, {"fact": "Telephone", "value": "+33 1 40 07 34 34"}]}, [{"text": "our 5-star hotel"}])
-      == {"check_in": "15:00", "phone": "33140073434", "stars": 5})
+      == {"check_in": "15:00", "phone": "33140073434", "stars": 5, "place": ""})
 
 print("3. a listing that still shows a former name")
 former = [{"name": "Marriott Opera Ambassador", "basis": "wording on the hotel's own site", "source": "x", "url": ""},
@@ -70,7 +70,7 @@ check("a name that is only an inference from an archived homepage title is never
 
 print("4. the whole block, and the advice")
 blk = lf.build({"passages": P, "pages": []}, HOTEL, {"fact_sheet": [{"fact": "Check-in time", "value": "15:00"}, {"fact": "Check-out time", "value": "12:00"}]}, [{"text": "our 5-star hotel"}], [])
-check("the block summarises quoted listings, facts compared and differences", blk["summary"]["platforms_quoted"] == 3 and blk["summary"]["compared"] == 8 and blk["summary"]["differs"] == 2 and blk["summary"]["names_shown"] == 3 and blk["summary"]["names_differ"] == 0, blk["summary"])
+check("the block summarises quoted listings, facts compared and differences", blk["summary"]["platforms_quoted"] == 3 and blk["summary"]["compared"] == 8 and blk["summary"]["differs"] == 3 and blk["summary"]["names_shown"] == 3 and blk["summary"]["names_differ"] == 1, blk["summary"])
 check("the block carries no passages or text beyond the quoted figures' short quotes", "passages" not in blk and all(len(r["passage"]) <= 200 for r in blk["rows"]))
 check("no quoted passages, no block", lf.build({"passages": []}, HOTEL, {}, [], []) is None and lf.build(None, HOTEL, {}, [], []) is None)
 recs = advice._from_listing_checks({**blk, "former_name": hits})

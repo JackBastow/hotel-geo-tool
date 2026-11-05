@@ -1064,7 +1064,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     # What each travel site shows (from quoted passages in public search results) against the hotel's own site, and any listing still carrying a former name.
     try:
         _former = ((intel_result or {}).get("identity") or {}).get("former_names") if isinstance(intel_result, dict) and "error" not in intel_result else []
-        listing_checks = listing_facts.build(listing_result, hotel, guest, own_pages, _former, location)
+        listing_checks = listing_facts.build(listing_result, hotel, guest, own_pages, _former, {**(location or {}), "region": city})
     except Exception:  # noqa: BLE001 - an extra; the audit stands without it
         listing_checks = None
 
