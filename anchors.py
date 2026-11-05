@@ -15,6 +15,7 @@ import time
 import urllib.parse
 
 import evidence
+import placenames
 import places
 
 UA = "HotelDiscoverabilityAudit/1.0 (independent hotel visibility audit; respects usage limits)"
@@ -52,6 +53,10 @@ def from_pages(own_pages, hotel, osm_ctx=None, max_km=2.5):
             for m in places.mentions(p.get("text", ""), kind, hotel, osm_ctx):
                 if not m.get("distance"):
                     continue
+                name = placenames.clean_airport(m["name"]) if kind == "airport" else (m["name"] if placenames.ok(m["name"]) else None)
+                if not name:
+                    continue                                         # a scrap of a sentence, not a place
+                m = {**m, "name": name}
                 km = km_from_text(m["distance"])
                 key = evidence.fold(m["name"])
                 if km is None or km > max_km or key in seen:
@@ -82,6 +87,12 @@ def geocode(hotel, city, fetch, with_country=False):
             except (KeyError, ValueError):
                 continue
     return None
+
+
+def wikipedia_titles(lat, lon, fetch, radius_m=5000):
+    """The titles of Wikipedia articles within `radius_m` of a point (one request): what the surrounding places are called."""
+    r = fetch(WIKI + "?" + urllib.parse.urlencode({"action": "query", "list": "geosearch", "gscoord": f"{lat}|{lon}", "gsradius": radius_m, "gslimit": 200, "format": "json"}), headers={"User-Agent": UA}, timeout=10)
+    return [h.get("title", "") for h in ((r.json().get("query") or {}).get("geosearch") or [])] if r.status_code == 200 else []
 
 
 def wikipedia_nearby(lat, lon, fetch, radius_m=1500, limit=12):
@@ -129,6 +140,12 @@ def find(own_pages, hotel, city, osm_ctx=None, location=None, fetch=None, deadli
             wiki = wikipedia_nearby(out["coords"][0], out["coords"][1], fetch)
     except Exception:  # noqa: BLE001
         wiki = []
+    # a place the hotel's page names is used only if it is also a known place near the hotel (Wikipedia's articles within 5 km of its coordinates); with no coordinates, only the very close ones
+    try:
+        titles = wikipedia_titles(out["coords"][0], out["coords"][1], fetch) if out["coords"] and time.time() - t0 < deadline_s else []
+    except Exception:  # noqa: BLE001
+        titles = []
+    own = [a for a in own if a["kind"] not in ("attraction", "venue") or (placenames.near(a["name"], titles) if titles else True)]
     known = {evidence.fold(a["name"]) for a in own}
     fresh = [w for w in wiki if evidence.fold(w["name"]) not in known and not any(evidence.fold(w["name"]) in k or k in evidence.fold(w["name"]) for k in known)]
     famous = [w for w in fresh if w["views"] >= 2000 and w["km"] <= 0.8]          # a landmark people know, right beside the hotel: what travellers search around

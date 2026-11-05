@@ -16,6 +16,7 @@ Rules:
 import re
 
 import ai_sample
+import placenames
 import evidence
 
 _WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
@@ -63,8 +64,9 @@ def airport_from_text(texts, max_km=MAX_AIRPORT_KM, hotel=""):
             d = float(m.group("d").replace(",", "."))
             unit = m.group("u").lower()
             km = d * 1.609 if unit.startswith("mi") and not unit.startswith("min") else (d * 0.8 if unit.startswith("min") else d)
-            if km <= max_km and (best is None or km < best[1]):
-                best = (" ".join(words) + " Airport", round(km, 1))
+            name = placenames.clean_airport(" ".join(words) + " Airport")         # 'Parking Lot Airports Düsseldorf Airport' is a scrap of a sentence: keep only the airport's real name
+            if name and km <= max_km and (best is None or km < best[1]):
+                best = (name, round(km, 1))
     return best
 
 
@@ -137,11 +139,11 @@ def profile(hotel, city, entities, osm_ctx, own_pages, features, intents, hint=N
     insight_content already computed from the pages. `hint` is what the hotel itself says: {"tier": "luxury|upscale|midscale|budget", "audiences": [keys]}.
     """
     texts = [p.get("text", "") for p in own_pages or []]
-    ap = airport_from_text(texts, hotel=hotel)
-    ap_src = "the hotel's own pages"
+    ap = airport_from_map(osm_ctx)                 # the map knows the real airports around the hotel; the hotel's own words are the fallback
+    ap_src = "the map"
     if ap is None:
-        ap = airport_from_map(osm_ctx)
-        ap_src = "the map"
+        ap = airport_from_text(texts, hotel=hotel)
+        ap_src = "the hotel's own pages"
     airport = {"name": ap[0], "km": ap[1], "source": ap_src} if ap else None
     stars = stars_from_text(texts)
     level = {r["key"]: r.get("level") for r in intents or []}

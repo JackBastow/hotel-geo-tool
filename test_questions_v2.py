@@ -41,7 +41,7 @@ def web(url, headers=None, timeout=10):
         return Resp([{"lat": "48.8712", "lon": "2.3318", "display_name": "Paris Marriott Opera Ambassador Hotel, Paris, France", "address": {"city": "Paris"}}])
     if "geosearch" in url:
         return Resp({"query": {"geosearch": [{"title": "Palais Garnier", "dist": 180}, {"title": "9th arrondissement of Paris", "dist": 300}, {"title": "Opéra (Paris Métro)", "dist": 120},
-                                                {"title": "Galeries Lafayette", "dist": 450}, {"title": "Opéra-Comique", "dist": 700}, {"title": "Some Obscure Courtyard", "dist": 90}]}})
+                                                {"title": "Galeries Lafayette", "dist": 450}, {"title": "Opéra-Comique", "dist": 700}, {"title": "Some Obscure Courtyard", "dist": 90}, {"title": "Louvre", "dist": 1200}]}})
     if "pageviews" in url:
         return Resp({"query": {"pages": {"1": {"title": "Palais Garnier", "pageviews": {"d1": 30000, "d2": 22000}}, "2": {"title": "Galeries Lafayette", "pageviews": {"d1": 9000}},
                                          "3": {"title": "Opéra-Comique", "pageviews": {"d1": 3000}}, "4": {"title": "Some Obscure Courtyard", "pageviews": {"d1": 40}}}}})
