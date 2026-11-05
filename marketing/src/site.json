@@ -24,6 +24,15 @@
         "monthly": "https://buy.stripe.com/6oUbIU2lkeV6bj16pXbsc03",
         "annual": ""
       }
+    },
+    "prices": {
+      "single": {
+        "monthly": "",
+        "annual": ""
+      },
+      "portfolio": {
+        "monthly": ""
+      }
     }
   },
   "plans": [

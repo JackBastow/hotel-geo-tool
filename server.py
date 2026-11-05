@@ -28,6 +28,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import ai_niche
 import audit_service
 import chat
+import checkout
 import compare
 import headline
 import jobs
@@ -200,7 +201,7 @@ def create_app(cfg=None, run_fn=None):
         m = re.match(r"^/(?:r|api/r)/([A-Za-z0-9_-]{20,64})(?:/|$)", request.path)
         if session.get("uid") and ((m and app.extensions["portal_can_see_token"](m.group(1))) or request.path == "/api/feedback"):
             return None                                                  # a signed-in hotel user may open their own hotel's reports
-        if request.path in ("/healthz", "/login", "/api/chat") or request.path.startswith("/static/"):      # the marketing site's chat only answers questions about the product, so a site password does not need to close it
+        if request.path in ("/healthz", "/login", "/api/chat", "/api/checkout") or request.path.startswith("/static/"):      # the marketing site's chat only answers questions about the product, so a site password does not need to close it
             return None
         if request.path.startswith("/api/"):
             return jsonify(ok=False, error="Please sign in first."), 401
@@ -248,7 +249,7 @@ def create_app(cfg=None, run_fn=None):
             resp.headers["Cache-Control"] = "no-store"
             resp.headers["X-Robots-Tag"] = "noindex, nofollow"
         origin = (request.headers.get("Origin") or "").rstrip("/")
-        if request.path == "/api/chat" and origin in chat.allowed_origins():       # only the chat route is open to the marketing site's address
+        if request.path in ("/api/chat", "/api/checkout") and origin in chat.allowed_origins():       # only the chat route is open to the marketing site's address
             resp.headers["Access-Control-Allow-Origin"] = origin
             resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
             resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
@@ -290,6 +291,25 @@ def create_app(cfg=None, run_fn=None):
         try:
             return jsonify(ok=True, reply=chat.reply(msgs, cfg.anthropic))
         except chat.Unavailable as e:
+            return jsonify(ok=False, error=str(e)), 503
+
+    checkout_limiter = chat.Limiter(limit=10)
+
+    @app.route("/api/checkout", methods=["POST", "OPTIONS"])
+    def api_checkout():
+        """Opens a Stripe Checkout with the chosen number of hotels already filled in (checkout.py). Only the marketing site may call it; prices come from the server, never the browser."""
+        if request.method == "OPTIONS":
+            return "", 204
+        if (request.headers.get("Origin") or "").rstrip("/") not in chat.allowed_origins():
+            return jsonify(ok=False, error="Not available from here."), 403
+        d = request.get_json(silent=True) or {}
+        if not checkout_limiter.allow(visitor_id()):
+            return jsonify(ok=False, error="Too many attempts. Please try again in a few minutes."), 429
+        try:
+            return jsonify(ok=True, url=checkout.create(str(d.get("plan") or ""), str(d.get("interval") or "monthly"), d.get("quantity"), os.environ.get("STRIPE_SECRET_KEY", "").strip()))
+        except checkout.Invalid as e:
+            return jsonify(ok=False, error=str(e)), 400
+        except checkout.Unavailable as e:
             return jsonify(ok=False, error=str(e)), 503
 
     @app.post("/api/audit")

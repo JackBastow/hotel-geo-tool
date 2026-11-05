@@ -69,6 +69,22 @@
     i.addEventListener("input", calcs);
     i.addEventListener("change", function () { var c = i.closest("[data-calc]"), lo = parseInt(c.getAttribute("data-min"), 10) || 1; if ((parseInt(i.value, 10) || 0) < lo) i.value = lo; calcs(); });
   });
+  // Subscribe: open Stripe with the number of hotels already chosen. If that cannot be done, fall back to the plain Payment Link.
+  $$("[data-buy]").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      if (!cfg.CHECKOUT_ON || !cfg.CHECKOUT_URL) return;
+      var card = a.closest(".plan"), box = card && $("[data-calc] input", card);
+      if (!box) return;
+      e.preventDefault();
+      var go = a.getAttribute("href"), label = a.textContent;
+      a.textContent = "Opening checkout\u2026"; a.setAttribute("aria-busy", "true");
+      var qty = parseInt(box.value, 10) || 1, plan = a.getAttribute("data-buy");
+      var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, 70000);   // the free host can take a minute to wake
+      fetch(cfg.CHECKOUT_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: plan, interval: interval, quantity: qty }), signal: ctl.signal })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (r.ok && j.ok && j.url) { window.location.href = j.url; return; } if (r.status === 400 && j.error) { throw new Error(j.error); } window.location.href = go; }); })
+        .catch(function (err) { clearTimeout(t); a.textContent = label; a.removeAttribute("aria-busy"); if (err && err.message && err.name !== "AbortError" && err.message !== "Failed to fetch") { alert(err.message); } else { window.location.href = go; } });
+    });
+  });
   $$(".toggle button").forEach(function (b) { b.addEventListener("click", function () { interval = b.getAttribute("data-interval"); paint(); }); });
   if ($("[data-buy]")) paint();
 

@@ -23,4 +23,8 @@ Reports are prepared for subscribers by Presence Pro; there is no self-service t
 - {{ url }}/sample-report.html
 - {{ url }}/pricing.html
 - {{ url }}/about.html
+- {{ url }}/guides.html
+- {{ url }}/how-ai-assistants-choose-hotels.html
+- {{ url }}/hotel-ai-visibility-checklist.html
+- {{ url }}/ai-travel-planning-statistics.html
 - {{ url }}/contact.html

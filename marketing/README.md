@@ -52,6 +52,13 @@ The site is on GitHub Pages at `presencepro.co.uk`; the audit tool stays on Rend
 ### 3b. Forms that send from the page (no email app opens)
 The contact form and the welcome-page hotel details form send straight from the page once a form service is set. Easiest is **Web3Forms** (free, no account): enter `hello@presencepro.co.uk` at web3forms.com, copy the access key from the email it sends, and put it in `form_key` in `src/site.json`. (It is meant to be public; it only lets visitors send mail to you.) Prefer Formspree? Create a form there and put its address in `form_endpoint` instead. Until one is set, the forms fall back to opening the visitor's email app, and the build warns about it.
 
+### 3c. One choice of hotel count, not two (our own Stripe checkout)
+A Payment Link can't be opened with a quantity already chosen, so a visitor would pick the number of hotels on our page and again on Stripe's. `checkout.py` (route `/api/checkout` in the Flask app) fixes that: the visitor's number goes to Stripe already filled in. To switch it on:
+1. In Stripe, open each price (Product catalog, the product, click the price) and copy its **Price ID** (starts `price_`). You need three: Single hotel monthly, Single hotel yearly, Portfolio monthly (the flat 89.99 one). Put them in `stripe.prices` in `src/site.json` (they are not secret).
+2. In Stripe, Developers, API keys, **Create restricted key**. Give it one permission only: **Checkout Sessions: Write**. Copy the key.
+3. In Render, open the service, Environment, add **`STRIPE_SECRET_KEY`** with that key, and save. Never put the key in the code, the repository or a chat.
+Until both are done the Subscribe buttons simply use the Payment Links, so nothing breaks. Prices are fixed on the server, so a visitor cannot change what a hotel costs; Portfolio refuses fewer than five hotels.
+
 ### 4. The chat assistant
 It runs inside the Flask app (`chat.py`, route `/api/chat`), so it needs nothing extra on Render beyond the `ANTHROPIC_API_KEY` already set. It answers only from a fact sheet built from `site.json`, never stores conversations, and is limited per visitor (12 messages in ten minutes), per month (3,000 replies, `CHAT_MONTHLY_CAP`) and by the shared Claude spend guard. Typical cost is a fraction of a penny a reply (`CHAT_MODEL`, default `claude-haiku-5-5`). Only `presencepro.co.uk`, `www.presencepro.co.uk` and localhost may call it; add others with `CHAT_ALLOWED_ORIGINS`. Without a key the chat still answers the quick-question buttons and points people to email for anything else. Note the Render free plan sleeps, so the first typed question after a quiet spell can take up to a minute (the widget says so).
 
