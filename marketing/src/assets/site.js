@@ -5,6 +5,13 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
 
+  // Sends a form to the form service named in site.json (Web3Forms or Formspree), so the visitor never leaves the page. Resolves once it was accepted.
+  window.PPsend = function (data, subject) {
+    if (cfg.FORM_KEY) { data.append("access_key", cfg.FORM_KEY); data.append("subject", subject); data.append("from_name", "Presence Pro website"); }
+    return fetch(cfg.FORM_ENDPOINT, { method: "POST", headers: { Accept: "application/json" }, body: data })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || j.success === false) throw new Error(j.message || r.status); }); });
+  };
+
   // nav: solid once scrolled, mobile menu
   var nav = $("#nav"), links = $("#links"), btn = $("#menuBtn");
   function stick() { nav.classList.toggle("stuck", window.scrollY > 24); }
@@ -95,9 +102,13 @@
       var email = String(d.get("email") || "").trim();
       if (!String(d.get("name") || "").trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !String(d.get("message") || "").trim()) { say("err", "Please add your name, a valid email and a message."); return; }
       if (cfg.FORM_ENDPOINT) {
-        fetch(cfg.FORM_ENDPOINT, { method: "POST", headers: { Accept: "application/json" }, body: d })
-          .then(function (r) { if (!r.ok) throw new Error(r.status); form.reset(); say("ok", "Thanks, your message has been sent."); })
-          .catch(function () { say("err", "Sorry, that didn't send. Please email " + cfg.EMAIL + " instead."); });
+        var label = form.topic ? form.topic.options[form.topic.selectedIndex].text : "";
+        d.set("topic", label);
+        var btn = form.querySelector("button[type=submit]"); btn.disabled = true;
+        window.PPsend(d, "Presence Pro enquiry: " + label)
+          .then(function () { form.reset(); say("ok", "Thanks, your message has been sent. We'll reply to " + email + "."); })
+          .catch(function () { say("err", "Sorry, that didn't send. Please email " + cfg.EMAIL + " instead."); })
+          .then(function () { btn.disabled = false; });
       } else {
         var topic = form.topic ? form.topic.options[form.topic.selectedIndex].text : "";
         var body = "Name: " + d.get("name") + "\nEmail: " + email + "\nHotel website: " + (d.get("website") || "") + "\nAbout: " + topic + "\n\n" + d.get("message");
@@ -143,9 +154,11 @@
     var text = "Name: " + d.get("name") + "\nEmail: " + email + "\n\nHotels (name | town or city | website):\n" + list + "\n\nNotes: " + (d.get("message") || "");
     if (cfg.FORM_ENDPOINT) {
       var out = new FormData(); out.append("name", d.get("name")); out.append("email", email); out.append("hotels", list); out.append("message", d.get("message") || "");
-      fetch(cfg.FORM_ENDPOINT, { method: "POST", headers: { Accept: "application/json" }, body: out })
-        .then(function (r) { if (!r.ok) throw new Error(r.status); say("ok", "Thanks, we have your hotel details."); })
-        .catch(function () { say("err", "Sorry, that didn't send. Please email " + cfg.EMAIL + " instead."); });
+      var sendBtn = form.querySelector("button[type=submit]"); sendBtn.disabled = true;
+      window.PPsend(out, "Presence Pro: hotel details from " + email)
+        .then(function () { say("ok", "Thanks, we have your hotel details. We'll be in touch at " + email + "."); })
+        .catch(function () { say("err", "Sorry, that didn't send. Please email " + cfg.EMAIL + " instead."); })
+        .then(function () { sendBtn.disabled = false; });
     } else {
       window.location.href = "mailto:" + cfg.EMAIL + "?subject=" + encodeURIComponent("Presence Pro: my hotel details") + "&body=" + encodeURIComponent(text);
       say("ok", "Your email app should open with your details ready to send. If it doesn't, email them to " + cfg.EMAIL + ".");
