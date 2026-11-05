@@ -50,6 +50,14 @@ check("the button note states the number and price", "7 hotels at £89.99 each p
 one = checkout.build_params("single", "annual", 1)
 check("a yearly single hotel uses the yearly price and says 'your hotel' for one", one["line_items[0][price]"] == "price_single_y" and "Name of your hotel" == one["custom_fields[0][label][custom]"] and "1 hotel at £499.99 each per year" in one["custom_text[submit][message]"])
 check("Portfolio has no yearly price, so a yearly request becomes monthly", checkout.build_params("portfolio", "annual", 5)["line_items[0][price]"] == "price_port_m")
+chat._site_cache["v"] = {**SITE, "stripe": {"prices": {"single": {"monthly": "price_single_m", "annual": ""}, "portfolio": {"monthly": "price_port_m"}}}}
+try:
+    checkout.build_params("single", "annual", 2)
+    check("a yearly request with no yearly price id is refused, never sold as monthly", False)
+except checkout.Unavailable as e:
+    check("a yearly request with no yearly price id is refused, never sold as monthly", "Yearly checkout is not set up" in str(e))
+check("the same request for monthly still works", checkout.build_params("single", "monthly", 2)["line_items[0][price]"] == "price_single_m")
+chat._site_cache["v"] = SITE
 
 print("2. what is refused")
 for plan, interval, qty, why in (("portfolio", "monthly", 4, "below the minimum of five"), ("single", "monthly", 0, "zero hotels"), ("single", "monthly", 500, "too many"), ("single", "monthly", "lots", "not a number"), ("nope", "monthly", 1, "unknown plan")):

@@ -27,13 +27,14 @@
     },
     "prices": {
       "single": {
-        "monthly": "",
-        "annual": ""
+        "monthly": "price_1UYWDZ2WcAnvpfpqkAw8OR4S",
+        "annual": "price_1UYWEG2WcAnvpfpqUI3r8BYF"
       },
       "portfolio": {
-        "monthly": ""
+        "monthly": "price_1UYWvG2WcAnvpfpqqBAjc7tE"
       }
-    }
+    },
+    "checkout": false
   },
   "plans": [
     {

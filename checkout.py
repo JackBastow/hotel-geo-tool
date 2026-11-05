@@ -48,8 +48,11 @@ def build_params(plan_id, interval, quantity):
     if not plan:
         raise Invalid("Unknown plan.")
     interval = interval if interval in ("monthly", "annual") else "monthly"
-    if interval == "annual" and not (plan.get("annual") and price_id(plan_id, "annual")):
-        interval = "monthly"
+    if interval == "annual":
+        if not plan.get("annual"):
+            interval = "monthly"                                    # this plan is monthly only (Portfolio)
+        elif not price_id(plan_id, "annual"):
+            raise Unavailable("Yearly checkout is not set up yet.")   # never sell the monthly price to someone who asked for yearly
     pid = price_id(plan_id, interval)
     if not pid:
         raise Unavailable("This plan cannot be bought online yet.")
