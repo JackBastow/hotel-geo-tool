@@ -34,7 +34,7 @@
         "monthly": "price_1UYWvG2WcAnvpfpqqBAjc7tE"
       }
     },
-    "checkout": false
+    "checkout": true
   },
   "plans": [
     {
