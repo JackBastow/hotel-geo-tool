@@ -195,8 +195,8 @@ def create_app(cfg=None, run_fn=None):
     def site_gate():
         if not cfg.site_password or session.get("site_ok") is True:
             return None
-        if request.path.startswith(("/portal", "/internal/")):         # the hotel portal has its own sign-in; the weekly-check routes need their own token
-            return None
+        if request.path.startswith(("/portal", "/internal/", "/admin")) or session.get("admin_ok") is True:
+            return None        # the hotel portal, the weekly-check routes and the admin pages each have their own sign-in; someone signed in to the admin pages may open any report
         m = re.match(r"^/(?:r|api/r)/([A-Za-z0-9_-]{20,64})(?:/|$)", request.path)
         if session.get("uid") and ((m and app.extensions["portal_can_see_token"](m.group(1))) or request.path == "/api/feedback"):
             return None                                                  # a signed-in hotel user may open their own hotel's reports
