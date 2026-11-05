@@ -279,3 +279,25 @@ table.data tr.you td { background: #fff3ef; font-weight: 600; }
 .guide-cards h3 { margin: 0 0 10px; } .guide-cards p { flex: 1; } .guide-cards .more { margin-top: 18px; font-weight: 700; color: var(--gold-d); font-size: .92rem; }
 .end-cta { margin: 3em 0 0; }
 @media (max-width: 980px) { .guide-cards { grid-template-columns: 1fr; } }
+
+
+/* ---- hotel feel: a skyline under every page header ---- */
+.hero, .page-hero { position: relative; }
+.hero::after, .page-hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 170px; z-index: 0; pointer-events: none;
+  background: url("/skyline.svg") repeat-x center bottom / auto 170px; }
+.hero .wrap, .page-hero .wrap { position: relative; z-index: 1; }
+.hero { padding-bottom: 190px; } .page-hero { padding-bottom: 150px; }
+.page-hero[style]::after { display: none; }                       /* legal pages and the 404 keep a plain header */
+@media (max-width: 760px) { .hero::after, .page-hero::after { height: 96px; background-size: auto 96px; } .hero { padding-bottom: 120px; } .page-hero { padding-bottom: 104px; } }
+
+/* ---- at a glance: short, quotable facts ---- */
+.glance { background: var(--card); border: 1px solid var(--line); border-radius: 24px; padding: 30px 34px; box-shadow: var(--shadow); }
+.glance h2 { font-size: 1.5rem; margin-bottom: 18px; }
+.glance dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px 40px; margin: 0; }
+.glance dt { font: 700 .74rem/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--gold-d); margin-bottom: 7px; }
+.glance dd { margin: 0; font-size: 1.04rem; color: #2d3248; }
+.kinds-title { text-align: center; font: 700 .76rem/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--gold-d); margin: 40px 0 16px; }
+.kinds { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.kind { display: inline-flex; align-items: center; gap: 10px; background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 999px; font-weight: 600; font-size: .95rem; }
+.kind svg { width: 22px; height: 22px; color: var(--gold); flex: none; }
+@media (max-width: 760px) { .glance { padding: 24px 22px; } .glance dl { grid-template-columns: 1fr; } }

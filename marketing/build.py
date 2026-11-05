@@ -253,6 +253,8 @@ def build(dev=False):
               "business": footer_biz, "year": str(dt.date.today().year), "updated": f"{dt.date.today().day} {dt.date.today():%B %Y}", "offers_json": offers_json(site),
               "portal_link": (f'<a href="{html.escape(site["stripe"]["portal_url"])}" rel="noopener" target="_blank">Manage billing</a>' if site["stripe"]["portal_url"] else ""),
               "lowest_price": money(min(p["monthly"] for p in site["plans"])),
+              "price_single": money(next(p["monthly"] for p in site["plans"] if p["id"] == "single")),
+              "price_portfolio": money(next(p["monthly"] for p in site["plans"] if p["id"] == "portfolio")),
               "llms_plans": llms_plan_lines(site)}
     pages, sitemap = [], []
     pdir = os.path.join(SRC, "pages")

@@ -7,7 +7,8 @@ body: home
 {"@context":"https://schema.org","@graph":[
 {"@type":"Organization","@id":"{{ url }}/#org","name":"Presence Pro","url":"{{ url }}","email":"{{ contact.email }}"},
 {"@type":"WebSite","name":"Presence Pro","url":"{{ url }}","publisher":{"@id":"{{ url }}/#org"}},
-{"@type":"SoftwareApplication","name":"Presence Pro","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"{{ url }}","description":"A monthly report on how AI assistants and open data describe a hotel, which sources they rely on, and what to fix first.","offers":{{ offers_json }}}
+{"@type":"SoftwareApplication","name":"Presence Pro","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"{{ url }}","description":"A monthly report on how AI assistants and open data describe a hotel, which sources they rely on, and what to fix first.","offers":{{ offers_json }}},
+{"@type":"Service","name":"AI visibility reports for hotels","serviceType":"AI search visibility reporting for hotels","description":"A monthly report on how AI assistants describe a hotel, who they name instead, which sources they rely on, and what to fix first. Single hotel and portfolio plans.","provider":{"@id":"{{ url }}/#org"},"areaServed":{"@type":"Country","name":"United Kingdom"},"audience":{"@type":"Audience","audienceType":"Hotels, hotel groups and hospitality agencies"}}
 ]}
 </script>
 <script type="application/ld+json">
@@ -33,7 +34,7 @@ body: home
       <div class="assure"><span>Cancel any time</span><span>Public sources only</span><span>Honest about what it can't measure</span></div>
     </div>
 
-    <div class="chat rv d2" aria-label="Illustration of an AI assistant answering a traveller question">
+    <div class="chat" aria-label="Illustration of an AI assistant answering a traveller question">
       <span class="chat-tag">Illustration</span>
       <div class="q" id="typed" data-text="Which upscale hotels near the cathedral have parking and an early breakfast?"><span class="txt"></span><span class="caret"></span></div>
       <div class="a">
@@ -44,6 +45,30 @@ body: home
         <div class="srcs"><small>Booking site</small><small>City guide</small><small>Review site</small><small>Hotel's own page</small></div>
       </div>
       <div class="insight"><b>Presence Pro shows</b> who was named instead, which pages the assistant cited, and what your own pages leave unanswered.</div>
+    </div>
+  </div>
+</section>
+
+<!-- AT A GLANCE -->
+<section class="tight" id="glance">
+  <div class="wrap">
+    <div class="glance rv">
+      <h2>Presence Pro at a glance</h2>
+      <dl>
+        <div><dt>What it is</dt><dd>A monthly report on how AI assistants describe your hotel, who they name instead, and what to fix first.</dd></div>
+        <div><dt>Who it's for</dt><dd>Hotels, hotel groups and the agencies that work for them. Any hotel with a website.</dd></div>
+        <div><dt>What it costs</dt><dd>From {{ price_single }} per hotel a month. Portfolio, with a dashboard across all your hotels, is {{ price_portfolio }} per hotel from five hotels. Cancel any time.</dd></div>
+        <div><dt>What it isn't</dt><dd>Not a ranking, and not a promise that any assistant will recommend you. AI answers are a labelled sample.</dd></div>
+      </dl>
+    </div>
+    <p class="kinds-title rv">Built for hotels of every kind</p>
+    <div class="kinds rv">
+      <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V7l8-4 8 4v14"/><path d="M9 21v-5h6v5M9 10h.01M15 10h.01M9 13h.01M15 13h.01"/></svg>Independent hotels</span>
+      <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18v-7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7M3 18h18M3 21v-3M21 21v-3"/><path d="M7 9V6h10v3"/></svg>Boutique hotels</span>
+      <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v5M5 21c0-4 3-7 7-7s7 3 7 7"/><path d="M8 8c-2 0-4 1-5 3 2 0 4 0 5-1M16 8c2 0 4 1 5 3-2 0-4 0-5-1"/></svg>Resorts and spas</span>
+      <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V10l5-3v14M8 21V5l6-2v18M14 21V9l7 3v9"/></svg>Hotel groups and owners</span>
+      <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l8-8 8 8v8H4z"/><path d="M10 20v-6h4v6"/></svg>B&amp;Bs and guesthouses</span>
+      <span class="kind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/></svg>Agencies and consultants</span>
     </div>
   </div>
 </section>
