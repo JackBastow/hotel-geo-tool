@@ -22,6 +22,7 @@ import backend
 import portal_db
 import progress
 
+KEEPALIVE_S = 240          # while checks run, the site visits its own address this often, so the free host (which sleeps after ~15 minutes without a visit) does not stop a check half way
 DUE_DAYS = 6.0
 RETRY_HOURS = 12.0
 
@@ -93,7 +94,23 @@ class Weekly:
                 return True, len(hotels)
             self.running, self.queue, self.done, self.started, self.current = True, [h["id"] for h in hotels], [], time.time(), ""
         threading.Thread(target=self._loop, name="weekly", daemon=True).start()
+        threading.Thread(target=self._keepalive, name="keepalive", daemon=True).start()
         return True, len(hotels)
+
+    def _keepalive(self):
+        """Visit our own public address now and then while any check is queued or running. Render sets RENDER_EXTERNAL_URL; without it (local use) nothing is done."""
+        import os
+        base = (os.environ.get("RENDER_EXTERNAL_URL") or "").rstrip("/")
+        while base:
+            time.sleep(KEEPALIVE_S)
+            with self.lock:
+                if not self.running:
+                    return
+            try:
+                import requests
+                requests.get(base + "/healthz", timeout=15)
+            except Exception:  # noqa: BLE001 - a missed ping is harmless
+                pass
 
     def hotel_state(self, hotel_id):
         """What to show for one hotel's check: {"state": idle|queued|running|done|error, "messages": [last few], "elapsed", "error"}."""

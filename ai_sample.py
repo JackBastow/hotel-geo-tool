@@ -103,10 +103,11 @@ def mentioned(text, hotel, city=""):
     if not core:
         return False
     if len(core) >= 2:
-        return (h in t) or (" ".join(core) in t)
+        # 'Hampton by Hilton Dusseldorf City Centre' contains 'Hilton Dusseldorf' but is another hotel of the same brand: a name that follows 'by ' is the brand line of a different property
+        return any(re.search(r"(?<!by )" + re.escape(p), t) is not None for p in (h, " ".join(core)))
     if h != core[0]:
         # "Brooklands Hotel": the distinctive word alone is also a museum and a racetrack, so it must appear AS a hotel
-        return (h in t) or re.search(r"\b" + re.escape(core[0]) + r"\s+(?:hotel|spa|resort|inn|suites)\b", t) is not None
+        return (re.search(r"(?<!by )" + re.escape(h), t) is not None) or re.search(r"\b" + re.escape(core[0]) + r"\s+(?:hotel|spa|resort|inn|suites)\b", t) is not None
     # a bare one-word name: only with the town in the same sentence
     place = evidence.fold((city or "").split(",")[0]).strip()
     sentences = re.split(r"(?<=[.!?\n])\s+", t)

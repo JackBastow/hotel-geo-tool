@@ -275,6 +275,44 @@ u9 = app.test_client()
 u9.post("/portal/signin", data={"email": "gm@hotel-a.com", "password": "another-long-pass-9"})
 check("a hotel user can see the status of their own hotel's check only", u9.get(f"/portal/api/status/{ha['id']}").status_code == 200 and u9.get(f"/portal/api/status/{hb_id}").status_code == 404)
 
+print("11. the portfolio page says what a click did")
+r = admin.post("/admin/portfolio/run-due", data={"csrf": csrf})
+check("'Run only the checks that are due' answers with what it started, or that nothing was due", r.status_code == 302 and ("msg=started:" in r.headers["Location"] or "msg=none-due" in r.headers["Location"]), r.headers["Location"])
+pg = admin.get("/admin/portfolio?msg=none-due").get_data(as_text=True)
+check("a 'nothing was due' answer explains what due means", "Nothing was due" in pg and "6 or more days" in pg)
+pg = admin.get("/admin/portfolio?msg=started:Hotel A|Hotel B").get_data(as_text=True)
+check("a 'started' answer names the hotels", "Started checks for 2 hotels" in pg and "Hotel A, Hotel B" in pg)
+check("the table has a column for what each hotel is doing right now, and its last attempt", "Right now" in pg and "Last attempt (UK time)" in pg)
+
+print("12. the site stays awake while checks run")
+import scheduler as _sch
+pings = []
+import requests as _rq
+real_get, real_s = _rq.get, _sch.KEEPALIVE_S
+_rq.get = lambda url, **kw: pings.append(url)
+_sch.KEEPALIVE_S = 0.05
+os.environ["RENDER_EXTERNAL_URL"] = "https://example.onrender.com/"
+gate2 = threading.Event()
+for _ in range(100):
+    if not W.running:
+        break
+    time.sleep(0.1)
+W.run_fn = lambda p, cb=None: (gate2.wait(2), fake_run(p, cb))[1]
+W.start(force_ids={hb_id})
+time.sleep(0.5)
+check("while a check runs the site visits its own /healthz now and then", pings and pings[0] == "https://example.onrender.com/healthz", pings[:2])
+gate2.set()
+for _ in range(100):
+    if not W.running:
+        break
+    time.sleep(0.1)
+n_before = len(pings)
+time.sleep(0.4)
+check("it stops when the checks are done", len(pings) - n_before <= 1, (n_before, len(pings)))
+_rq.get, _sch.KEEPALIVE_S = real_get, real_s
+os.environ.pop("RENDER_EXTERNAL_URL", None)
+W.run_fn = real_run
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

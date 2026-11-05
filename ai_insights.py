@@ -240,6 +240,15 @@ def sentiment_label(v):
     return "positive" if v >= 30 else "negative" if v <= -30 else "mixed" if abs(v) >= 1 else "neutral"
 
 
+SIBLING_WORDS = {"airport", "garden", "express", "centre", "center", "city", "suites", "hampton", "doubletree", "conrad", "embassy", "curio", "tapestry", "homewood", "canopy"}
+
+
+def _sibling(name, hotel):
+    """Another property of the same brand: it carries a word that marks a different hotel ('Airport', 'City Centre', 'Garden Inn', 'Hampton') that the hotel's own name does not have."""
+    own = set(re.findall(r"[a-z]+", evidence.fold(hotel)))
+    return any(w in SIBLING_WORDS and w not in own for w in re.findall(r"[a-z]+", evidence.fold(name)))
+
+
 def brand_ranking(lbs, hotel, top=5):
     """
     Otterly-style 'brand ranking': the hotel plus the `top` hotels the assistant named most, by how many answers named each, with coverage %, average
@@ -365,7 +374,7 @@ def leaderboard(extracted, items, hotel, kinds=("generic",)):
     me = canon(hotel)
     out = []
     for r in rows.values():
-        out.append({"name": r["name"], "is_target": ai_sample.mentioned(r["name"], hotel) or r["key"] == me, "mentions": r["mentions"], "of": len(gen_ids),
+        out.append({"name": r["name"], "is_target": (ai_sample.mentioned(r["name"], hotel) and not _sibling(r["name"], hotel)) or r["key"] == me, "mentions": r["mentions"], "of": len(gen_ids),
                     "share": round(100 * r["mentions"] / total) if total else 0, "best_rank": min(r["ranks"]) if r["ranks"] else None,
                     "avg_rank": round(sum(r["ranks"]) / len(r["ranks"]), 1) if r["ranks"] else None, "questions": r["questions"],
                     "reasons": r["reasons"][:2], "ratings": r["ratings"][:2], "coverage_pct": round(100 * len(set(r["questions"])) / len(gen_ids)) if gen_ids else 0,

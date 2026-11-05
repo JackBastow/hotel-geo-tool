@@ -61,13 +61,27 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         if avg:
             charts = ('<div class="ov-grid even"><section class="panel"><h4>Average readiness score, all hotels</h4>' + portal_view.trend_svg(avg) + '</section>'
                       '<section class="panel"><h4>Actions completed, all hotels</h4>' + portal_view.trend_svg(comp, maximum=max(4, max(p["score"] for p in comp)), name="Actions completed") + '</section></div>')
+        W = app.extensions["weekly"]
+        states = {r["hotel"]["id"]: W.hotel_state(r["hotel"]["id"]) for r in rows}
+        any_active = any(st["state"] in ("queued", "running") for st in states.values())
+
+        def status_cell(hid):
+            st = states[hid]
+            if st["state"] in ("queued", "running"):
+                last = esc((st["messages"] or [""])[-1])
+                return f'<b style="color:#3730a3">{"Waiting" if st["state"] == "queued" else "Running"}</b> <span class="hk-muted">({st["elapsed"] // 60}m {st["elapsed"] % 60}s) {last}</span>'
+            if st["state"] == "done":
+                return '<b style="color:#067647">Finished</b>'
+            if st["state"] == "error":
+                return '<b style="color:#b42318">Did not finish</b>'
+            return ""
         body = "".join(
             f'<tr><td><a href="/admin/hotel/{r["hotel"]["id"]}">{esc(r["hotel"]["name"])}</a><br><span class="hk-muted">{esc(r["hotel"]["city"] or "")}</span></td><td>{esc(uk_date(r["last_run_at"])) or "not yet"}</td><td>{r["runs"]}</td>'
             f'<td>{"-" if r["first_score"] is None else format(r["first_score"], "g")}</td><td>{"-" if r["latest_score"] is None else format(r["latest_score"], "g")}</td><td>{delta_cell(r["delta"])}</td>'
             f'<td>{r["actions"]["completed"]}</td><td>{r["actions"]["working"]}</td><td>{r["actions"]["todo"] + r["actions"]["still_flagged"]}</td><td>{"weekly" if r["hotel"]["weekly"] else "off"}</td>'
-            f'<td>{esc(r["hotel"]["last_error"] or "")}</td></tr>' for r in rows)
+            f'<td>{status_cell(r["hotel"]["id"])}</td><td>{esc(uk_time(r["hotel"]["last_attempt"])) or "-"}</td><td>{esc(r["hotel"]["last_error"] or "")}</td></tr>' for r in rows)
         table = ('<div class="table-wrap"><table class="table"><thead><tr><th>Hotel</th><th>Last check</th><th>Checks</th><th>First score</th><th>Latest score</th><th>Change</th><th>Actions done</th>'
-                 '<th>Working on</th><th>To do</th><th>Weekly</th><th>Last problem</th></tr></thead><tbody>' + (body or '<tr><td colspan="11">No hotels registered yet.</td></tr>') + "</tbody></table></div>")
+                 '<th>Working on</th><th>To do</th><th>Weekly</th><th>Right now</th><th>Last attempt (UK time)</th><th>Last problem</th></tr></thead><tbody>' + (body or '<tr><td colspan="13">No hotels registered yet.</td></tr>') + "</tbody></table></div>")
         c_ = csrf()
         runs = (f'<p><form method="post" action="/admin/portfolio/run-all" style="display:inline"><input type="hidden" name="csrf" value="{c_}"><button class="btn primary" type="submit">Run a check on every hotel now</button></form> '
                 f'<form method="post" action="/admin/portfolio/run-due" style="display:inline"><input type="hidden" name="csrf" value="{c_}"><button class="btn" type="submit">Run only the checks that are due</button></form></p>'
@@ -76,7 +90,18 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
                '<label class="field"><span>Hotel name</span><input name="name" required></label><label class="field"><span>Website address</span><input name="website" placeholder="hotel-site.com/the-hotel" required></label>'
                '<label class="field"><span>Town or city</span><input name="city" required></label><button class="btn primary" type="submit">Add hotel</button></form>'
                '<p class="caption">Adding a hotel does not run a check by itself: use &ldquo;Run a check now&rdquo; on its page, or the next weekly check picks it up. Audits already saved for the same website count as its history.</p>')
-        return shell("portfolio", "Portfolio", line + '<p class="caption">Progress, not proof: the score moving after actions were completed does not show the actions caused it. Times are UK time.</p>' + charts + runs + table + add)
+        msg = request.args.get("msg", "")
+        notice = ""
+        if msg.startswith("started:"):
+            names = msg[8:].split("|")
+            notice = f'<div class="alert success"><b>Started checks for {len(names)} hotel{"s" if len(names) != 1 else ""}:</b> {esc(", ".join(names))}. They run one after another; the &ldquo;Right now&rdquo; column updates by itself.</div>'
+        elif msg == "none-due":
+            notice = ('<div class="alert warning"><b>Nothing was due.</b> A hotel is due when its latest check is 6 or more days old and it has not been tried in the last 12 hours. '
+                      'Use &ldquo;Run a check on every hotel now&rdquo; to check them all regardless.</div>')
+        elif msg == "busy":
+            notice = '<div class="alert warning">Those checks are already running or waiting.</div>'
+        marker = '<div data-pf-active="1"></div>' if any_active else ""
+        return shell("portfolio", "Portfolio", notice + marker + line + '<p class="caption">Progress, not proof: the score moving after actions were completed does not show the actions caused it. Times are UK time.</p>' + charts + runs + table + add)
 
     @app.post("/admin/portfolio/add")
     def admin_portfolio_add():
@@ -130,16 +155,20 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         bad, s = checked_post()
         if bad:
             return bad
-        app.extensions["weekly"].start()
-        return redirect("/admin/portfolio")
+        W = app.extensions["weekly"]
+        names = [h["name"] for h in W.due(s) if not W.active(h["id"])]
+        W.start()
+        return redirect("/admin/portfolio?msg=" + ("started:" + "|".join(names) if names else "none-due"))
 
     @app.post("/admin/portfolio/run-all")
     def admin_run_all():
         bad, s = checked_post()
         if bad:
             return bad
-        app.extensions["weekly"].start(force_ids={h["id"] for h in s.list_hotels(only_active=True)})
-        return redirect("/admin/portfolio")
+        W = app.extensions["weekly"]
+        hs = [h for h in s.list_hotels(only_active=True) if not W.active(h["id"])]
+        W.start(force_ids={h["id"] for h in hs})
+        return redirect("/admin/portfolio?msg=" + ("started:" + "|".join(h["name"] for h in hs) if hs else "busy"))
 
     @app.get("/admin/hotel/<int:hid>")
     def admin_hotel_page(hid):

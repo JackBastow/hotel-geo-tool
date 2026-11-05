@@ -218,3 +218,6 @@ document.addEventListener("click", function (ev) {
   }
   setTimeout(tick, 2500);
 })();
+
+/* the portfolio page: while any check is running, refresh the page every few seconds so the status column stays current */
+(function () { if (document.querySelector("[data-pf-active]")) { setTimeout(function () { window.location.reload(); }, 5000); } })();
