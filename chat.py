@@ -68,9 +68,11 @@ def facts():
     lines = []
     for p in plans:
         price = f"{_money(p['monthly'])}{' per hotel' if p.get('per_hotel') else ''} a month"
+        if p.get("min_hotels"):
+            price += f" (minimum {p['min_hotels']} hotels, so from {_money(round(p['min_hotels'] * p['monthly'], 2))} a month)"
         if p.get("tier_from"):
             price += f" ({_money(p['tier_monthly'])} per hotel once there are {p['tier_from']} or more hotels)"
-        price += f", or {_money(p['annual'])} a year" if p.get("annual") else " (monthly billing only; yearly billing on request)"
+        price += f", or {_money(p['annual'])} a year" if p.get("annual") else " (monthly billing only)"
         lines.append(f"- {p['name']}: {price}, plus VAT where it applies. {p['for']} Includes: " + "; ".join(p["features"]) + ".")
     price_block = "\n".join(lines) if lines else "- Plans and prices are on the pricing page."
     return f"""PRESENCE PRO FACT SHEET

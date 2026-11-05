@@ -21,7 +21,7 @@
         "annual": "https://buy.stripe.com/6oUdR20dc8wIbj1aGdbsc02"
       },
       "portfolio": {
-        "monthly": "https://buy.stripe.com/cNi7sEf868wI86PdSpbsc00",
+        "monthly": "",
         "annual": ""
       }
     }
@@ -32,34 +32,34 @@
       "name": "Single hotel",
       "monthly": 49.99,
       "annual": 499.99,
-      "per_hotel": false,
-      "for": "One hotel, tracked every month.",
+      "per_hotel": true,
+      "for": "A monthly report for each hotel you add, from one hotel upwards.",
       "features": [
-        "A full report for your hotel every month",
+        "A full report for each hotel every month",
         "Management PDF and technical evidence appendix",
         "The same questions re-tested, with the change since last month",
         "Findings on your website, listings and AI answers, each with its evidence",
         "Your own questions tested, and your review export analysed",
         "Open forum conversations worth joining, with honest wording",
+        "Buy as many hotels as you need, and change the number at any time",
         "Email support"
       ]
     },
     {
       "id": "portfolio",
       "name": "Portfolio",
-      "monthly": 49.99,
+      "monthly": 89.99,
       "annual": null,
       "per_hotel": true,
-      "tier_from": 11,
-      "tier_monthly": 39.99,
+      "min_hotels": 5,
       "highlight": true,
-      "for": "Several hotels in one view, priced per hotel.",
+      "for": "For groups and enterprise: every hotel on one dashboard, and each hotel with its own.",
       "features": [
-        "Everything in Single hotel, for every hotel you add",
-        "A portfolio dashboard to view and manage all your hotels in one place",
+        "Everything in Single hotel, for every hotel",
+        "A portfolio dashboard with trends across all your hotels",
+        "Every hotel also gets its own dashboard, showing only that hotel",
         "Actions tracked hotel by hotel, so you see what has been done",
-        "Add as many hotels as you like, and change the number at any time",
-        "Lower price per hotel once you have 11 or more",
+        "The same price for every extra hotel you add",
         "Priority email support"
       ]
     }

@@ -9,6 +9,7 @@
   var num = function (n) { return Number.isInteger(n) ? String(n) : n.toFixed(2); };
   var plans = (cfg.PLANS || []).map(function (p) {
     var t = p.name + " " + money(num(p.monthly)) + (p.per_hotel ? " per hotel a month" : " a month");
+    if (p.min_hotels) t += " (minimum " + p.min_hotels + " hotels)";
     if (p.tier_from) t += " (" + money(num(p.tier_monthly)) + " per hotel from " + p.tier_from + " hotels)";
     if (p.annual) t += ", or " + money(num(p.annual)) + " a year";
     return t;
