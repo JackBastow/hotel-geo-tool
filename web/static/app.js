@@ -221,3 +221,53 @@ document.addEventListener("click", function (ev) {
 
 /* the portfolio page: while any check is running, refresh the page every few seconds so the status column stays current */
 (function () { if (document.querySelector("[data-pf-active]")) { setTimeout(function () { window.location.reload(); }, 5000); } })();
+
+/* the Prompts tab: edit, add, remove, save a draft, confirm */
+(function () {
+  var box = document.querySelector(".prompts[data-url]");
+  var root = document.querySelector(".pt");
+  if (!box || !root) { return; }
+  var url = box.getAttribute("data-url"), min = +box.getAttribute("data-min"), max = +box.getAttribute("data-max"), rec = +box.getAttribute("data-rec");
+  var list = box.querySelector("#prow-list"), count = box.querySelector(".pcount"), msg = box.querySelector(".pmsg");
+  function say(t, ok) { if (msg) { msg.textContent = t || ""; msg.className = "pmsg " + (t ? (ok ? "good" : "bad") : ""); } }
+  function post(body, cb) {
+    fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF": root.getAttribute("data-csrf") }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json(); }).then(cb).catch(function () { say("That did not save. Please check your connection and try again.", false); });
+  }
+  function rows() { return Array.prototype.slice.call(list ? list.querySelectorAll(".prow") : []); }
+  function collect() { return rows().map(function (r) { return { id: r.getAttribute("data-id") || "", text: r.querySelector("textarea").value, source: r.getAttribute("data-source") || "own", angle: r.getAttribute("data-angle") || "", style: r.getAttribute("data-style") || "" }; }); }
+  function refresh() {
+    if (!count) { return; }
+    var n = rows().length;
+    rows().forEach(function (r, i) { var d = r.querySelector(".prow-n"); if (d) { d.textContent = i + 1; } });
+    count.textContent = n + " prompt" + (n === 1 ? "" : "s") + " (recommended " + rec + "; " + min + " to " + max + " allowed)";
+    count.className = "pcount" + (n < min || n > max ? " bad" : "");
+    var a = box.querySelector("#agree"), a2 = box.querySelector("#agree-change"), b = box.querySelector("#pconfirm");
+    if (b) { b.disabled = !(a && a.checked) || (a2 && !a2.checked) || n < min || n > max; }
+  }
+  function showErrors(errors) {
+    rows().forEach(function (r) { r.classList.remove("err"); var e = r.querySelector(".prow-err"); if (e) { e.hidden = true; } });
+    (errors || []).forEach(function (er) { var r = rows()[er.i]; if (r) { r.classList.add("err"); var e = r.querySelector(".prow-err"); e.textContent = er.msg; e.hidden = false; } });
+  }
+  box.addEventListener("click", function (ev) {
+    var t = ev.target;
+    if (t.classList.contains("pdel")) { t.closest(".prow").remove(); refresh(); return; }
+    if (t.id === "padd") {
+      if (rows().length >= max) { say("You can have at most " + max + " prompts.", false); return; }
+      var d = document.createElement("div"); d.className = "prow"; d.setAttribute("data-source", "own"); d.setAttribute("data-id", "");
+      d.innerHTML = '<div class="prow-n"></div><div class="prow-main"><textarea rows="2" maxlength="220" placeholder="For example: Which hotels near the airport have a shuttle and an early breakfast?"></textarea><div class="prow-err" hidden></div></div><button type="button" class="btn small pdel">Remove</button>';
+      list.appendChild(d); d.querySelector("textarea").focus(); refresh(); return;
+    }
+    if (t.id === "psave") { post({ action: "save", prompts: collect() }, function (j) { showErrors(j.errors); say(j.ok ? j.message : (j.error || "Not saved."), !!j.ok); }); return; }
+    if (t.id === "pconfirm") {
+      post({ action: "confirm", prompts: collect(), agree: !!box.querySelector("#agree").checked, agree_change: !!(box.querySelector("#agree-change") && box.querySelector("#agree-change").checked) }, function (j) {
+        showErrors(j.errors); if (j.ok) { window.location.reload(); } else { say(j.error || "Not confirmed.", false); }
+      }); return;
+    }
+    if (t.id === "pchange") { post({ action: "start_change" }, function (j) { if (j.ok) { window.location.reload(); } else { say(j.error, false); } }); return; }
+    if (t.id === "pdiscard") { post({ action: "discard" }, function (j) { if (j.ok) { window.location.reload(); } else { say(j.error, false); } }); return; }
+  });
+  box.addEventListener("input", function () { refresh(); });
+  box.addEventListener("change", function () { refresh(); });
+  refresh();
+})();

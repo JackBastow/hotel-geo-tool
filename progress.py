@@ -242,6 +242,11 @@ def on_run_saved(db, report, run_id):
         import backend
         hotel = db.hotel_by_key(backend.hotel_key(report))
         if hotel and hotel["active"]:
+            try:
+                import prompt_sets
+                prompt_sets.ensure_draft(db, hotel, report)          # a hotel with no prompt set yet gets the recommended set to review
+            except Exception:  # noqa: BLE001
+                pass
             return sync(db, hotel, report, run_id)
     except Exception:  # noqa: BLE001 - progress tracking must never break an audit
         return None

@@ -274,7 +274,7 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
     bench_out = []
     if benchmark:
         frozen = [{"id": f"niche_bench{i}", "kind": "niche", "angle": b.get("angle") or "Benchmark", "text": b["text"], "priority": "core", "source": "benchmark",
-                   "why": ((b.get("why") or "").rstrip(".") + ". " if b.get("why") else "") + "A benchmark prompt kept from this hotel's first audit and asked again word for word, so the results can be compared over time."} for i, b in enumerate(benchmark[:lim["core"]], 1) if b.get("text")]
+                   "why": ((b.get("why") or "").rstrip(".") + ". " if b.get("why") else "") + "A benchmark prompt kept from this hotel's first audit and asked again word for word, so the results can be compared over time."} for i, b in enumerate(benchmark[:max(lim["core"], 20)], 1) if b.get("text")]
         fresh = [q for q in core + sec if not any(_similar(q["text"], f["text"], 0.8) for f in frozen)]
         for q in fresh:
             q["priority"], q["source"] = "secondary", q.get("source") or "new"

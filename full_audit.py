@@ -885,7 +885,9 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]), features=_feats0, benchmark=benchmark, depth=ai_depth)
             nqs = built["questions"]
             benchmark_info = {"prompts": built["benchmark_prompts"] or [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why")} for b in (benchmark or [])], "reused": built["benchmark_reused"]}
-            question_plan = {"facts": built["facts"], "rejected": built["rejected"], "anchors": _anch["anchors"][:6], "coords_source": _anch["coords_source"], "cost_usd": built["cost_usd"]}
+            question_plan = {"facts": built["facts"], "rejected": built["rejected"], "anchors": _anch["anchors"][:6], "coords_source": _anch["coords_source"], "cost_usd": built["cost_usd"],
+                             "questions": [{"id": q["id"], "text": q["text"], "angle": q.get("angle"), "why": q.get("why"), "priority": q.get("priority"), "style": q.get("style"), "kind": q.get("kind"),
+                                            "source": q.get("source")} for q in built["questions"]]}
             market_profile["anchors"] = _anch["anchors"][:4]
         except Exception:  # noqa: BLE001 - the planner is an extra; the standard questions still run
             nqs = []

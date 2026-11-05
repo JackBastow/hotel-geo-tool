@@ -23,6 +23,8 @@ import ai_dash
 import backend
 import portal_view
 import progress
+import prompt_sets
+import prompts_view
 
 FAILS = collections.defaultdict(list)
 
@@ -165,7 +167,10 @@ def register(app, cfg):
         acts = progress.actions_for(d, hotel)
         runs = d.hotel_runs(hotel["hotel_key"])                       # newest first; the same rows give the summary (oldest first) and the history table
         sm = progress.hotel_summary(d, hotel, list(reversed(runs)), acts)
-        body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), ai=ai_dash.panel(d, hotel),
+        pst = prompt_sets.state(d, hotel)
+        since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
+        body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), ai=ai_dash.panel(d, hotel), prompts=prompts_view.panel(pst, hotel, "/portal/api/prompts/" + str(hotel["id"]), True, since),
+                                     prompts_alert=bool(pst["draft"] and not pst["active"]),
                                      live=app.extensions["weekly"].hotel_state(hotel["id"]), live_url=f"/portal/api/status/{hotel['id']}")
         return shell(hotel["name"] + ": progress", body, user, hotels)
 
@@ -192,6 +197,19 @@ def register(app, cfg):
         if h is None:
             abort(404)
         return dashboard_page(h, user, hotels)
+
+    @app.post("/portal/api/prompts/<int:hotel_id>")
+    def portal_prompts(hotel_id):
+        user, hotels = current()
+        if not user or hotel_id not in {h["id"] for h in hotels}:
+            return jsonify(ok=False, error="Please sign in again."), 401
+        if not csrf_ok(request.headers.get("X-CSRF", "")):
+            return jsonify(ok=False, error="Please reload the page and try again."), 400
+        d = db()
+        hotel = next(h for h in hotels if h["id"] == hotel_id)
+        st = prompt_sets.state(d, hotel)
+        ok, res = prompt_sets.handle(d, hotel, user["email"], request.get_json(silent=True) or {}, prompt_sets.anchors_from(st["draft"], st["active"]))
+        return jsonify(ok=ok, **res), (200 if ok else 400)
 
     @app.get("/portal/api/status/<int:hotel_id>")
     def portal_status(hotel_id):

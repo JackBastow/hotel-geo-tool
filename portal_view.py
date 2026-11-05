@@ -167,7 +167,7 @@ def live_panel(state, url):
             f'<span class="hk-muted">This takes a few minutes. This page updates by itself.</span></div><ul class="live-m">{msgs}</ul></section>')
 
 
-def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_url=""):
+def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_url="", prompts="", prompts_alert=False):
     h = sm["hotel"]
     nxt = ""
     if h.get("weekly") and sm["last_run_at"]:
@@ -192,7 +192,10 @@ def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_
     recs = (('<p class="lede">Mark each action as you go. After every weekly check the list updates: fixed items are ticked off, and new ones are added.</p>' if editable else "") + f'<div id="act-list">{board}</div>')
     history = f'<p class="caption">Every check of this hotel, newest first.</p>{history_table(runs)}'
     open_n = sm["actions"]["todo"] + sm["actions"]["working"] + sm["actions"]["still_flagged"]
-    tabs = [("overview", "Overview", overview), ("ai", "AI visibility", ai or '<div class="alert info">AI visibility appears after the first check.</div>'), ("actions", f"Recommendations ({open_n})", recs), ("history", "History", history)]
+    if prompts_alert:
+        overview = ('<section class="talk-callout"><div><h3>Confirm the prompts we ask AI about your hotel</h3><p>We have chosen a recommended set from your website and the places around you. Review it and confirm it, '
+                    'so every check asks the same prompts and your progress can be tracked.</p></div><button type="button" class="btn primary" data-goto="prompts">Review the prompts &rarr;</button></section>') + overview
+    tabs = [("overview", "Overview", overview), ("ai", "AI visibility", ai or '<div class="alert info">AI visibility appears after the first check.</div>'), ("prompts", "Prompts", prompts or '<div class="alert info">Prompts appear after the first check.</div>'), ("actions", f"Recommendations ({open_n})", recs), ("history", "History", history)]
     nav = "".join(f'<button type="button" class="tab{" active" if i == 0 else ""}" data-tab="tab-{k}" data-name="{k}">{esc(lbl)}</button>' for i, (k, lbl, _b) in enumerate(tabs))
     body = "".join(f'<div class="tab-panel{" active" if i == 0 else ""}" id="tab-{k}">{b}</div>' for i, (k, _l, b) in enumerate(tabs))
     return f'<div class="pt" data-csrf="{esc(csrf)}">{hero}{live_panel(live, live_url)}<div class="tabs top"><div class="tab-bar" role="tablist">{nav}</div>{body}</div></div>'

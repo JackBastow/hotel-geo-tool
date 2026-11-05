@@ -16,6 +16,8 @@ import backend
 import netguard
 import portal_view
 import progress
+import prompt_sets
+import prompts_view
 import urlscope
 from timeutil import uk_date, uk_time
 
@@ -125,6 +127,8 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         acts = progress.actions_for(s, h)
         runs = s.hotel_runs(h["hotel_key"])
         sm = progress.hotel_summary(s, h, list(reversed(runs)), acts)
+        pst = prompt_sets.state(s, h)
+        since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
         users = s.users_for_hotel(hid)
         ut = "".join(f'<tr><td>{esc(u["email"])}</td><td>{esc(u["name"] or "")}</td><td>{esc(uk_time(u["last_login"])) or "never"}</td><td>{"active" if u["active"] else "switched off"}</td><td>'
                      f'<form method="post" action="/admin/hotel/{hid}/reset/{u["id"]}" style="display:inline"><input type="hidden" name="csrf" value="{csrf()}"><button class="btn" type="submit">Make a password-reset link</button></form> '
@@ -140,9 +144,24 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
                  + f'<form class="filters" method="post" action="/admin/hotel/{hid}/invite"><input type="hidden" name="csrf" value="{c}"><label class="field"><span>Invite someone (their email)</span><input type="email" name="email" required></label>'
                  '<button class="btn" type="submit">Make an invite link</button></form><p class="caption">There is no email service: you get a link to send them yourself. It works once and expires in 7 days.</p>'
                  + (f'<h6>Links still open</h6><ul>{invites}</ul>' if invites else "") + "</section>")
-        view = portal_view.dashboard(sm, acts, runs, editable=False, csrf="", ai=ai_dash.panel(s, h),
+        view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=csrf(), ai=ai_dash.panel(s, h), prompts=prompts_view.panel(pst, h, f"/admin/hotel/{hid}/prompts", True, since),
+                                     prompts_alert=bool(pst["draft"] and not pst["active"]),
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"/admin/hotel/{hid}/status")
         return shell("portfolio", h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
+
+    @app.post("/admin/hotel/<int:hid>/prompts")
+    def admin_hotel_prompts(hid):
+        if not session.get("admin_ok"):
+            return {"ok": False, "error": "Please sign in again."}, 401
+        if not hmac.compare_digest(request.headers.get("X-CSRF", ""), session.get("csrf", "x")):
+            return {"ok": False, "error": "Please reload the page and try again."}, 400
+        s, msg = store_or_msg()
+        h = s.get_hotel(hid) if s else None
+        if not h:
+            abort(404)
+        st = prompt_sets.state(s, h)
+        ok, res = prompt_sets.handle(s, h, "the operator", request.get_json(silent=True) or {}, prompt_sets.anchors_from(st["draft"], st["active"]))
+        return {"ok": ok, **res}, (200 if ok else 400)
 
     @app.get("/admin/hotel/<int:hid>/status")
     def admin_hotel_status(hid):

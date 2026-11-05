@@ -27,7 +27,8 @@ class PortalMixin:
         self._run(conn, f"CREATE TABLE IF NOT EXISTS actions (id {pk}, hotel_id INTEGER, akey TEXT, title TEXT, source TEXT, category TEXT, priority TEXT, effort TEXT, team TEXT, kind TEXT, "
                         "status TEXT, state TEXT, first_run_id INTEGER, last_run_id INTEGER, first_seen TEXT, last_seen TEXT, updated TEXT, done_at TEXT, resolved_at TEXT, resolution TEXT, "
                         "reopened INTEGER, note TEXT, rec_json TEXT, done_by TEXT)")
-        for sql in ("CREATE INDEX IF NOT EXISTS actions_hotel ON actions (hotel_id)", "CREATE INDEX IF NOT EXISTS hu_hotel ON hotel_users (hotel_id)", "CREATE INDEX IF NOT EXISTS inv_hash ON invites (token_hash)"):
+        self._run(conn, f"CREATE TABLE IF NOT EXISTS hotel_prompts (id {pk}, hotel_id INTEGER, version INTEGER, status TEXT, prompts_json TEXT, created TEXT, created_by TEXT, confirmed_at TEXT, confirmed_by TEXT, base_version INTEGER)")
+        for sql in ("CREATE INDEX IF NOT EXISTS hp_hotel ON hotel_prompts (hotel_id)", "CREATE INDEX IF NOT EXISTS actions_hotel ON actions (hotel_id)", "CREATE INDEX IF NOT EXISTS hu_hotel ON hotel_users (hotel_id)", "CREATE INDEX IF NOT EXISTS inv_hash ON invites (token_hash)"):
             self._run(conn, sql)
 
     def _exec(self, sql, params=()):
@@ -151,6 +152,58 @@ class PortalMixin:
         use = {k: v for k, v in fields.items() if k in ACTION_COLS}
         if use:
             self._exec(f"UPDATE actions SET {', '.join(k + ' = ?' for k in use)} WHERE id = ?", list(use.values()) + [action_id])
+
+    # prompts -----------------------------------------------------------------
+    def prompt_sets(self, hotel_id):
+        """Every prompt set of the hotel (drafts and confirmed versions), newest first, with the prompts decoded."""
+        import json
+        out = []
+        for r in self._rows("SELECT * FROM hotel_prompts WHERE hotel_id = ? ORDER BY id DESC", (hotel_id,)):
+            try:
+                r["prompts"] = json.loads(r.get("prompts_json") or "[]")
+            except ValueError:
+                r["prompts"] = []
+            out.append(r)
+        return out
+
+    def insert_prompt_set(self, hotel_id, status, prompts, who="", base_version=None):
+        import json
+        conn = self._connect()
+        try:
+            sid = self._insert(conn, "hotel_prompts", {"hotel_id": hotel_id, "version": 0, "status": status, "prompts_json": json.dumps(prompts), "created": now_iso(), "created_by": who or "",
+                                                       "confirmed_at": "", "confirmed_by": "", "base_version": base_version})
+            conn.commit()
+            return sid
+        finally:
+            conn.close()
+
+    def update_prompt_set(self, set_id, prompts=None, status=None, version=None, confirmed_by=None):
+        import json
+        fields = {}
+        if prompts is not None:
+            fields["prompts_json"] = json.dumps(prompts)
+        if status:
+            fields["status"] = status
+            if status == "confirmed":
+                fields["confirmed_at"] = now_iso()
+        if version is not None:
+            fields["version"] = version
+        if confirmed_by is not None:
+            fields["confirmed_by"] = confirmed_by
+        if fields:
+            self._exec(f"UPDATE hotel_prompts SET {', '.join(k + ' = ?' for k in fields)} WHERE id = ?", list(fields.values()) + [set_id])
+
+    def delete_prompt_set(self, set_id):
+        self._exec("DELETE FROM hotel_prompts WHERE id = ? AND status = 'draft'", (set_id,))
+
+    def confirmed_prompts_for_key(self, key):
+        """The prompts the hotel confirmed (newest version), as [{text, angle, why}]: what every check of that website asks. [] when none."""
+        import json
+        rows = self._rows("SELECT p.prompts_json AS pj FROM hotel_prompts p JOIN hotels h ON h.id = p.hotel_id WHERE h.hotel_key = ? AND p.status = 'confirmed' ORDER BY p.version DESC LIMIT 1", (key,))
+        try:
+            return [{"text": p["text"], "angle": p.get("angle") or "", "why": p.get("why") or ""} for p in (json.loads(rows[0]["pj"]) if rows else []) if p.get("text")]
+        except ValueError:
+            return []
 
     # runs, as the portal needs them ---------------------------------------------
     def hotel_runs(self, key):
