@@ -189,3 +189,63 @@
     }
   });
 })();
+
+
+/* pricing page: break-even calculator. A sum the visitor controls, not a forecast. */
+(function () {
+  "use strict";
+  var root = document.getElementById("be");
+  if (!root) return;
+  var cfg = window.PP || {}, plans = {};
+  (cfg.PLANS || []).forEach(function (p) { plans[p.id] = p; });
+  var q = function (s) { return root.querySelector(s); };
+  var gbp = function (n) { return "\u00a3" + n.toLocaleString("en-GB", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 }); };
+  function run() {
+    var hotels = Math.max(1, Math.min(999, parseInt(q("[name=hotels]").value, 10) || 1));
+    var value = Math.max(1, parseFloat(q("[name=value]").value) || 0);
+    var pct = Math.max(1, Math.min(60, parseFloat(q("[name=pct]").value) || 0));
+    var saving = value * pct / 100;
+    var out = [];
+    var single = plans.single, port = plans.portfolio;
+    if (single) out.push({ name: "Single hotel", cost: hotels * single.monthly });
+    if (port && hotels >= (port.min_hotels || 1)) out.push({ name: "Portfolio", cost: hotels * port.monthly });
+    q(".be-out").innerHTML = "";
+    out.forEach(function (o) {
+      var n = Math.ceil(o.cost / saving);
+      var c = document.createElement("div"); c.className = "be-card";
+      c.innerHTML = "<small>" + o.name + " for " + hotels + (hotels === 1 ? " hotel" : " hotels") + "</small><b>" + gbp(o.cost) + " a month</b><p>Covered if <b style=\"display:inline;font-size:inherit\">" + n + (n === 1 ? " booking" : " bookings") + "</b> a month " + (n === 1 ? "moves" : "move") + " from a booking site to your own website, saving about " + gbp(saving) + " each.</p>";
+      q(".be-out").appendChild(c);
+    });
+  }
+  Array.prototype.forEach.call(root.querySelectorAll("input"), function (i) { i.addEventListener("input", run); });
+  run();
+})();
+
+/* free snapshot request. Sends from the page through the form service; falls back to an email if none is set. */
+(function () {
+  "use strict";
+  var form = document.getElementById("snapshotForm");
+  if (!form) return;
+  var cfg = window.PP || {}, msg = document.getElementById("snapMsg");
+  var say = function (kind, text) { msg.className = "msg " + kind; msg.textContent = text; };
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var d = new FormData(form);
+    if (d.get("company")) { say("ok", "Thanks, we'll be in touch."); return; }
+    var email = String(d.get("email") || "").trim();
+    var need = ["name", "hotel", "city", "website"].every(function (k) { return String(d.get(k) || "").trim(); });
+    if (!need || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { say("err", "Please add your name, email, and your hotel's name, town or city and website."); return; }
+    var hotel = String(d.get("hotel")).trim();
+    if (cfg.FORM_ENDPOINT && window.PPsend) {
+      var btn = form.querySelector("button[type=submit]"); btn.disabled = true;
+      window.PPsend(d, "Presence Pro snapshot request: " + hotel)
+        .then(function () { form.reset(); say("ok", "Thanks. We'll email your snapshot to " + email + "."); })
+        .catch(function () { say("err", "Sorry, that didn't send. Please email " + cfg.EMAIL + " with your hotel's name, town and website."); })
+        .then(function () { btn.disabled = false; });
+    } else {
+      var body = "Name: " + d.get("name") + "\nEmail: " + email + "\nHotel: " + hotel + "\nTown or city: " + d.get("city") + "\nWebsite: " + d.get("website");
+      window.location.href = "mailto:" + cfg.EMAIL + "?subject=" + encodeURIComponent("Presence Pro snapshot request: " + hotel) + "&body=" + encodeURIComponent(body);
+      say("ok", "Your email app should open with your request ready to send.");
+    }
+  });
+})();

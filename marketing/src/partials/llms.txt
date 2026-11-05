@@ -16,7 +16,7 @@
 
 ## Pricing (GBP, plus VAT where it applies; monthly subscription, cancel any time)
 {{ llms_plans }}
-Reports are prepared for subscribers by Presence Pro; there is no self-service tool.
+Reports are prepared for subscribers by Presence Pro; there is no self-service tool. A free one-page snapshot can be requested at {{ url }}/snapshot.html.
 
 ## Pages
 - {{ url }}/what-we-do.html

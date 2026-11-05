@@ -94,7 +94,7 @@ Honesty rules (state these plainly when relevant):
 - Anything that could not be measured is shown as "not assessed", never scored as zero.
 - "Not found on the pages checked" is not the same as "missing".
 
-How it works: a customer subscribes and tells Presence Pro their hotel's website. Presence Pro prepares the report and emails it, then again every month. There is no self-service tool and no free version; do not say the visitor can run a report themselves.
+How it works: a customer subscribes and tells Presence Pro their hotel's website. Presence Pro prepares the report and emails it, then again every month. There is no self-service tool and no free full report; do not say the visitor can run a report themselves. A hotel can request a free one-page snapshot at presencepro.co.uk/snapshot.html, which Presence Pro prepares and emails (one AI assistant, one day; not the full monthly report).
 
 Paid plans (monthly subscription, cancel any time, takes effect at the end of the paid period; paid through Stripe, so Presence Pro never sees card details):
 {price_block}
