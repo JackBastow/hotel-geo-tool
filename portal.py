@@ -162,9 +162,10 @@ def register(app, cfg):
     # ---------------------------------------------------------------- dashboard
     def dashboard_page(hotel, user, hotels):
         d = db()
-        progress.ensure_actions(d, hotel)
-        sm = progress.hotel_summary(d, hotel)
-        body = portal_view.dashboard(sm, d.list_actions(hotel["id"]), d.hotel_runs(hotel["hotel_key"]), editable=True, csrf=csrf(), ai=ai_dash.panel(d, hotel),
+        acts = progress.actions_for(d, hotel)
+        runs = d.hotel_runs(hotel["hotel_key"])                       # newest first; the same rows give the summary (oldest first) and the history table
+        sm = progress.hotel_summary(d, hotel, list(reversed(runs)), acts)
+        body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), ai=ai_dash.panel(d, hotel),
                                      live=app.extensions["weekly"].hotel_state(hotel["id"]), live_url=f"/portal/api/status/{hotel['id']}")
         return shell(hotel["name"] + ": progress", body, user, hotels)
 

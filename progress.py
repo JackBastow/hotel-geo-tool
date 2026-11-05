@@ -158,11 +158,11 @@ def completed_series(actions, dates):
     return [{"run_at": d, "score": sum(1 for x in done if x <= d)} for d in dates]
 
 
-def hotel_summary(db, hotel):
-    """Everything the dashboard and the portfolio need for one hotel."""
-    hist = [r for r in db.history(hotel["hotel_key"])]
+def hotel_summary(db, hotel, hist=None, actions=None):
+    """Everything the dashboard and the portfolio need for one hotel. `hist` and `actions` can be passed in when they were already fetched for many hotels at once."""
+    hist = list(hist) if hist is not None else [r for r in db.history(hotel["hotel_key"])]
     scored = [r for r in hist if r.get("headline_score") is not None]
-    actions = db.list_actions(hotel["id"])
+    actions = actions if actions is not None else db.list_actions(hotel["id"])
     counts = action_counts(actions)
     first, last = (scored[0], scored[-1]) if scored else (None, None)
     delta = round(last["headline_score"] - first["headline_score"], 1) if first and last and first is not last else None
@@ -173,8 +173,15 @@ def hotel_summary(db, hotel):
             "latest_run_id": hist[-1]["id"] if hist else None, "completed_points": completed_series(actions, [r["run_at"] for r in scored])}
 
 
-def portfolio_summary(db):
-    rows = [hotel_summary(db, h) for h in db.list_hotels(only_active=True)]
+def portfolio_data(db):
+    """Everything the portfolio page needs, fetched in three queries however many hotels there are: {"hotels", "hist", "actions"}."""
+    hotels = db.list_hotels(only_active=True)
+    return {"hotels": hotels, "hist": db.runs_light([h["hotel_key"] for h in hotels]), "actions": db.actions_for_hotels([h["id"] for h in hotels])}
+
+
+def portfolio_summary(db, data=None):
+    data = data or portfolio_data(db)
+    rows = [hotel_summary(db, h, data["hist"].get(h["hotel_key"], []), data["actions"].get(h["id"], [])) for h in data["hotels"]]
     with_change = [r for r in rows if r["delta"] is not None]
     tot = {"hotels": len(rows), "completed": sum(r["actions"]["completed"] for r in rows), "verified": sum(r["actions"]["verified"] for r in rows), "working": sum(r["actions"]["working"] for r in rows),
            "todo": sum(r["actions"]["todo"] for r in rows), "improved": sum(1 for r in with_change if r["delta"] > 0), "measured": len(with_change),
@@ -183,11 +190,12 @@ def portfolio_summary(db):
     return rows, tot
 
 
-def portfolio_series(db):
+def portfolio_series(db, data=None):
     """The portfolio over time, one point per week that had a check: the average readiness score (each hotel's latest score as of that week) and the actions completed across all hotels so far."""
     import datetime as dt
-    hotels = db.list_hotels(only_active=True)
-    hist = {h["id"]: [r for r in db.history(h["hotel_key"]) if r.get("headline_score") is not None] for h in hotels}
+    data = data or portfolio_data(db)
+    hotels = data["hotels"]
+    hist = {h["id"]: [r for r in data["hist"].get(h["hotel_key"], []) if r.get("headline_score") is not None] for h in hotels}
     allruns = sorted(r["run_at"] for rows in hist.values() for r in rows)
     if not allruns:
         return [], []
@@ -195,7 +203,7 @@ def portfolio_series(db):
         d = dt.datetime.fromisoformat(iso.replace("Z", "+00:00")).date()
         return (d + dt.timedelta(days=6 - d.weekday())).isoformat() + "T23:59:59+00:00"
     ends = sorted({week_end(x) for x in allruns})
-    actions = [a for h in hotels for a in db.list_actions(h["id"])]
+    actions = [a for h in hotels for a in data["actions"].get(h["id"], [])]
     avg = []
     for e in ends:
         latest = [max((r for r in rows if r["run_at"] <= e), key=lambda r: r["run_at"])["headline_score"] for rows in hist.values() if any(r["run_at"] <= e for r in rows)]
@@ -218,6 +226,14 @@ def ensure_actions(db, hotel):
     except Exception:  # noqa: BLE001 - the dashboard still shows
         return 0
     return 0
+
+
+def actions_for(db, hotel):
+    """The hotel's actions (built from its saved audits first when it has none yet), fetched once so a page does not ask again."""
+    acts = db.list_actions(hotel["id"])
+    if not acts and ensure_actions(db, hotel):
+        acts = db.list_actions(hotel["id"])
+    return acts
 
 
 def on_run_saved(db, report, run_id):

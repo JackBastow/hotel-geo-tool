@@ -49,13 +49,14 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         s, msg = store_or_msg()
         if s is None:
             return shell("portfolio", "Portfolio", f'<div class="alert warning">{esc(msg)}</div>')
-        rows, tot = progress.portfolio_summary(s)
+        data = progress.portfolio_data(s)
+        rows, tot = progress.portfolio_summary(s, data)
         if tot["measured"]:
             line = (f'<div class="pt-progress"><b>{tot["hotels"]} hotels.</b> {tot["completed"]} actions completed ({tot["verified"]} checked and confirmed on the sites), {tot["working"]} in progress. '
                     f'Of the {tot["measured"]} hotels with more than one check, <b>{tot["improved"]}</b> have a higher readiness score; the average has moved from <b>{tot["avg_first"]:g}</b> to <b>{tot["avg_latest"]:g}</b>.</div>')
         else:
             line = f'<div class="pt-progress"><b>{tot["hotels"]} hotel{"s" if tot["hotels"] != 1 else ""}.</b> Progress across the portfolio shows here once hotels have been checked more than once.</div>'
-        avg, comp = progress.portfolio_series(s)
+        avg, comp = progress.portfolio_series(s, data)
         charts = ""
         if avg:
             charts = ('<div class="ov-grid even"><section class="panel"><h4>Average readiness score, all hotels</h4>' + portal_view.trend_svg(avg) + '</section>'
@@ -96,8 +97,9 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         h = s.get_hotel(hid)
         if not h:
             abort(404)
-        progress.ensure_actions(s, h)
-        sm = progress.hotel_summary(s, h)
+        acts = progress.actions_for(s, h)
+        runs = s.hotel_runs(h["hotel_key"])
+        sm = progress.hotel_summary(s, h, list(reversed(runs)), acts)
         users = s.users_for_hotel(hid)
         ut = "".join(f'<tr><td>{esc(u["email"])}</td><td>{esc(u["name"] or "")}</td><td>{esc(uk_time(u["last_login"])) or "never"}</td><td>{"active" if u["active"] else "switched off"}</td><td>'
                      f'<form method="post" action="/admin/hotel/{hid}/reset/{u["id"]}" style="display:inline"><input type="hidden" name="csrf" value="{csrf()}"><button class="btn" type="submit">Make a password-reset link</button></form> '
@@ -113,7 +115,7 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
                  + f'<form class="filters" method="post" action="/admin/hotel/{hid}/invite"><input type="hidden" name="csrf" value="{c}"><label class="field"><span>Invite someone (their email)</span><input type="email" name="email" required></label>'
                  '<button class="btn" type="submit">Make an invite link</button></form><p class="caption">There is no email service: you get a link to send them yourself. It works once and expires in 7 days.</p>'
                  + (f'<h6>Links still open</h6><ul>{invites}</ul>' if invites else "") + "</section>")
-        view = portal_view.dashboard(sm, s.list_actions(hid), s.hotel_runs(h["hotel_key"]), editable=False, csrf="", ai=ai_dash.panel(s, h),
+        view = portal_view.dashboard(sm, acts, runs, editable=False, csrf="", ai=ai_dash.panel(s, h),
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"/admin/hotel/{hid}/status")
         return shell("portfolio", h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
 

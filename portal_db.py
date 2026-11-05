@@ -158,6 +158,35 @@ class PortalMixin:
         return self._rows("SELECT id, run_at, access_token, headline_score, headline_status, coverage_pct, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked, recs_total "
                           "FROM runs WHERE hotel_key = ? ORDER BY run_at DESC, id DESC", (key,))
 
+    LIGHT = "id, hotel_key, run_at, headline_score, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked"
+
+    def runs_light(self, keys):
+        """Every hotel's audits in ONE query, only the columns the dashboards need: {hotel_key: [rows oldest first]}."""
+        keys = list(keys)
+        if not keys:
+            return {}
+        out = {k: [] for k in keys}
+        for r in self._rows(f"SELECT {self.LIGHT} FROM runs WHERE hotel_key IN ({', '.join('?' for _ in keys)}) ORDER BY run_at ASC, id ASC", tuple(keys)):
+            out.setdefault(r["hotel_key"], []).append(r)
+        return out
+
+    def actions_for_hotels(self, ids):
+        """Every action of the given hotels in ONE query: {hotel_id: [actions]}."""
+        ids = list(ids)
+        if not ids:
+            return {}
+        out = {i: [] for i in ids}
+        for a in self._rows(f"SELECT * FROM actions WHERE hotel_id IN ({', '.join('?' for _ in ids)}) ORDER BY id", tuple(ids)):
+            out.setdefault(a["hotel_id"], []).append(a)
+        return out
+
+    def runs_with_pages(self, run_ids):
+        """Which of these audits saved any cited pages, in ONE query (a query per audit made the dashboard slow)."""
+        run_ids = list(run_ids)
+        if not run_ids:
+            return set()
+        return {r["run_id"] for r in self._rows(f"SELECT DISTINCT run_id FROM ai_pages WHERE run_id IN ({', '.join('?' for _ in run_ids)})", tuple(run_ids))}
+
     def run_pages(self, run_id):
         """The pages the assistant cited in one audit: url, domain, title, how many answers cited it, whether it names the hotel or a competitor, whether it is the hotel's own site."""
         return self._rows("SELECT url, domain, title, cited, questions, names_hotel, names_competitor, own_site FROM ai_pages WHERE run_id = ?", (run_id,))

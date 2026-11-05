@@ -224,7 +224,8 @@ def panel(db, hotel):
     ch = db.competitor_history(key, 5)
     brand, _me = brand_section(ch)
     runs = [r["run_id"] for r in ch["runs"]]
-    with_pages = [rid for rid in runs if db.run_pages(rid)]
+    have = db.runs_with_pages(runs)
+    with_pages = [rid for rid in runs if rid in have]
     cur = {p["url"]: p for p in db.run_pages(with_pages[-1])} if with_pages else {}
     prev = {p["url"]: p for p in db.run_pages(with_pages[-2])} if len(with_pages) > 1 else None
     own = key.split("/")[0]
