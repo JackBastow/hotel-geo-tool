@@ -156,3 +156,20 @@ table.data tr.you td { background: #fff3ef; font-weight: 600; }
   .chat-fab { right: 14px; bottom: 14px; } .chat-fab span { display: none; } .chat-fab { padding: .95rem; }
   .form-card { padding: 22px; } .banner { top: 68px; font-size: .8rem; }
 }
+
+/* two plans side by side */
+.plans2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; align-items: stretch; max-width: 920px; margin: 0 auto; }
+.plans2 .plan { padding: 34px 30px; }
+.plans2 .plan h3 { font-size: 1.6rem; } .plans2 .plan .for { color: var(--muted); margin: 6px 0 18px; font-size: .96rem; }
+.plan.feat .for { color: rgba(255,255,255,.7); }
+.plan .tier { font-size: .9rem; font-weight: 600; color: var(--gold-d); margin: 0 0 8px; } .plan.feat .tier { color: var(--gold); }
+@media (max-width: 980px) { .plans2 { grid-template-columns: 1fr; } }
+
+/* hotel details form on the welcome page */
+.hotels-form .hrow { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 10px; align-items: end; }
+.hotels-form .hrow label, .hotels-form .form label { font-size: .82rem; font-weight: 600; display: block; margin-bottom: 5px; }
+.hotels-form input, .hotels-form textarea { width: 100%; font: inherit; padding: .8rem 1rem; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+.hotels-form input:focus, .hotels-form textarea:focus { outline: 3px solid rgba(224,181,103,.5); border-color: var(--gold-d); }
+.hrow .rm { background: none; border: 1px solid var(--line); border-radius: 12px; width: 44px; height: 44px; cursor: pointer; font-size: 1.2rem; color: var(--muted); }
+.hrow .rm:hover { border-color: var(--coral); color: var(--coral); }
+@media (max-width: 760px) { .hotels-form .hrow { grid-template-columns: 1fr; padding-bottom: 14px; border-bottom: 1px dashed var(--line); } .hrow .rm { width: 100%; height: 40px; } }

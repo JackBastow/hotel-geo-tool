@@ -26,7 +26,8 @@
 
   // billing: monthly / yearly switch and the buy buttons (Stripe Payment Links from site.json; the contact page until a link exists)
   var interval = "monthly";
-  function link(id) { var l = cfg.LINKS && cfg.LINKS[id]; return l && l[interval] ? l[interval] : ""; }
+  // a plan with no yearly link (Portfolio is billed monthly) falls back to its monthly link
+  function link(id) { var l = cfg.LINKS && cfg.LINKS[id]; if (!l) return ""; return l[interval] || (interval === "annual" ? l.monthly || "" : ""); }
   function paint() {
     var key = interval === "annual" ? "a" : "m";
     $$("[data-m]").forEach(function (e) { var v = e.getAttribute("data-" + key); if (v !== null) e.textContent = v; });
@@ -105,4 +106,49 @@
       }
     });
   }
+})();
+
+/* welcome page: hotel details (one row per hotel). Posts to the form service in site.json if there is one, otherwise opens an email to us. */
+(function () {
+  "use strict";
+  var form = document.getElementById("hotelForm");
+  if (!form) return;
+  var cfg = window.PP || {};
+  var rows = document.getElementById("hotelRows"), msg = document.getElementById("hotelMsg");
+  var say = function (kind, text) { msg.className = "msg " + kind; msg.textContent = text; };
+  document.getElementById("addHotel").addEventListener("click", function () {
+    var first = rows.querySelector(".hrow"), row = first.cloneNode(true);
+    Array.prototype.forEach.call(row.querySelectorAll("input"), function (i) { i.value = ""; });
+    var rm = document.createElement("button");
+    rm.type = "button"; rm.className = "rm"; rm.setAttribute("aria-label", "Remove this hotel"); rm.textContent = "×";
+    rm.addEventListener("click", function () { row.remove(); });
+    row.appendChild(rm);
+    rows.appendChild(row);
+    row.querySelector("input").focus();
+  });
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var d = new FormData(form);
+    if (d.get("company")) { say("ok", "Thanks, we have your details."); return; }
+    var email = String(d.get("email") || "").trim();
+    var hotels = Array.prototype.map.call(rows.querySelectorAll(".hrow"), function (r) {
+      var v = function (n) { return String(r.querySelector("[name=" + n + "]").value || "").trim(); };
+      return { name: v("hotel_name"), city: v("hotel_city"), url: v("hotel_url") };
+    });
+    var complete = hotels.every(function (h) { return h.name && h.city && h.url; });
+    if (!String(d.get("name") || "").trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !hotels.length || !complete) {
+      say("err", "Please add your name, the email you paid with, and the name, town or city and website of each hotel."); return;
+    }
+    var list = hotels.map(function (h, i) { return (i + 1) + ". " + h.name + " | " + h.city + " | " + h.url; }).join("\n");
+    var text = "Name: " + d.get("name") + "\nEmail: " + email + "\n\nHotels (name | town or city | website):\n" + list + "\n\nNotes: " + (d.get("message") || "");
+    if (cfg.FORM_ENDPOINT) {
+      var out = new FormData(); out.append("name", d.get("name")); out.append("email", email); out.append("hotels", list); out.append("message", d.get("message") || "");
+      fetch(cfg.FORM_ENDPOINT, { method: "POST", headers: { Accept: "application/json" }, body: out })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); say("ok", "Thanks, we have your hotel details."); })
+        .catch(function () { say("err", "Sorry, that didn't send. Please email " + cfg.EMAIL + " instead."); });
+    } else {
+      window.location.href = "mailto:" + cfg.EMAIL + "?subject=" + encodeURIComponent("Presence Pro: my hotel details") + "&body=" + encodeURIComponent(text);
+      say("ok", "Your email app should open with your details ready to send. If it doesn't, email them to " + cfg.EMAIL + ".");
+    }
+  });
 })();

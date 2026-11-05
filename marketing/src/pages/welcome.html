@@ -15,9 +15,36 @@ noindex: true
   <div class="wrap" style="max-width:820px">
     <ol class="next-steps">
       <li class="rv"><div><b>Check your email</b><span>Stripe sends your receipt, with a link to manage or cancel your subscription any time. If it doesn't arrive in a few minutes, look in your spam folder.</span></div></li>
-      <li class="rv d1"><div><b>Confirm your hotel</b><span>You gave us the hotel's name and website at checkout. Reply to your receipt email, or write to <a href="mailto:{{ contact.email }}" style="color:var(--gold-d);font-weight:600">{{ contact.email }}</a>, to tell us the town, anything you want us to focus on, and, on Professional and Portfolio plans, up to five questions of your own.</span></div></li>
-      <li class="rv d2"><div><b>Send your review export (Professional and Portfolio)</b><span>Export your reviews from Booking.com, Tripadvisor, Google or Expedia as a CSV or Excel file and email it to us. It is analysed for that report only. The text isn't saved, and reviewer names are never read.</span></div></li>
+      <li class="rv d1"><div><b>Confirm your hotel details</b><span>At checkout you gave us your hotel's name, town or city and website. Use the form below to confirm them, add any other hotels on your plan, and tell us anything you'd like us to focus on or any questions of your own you'd like tested.</span></div></li>
+      <li class="rv d2"><div><b>Send your review export</b><span>Export your reviews from Booking.com, Tripadvisor, Google or Expedia as a CSV or Excel file and email it to us. It is analysed for that report only. The text isn't saved, and reviewer names are never read.</span></div></li>
     </ol>
+
+    <div class="form-card rv" style="margin-top:36px">
+      <h2 style="font-size:1.6rem;margin-bottom:6px">Your hotel details</h2>
+      <p style="color:var(--muted);margin-bottom:20px">One row per hotel on your plan. This is how we know exactly which hotels to report on.</p>
+      <form id="hotelForm" class="hotels-form" novalidate>
+        <div class="form" style="margin-bottom:16px">
+          <div><label for="hn">Your name</label><input id="hn" name="name" autocomplete="name" required maxlength="120"></div>
+          <div><label for="he">The email you paid with</label><input id="he" name="email" type="email" autocomplete="email" required maxlength="200"></div>
+        </div>
+        <div id="hotelRows">
+          <div class="hrow">
+            <div><label>Hotel name</label><input name="hotel_name" required maxlength="120"></div>
+            <div><label>Town or city</label><input name="hotel_city" required maxlength="120"></div>
+            <div><label>Hotel website</label><input name="hotel_url" placeholder="yourhotel.com" required maxlength="300"></div>
+          </div>
+        </div>
+        <p style="margin:6px 0 18px"><button type="button" class="btn line sm" id="addHotel">+ Add another hotel</button></p>
+        <div class="form">
+          <div class="full"><label for="hm">Anything you'd like us to focus on, or questions of your own to test? <span style="font-weight:400;color:var(--muted)">(optional)</span></label><textarea id="hm" name="message" rows="3" maxlength="2000"></textarea></div>
+          <input class="hp" type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <div class="full"><button class="btn gold" type="submit" style="width:100%;padding:1rem">Send my hotel details</button></div>
+        </div>
+      </form>
+      <div class="msg" id="hotelMsg" role="status"></div>
+      <p class="note" style="color:var(--muted);font-size:.86rem;margin-top:14px">Lots of hotels? You can also email a list or spreadsheet to <a href="mailto:{{ contact.email }}" style="color:var(--gold-d)">{{ contact.email }}</a>.</p>
+    </div>
+
     <div class="cta-row" style="margin-top:36px">
       <a class="btn dark" href="/sample-report.html">See what a report looks like</a>
       <a class="btn line" href="/contact.html">Contact us</a>

@@ -32,7 +32,7 @@ The build prints notes for anything not yet filled in.
 ### 2. Stripe (taking payment, no code)
 1. Create a Stripe account for the business at stripe.com and finish verification. Turn on **Stripe Tax** if you are VAT-registered.
 2. Products: create one product per plan with a **monthly** and a **yearly** recurring price in GBP (the site shows 10 x monthly for yearly; change `annual` in `site.json` if you choose differently).
-3. For each price create a **Payment Link** (Payment Links, New). In the options: collect the customer's **billing address**, add **custom fields** "Hotel name" and "Hotel website" (these are how you learn which hotel to report on), allow **promotion codes** if you like, and set **After payment: Don't show confirmation page, redirect customers to your website** to `https://presencepro.co.uk/welcome.html`.
+3. For each price create a **Payment Link** (Payment Links, New). In the options: collect the customer's **billing address**, add three **custom fields**, all text, all required: "Hotel name", "Town or city" and "Hotel website" (these are how you learn which hotel to report on; for Portfolio they cover the first hotel, and the welcome page form collects the rest), allow **promotion codes** if you like, and set **After payment: Don't show confirmation page, redirect customers to your website** to `https://presencepro.co.uk/welcome.html`.
 4. Paste the six links into `stripe.links` in `site.json`. Until a link is pasted, that plan's button sends the visitor to the contact page instead, so nothing is broken in the meantime.
 5. Customer billing portal: Settings, then Billing, then Customer portal. Allow cancelling and updating the card. Activate it and copy the **portal login link** into `stripe.portal_url`; a "Manage billing" link then appears in the footer. Customers can cancel themselves, which matches the terms.
 6. Test with Stripe's test mode and card `4242 4242 4242 4242` first, using test-mode Payment Links, then swap in the live ones.
@@ -58,7 +58,7 @@ It runs inside the Flask app (`chat.py`, route `/api/chat`), so it needs nothing
 - Look at the whole site on your phone.
 
 ## When someone subscribes
-Stripe emails you (and them a receipt) and the custom fields give you the hotel's name and website. Run their audit in the tool, send the PDFs, and repeat monthly. Nothing here is automated; automating delivery is a later build.
+Stripe emails you (and them a receipt) and the custom fields give you the first hotel's name, town or city and website (find them on the payment in Stripe, under Payments; the welcome page form emails you the full list). Run their audit in the tool, send the PDFs, and repeat monthly. Nothing here is automated; automating delivery is a later build.
 
 ## Moving this to another GitHub account later
 The site is published from this repository. To move it (for example to a personal account): Settings, Danger zone, Transfer ownership. The domain and DNS do not change. Afterwards re-check Settings, Pages (Source: GitHub Actions, custom domain) and re-link Render to the new owner.

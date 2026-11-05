@@ -83,56 +83,88 @@ def feature_list(p):
     return "<ul>" + "".join(f"<li>{html.escape(f)}</li>" for f in p["features"]) + "</ul>"
 
 
+def plan_unit(p):
+    return "/hotel/month" if p.get("per_hotel") else "/month"
+
+
+def save_text(p):
+    """What yearly billing saves, worked out from the prices (empty when a plan has no yearly price)."""
+    if not p.get("annual"):
+        return ""
+    saved = p["monthly"] * 12 - p["annual"]
+    return f"Save {money(round(saved, 2))} a year (about {round(saved / p['monthly']):g} months free)"
+
+
+def tier_note(p):
+    if p.get("tier_from"):
+        return f"Drops to {money(p['tier_monthly'])} per hotel at {p['tier_from']} or more hotels"
+    return ""
+
+
 def price_spans(p):
-    m, a = money(p["monthly"]), money(p["annual"])
-    return (f'<span class="amt" data-m="{m}" data-a="{a}">{m}</span><span class="per" data-m="/month" data-a="/year">/month</span>')
+    m = money(p["monthly"])
+    a = money(p["annual"]) if p.get("annual") else m
+    per_m = plan_unit(p)
+    per_a = "/year" if p.get("annual") else per_m
+    return (f'<span class="amt" data-m="{m}" data-a="{a}">{m}</span><span class="per" data-m="{per_m}" data-a="{per_a}">{per_m}</span>')
 
 
 def plan_cards(site):
     out = []
     for p in site["plans"]:
         feat = " feat" if p.get("highlight") else ""
-        badge = '<span class="badge">Most chosen</span>' if p.get("highlight") else ""
+        badge = '<span class="badge">For groups</span>' if p.get("highlight") else ""
         btn = "gold" if p.get("highlight") else "dark"
+        monthly_note = "Billed monthly. Cancel any time."
+        yearly_note = (save_text(p) + ". Billed once a year.") if p.get("annual") else "Billed monthly. Yearly billing on request."
+        tier = f'<p class="tier">{html.escape(tier_note(p))}</p>' if tier_note(p) else ""
         out.append(
             f'<div class="plan{feat} rv">{badge}<h3>{html.escape(p["name"])}</h3>'
             f'<p class="for">{html.escape(p["for"])}</p>'
-            f'<p class="price">{price_spans(p)}</p>'
-            f'<p class="save" data-m="Billed monthly. Cancel any time." data-a="Two months free. Billed once a year.">Billed monthly. Cancel any time.</p>'
+            f'<p class="price">{price_spans(p)}</p>{tier}'
+            f'<p class="save" data-m="{monthly_note}" data-a="{html.escape(yearly_note)}">{monthly_note}</p>'
             f'{feature_list(p)}<a class="btn {btn}" href="/contact.html?plan={p["id"]}" data-buy="{p["id"]}">Get started</a></div>'
         )
-    return '<div class="plans3">' + "".join(out) + "</div>"
+    return '<div class="plans2">' + "".join(out) + "</div>"
 
 
 def plan_cards_home(site):
     out = []
     for p in site["plans"]:
         feat = " feat" if p.get("highlight") else ""
+        tier = f'<p class="tier">{html.escape(tier_note(p))}</p>' if tier_note(p) else ""
         out.append(
             f'<div class="plan mini{feat} rv"><h3>{html.escape(p["name"])}</h3><p class="for">{html.escape(p["for"])}</p>'
-            f'<p class="price"><span class="amt">{money(p["monthly"])}</span><span class="per">/month</span></p></div>'
+            f'<p class="price"><span class="amt">{money(p["monthly"])}</span><span class="per">{plan_unit(p)}</span></p>{tier}</div>'
         )
-    return '<div class="plans3">' + "".join(out) + "</div>"
+    return '<div class="plans2">' + "".join(out) + "</div>"
 
 
 COMPARE_ROWS = [
-    ("Hotels covered", ["1", "1", "Up to 5"]),
-    ("Monthly report (management PDF and evidence appendix)", [True, True, True]),
-    ("Same questions re-tested, with change since last month", [True, True, True]),
-    ("Website, listings and AI-answer findings, each with evidence", [True, True, True]),
-    ("Your own questions tested each month", [False, "Up to 5", "Up to 5 per hotel"]),
-    ("Your review export analysed each month", [False, True, True]),
-    ("Open forum conversations worth joining", [False, True, True]),
-    ("Summary across all your hotels", [False, False, True]),
-    ("Set-up call", [False, False, True]),
-    ("Support", ["Email", "Priority email", "Priority email"]),
+    ("Hotels covered", ["1", "As many as you like"]),
+    ("Monthly report (management PDF and evidence appendix)", [True, True]),
+    ("Same questions re-tested, with change since last month", [True, True]),
+    ("Website, listings and AI-answer findings, each with evidence", [True, True]),
+    ("Your own questions tested", [True, True]),
+    ("Your review export analysed", [True, True]),
+    ("Open forum conversations worth joining", [True, True]),
+    ("Portfolio dashboard to view and manage all your hotels", [False, True]),
+    ("Yearly billing", [True, "On request"]),
+    ("Support", ["Email", "Priority email"]),
 ]
 
 
 def plan_compare(site):
     head = "<tr><th scope='col'>What you get</th>" + "".join(f"<th scope='col'>{html.escape(p['name'])}</th>" for p in site["plans"]) + "</tr>"
+    price_cells = []
+    for p in site["plans"]:
+        txt = money(p["monthly"]) + (" per hotel a month" if p.get("per_hotel") else " a month")
+        if p.get("tier_from"):
+            txt += f", {money(p['tier_monthly'])} per hotel from {p['tier_from']} hotels"
+        price_cells.append(txt)
+    rows_data = [("Price (plus VAT where it applies)", price_cells)] + COMPARE_ROWS
     rows = []
-    for label, vals in COMPARE_ROWS:
+    for label, vals in rows_data:
         cells = []
         for v in vals:
             if v is True:
@@ -164,13 +196,26 @@ def offers_json(site):
                         "priceSpecification": {"@type": "UnitPriceSpecification", "price": f"{p['monthly']}", "priceCurrency": "GBP", "unitText": "MONTH"}} for p in site["plans"]])
 
 
+def llms_plan_lines(site):
+    lines = []
+    for p in site["plans"]:
+        txt = f"- {p['name']}, {p['for'].rstrip('.').lower()}: {money(p['monthly'])}{' per hotel' if p.get('per_hotel') else ''} a month"
+        if p.get("tier_from"):
+            txt += f" ({money(p['tier_monthly'])} per hotel from {p['tier_from']} hotels)"
+        if p.get("annual"):
+            txt += f", or {money(p['annual'])} a year"
+        lines.append(txt)
+    return "\n".join(lines)
+
+
 def runtime_config(site):
     links = site["stripe"]["links"]
+    keep = ("id", "name", "monthly", "annual", "per_hotel", "tier_from", "tier_monthly")
     return ("/* Generated by build.py from src/site.json. Edit site.json, not this file. */\n"
             "window.PP = " + json.dumps({
                 "APP_URL": site["app_url"], "CHAT_URL": site["chat_url"], "EMAIL": site["contact"]["email"],
                 "FORM_ENDPOINT": site["form_endpoint"], "PORTAL_URL": site["stripe"]["portal_url"], "LINKS": links,
-                "PLANS": [{"id": p["id"], "name": p["name"], "monthly": p["monthly"], "annual": p["annual"]} for p in site["plans"]],
+                "PLANS": [{k: p.get(k) for k in keep} for p in site["plans"]],
             }, indent=2) + ";\n")
 
 
@@ -190,7 +235,7 @@ def build(dev=False):
               "business": footer_biz, "year": str(dt.date.today().year), "updated": f"{dt.date.today().day} {dt.date.today():%B %Y}", "offers_json": offers_json(site),
               "portal_link": (f'<a href="{html.escape(site["stripe"]["portal_url"])}" rel="noopener" target="_blank">Manage billing</a>' if site["stripe"]["portal_url"] else ""),
               "lowest_price": money(min(p["monthly"] for p in site["plans"])),
-              "llms_plans": "\n".join(f"- {p['name']}, {p['for'].rstrip('.').lower()}: {money(p['monthly'])} a month or {money(p['annual'])} a year" for p in site["plans"])}
+              "llms_plans": llms_plan_lines(site)}
     pages, sitemap = [], []
     pdir = os.path.join(SRC, "pages")
     for name in sorted(os.listdir(pdir)):
@@ -255,8 +300,9 @@ def serve(port):
                 self.wfile.write(open(os.path.join(OUT, "404.html"), "rb").read())
             else:
                 super().send_error(code, message, explain)
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("", port), H) as srv:
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
+    socketserver.ThreadingTCPServer.daemon_threads = True
+    with socketserver.ThreadingTCPServer(("", port), H) as srv:
         print(f"serving on http://localhost:{port}")
         srv.serve_forever()
 

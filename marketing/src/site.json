@@ -16,52 +16,51 @@
   "stripe": {
     "portal_url": "",
     "links": {
-      "essential": { "monthly": "", "annual": "" },
-      "professional": { "monthly": "", "annual": "" },
-      "portfolio": { "monthly": "", "annual": "" }
+      "single": {
+        "monthly": "https://buy.stripe.com/6oUbIU7FE14g9aT15Dbsc01",
+        "annual": "https://buy.stripe.com/6oUdR20dc8wIbj1aGdbsc02"
+      },
+      "portfolio": {
+        "monthly": "https://buy.stripe.com/cNi7sEf868wI86PdSpbsc00",
+        "annual": ""
+      }
     }
   },
   "plans": [
     {
-      "id": "essential",
-      "name": "Essential",
-      "monthly": 49,
-      "annual": 490,
+      "id": "single",
+      "name": "Single hotel",
+      "monthly": 49.99,
+      "annual": 499.99,
+      "per_hotel": false,
       "for": "One hotel, tracked every month.",
       "features": [
-        "A full report for one hotel every month",
+        "A full report for your hotel every month",
         "Management PDF and technical evidence appendix",
         "The same questions re-tested, with the change since last month",
         "Findings on your website, listings and AI answers, each with its evidence",
-        "Email support"
-      ]
-    },
-    {
-      "id": "professional",
-      "name": "Professional",
-      "monthly": 99,
-      "annual": 990,
-      "highlight": true,
-      "for": "One hotel, with your own questions and your own reviews.",
-      "features": [
-        "Everything in Essential",
-        "Five questions of your own tested every month",
-        "Your review export analysed every month",
+        "Your own questions tested, and your review export analysed",
         "Open forum conversations worth joining, with honest wording",
-        "Priority email support"
+        "Email support"
       ]
     },
     {
       "id": "portfolio",
       "name": "Portfolio",
-      "monthly": 249,
-      "annual": 2490,
-      "for": "Up to five hotels, in one view.",
+      "monthly": 49.99,
+      "annual": null,
+      "per_hotel": true,
+      "tier_from": 11,
+      "tier_monthly": 39.99,
+      "highlight": true,
+      "for": "Several hotels in one view, priced per hotel.",
       "features": [
-        "Everything in Professional, for up to five hotels",
-        "A monthly summary across all your hotels",
-        "A set-up call to choose your questions and markets",
-        "Need more hotels? Ask us"
+        "Everything in Single hotel, for every hotel you add",
+        "A portfolio dashboard to view and manage all your hotels in one place",
+        "Actions tracked hotel by hotel, so you see what has been done",
+        "Add as many hotels as you like, and change the number at any time",
+        "Lower price per hotel once you have 11 or more",
+        "Priority email support"
       ]
     }
   ]

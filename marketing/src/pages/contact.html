@@ -18,7 +18,7 @@ nav: contact
         <div><label for="cn">Your name</label><input id="cn" name="name" autocomplete="name" required maxlength="120"></div>
         <div><label for="ce">Email</label><input id="ce" name="email" type="email" autocomplete="email" required maxlength="200"></div>
         <div><label for="cw">Hotel website <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input id="cw" name="website" autocomplete="url" placeholder="yourhotel.com" maxlength="300"></div>
-        <div><label for="ct">It's about</label><select id="ct" name="topic"><option value="">A general question</option><option value="essential">Essential plan</option><option value="professional">Professional plan</option><option value="portfolio">Portfolio plan</option><option value="group">More than five hotels, or an agency</option><option value="billing">Billing</option></select></div>
+        <div><label for="ct">It's about</label><select id="ct" name="topic"><option value="">A general question</option><option value="single">Single hotel plan</option><option value="portfolio">Portfolio plan</option><option value="group">An agency, or a large group</option><option value="billing">Billing</option></select></div>
         <div class="full"><label for="cm">Message</label><textarea id="cm" name="message" rows="5" required maxlength="2000"></textarea></div>
         <input class="hp" type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true">
         <div class="full"><button class="btn gold" type="submit" style="width:100%;padding:1rem">Send message</button></div>
@@ -31,7 +31,7 @@ nav: contact
         <li><b>Email</b><span><a href="mailto:{{ contact.email }}" style="color:var(--gold-d);font-weight:600">{{ contact.email }}</a></span></li>
         <li><b>Already a customer?</b><span>Reply to any report email, or write to the address above with your hotel's name and we'll sort it.</span></li>
         <li><b>Billing and cancellations</b><span>Stripe emails a receipt with every payment. For invoices, changing plan or cancelling, email us.</span></li>
-        <li><b>Hotel groups and agencies</b><span>More than five hotels, or managing hotels for clients? Tell us how many and we'll put together an arrangement.</span></li>
+        <li><b>Hotel groups and agencies</b><span>Managing a lot of hotels, or hotels for clients? Tell us how many and we'll make sure the Portfolio plan suits you.</span></li>
         <li><b>Your data</b><span>To see, correct or delete what we hold, write to us. See the <a href="/privacy.html" style="color:var(--gold-d)">privacy notice</a>.</span></li>
       </ul>
       <p class="note" style="margin-top:22px;color:var(--muted);font-size:.9rem">{{ business }}</p>
