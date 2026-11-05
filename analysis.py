@@ -97,7 +97,9 @@ def page(db, runs_all, cost_this_month=None):
     f = figures(db, runs_all)
     t, rows = f["tiles"], f["rows"]
     if not rows:
-        return '<div class="alert info">No hotels are registered yet. Add one under <a href="/admin/portfolio">Portfolio</a> and its analysis appears here.</div>'
+        n_sites = len({x["hotel_key"] for x in runs_all or []})
+        return ('<div class="kpis">' + portal_view.kpi("Audits saved", len(runs_all or []), f"of {n_sites} website{'s' if n_sites != 1 else ''}, none registered as a hotel yet", BRAND) + "</div>"
+                '<div class="alert info">No hotels are registered yet. Add one under <a href="/admin/portfolio">Portfolio</a> and its analysis (score movement, actions, AI visibility growth) appears here.</div>')
     move = "" if t["avg_move"] is None else f"{t['avg_move']:+g} on average since the first check"
     tiles = ('<div class="kpis">'
              + portal_view.kpi("Hotels", t["hotels"], f"{t['up']} improving, {t['flat']} flat, {t['down']} slipping" if t["measured"] else "more checks are needed to show movement", BRAND)

@@ -285,7 +285,7 @@ check("a wrong password is refused", b"Wrong password" in bad.data and ca.get("/
 ok = ca.post("/admin/login", data={"password": "open-sesame"})
 check("the right password signs in", ok.status_code == 302 and ca.get("/admin/runs").status_code == 200)
 ov = ca.get("/admin/overview").get_data(as_text=True)
-check("the overview shows the saved audits and totals", "Audits saved" in ov and "Brooklands Hotel" in ov)
+check("the overview shows the number of saved audits, and says no hotel is registered yet (the analysis needs registered hotels)", "Audits saved" in ov and "No hotels are registered yet" in ov)
 check("runs can be filtered, a run opened, and its report, data and PDFs downloaded", "Brooklands" in ca.get("/admin/runs?q=brooklands").get_data(as_text=True) and "Open the full report" in ca.get("/admin/run/1").get_data(as_text=True)
       and "Brand ranking" in ca.get("/admin/run/1/report").get_data(as_text=True) and ca.get("/admin/run/1/management.pdf").data[:4] == b"%PDF" and json.loads(ca.get("/admin/run/1/data.json").data)["meta"]["hotel"])
 check("the hotels, markets and usage pages render", all(ca.get(p).status_code == 200 for p in ("/admin/hotels", "/admin/markets", "/admin/usage", "/admin/export")) and "Free-tier guards" in ca.get("/admin/usage").get_data(as_text=True))
