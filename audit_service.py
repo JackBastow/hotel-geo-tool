@@ -95,6 +95,10 @@ def run(params, cfg, progress=None):
             db = backend.open_store(cfg.database_url)
             _key = backend.hotel_key({"meta": {"base": urlscope.normalise(params["website"])[0]}})
             benchmark = (db.confirmed_prompts_for_key(_key) or db.get_benchmark(_key)) if db else []      # the prompts the hotel confirmed come first; otherwise the ones frozen at its first audit
+            import placenames
+            if benchmark and not db.confirmed_prompts_for_key(_key) and any(placenames.has_scrap(b.get("text")) for b in benchmark):
+                db.clear_benchmark(_key)          # frozen prompts built on a scrap of page text ('Airports Rhine Park') are thrown away: this audit writes a clean set
+                benchmark = []
         except Exception:  # noqa: BLE001 - without a stored benchmark the audit simply sets a new one
             benchmark = []
     valid_aud = {k for k, *_r in ai_niche.AUDIENCES}

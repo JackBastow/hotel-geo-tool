@@ -336,6 +336,18 @@ class Store(portal_db.PortalMixin):
         except (ValueError, TypeError):
             return []
 
+    def clear_benchmark(self, hotel_key):
+        """Forget a hotel's frozen benchmark prompts (they were built on a wrong place name), so the next audit writes a new set."""
+        self._exec_sql("DELETE FROM benchmark WHERE hotel_key = ?", (hotel_key,))
+
+    def _exec_sql(self, sql, params=()):
+        conn = self._connect()
+        try:
+            self._run(conn, sql, params)
+            conn.commit()
+        finally:
+            conn.close()
+
     def save_benchmark(self, hotel_key, prompts):
         """Freeze a hotel's benchmark prompts at its first audit. An existing benchmark is never overwritten: that is what makes later audits comparable."""
         if not hotel_key or not prompts or self.get_benchmark(hotel_key):

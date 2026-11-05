@@ -52,6 +52,16 @@ out = anchors.find(txt, "Hilton Düsseldorf", "Düsseldorf", location={"lat": 51
 names = [a["name"] for a in out["anchors"]]
 check("a place the page names is kept when it is a known place near the hotel, and dropped when it is not", "Louvre Museum" in names and not any("Rhine Park" in n for n in names), names)
 
+print("4. frozen prompts built on a scrap are thrown away")
+check("a prompt with a scrap in place of a place is recognised", pn.has_scrap("I'm flying out of Parking Lot Airports Düsseldorf Airport early tomorrow.") and pn.has_scrap("Which upscale hotels near Airports Rhine Park have parking?") and not pn.has_scrap("Which upscale hotels near Königsallee have parking for guests?"))
+import backend
+import os
+import tempfile
+st = backend.Store("sqlite:///" + os.path.join(tempfile.mkdtemp(), "b.db"))
+st.init()
+st.save_benchmark("h.com", [{"text": "Which hotels near Airports Rhine Park have parking?", "angle": "Parking", "why": ""}])
+check("the frozen set can be cleared so the next audit writes a new one, and a new one is then kept", st.get_benchmark("h.com") and (st.clear_benchmark("h.com") or True) and st.get_benchmark("h.com") == [] and st.save_benchmark("h.com", [{"text": "Which hotels in Düsseldorf have parking?", "angle": "x", "why": ""}]) and len(st.get_benchmark("h.com")) == 1)
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

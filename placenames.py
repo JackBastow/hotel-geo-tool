@@ -49,6 +49,14 @@ def clean_airport(name):
     return " ".join(words) + " Airport"
 
 
+_SCRAP = re.compile(r"\b(?:Parking Lots?|Airports)\b")
+
+
+def has_scrap(prompt):
+    """Does a prompt contain a scrap of page text where a place name should be ('Parking Lot Airports Düsseldorf Airport', 'Airports Rhine Park')?"""
+    return bool(_SCRAP.search(prompt or ""))
+
+
 def near(name, titles):
     """Does a known place nearby carry this name? `titles` are the titles of Wikipedia articles around the hotel's coordinates."""
     key = evidence.fold(name)
