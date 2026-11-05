@@ -66,6 +66,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 
 import ai_gap
+import depth as _depth_mod
 import citations as citations_mod
 import forums as forums_mod
 import ai_questions
@@ -609,7 +610,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
                    youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None,
-                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None):
+                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None, ai_depth="standard"):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -703,8 +704,10 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             search_country = None
     if anthropic_api_key and hotel and city:
         ai_ex = ThreadPoolExecutor(max_workers=4)
-        _rep = {} if anthropic_repeats is None else {"repeats": max(1, min(3, int(anthropic_repeats)))}      # how many times each list question is asked (default in ai_sample)
-        ai_future = ai_ex.submit(ai_sample.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model,
+        import depth as _depth
+        _dl = _depth.limits(ai_depth)
+        _rep = {"repeats": max(1, min(5, int(anthropic_repeats)))} if anthropic_repeats is not None else {"repeats": _dl["repeats"]}      # how many times each list question is asked
+        ai_future = ai_ex.submit(ai_sample.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model, max_questions=_dl["generic_questions"], budget_usd=_dl["budget_generic"], workers=_dl["workers"],
                                  segments=segment_labels, own_domain=base, country=search_country, **_rep)
         rv_future = ai_ex.submit(review_replies.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model)
         ll_future = ai_ex.submit(listing_lookup.run, hotel, city, api_key=anthropic_api_key, model=anthropic_model)     # finds the hotel's listing on each major site
@@ -879,7 +882,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 _qclient = ai_sample._make_client(anthropic_api_key, timeout=60.0)
             except Exception:  # noqa: BLE001
                 _qclient = None
-            built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or ai_sample.REPEATS), features=_feats0, benchmark=benchmark)
+            built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]), features=_feats0, benchmark=benchmark, depth=ai_depth)
             nqs = built["questions"]
             benchmark_info = {"prompts": built["benchmark_prompts"] or [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why")} for b in (benchmark or [])], "reused": built["benchmark_reused"]}
             question_plan = {"facts": built["facts"], "rejected": built["rejected"], "anchors": _anch["anchors"][:6], "coords_source": _anch["coords_source"], "cost_usd": built["cost_usd"]}
@@ -899,8 +902,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             try:
                 _host0 = urllib.parse.urlparse(base).netloc.lower()
                 niche_ex = ThreadPoolExecutor(max_workers=1)
-                niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model, budget_usd=3.0, country=search_country,
-                                               own_domain=_host0[4:] if _host0.startswith("www.") else _host0, **({} if anthropic_repeats is None else {"repeats": max(1, min(3, int(anthropic_repeats)))}))
+                niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model, budget_usd=_depth_mod.limits(ai_depth)["budget_niche"], workers=_depth_mod.limits(ai_depth)["workers"], country=search_country,
+                                               own_domain=_host0[4:] if _host0.startswith("www.") else _host0, **({} if anthropic_repeats is None else {"repeats": max(1, min(5, int(anthropic_repeats)))}))
             except Exception:  # noqa: BLE001
                 niche_future = None
 

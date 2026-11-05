@@ -150,7 +150,9 @@ Write up to {n} prompts a real traveller with a genuine booking intention would 
 - each mentions {city} or a place named in the facts, and the star level where the facts give one;
 - different intents (a purpose, a constraint or a place), phrased the way people write, not as keyword lists;
 - never name the hotel; never ask about facilities or kinds of traveller the facts do not support.
-Reply: {{"prompts": [{{"text": "...", "facts": ["f1"]}}]}}''')
+- vary the STYLE: some short searches as people really type them (for example "best airport hotel near X with shuttle"), some long conversational requests with several constraints, some for a particular occasion
+  or time ("next weekend", "for a conference"), some comparing kinds of place, some about value or what to avoid. Give each its style.
+Reply: {{"prompts": [{{"text": "...", "facts": ["f1"], "style": "short search | conversational | occasion | comparison | value"}}]}}''')
 
 
 def validate(proposed, facts, hotel, city, anchor_names, tier_key, existing=()):
@@ -186,7 +188,8 @@ def validate(proposed, facts, hotel, city, anchor_names, tier_key, existing=()):
             rejected.append({"text": text, "why": why})
             continue
         kept.append({"id": f"niche_prop{len(kept) + 1}", "kind": "niche", "angle": "Traveller intent", "text": text if text.endswith("?") else text.rstrip(".") + "?",
-                     "why": "Written from: " + "; ".join(ids[i]["text"] for i in cited[:2]) + ".", "priority": "core", "source": "proposed"})
+                     "why": "Written from: " + "; ".join(ids[i]["text"] for i in cited[:2]) + ".", "priority": "core", "source": "proposed",
+                     "style": str((p or {}).get("style") or "")[:30]})
     return kept, rejected
 
 
@@ -207,7 +210,34 @@ def propose(client, model, facts, city, n=MAX_PROPOSALS + 2):
 
 # --------------------------------------------------------------------- build
 
-def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repeats=2, features=None, benchmark=None):
+WRAPPERS = ["I'm booking a trip soon and I'm fussy about quality. ", "Help me choose, please. ", "I've been asked to book somewhere and it has to be right. ", "We're travelling at fairly short notice. "]
+
+
+def style_variants(prof, hotel, city, anchor_list, core, n):
+    """
+    The SAME intents in other styles: a short search as people type it, and the core questions as a conversational request. Whether the hotel is named often depends on the wording, so asking both shows whether a
+    result is about the hotel or about the phrasing. Never names the hotel; returns up to n secondary questions.
+    """
+    if n <= 0:
+        return []
+    place = (city or "").split(",")[0].strip()
+    tp = ai_niche._tier_phrase((prof or {}).get("tier"), (prof or {}).get("stars"))
+    out = []
+    for a in an_best(anchor_list, 3):
+        out.append({"id": f"niche_kw{len(out) + 1}", "kind": "niche", "angle": "Short search", "style": "short search", "text": f"best {tp}hotel near {a['name']}", "priority": "secondary", "source": "style",
+                    "why": f"The same market as the longer questions near {a['name']}, written as a short search."})
+    for aud in ((prof or {}).get("audiences") or [])[:3]:
+        if aud.get("level") in ("strong", "stated"):
+            out.append({"id": f"niche_kw{len(out) + 1}", "kind": "niche", "angle": "Short search", "style": "short search", "text": f"best hotel in {place} for {aud['label'].lower()}", "priority": "secondary", "source": "style",
+                        "why": f"Audience: {aud['label']}, written as a short search."})
+    for i, q in enumerate([q for q in core if q.get("kind") == "niche" and q.get("source") != "style"][: max(0, n - len(out))]):
+        t = q["text"]
+        out.append({"id": f"niche_cv{i + 1}", "kind": "niche", "angle": "Conversational", "style": "conversational", "text": WRAPPERS[i % len(WRAPPERS)] + t,
+                    "priority": "secondary", "source": "style", "why": "The same question as an earlier one, asked as a conversational request: does the wording change who is named?"})
+    return [q for q in out if ai_niche._safe(q["text"] if q["text"].endswith("?") else q["text"] + "?", hotel)][:n]
+
+
+def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repeats=2, features=None, benchmark=None, depth="standard"):
     """
     -> {"questions": [...], "facts": [...], "rejected": [...], "cost_usd": float}. Core questions are asked base_repeats + 1 times (at most 4), secondary ones base_repeats times; every question carries
     its priority, its repeat count and why it was asked. Never empty when ai_niche can write at least one question.
@@ -215,6 +245,8 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
     benchmark: the prompts frozen at this hotel's FIRST audit ([{text, angle, why}]). When given they are asked again, word for word, as the core questions, so a later audit measures the same thing and a
     change means something; this audit's fresh questions are added as exploratory (secondary) ones. When there is none, this audit's core questions become the benchmark ('benchmark_prompts' in the result).
     """
+    import depth as _depth
+    lim = _depth.limits(depth)
     facts = fact_list(prof, anchor_list or [], features)
     tmpl = ai_niche.questions(prof, hotel, city, n=12) if prof else []
     for q in tmpl:
@@ -228,29 +260,31 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
     pool = anch + feat + tmpl
     cost, rejected = 0.0, []
     if client is not None and facts:
-        props, cost = propose(client, model or ai_sample.MODEL_DEFAULT, facts, city)
+        props, cost = propose(client, model or ai_sample.MODEL_DEFAULT, facts, city, n=lim["proposals"] + 2)
         kept, rejected = validate(props, facts, hotel, city, [a["name"] for a in an_best(anchor_list, 3)], ((prof or {}).get("tier") or {}).get("key"), [q["text"] for q in pool])
-        pool += kept[:MAX_PROPOSALS]
+        pool += kept[:lim["proposals"]]
     out, seen = [], set()
     for q in pool:
         if q["text"] in seen:
             continue
         seen.add(q["text"])
         out.append(q)
-    core = [q for q in out if q["priority"] == "core"][:MAX_CORE]
-    sec = [q for q in out if q["priority"] != "core"][:MAX_SECONDARY]
+    core = [q for q in out if q["priority"] == "core"][:lim["core"]]
+    sec = [q for q in out if q["priority"] != "core"][:lim["secondary"]]
     bench_out = []
     if benchmark:
         frozen = [{"id": f"niche_bench{i}", "kind": "niche", "angle": b.get("angle") or "Benchmark", "text": b["text"], "priority": "core", "source": "benchmark",
-                   "why": ((b.get("why") or "").rstrip(".") + ". " if b.get("why") else "") + "A benchmark prompt kept from this hotel's first audit and asked again word for word, so the results can be compared over time."} for i, b in enumerate(benchmark[:MAX_CORE], 1) if b.get("text")]
+                   "why": ((b.get("why") or "").rstrip(".") + ". " if b.get("why") else "") + "A benchmark prompt kept from this hotel's first audit and asked again word for word, so the results can be compared over time."} for i, b in enumerate(benchmark[:lim["core"]], 1) if b.get("text")]
         fresh = [q for q in core + sec if not any(_similar(q["text"], f["text"], 0.8) for f in frozen)]
         for q in fresh:
             q["priority"], q["source"] = "secondary", q.get("source") or "new"
-        core, sec = frozen, fresh[:MAX_SECONDARY + 2]
+        core, sec = frozen, fresh[:lim["secondary"] + 2]
     else:
         bench_out = [{"text": q["text"], "angle": q["angle"], "why": q["why"]} for q in core]
+    seen_text = {q["text"] for q in core + sec}
+    sec += [q for q in style_variants(prof, hotel, city, anchor_list, core, lim["variants"]) if q["text"] not in seen_text]
     for q in core:
-        q["repeats"] = min(4, base_repeats + 1)
+        q["repeats"] = min(lim["core_cap"], base_repeats + lim["core_extra"])
     for q in sec:
         q["repeats"] = base_repeats
     return {"questions": core + sec, "facts": facts, "rejected": rejected, "cost_usd": round(cost, 5), "benchmark_prompts": bench_out, "benchmark_reused": bool(benchmark)}

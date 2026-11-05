@@ -83,7 +83,7 @@ class Weekly:
 
     def params_for(self, h):
         return {"website": h["website"], "hotel": h["name"], "city": h["city"], "wider": True, "tier": h["tier"] or None,
-                "audiences": [a for a in (h["audiences"] or "").split(",") if a]}
+                "audiences": [a for a in (h["audiences"] or "").split(",") if a], "depth": getattr(self.cfg, "weekly_ai_depth", "standard")}
 
     def check_one(self, hotel_id):
         """Run one hotel's audit now and save it. -> {"hotel", "ok", "token" or "error"}. Never raises."""

@@ -43,6 +43,9 @@ class Config:
         self.admin_password = get("ADMIN_PASSWORD")
         self.site_password = get("SITE_PASSWORD")          # when set, every page except /healthz asks for it first
         self.secret_key = get("SECRET_KEY")
+        import depth as _depth
+        self.ai_depth = _depth.clean(get("AI_DEPTH") or "deep")                 # manual and demo audits: the thorough test
+        self.weekly_ai_depth = _depth.clean(get("WEEKLY_AI_DEPTH") or "standard")      # the weekly checks: the lighter test, so a portfolio of hotels stays affordable and quick
         self.cron_token = get("CRON_TOKEN")                # lets the scheduled weekly-check job call /internal/weekly; without it those routes do not exist
         try:
             self.audits_per_hour = int(get("AUDITS_PER_HOUR_PER_VISITOR") or 4)
@@ -81,7 +84,9 @@ def run(params, cfg, progress=None):
     use_tavily = cfg.tavily if (cfg.tavily and _within_quota("tavily", TAVILY_CREDITS_PER_AUDIT)) else None
     use_amadeus = cfg.amadeus_key if (cfg.amadeus_key and cfg.amadeus_secret and _within_quota("amadeus")) else None
     use_gemini_reader = cfg.gemini_reader if (cfg.gemini_reader and _within_quota("gemini_reader")) else None
-    use_anthropic = cfg.anthropic if (cfg.anthropic and _within_quota("claude", CLAUDE_MILLIDOLLARS_PER_AUDIT)) else None
+    import depth as _depth
+    depth_name = _depth.clean(params.get("depth") or cfg.ai_depth)
+    use_anthropic = cfg.anthropic if (cfg.anthropic and _within_quota("claude", max(CLAUDE_MILLIDOLLARS_PER_AUDIT, _depth.limits(depth_name)["reserve_millidollars"]))) else None
     benchmark = []
     if cfg.database_url:
         try:
@@ -96,7 +101,7 @@ def run(params, cfg, progress=None):
         params["website"], params.get("hotel", ""), params.get("city", ""), progress=progress,
         tavily_api_key=use_tavily, amadeus_api_key=use_amadeus, amadeus_api_secret=cfg.amadeus_secret if use_amadeus else None,
         gemini_reader_key=use_gemini_reader, youtube_api_key=cfg.youtube, wider=bool(params.get("wider", True)), pagespeed_api_key=cfg.pagespeed,
-        anthropic_api_key=use_anthropic, anthropic_model=cfg.anthropic_model, anthropic_repeats=cfg.repeats, custom_prompts=params.get("prompts") or None, benchmark=benchmark or None,
+        anthropic_api_key=use_anthropic, anthropic_model=cfg.anthropic_model, anthropic_repeats=cfg.repeats, custom_prompts=params.get("prompts") or None, benchmark=benchmark or None, ai_depth=depth_name,
         market_hint={"tier": TIERS.get(params.get("tier")), "audiences": [a for a in params.get("audiences") or [] if a in valid_aud]})
     if params.get("review_rows"):
         fa_res = _with_review_export(fa_res, params["review_rows"], params.get("review_mapping") or {})

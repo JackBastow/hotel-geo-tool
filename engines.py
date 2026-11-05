@@ -21,9 +21,14 @@ def rows(rep):
         log = ai_sample.test_log(ai) or {}
         sm = log.get("summary") or {}
         where = f", searching as if from {ai['search_country']}" if ai.get("search_country") else ""
-        n_all = len(ai.get("items") or [])
+        items = ai.get("items") or []
+        by_q = {}
+        for i in items:
+            by_q[i.get("qid") or i.get("id")] = by_q.get(i.get("qid") or i.get("id"), 0) + 1
+        top = max(by_q.values()) if by_q else 0
         out.append({"name": "Claude", "maker": "Anthropic", "tested": True,
-                    "detail": f"Tested: {ai.get('model', 'Claude')} with live web search{where}, on {log.get('date') or 'the audit date'}. {sm.get('prompts', 0)} different prompts, {n_all} answers in all."})
+                    "detail": f"Tested: {ai.get('model', 'Claude')} with live web search{where}, on {log.get('date') or 'the audit date'}. {len(by_q)} different prompts, {len(items)} answers in all"
+                              + (f"; the most important prompts were each asked {top} times." if top > 1 else ".")})
     else:
         out.append({"name": "Claude", "maker": "Anthropic", "tested": False, "detail": "Not tested in this audit: " + (ai.get("reason") or "the AI sample was not run.")})
     out += [{"name": n, "maker": m, "tested": False, "detail": d} for n, m, d in OTHERS]

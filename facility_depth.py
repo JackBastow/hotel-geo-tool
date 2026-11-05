@@ -77,6 +77,8 @@ def _context(text, m, before=90, after=190):
     seg = text[a:b]
     if a > 0:
         seg = seg[seg.find(" ") + 1:] if " " in seg[:40] else seg
+    if b < len(text) and " " in seg:
+        seg = seg[: seg.rfind(" ")]                      # never end on half a word
     return _norm(seg)
 
 

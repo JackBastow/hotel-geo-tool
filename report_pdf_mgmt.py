@@ -131,7 +131,7 @@ def _markets_block(rep, c):
         ms.sort(key=lambda m: (m.get("priority") != "core", m["kind"] != "niche", m["qid"]))
         out.append(para("Which AI searches name the hotel, and who is named instead", "h3"))
         rows = [["A search a traveller might make", "Names the hotel", "Named instead (same category)"]]
-        for m in ms[:7]:
+        for m in ms[:12]:
             inst = ", ".join(f"{r['name']} ({r['answers']} of {r['of']})" for r in m["rivals"][:2]) or ("only hotels in a higher category" if m.get("other_category") else "-")
             rows.append([short(m["question"], 105), f"{m['named']} of {m['of']} ({trend.band(m['named'], m['of'])})", short(inst, 90)])
         out.append(table(rows, [0.46, 0.2, 0.34]))

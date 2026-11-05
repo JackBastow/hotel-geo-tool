@@ -74,6 +74,13 @@ def build_questions(hotel, city, segments=(), max_questions=MAX_QUESTIONS):
               {"id": "facilities", "kind": "direct", "text": f"What facilities does {hotel} in {place} have, and what is it known for?"},
               {"id": "reviews", "kind": "direct", "text": f"What do guests say about {hotel} in {place}? What do they like, and what do they complain about?"},
               {"id": "similar", "kind": "direct", "text": f"Which hotels in {place} are similar to {hotel}, and how do they compare?"}]
+    if max_questions > MAX_QUESTIONS:       # a deeper test adds town-wide prompts of other kinds: a short search, a recommendation request, a source-seeking one, an occasion and a value one
+        generic += [{"id": "weekend", "kind": "generic", "text": f"best hotel in {place} for a weekend city break"},
+                    {"id": "recommend", "kind": "generic", "text": f"Can you recommend a good hotel in {place}? I have a busy week of meetings and want somewhere I can rely on."},
+                    {"id": "rated", "kind": "generic", "text": f"Which hotels in {place} get the best reviews from guests, and why?"},
+                    {"id": "occasion", "kind": "generic", "text": f"We are celebrating an anniversary in {place}. Where should we stay?"},
+                    {"id": "value", "kind": "generic", "text": f"cheap but good hotels in {place} with free cancellation"},
+                    {"id": "tonight", "kind": "generic", "text": f"I need a hotel in {place} tonight, at short notice. What are my best options?"}]
     # the direct questions are the point of the exercise: keep as many as fit, then fill the rest with generic ones in order
     room = max(0, max_questions - len(direct))
     if room == 0:
