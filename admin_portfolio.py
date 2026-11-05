@@ -138,6 +138,7 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         c = csrf()
         panel = (f'<section class="panel"><h4>Manage this hotel</h4>{notice}'
                  f'<p><form method="post" action="/admin/hotel/{hid}/run" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn primary" type="submit">Run a check now</button></form> '
+                 f'<form method="post" action="/admin/hotel/{hid}/reset-prompts" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Reset its automatic prompts</button></form> '
                  f'<form method="post" action="/admin/hotel/{hid}/weekly" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Weekly checks are {"ON: switch off" if h["weekly"] else "OFF: switch on"}</button></form></p>'
                  + (f'<p class="caption">Last problem: {esc(h["last_error"])}</p>' if h["last_error"] else "")
                  + f'<h5>People who can sign in ({len(users)})</h5>' + (f'<div class="table-wrap"><table class="table"><thead><tr><th>Email</th><th>Name</th><th>Last sign-in (UK time)</th><th></th><th></th></tr></thead><tbody>{ut}</tbody></table></div>' if users else '<p class="caption">Nobody has a login yet.</p>')
@@ -236,6 +237,22 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         if uid in {x["id"] for x in s.users_for_hotel(hid)} and state in ("on", "off"):
             s.set_user_active(uid, state == "on")
         return redirect(f"/admin/hotel/{hid}")
+
+    @app.post("/admin/hotel/<int:hid>/reset-prompts")
+    def admin_reset_prompts(hid):
+        bad, s = checked_post()
+        if bad:
+            return bad
+        h = s.get_hotel(hid)
+        if not h:
+            abort(404)
+        s.clear_benchmark(h["hotel_key"])                                   # the prompts frozen at the first audit
+        for p in s.prompt_sets(hid):
+            if p["status"] == "draft":
+                s.delete_prompt_set(p["id"])                                # an unconfirmed recommended set built from the old prompts
+        has_confirmed = bool(s.confirmed_prompts_for_key(h["hotel_key"]))
+        return hotel_page(s, hid, '<div class="alert success"><b>Prompts reset.</b> The next check writes a fresh recommended set from the current question engine, and the hotel is asked to confirm it.'
+                                  + (' The hotel has a <i>confirmed</i> set, which is left as it is: the hotel can change it on its Prompts tab.' if has_confirmed else '') + '</div>')
 
     @app.post("/admin/hotel/<int:hid>/weekly")
     def admin_weekly_toggle(hid):
