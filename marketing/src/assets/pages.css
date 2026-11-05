@@ -173,3 +173,12 @@ table.data tr.you td { background: #fff3ef; font-weight: 600; }
 .hrow .rm { background: none; border: 1px solid var(--line); border-radius: 12px; width: 44px; height: 44px; cursor: pointer; font-size: 1.2rem; color: var(--muted); }
 .hrow .rm:hover { border-color: var(--coral); color: var(--coral); }
 @media (max-width: 760px) { .hotels-form .hrow { grid-template-columns: 1fr; padding-bottom: 14px; border-bottom: 1px dashed var(--line); } .hrow .rm { width: 100%; height: 40px; } }
+
+
+/* "How many hotels?" calculator on a plan card */
+.calc { background: rgba(224,181,103,.12); border: 1px solid rgba(224,181,103,.4); border-radius: 14px; padding: 14px 16px; margin: 4px 0 18px; }
+.plan.feat .calc { background: rgba(255,255,255,.06); border-color: var(--line-d); }
+.calc label { font-size: .9rem; font-weight: 600; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.calc input { width: 84px; font: inherit; font-weight: 700; padding: .5rem .6rem; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--text); text-align: center; }
+.calc .total { font: 600 1.1rem/1.3 var(--serif); margin: 10px 0 2px; }
+.calc .hint { font-size: .82rem; color: var(--muted); margin: 0; } .plan.feat .calc .hint { color: rgba(255,255,255,.65); }

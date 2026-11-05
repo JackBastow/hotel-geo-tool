@@ -44,7 +44,23 @@
       else { a.href = "/contact.html?plan=" + id + "&billing=" + interval; a.textContent = "Get started"; a.removeAttribute("target"); }
     });
     $$(".toggle button").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-interval") === interval ? "true" : "false"); });
+    calcs();
   }
+  // "How many hotels?" totals on the pricing cards
+  function calcs() {
+    $$("[data-calc]").forEach(function (c) {
+      var inp = $("input", c), lo = parseInt(c.getAttribute("data-min"), 10) || 1;
+      var n = Math.max(lo, Math.min(999, parseInt(inp.value, 10) || lo));
+      var yearly = interval === "annual" && c.getAttribute("data-pa");
+      var each = parseFloat(c.getAttribute(yearly ? "data-pa" : "data-pm"));
+      var total = (n * each).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      $(".total", c).textContent = n + (n === 1 ? " hotel: " : " hotels: ") + "\u00a3" + total + (yearly ? " a year" : " a month");
+    });
+  }
+  $$("[data-calc] input").forEach(function (i) {
+    i.addEventListener("input", calcs);
+    i.addEventListener("change", function () { var c = i.closest("[data-calc]"), lo = parseInt(c.getAttribute("data-min"), 10) || 1; if ((parseInt(i.value, 10) || 0) < lo) i.value = lo; calcs(); });
+  });
   $$(".toggle button").forEach(function (b) { b.addEventListener("click", function () { interval = b.getAttribute("data-interval"); paint(); }); });
   if ($("[data-buy]")) paint();
 
