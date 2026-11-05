@@ -6,6 +6,7 @@ Wording rule: this shows PROGRESS (what was done, what changed). It never claims
 """
 
 import datetime as dt
+import urllib.parse
 import json
 
 import progress
@@ -111,8 +112,18 @@ def action_card(a, sm, editable):
     if editable:
         buttons = '<div class="seg" role="group" aria-label="Status">' + "".join(
             f'<button type="button" class="act-set{" on" if a["status"] == v else ""}" data-v="{v}">{lbl}</button>' for v, lbl in STATUS_LABEL) + "</div>"
-    why = f'<p class="rec-why">{esc(rec.get("why", ""))}</p>' if rec.get("why") else ""
-    do = f'<div class="rec-do"><b>What to do</b> {esc(rec.get("action", ""))}</div>' if rec.get("action") else ""
+    def row(label, text):
+        return f'<div class="rec-row"><b>{esc(label)}</b><span>{text}</span></div>' if text else ""
+    ev = []
+    for e in (rec.get("evidence") or [])[:3]:
+        sn = (e.get("snippet") or "").strip()
+        if not sn:
+            continue
+        link = f'<a href="{esc(e["url"])}" target="_blank" rel="noopener noreferrer">{esc(urllib.parse.urlparse(e["url"]).path or "/")}</a>: ' if str(e.get("url") or "").startswith("http") else ""
+        ev.append(f'{link}{"" if sn.lower().startswith(("pages inspected", "no page about")) else "&ldquo;"}{esc(sn[:300])}{"" if sn.lower().startswith(("pages inspected", "no page about")) else "&rdquo;"}')
+    why = (row("The issue", esc(rec.get("finding", ""))) + row("Evidence", "<br>".join(ev)) + row("Why it matters", esc(rec.get("why", ""))))
+    do = (row("What to do", esc(rec.get("action", ""))) + row("Example wording", esc(rec.get("example", "")) if rec.get("example") else "")
+          + row("How you will know", esc(rec.get("success_check") or rec.get("expected_outcome") or "")))
     conf = rec.get("confidence_label")
     return (f'<article class="act {PRI_TONE.get(a["priority"], "")}" data-id="{a["id"]}" data-kind="{kind}"><details class="rec-d"><summary><span class="rec-t">{esc(a["title"])}</span>'
             f'<span class="rec-meta">{chip((a["priority"] or "").capitalize(), PRI_TONE.get(a["priority"], ""))}{chip(team)}{chip("Effort: " + a["effort"]) if a["effort"] else ""}{chip(conf) if conf else ""}</span></summary>'
@@ -152,7 +163,7 @@ def dashboard(sm, actions, runs, editable=True, csrf="", ai=""):
     if h.get("weekly") and sm["last_run_at"]:
         try:
             d = dt.datetime.fromisoformat(sm["last_run_at"].replace("Z", "+00:00")) + dt.timedelta(days=7)
-            nxt = chip("Next automatic check: around " + uk_date(d.isoformat()), "brand")
+            nxt = chip("Next automatic check: around " + uk_date(d.isoformat()), "brand") if d > dt.datetime.now(dt.timezone.utc) else chip("Next automatic check: at the next weekly run (Mondays)", "brand")
         except ValueError:
             nxt = ""
     latest = runs[0] if runs else None

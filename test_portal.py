@@ -211,6 +211,15 @@ check("with only one check nothing is called new or lost", ai_dash._changes(cur,
 svg = ai_dash.lines_svg([{"run_at": "2026-10-01T09:00:00+00:00"}, {"run_at": "2026-10-08T09:00:00+00:00"}, {"run_at": "2026-10-15T09:00:00+00:00"}], [{"name": "Me", "own": True, "points": [10, None, 30]}, {"name": "Rival", "own": False, "points": [20, 25, 22]}], 0, 40)
 check("the chart draws the hotel and its rival, breaks the line where the hotel was not named, and labels each point", svg.count("<polyline") == 1 + 0 + 0 or svg.count("<polyline") >= 1) and check("hover labels carry the name, value and date", "Me: 10" in svg and "Rival: 25" in svg)
 
+print("9. a hotel added after its audits were saved")
+reports.save(report("hotel-c.com", "Hotel C", 61, run_at="2026-10-14T09:00:00+00:00"))
+hc = db.create_hotel("Hotel C", "hotel-c.com", "Leeds", "hotel-c.com")
+check("before anyone opens the hotel there are no actions (the list is built when an audit is saved)", db.list_actions(hc) == [])
+pg = admin.get(f"/admin/hotel/{hc}").get_data(as_text=True)
+check("opening the hotel builds its action list from the latest saved audit, so the dashboard is not empty", len(db.list_actions(hc)) >= 8 and "Recommendations (" in pg and "Recommendations (0)" not in pg, len(db.list_actions(hc)))
+check("each recommendation shows the issue, the evidence, why it matters, what to do and how you will know", all(w in pg for w in ("The issue", "Evidence", "Why it matters", "What to do", "How you will know")))
+check("a stale 'next check' date is shown as the next weekly run, not a date in the past", "at the next weekly run" in pg or "Next automatic check: around" in pg)
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

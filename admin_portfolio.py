@@ -92,6 +92,7 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         h = s.get_hotel(hid)
         if not h:
             abort(404)
+        progress.ensure_actions(s, h)
         sm = progress.hotel_summary(s, h)
         users = s.users_for_hotel(hid)
         ut = "".join(f'<tr><td>{esc(u["email"])}</td><td>{esc(u["name"] or "")}</td><td>{esc(uk_time(u["last_login"])) or "never"}</td><td>{"active" if u["active"] else "switched off"}</td><td>'

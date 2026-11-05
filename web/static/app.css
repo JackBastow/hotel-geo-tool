@@ -207,3 +207,7 @@ svg.trend { width: 100%; height: auto; max-height: 340px; }
 .wl { list-style: none; padding: 0; margin: 0; } .wl li { padding: 7px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; } .wl li:last-child { border: 0; }
 .tab small { font-weight: 600; color: var(--muted); margin-left: 2px; }
 @media (max-width: 720px) { .tile-bar { grid-template-columns: 1fr; } .tile-bar .tab.mt { border-right: 0; border-bottom: 1px solid var(--line); } }
+
+.rec-row { display: grid; grid-template-columns: 9rem 1fr; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: .92rem; } .rec-row:last-child { border: 0; }
+.rec-row b { color: var(--muted); font-size: .74rem; letter-spacing: .05em; text-transform: uppercase; padding-top: 2px; }
+@media (max-width: 720px) { .rec-row { grid-template-columns: 1fr; gap: 2px; } }

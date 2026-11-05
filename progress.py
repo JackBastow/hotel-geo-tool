@@ -36,7 +36,7 @@ def action_key(rec):
 
 
 def _snapshot(rec):
-    keep = ("id", "title", "why", "action", "priority", "effort", "team", "kind", "source", "category", "confidence_label", "confidence", "evidence", "example", "short_title")
+    keep = ("id", "title", "why", "action", "priority", "effort", "team", "kind", "source", "category", "confidence_label", "confidence", "evidence", "example", "short_title", "finding", "success_check", "expected_outcome")
     return json.dumps({k: rec.get(k) for k in keep if rec.get(k) is not None}, default=str)[:20000]
 
 
@@ -201,6 +201,23 @@ def portfolio_series(db):
         latest = [max((r for r in rows if r["run_at"] <= e), key=lambda r: r["run_at"])["headline_score"] for rows in hist.values() if any(r["run_at"] <= e for r in rows)]
         avg.append({"run_at": e, "score": round(sum(latest) / len(latest), 1)})
     return avg, completed_series(actions, ends)
+
+
+def ensure_actions(db, hotel):
+    """
+    A hotel added AFTER some audits of its website were saved has runs but no action list (the list is built when an audit is saved). When there are no actions yet and the hotel has saved runs, build the list
+    from the newest run that can be read, so the dashboard shows its recommendations straight away. Returns the number of actions created. Never raises.
+    """
+    try:
+        if db.list_actions(hotel["id"]):
+            return 0
+        for r in db.hotel_runs(hotel["hotel_key"]):
+            rep = db.get_report(r["id"])
+            if rep and _readable(rep):
+                return sync(db, hotel, rep, r["id"])["new"]
+    except Exception:  # noqa: BLE001 - the dashboard still shows
+        return 0
+    return 0
 
 
 def on_run_saved(db, report, run_id):
