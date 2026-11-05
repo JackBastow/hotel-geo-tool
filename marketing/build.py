@@ -187,7 +187,7 @@ def build(dev=False):
     shutil.copytree(os.path.join(SRC, "assets"), OUT)
     has_og = os.path.exists(os.path.join(OUT, "og.png"))
     blocks = {"plans_cards": plan_cards(site), "plans_home": plan_cards_home(site), "plans_compare": plan_compare(site),
-              "business": footer_biz, "year": str(dt.date.today().year), "offers_json": offers_json(site),
+              "business": footer_biz, "year": str(dt.date.today().year), "updated": f"{dt.date.today().day} {dt.date.today():%B %Y}", "offers_json": offers_json(site),
               "portal_link": (f'<a href="{html.escape(site["stripe"]["portal_url"])}" rel="noopener" target="_blank">Manage billing</a>' if site["stripe"]["portal_url"] else ""),
               "lowest_price": money(min(p["monthly"] for p in site["plans"])),
               "llms_plans": "\n".join(f"- {p['name']}, {p['for'].rstrip('.').lower()}: {money(p['monthly'])} a month or {money(p['annual'])} a year" for p in site["plans"])}
