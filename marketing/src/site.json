@@ -33,15 +33,12 @@
       "monthly": 49.99,
       "annual": 499.99,
       "per_hotel": true,
-      "for": "A monthly report for each hotel you add, from one hotel upwards.",
+      "for": "A clear report on your hotel, every month.",
       "features": [
-        "A full report for each hotel every month",
-        "Management PDF and technical evidence appendix",
-        "The same questions re-tested, with the change since last month",
-        "Findings on your website, listings and AI answers, each with its evidence",
+        "A monthly report for each hotel: what AI says about it, who gets named instead, and what to fix first",
+        "A management PDF, plus the evidence behind every finding",
+        "Compared with last month, so you can see what moved",
         "Your own questions tested, and your review export analysed",
-        "Open forum conversations worth joining, with honest wording",
-        "Buy as many hotels as you need, and change the number at any time",
         "Email support"
       ]
     },
@@ -53,14 +50,15 @@
       "per_hotel": true,
       "min_hotels": 5,
       "highlight": true,
-      "for": "For groups and enterprise: every hotel on one dashboard, and each hotel with its own.",
+      "for": "A live dashboard and ongoing analysis across all your hotels. Far more than a monthly report.",
       "features": [
-        "Everything in Single hotel, for every hotel",
-        "A portfolio dashboard with trends across all your hotels",
-        "Every hotel also gets its own dashboard, showing only that hotel",
-        "Actions tracked hotel by hotel, so you see what has been done",
-        "The same price for every extra hotel you add",
-        "Priority email support"
+        "Everything in the monthly report, for every hotel",
+        "A portfolio dashboard: every hotel's score, trends and AI visibility side by side",
+        "See which hotels need attention, and which are improving",
+        "Actions tracked hotel by hotel, so you can see what has been done",
+        "Each hotel also gets its own dashboard, showing only that hotel",
+        "The same price for every hotel you add",
+        "Priority support"
       ]
     }
   ],

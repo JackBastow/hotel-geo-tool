@@ -85,6 +85,7 @@ What a report covers:
 - Where the hotel is listed: booking and review sites, maps, open data (OpenStreetMap, Wikidata), press coverage, awards, checked across 30 points. Presence Pro identifies listings from public search results; it does not read Booking.com or Tripadvisor pages directly because their terms prohibit automated collection.
 - Reviews: the hotel can upload its own review export (CSV or Excel from Booking.com, Tripadvisor, Google or Expedia) for a full analysis of reply rate, unanswered critical reviews, how replies read, and what guests praise and criticise. Review text is analysed for that run only and not saved.
 - Open forum conversations: Reddit, Quora and similar threads where travellers ask where to stay, with honest suggested wording. Nothing is ever posted by Presence Pro.
+- Two plans, kept distinct: Single hotel is a clear monthly report for each hotel. Portfolio is for groups of five or more hotels and is much more than a monthly report: a portfolio dashboard with every hotel's score, trends and AI visibility side by side, ongoing analysis of which hotels need attention and which are improving, actions tracked hotel by hotel, and a dashboard for each hotel.
 - A plan: a readiness score shown together with how much of the model it rests on, the few actions most worth doing, each labelled Confirmed, Likely or Worth checking, and a monthly comparison with the previous report. Delivered as a management PDF (about 5 to 10 pages) and a technical and evidence appendix.
 
 Honesty rules (state these plainly when relevant):
