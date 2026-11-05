@@ -121,17 +121,9 @@ def register(app, cfg):
             return shell("overview", "Admin", f'<div class="alert warning">{htmlst.html.escape(msg)}</div>')
         runs = s.list_runs(limit=2000)
         month = time.strftime("%Y-%m")
-        this = [r for r in runs if str(r["run_at"]).startswith(month)]
-
-        def body():
-            a, b, c, d = st.columns(4)
-            a.metric("Audits saved", len(runs))
-            b.metric("Hotels", len({r["hotel_key"] for r in runs}))
-            c.metric("Audits this month", len(this))
-            d.metric("AI cost this month (est.)", f"${sum((r['ai_cost_usd'] or 0) for r in this):.2f}")
-            st.markdown("##### Latest audits")
-            st.caption("All times on the admin pages are UK time (GMT in winter, BST in summer).")
-        return shell("overview", "Admin: saved audits", _page_body(body) + _table(runs[:15], PUB_COLS[1:]))
+        cost = sum((r["ai_cost_usd"] or 0) for r in runs if str(r["run_at"]).startswith(month))
+        import analysis
+        return shell("overview", "Overview: how the portfolio is moving", analysis.page(s, runs, cost))
 
     def _page_body(fn):
         return htmlst.build(fn)

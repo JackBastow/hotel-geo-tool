@@ -266,6 +266,17 @@ def brand_ranking(lbs, hotel, top=5):
             a["is_target"] = a["is_target"] or r["is_target"]
             a["ranks"] += [r["avg_rank"]] * r["mentions"] if r["avg_rank"] else []
             a["sent"] += ["positive"] * r["positive"] + ["neutral"] * r["neutral"] + ["negative"] * r["negative"]
+    tg = [k for k, a in rows.items() if a["is_target"]]
+    if len(tg) > 1:                  # the hotel written two ways ('Brooklands Hotel', 'Brooklands Hotel & Spa, Weybridge') is ONE hotel: one line, not three
+        keep = max(tg, key=lambda k: rows[k]["mentions"])
+        base = rows[keep]
+        for k in tg:
+            if k != keep:
+                b = rows.pop(k)
+                base["mentions"] = max(base["mentions"], b["mentions"])        # one answer can name the hotel under two spellings, so the counts are never added
+                base["ranks"] += b["ranks"]
+                base["sent"] += b["sent"]
+        base["name"] = hotel
     out = []
     for a in rows.values():
         out.append({"name": a["name"], "is_target": a["is_target"], "mentions": a["mentions"], "of": asked, "coverage_pct": round(100 * min(a["mentions"], asked) / asked) if asked else 0,

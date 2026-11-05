@@ -461,6 +461,15 @@ class Store(portal_db.PortalMixin):
             by[d["name"]]["total"] += d["mentions"] or 0
             by[d["name"]]["at"][d["run_id"]] = d
         me = [v for v in by.values() if v["is_target"]]
+        if len(me) > 1:              # runs saved before the spellings were merged: the hotel under several names is one line (per run, the strongest row; counts are not added)
+            hn = self._rows("SELECT hotel FROM runs WHERE hotel_key = ? ORDER BY run_at DESC LIMIT 1", (key,))
+            merged = {"name": (hn[0]["hotel"] if hn and hn[0]["hotel"] else min((v["name"] for v in me), key=len)), "is_target": True, "total": max(v["total"] for v in me), "at": {}}
+            for rid in {r for v in me for r in v["at"]}:
+                rows_ = [v["at"][rid] for v in me if rid in v["at"]]
+                best = max(rows_, key=lambda d: d["mentions"] or 0)
+                ranks = [d["avg_rank"] for d in rows_ if d["avg_rank"] is not None]
+                merged["at"][rid] = {**best, "coverage_pct": max((d["coverage_pct"] or 0) for d in rows_), "mentions": max((d["mentions"] or 0) for d in rows_), "avg_rank": min(ranks) if ranks else None}
+            me = [merged]
         rivals = sorted((v for v in by.values() if not v["is_target"]), key=lambda v: (-v["total"], v["name"]))[:top]
         rows = []
         for v in me + rivals:

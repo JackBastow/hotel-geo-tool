@@ -174,7 +174,7 @@ def site_facts(guest, own_pages, hotel="", location=None):
         k["stars"] = stars
     addr = (sheet.get("Address") or {}).get("value") or ""
     pc = (_postcode(addr) or _postcode((location or {}).get("postcode") or "") or _postcode((location or {}).get("address") or "")
-          or (re.search(r"(\d{5})", addr) or re.search(r"(\d{5})", str((location or {}).get("postcode") or "")) or [None, None])[1])
+          or (re.search(r"\b(\d{5})\b", addr) or re.search(r"\b(\d{5})\b", str((location or {}).get("postcode") or "")) or [None, None])[1])
     if pc:
         k["postcode"] = pc
     if hotel:
