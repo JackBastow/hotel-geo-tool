@@ -55,8 +55,16 @@
       var each = parseFloat(c.getAttribute(yearly ? "data-pa" : "data-pm"));
       var total = (n * each).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       $(".total", c).textContent = n + (n === 1 ? " hotel: " : " hotels: ") + "\u00a3" + total + (yearly ? " a year" : " a month");
+      var q = $(".qtyn", c); if (q) q.textContent = n;
     });
   }
+  $$("[data-calc] .step-btn").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var c = b.closest("[data-calc]"), i = $("input", c), lo = parseInt(c.getAttribute("data-min"), 10) || 1;
+      i.value = Math.max(lo, Math.min(999, (parseInt(i.value, 10) || lo) + parseInt(b.getAttribute("data-dir"), 10)));
+      calcs();
+    });
+  });
   $$("[data-calc] input").forEach(function (i) {
     i.addEventListener("input", calcs);
     i.addEventListener("change", function () { var c = i.closest("[data-calc]"), lo = parseInt(c.getAttribute("data-min"), 10) || 1; if ((parseInt(i.value, 10) || 0) < lo) i.value = lo; calcs(); });

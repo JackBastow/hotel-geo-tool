@@ -126,15 +126,18 @@ def plan_cards(site):
         if p.get("per_hotel"):
             lo = p.get("min_hotels", 1)
             calc = (f'<div class="calc" data-calc data-min="{lo}" data-pm="{p["monthly"]}" data-pa="{p.get("annual") or ""}">'
-                    f'<label>How many hotels? <input type="number" min="{lo}" max="999" value="{lo}" inputmode="numeric" aria-label="Number of hotels"></label>'
+                    f'<p class="calc-title">How many hotels do you need?</p>'
+                    f'<div class="stepper"><button type="button" class="step-btn" data-dir="-1" aria-label="Fewer hotels">&minus;</button>'
+                    f'<input type="number" min="{lo}" max="999" value="{lo}" inputmode="numeric" aria-label="Number of hotels">'
+                    f'<button type="button" class="step-btn" data-dir="1" aria-label="More hotels">+</button></div>'
                     f'<p class="total" aria-live="polite"></p>'
-                    f'<p class="hint">At checkout, set the same number in the <b>Qty</b> box next to the price.</p></div>')
+                    f'<p class="hint">On the next page, set <b>Qty</b> to <b class="qtyn">{lo}</b>.</p></div>')
         out.append(
             f'<div class="plan{feat} rv">{badge}<h3>{html.escape(p["name"])}</h3>'
             f'<p class="for">{html.escape(p["for"])}</p>'
-            f'<p class="price">{price_spans(p)}</p>{tier}{calc}'
+            f'<p class="price">{price_spans(p)}</p>{tier}'
             f'<p class="save" data-m="{monthly_note}" data-a="{html.escape(yearly_note)}">{monthly_note}</p>'
-            f'{feature_list(p)}<a class="btn {btn}" href="/contact.html?plan={p["id"]}" data-buy="{p["id"]}">Get started</a></div>'
+            f'{feature_list(p)}{calc}<a class="btn {btn}" href="/contact.html?plan={p["id"]}" data-buy="{p["id"]}">Get started</a></div>'
         )
     return '<div class="plans2">' + "".join(out) + "</div>"
 
