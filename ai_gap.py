@@ -444,8 +444,11 @@ def observations(market, arts, comp, crit=None):
     for r in market["rivals"][:3]:
         if r["reasons"]:
             obs.append({"kind": "assistant", "text": f"The assistant named {r['name']} in {r['answers']} of {r['of']} answers and gave this reason: {r['reasons'][0]}.", "urls": []})
+    import textutil
     for c in crit or []:
         st, who = c["hotel"]["state"], ", ".join(c["rivals"][:3])
+        if st in ("strong", "mentioned") and (textutil.looks_like_nav(c["hotel"].get("snippet", "")) or textutil.looks_like_list(c["hotel"].get("snippet", ""))):
+            continue          # the 'proof' is a menu strip, not a sentence from the page: no claim is made from it
         if st == "not_found":
             obs.append({"kind": "criterion", "theme": c["theme"], "text": f"{who} were recommended for {c['label']}. The hotel's own pages do not mention it: either the hotel does not offer it, or it is not stated (only the hotel knows which).", "urls": []})
         elif st == "mentioned":

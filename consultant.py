@@ -114,6 +114,13 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
                 r["kind"], r["priority"], r["impact"] = "opportunity", "low", "low"
                 r["title"] = r["title"] + " (brand-run page)"
                 r["finding"] += " This page belongs to the brand's website, so the hotel cannot change it itself: pass it to the brand's web team."
+    try:
+        import report_check
+        reconciled = report_check.reconcile(recs, facility, travel if isinstance(travel, dict) else None, profile, external)
+    except Exception:  # noqa: BLE001 - a check on the checks must never stop the report
+        reconciled = []
+    for r in recs:
+        r["track"] = advice.track_of(r)
     top = advice.top_actions(recs)
     quick = advice.quick_wins(recs, exclude_ids={r["id"] for r in top})
     plan = ranking.plan_30_60_90(recs, {r["id"] for r in top})
@@ -129,7 +136,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         "recommendations": recs, "top_actions": [r["id"] for r in top], "quick_wins": [r["id"] for r in quick],
         "required_fixes": [r["id"] for r in recs if r["kind"] == "fix"],
         "opportunity_recs": [r["id"] for r in recs if r["kind"] == "opportunity"],
-        "opportunities": opps, "plan": plan, "working": working, "facility_depth": facility,
+        "opportunities": opps, "plan": plan, "working": working, "facility_depth": facility, "reconciled": reconciled,
     }
 
 

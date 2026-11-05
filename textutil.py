@@ -66,6 +66,8 @@ def looks_like_nav(text):
     """
     t = re.sub(r"\s+", " ", text or "").strip(" -|>/•·")
     toks = re.findall(r"[A-Za-zÀ-ÿ']+", t)
+    if sum(1 for w in toks if w.lower() in ("hotels", "resorts")) >= 2 and not re.search(r"[.!?;]", t):
+        return True                                                   # 'Traverse City Hotels Waikiki Hotels Mexico City Hotels': a list of destination links
     if len(toks) < 3:
         return bool(toks) and all(w.lower() in _NAV_WORDS for w in toks) and len(toks) >= 2
     menu = sum(1 for w in toks if w.lower() in _NAV_WORDS)

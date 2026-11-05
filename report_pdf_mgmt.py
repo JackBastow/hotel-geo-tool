@@ -16,6 +16,7 @@ Imported lazily by report_pdf.build_story (it uses report_pdf's helpers).
 from reportlab.platypus import KeepTogether, PageBreak, Spacer
 
 import headline as headline_mod
+import ai_insights
 import report_pdf as R
 import scoring
 from report_pdf import Markup, cat, esc, link, para, table
@@ -71,7 +72,7 @@ def _conf(r):
 def action_card(i, r):
     head = R.Paragraph(f"{i}. {esc(short(r['title'], 120))}", R.S["h3"])
     meta = R.P(cat(R.coloured(r["priority"].upper() + " priority", PRI_COL[r["priority"]]),
-                   f" - effort {r['effort']} - {_conf(r)} - owner: {r.get('owner') or r['team'].capitalize()}"), "small")
+                   f" - effort {r['effort']} - {_conf(r)} - owner: {r.get('owner') or r['team'].capitalize()}" + (f" - type: {TRACKS.get(r.get('track'), '')}" if r.get("track") else "")), "small")
     rows = [["Issue", short(r["finding"], 250)],
             ["Evidence", _ev1(r)],
             ["Why it matters", short(r["why"], 230)],
@@ -250,6 +251,8 @@ def _strengths_weaknesses(rep, c, h, top):
             bad.append(f"{seg['label']}: {cn['missing']} of {tot} things travellers need to know are missing ({', '.join(miss)})")
     for f in c.get("facility_depth") or []:
         n_ = len(f["found"])
+        if f.get("disputed"):
+            continue                                 # another check read this facility as stated: it is a lead in the plan, not a verdict here
         if f["thin"]:
             bad.append(f"{f['label']} is mentioned but only {n_} of {f['total']} details are stated (missing: {', '.join(m['label'].split(' (')[0].lower() for m in f['missing'][:3])})")
         else:
@@ -304,19 +307,26 @@ def _competitor_block(rep):
     first = rows[0]
     answers = max((r.get("of") or 0) for r in rows)
     hotel = (rep.get("meta") or {}).get("hotel", "the hotel")
-    intro = (f"Across {answers} sampled answers the assistant named {len(rows)} different hotels. " + (f"{hotel} came {pos} of {len(rows)}, named in {me['mentions']} answers ({me.get('coverage_pct', 0)}%). " if me else f"{hotel} was not named. ")
+    others = len([r for r in rows if r is not me])
+    intro = (f"Across {answers} sampled answers the assistant named {others} other hotels"
+             + (f" and {hotel} in {me['mentions']} of them ({me.get('coverage_pct', 0)}%; place {pos} of {len(rows)}). " if me and me.get("mentions") else f". It did not name {hotel} in any answer. ")
              + (f"The most-named hotel was {first['name']} ({first.get('coverage_pct', 0)}%)." if first is not me else "The hotel was the most-named."))
     show = rows[:8]
     if me and me not in show:
         show = show[:7] + [me]
-    table_rows = [["#", "Hotel", "Named in", "Average position", "How it was described"]]
+    rel = {}
+    for m_ in (rep.get("ai_gap") or {}).get("markets") or []:
+        for r_ in list(m_.get("rivals") or []) + list(m_.get("other_category") or []):
+            rel[ai_insights.canon(r_["name"])] = r_.get("relation")
+    REL = {"same": "Same category", "one_up": "One step up", "one_down": "One step down", "above": "Higher category: not a direct competitor", "below": "Lower category: not a direct competitor", "unknown": "Not classified"}
+    table_rows = [["#", "Hotel", "Named in", "Average position", "Category compared with this hotel"]]
     for r in show:
         n = rows.index(r) + 1
         name = Markup(f"<b>{esc(r['name'])} (this hotel)</b>") if r.get("is_target") else r["name"]
         sent = r.get("sentiment")
-        table_rows.append([str(n), name, f"{r.get('mentions', 0)} of {r.get('of', 0)} ({r.get('coverage_pct', 0)}%)", "-" if r.get("avg_rank") is None else f"{r['avg_rank']:g}",
-                           "not judged" if sent is None else ("positive" if sent >= 40 else "negative" if sent <= -40 else "mixed") + f" ({sent:+d})"])
-    return [KeepTogether([para(intro, "base"), table(table_rows, [0.05, 0.37, 0.2, 0.15, 0.23])]),
+        table_rows.append([str(n) if r.get("mentions") or not r.get("is_target") else "-", name, f"{r.get('mentions', 0)} of {r.get('of', 0)} ({r.get('coverage_pct', 0)}%)", "-" if r.get("avg_rank") is None else f"{r['avg_rank']:g}",
+                           "this hotel" if r.get("is_target") else REL.get(rel.get(ai_insights.canon(r["name"])), "Not classified")])
+    return [KeepTogether([para(intro, "base"), table(table_rows, [0.05, 0.37, 0.2, 0.13, 0.25])]),
             para("Average position: the hotel's place in the hotels an answer listed (1 is first). One assistant, a sample of answers on one day: a guide to who the assistant reaches for, not a ranking of hotels.", "tiny")]
 
 
@@ -362,7 +372,7 @@ def _facility_block(c):
     for f in fd:
         n = len(f["found"])
         col = R.GOOD if not f["thin"] else (R.BAD if n <= 1 else R.WARN)
-        rows.append([f["label"], R.coloured(f"{n} of {f['total']}", col), short("; ".join(m["label"] for m in f["missing"]) or "nothing important", 230)])
+        rows.append([f["label"] + (" (disputed)" if f.get("disputed") else ""), R.coloured(f"{n} of {f['total']}", col), short("; ".join(m["label"] for m in f["missing"]) or "nothing important", 230)])
     return [para("How completely the website describes its facilities", "h3"),
             para("A facility that is only mentioned (“we have event space”) gives an assistant nothing to answer “which hotels can host 120 people?”. Stating each size, capacity and the events hosted is what lets it name the hotel.", "tiny"),
             table(rows, [0.22, 0.13, 0.65])]
@@ -398,10 +408,30 @@ def _forums_block(rep):
     return out
 
 
+TRACKS = {"visibility": "AI visibility opportunity", "content": "Website content", "accuracy": "Data accuracy"}
+
+
+def _tracks_block(c):
+    """The plan as three kinds of action, each ranked on its own: what helps the hotel come up in AI recommendations, what helps people understand the hotel, and what keeps its facts consistent."""
+    recs = c.get("recommendations") or []
+    out = [para("Where to focus: three kinds of action", "h3"),
+           para("They are ranked separately because they do different jobs. A data-accuracy fix (a telephone number) is worth doing but is not expected, by itself, to change how often an assistant recommends the hotel.", "tiny")]
+    rows = [["Kind of action", "What it is for", "Top actions"]]
+    purpose = {"visibility": "Coming up in AI recommendations: the sites AI relies on, the searches the hotel is not named for, open conversations",
+               "content": "Helping travellers and assistants understand the hotel: facts and detail missing from its own pages",
+               "accuracy": "Keeping facts consistent across sources: names, phones, listings"}
+    for k in ("visibility", "content", "accuracy"):
+        rs = sorted((r for r in recs if r.get("track") == k and r.get("kind") != "opportunity" or r.get("track") == k), key=lambda r: -r["rank"])[:3]
+        rows.append([TRACKS[k], purpose[k], "; ".join(short(r.get("short_title") or r["title"], 70) + f" ({r['ref']})" for r in rs) or "None found"])
+    out.append(table(rows, [0.2, 0.34, 0.46]))
+    return out
+
+
 def _action_plan(c, recs, top, H1):
     out = []
     out.append(R.PageBreak())
     out.append(H1("What to do first: the action plan"))
+    out += _tracks_block(c)
     out.append(para("Chosen and ordered from the whole audit by one ranking model: commercial and operational importance, relevance to discovery and traveller decisions, confidence in the evidence, and implementation "
                     "effort. Every action rests on evidence from the pages or sources named. None guarantees that any AI assistant will recommend the hotel.", "muted"))
     for i, r in enumerate(top, 1):
@@ -413,7 +443,7 @@ def _action_plan(c, recs, top, H1):
             if rid not in phase:
                 order.append(rid)
                 phase[rid] = label
-    for heading, kind, intro in (("Confirmed problems: suggested implementation order", "fix", "Things the audit found missing, wrong or broken on evidence it holds."),
+    for heading, kind, intro in (("Problems found: suggested implementation order", "fix", "Things the audit found missing, wrong or broken on the evidence it holds. The label on each action says how sure we are: Confirmed or Likely."),
                                   ("Optional opportunities: not deficiencies", "opportunity", "Ways to strengthen a market the hotel may want. None of these is a fault, and none is needed unless the hotel wants that market.")):
         order, phase = [], {}
         for label, key in (("Days 1-30", "30"), ("Days 31-60", "60"), ("Days 61-90", "90")):
@@ -425,11 +455,11 @@ def _action_plan(c, recs, top, H1):
         out.append(para(heading, "h3"))
         out.append(para(intro, "tiny"))
         if order:
-            rows = [["#", "Action", "Owner", "Priority", "Effort", "When", "Ref"]]
+            rows = [["#", "Action", "Owner", "Priority", "How sure", "Effort", "When", "Ref"]]
             for n, rid in enumerate(order, 1):
                 r = recs[rid]
-                rows.append([str(n), short(r.get("short_title") or r["title"], 90), r.get("owner") or r["team"].capitalize(), R.coloured(r["priority"], PRI_COL[r["priority"]]), r["effort"], phase[rid], r["ref"]])
-            out.append(table(rows, [0.04, 0.38, 0.13, 0.1, 0.08, 0.12, 0.15]))
+                rows.append([str(n), short(r.get("short_title") or r["title"], 80), r.get("owner") or r["team"].capitalize(), R.coloured(r["priority"], PRI_COL[r["priority"]]), _conf(r), r["effort"], phase[rid], r["ref"]])
+            out.append(table(rows, [0.04, 0.33, 0.12, 0.09, 0.09, 0.07, 0.11, 0.15]))
         else:
             out.append(para("None.", "base"))
     out.append(para("Days 1-30: serious and quick items. Days 31-60: medium-effort fixes. Days 61-90: larger pieces of work. Re-run the audit afterwards to check what changed.", "tiny"))
@@ -666,6 +696,10 @@ def story(rep, H1):
     n_chk = sum(1 for r in c["recommendations"] if _conf(r) == "Worth checking")
     out.append(para(f"Of the {len(c['recommendations'])} findings in this audit, {n_ver} are Confirmed, {n_lik} Likely and {n_chk} Worth checking (what each label means is explained in the executive summary). "
                     f"{len(c.get('dropped_recommendations') or [])} candidate finding(s) were withheld for lacking evidence or a specific action.", "base"))
+    rec_notes = c.get("reconciled") or []
+    if rec_notes:
+        out.append(para("Checks that disagreed, and how they were settled", "h3"))
+        out += R.bullets([short(x, 260) for x in rec_notes])
     out.append(para("AI recommendation testing", "h3"))
     out.append(para(("The AI assistant asked was " + (rep.get("ai_sample") or {}).get("model", "Claude") + " with live web search; every prompt and answer is logged in the appendix. "
                      "Observed AI visibility stays separate from the readiness score.")

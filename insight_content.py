@@ -661,7 +661,9 @@ def location(site, osm_ctx):
                           "evidence": [{"url": p["url"], "snippet": m["sentence"][:240]}], "open_data_km": None, "hint": "",
                           "map_checked": m["map"].get("matched"),
                           "suggestion": ("Described with a distance - good." if stated else f"{m['name']} is named but without a distance or travel time. Say how far it is, once you've checked."),
-                          "example": f"“{m['name']} is a [X]-minute walk from the hotel.” (replace after checking)"})
+                          "example": (f"“The hotel is about [X] minutes from {m['name']} by [taxi / train].” (replace after checking the route)" if cat == "airports" else
+                                      f"“{m['name']} is a [X]-minute walk, or [Y] minutes by metro, from the hotel.” (replace after checking the route)" if cat == "transport" else
+                                      f"“{m['name']} is a [X]-minute walk from the hotel.” (replace after checking)")})
             covered_cats.add(cat)
     for cat, (label, pat) in lexicon.LOCATION_CATEGORIES.items():
         if cat in covered_cats or cat in ("transport", "airports"):

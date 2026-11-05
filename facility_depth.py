@@ -106,7 +106,7 @@ def analyse(site):
         for dkey, dlabel, rx, example in f["details"]:
             rg = re.compile(rx) if dkey == "names" else re.compile(rx, I)
             hit = None
-            for url, text, _n, _d in use:
+            for url, text in sorted(pages, key=lambda pt: pt[0] not in {u for u, *_r in use}):        # the pages about the facility first, then every other page read
                 m = rg.search(text)
                 if m:
                     hit = (url, _context(text, m), m.group(0))
@@ -120,5 +120,5 @@ def analyse(site):
         url0, text0, _n0, _d0 = use[0]
         m0 = trig.search(text0)
         out.append({"key": key, "label": f["label"], "short": f["short"], "pages": [u for u, *_r in use][:4], "dedicated": bool(dedicated), "found": found, "missing": missing,
-                    "total": len(f["details"]), "thin": len(found) < f["min_ok"], "quote": _context(text0, m0) if m0 else "", "url": url0, "names": names})
+                    "total": len(f["details"]), "thin": len(found) < f["min_ok"], "quote": _context(text0, m0) if m0 else "", "url": url0, "names": names, "pages_read": len(pages)})
     return out

@@ -36,7 +36,7 @@ def action_key(rec):
 
 
 def _snapshot(rec):
-    keep = ("id", "title", "why", "action", "priority", "effort", "team", "kind", "source", "category", "confidence_label", "confidence", "evidence", "example", "short_title", "finding", "success_check", "expected_outcome")
+    keep = ("id", "title", "why", "action", "priority", "effort", "team", "kind", "source", "category", "confidence_label", "confidence", "evidence", "example", "short_title", "finding", "success_check", "expected_outcome", "track")
     return json.dumps({k: rec.get(k) for k in keep if rec.get(k) is not None}, default=str)[:20000]
 
 

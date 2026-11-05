@@ -572,7 +572,7 @@ def _from_facility_depth(fd):
         n, tot = len(f["found"]), f["total"]
         miss = [m["label"] for m in f["missing"]]
         ev = [{"url": f["url"], "snippet": f["quote"]}] if f.get("quote") else []
-        ev.append({"url": "", "snippet": f"Pages inspected for this: {', '.join(f['pages'])}. Not stated on them: " + "; ".join(miss) + "."})
+        ev.append({"url": "", "snippet": f"Pages inspected for this: {', '.join(f['pages'])}; none of the {f.get('pages_read') or 'pages'} pages read states: " + "; ".join(miss) + "."})
         for d in f["found"][:2]:
             ev.append({"url": d["url"], "snippet": d["quote"]})
         evt = f["key"] == "events"
@@ -602,6 +602,58 @@ def _from_facility_depth(fd):
         r["topics"] = [f["key"], f["short"]]
         out.append(r)
     return out
+
+
+TRACKS = {"visibility": "AI visibility opportunity", "content": "Website content", "accuracy": "Data accuracy"}
+_ACCURACY_SOURCES = {"consistency", "listings"}
+_VISIBILITY_SOURCES = {"ai", "ai_gap", "direct", "reddit", "forums", "sources"}
+
+
+def track_of(rec):
+    """
+    Which kind of action this is, so each kind can be ranked on its own terms:
+      visibility  helps the hotel come up in AI recommendations: coverage on the sources the assistants cite, the questions it is not named for, open conversations, being listed where rivals are
+      content     helps travellers and assistants understand the hotel: facts and detail missing from the hotel's own pages
+      accuracy    keeps facts consistent across sources (phone numbers, names, listings): worth fixing, but not expected on its own to change how often an assistant recommends the hotel
+    """
+    src, rid, tag = rec.get("source", ""), rec.get("id", ""), rec.get("tag", "")
+    if src in _VISIBILITY_SOURCES or (src == "intel" and re.match(r"X-(?:M|I4|P)", rid)):
+        return "visibility"
+    if src in _ACCURACY_SOURCES or rid in ("C1", "I1", "I2") or tag in ("phone", "I1", "I2") or (src == "intel" and re.match(r"X-(?:I|F|A|S)", rid)) or rid.startswith(("EX", "X-S-entity")):
+        return "accuracy"
+    return "content"
+
+
+def _from_source_gaps(ins):
+    """
+    The pages the assistant relied on that name rival hotels and not this one, grouped by site: where the hotel is missing from the sources that decide who is recommended. A lead (one assistant, one day), with the exact
+    pages, so the hotel can check whether it is listed there and how it is described. It says nothing about HOW to get coverage beyond the honest routes: claim or update a listing, or ask the site how hotels are included.
+    """
+    pages = [p for p in (ins or {}).get("pages") or [] if p.get("names_competitor") and not p.get("names_hotel") and not p.get("own_site")]
+    if not pages:
+        return []
+    by = {}
+    for p in pages:
+        d = by.setdefault(p["domain"], {"domain": p["domain"], "cited": 0, "rivals": set(), "pages": []})
+        d["cited"] += p.get("cited") or p.get("answers") or 0
+        d["rivals"].add(p["names_competitor"])
+        d["pages"].append(p)
+    top = sorted(by.values(), key=lambda d: (-d["cited"], d["domain"]))[:5]
+    if not top:
+        return []
+    import ai_insights
+    kinds = {d["domain"]: ai_insights.source_kind(d["domain"]) for d in top}
+    ev = [{"url": max(d["pages"], key=lambda p: p.get("cited") or 0)["url"], "snippet": f"{d['domain']} ({kinds[d['domain']].lower()}): cited {d['cited']} time(s), naming {', '.join(sorted(d['rivals'])[:3])} and not this hotel."} for d in top]
+    names = ", ".join(d["domain"] for d in top[:3])
+    r = _rec("SG1", "authority", f"The assistant relies on {len(top)} sites that name rival hotels but not this one: {names}",
+             "These are the sites, ranked by how many answers used them, whose pages named rival hotels and not this hotel: " + "; ".join(f"{d['domain']} ({kinds[d['domain']].lower()}, {d['cited']})" for d in top) + ".",
+             "Assistants recommend the hotels the pages they read talk about. Where those pages name rivals and not this hotel, the hotel is absent from part of the evidence the answer was built on. This is one assistant on one day, "
+             "so it is a lead to check, not a proven cause.", ev,
+             "Open each page and check whether the hotel is listed and described correctly. Where the site is a directory, booking or review site, claim or update the hotel's listing. Where it is a tourism board or an editorial site, "
+             "ask how hotels are included (many have an open submission or a partner route). Do not pay for, or invent, coverage; keep every fact identical to the hotel's own site.",
+             "medium", "medium", confidence=EXPER, team="distribution", source="sources", tag="SG1", short_title="Get listed on the sites AI uses that name your rivals", summary=names)
+    r["kind_hint"] = "opportunity"
+    return [r]
 
 
 def _from_forums(fr):
@@ -1094,6 +1146,7 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
         recs = [r for r in recs if r["id"] not in ("AI1", "AI4") and not (r["id"].startswith("X-S-editorial_outreach") and any(g["id"].startswith("AG-OUT") for g in gap_recs))]
         recs += gap_recs
     recs += _from_facility_depth(facility)
+    recs += _from_source_gaps(ai_insights)
     recs += _from_direct(citations)
     recs += _from_forums(forums)
     recs += _from_listing_checks(listing_checks)

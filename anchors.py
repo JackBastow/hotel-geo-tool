@@ -89,10 +89,10 @@ def geocode(hotel, city, fetch, with_country=False):
     return None
 
 
-def wikipedia_titles(lat, lon, fetch, radius_m=5000):
-    """The titles of Wikipedia articles within `radius_m` of a point (one request): what the surrounding places are called."""
+def wikipedia_titles(lat, lon, fetch, radius_m=5000, within_m=3000):
+    """The titles of Wikipedia articles within `within_m` of a point (one request, searched out to `radius_m`): what the surrounding places are called. A famous place 4 km away is not 'close'."""
     r = fetch(WIKI + "?" + urllib.parse.urlencode({"action": "query", "list": "geosearch", "gscoord": f"{lat}|{lon}", "gsradius": radius_m, "gslimit": 200, "format": "json"}), headers={"User-Agent": UA}, timeout=10)
-    return [h.get("title", "") for h in ((r.json().get("query") or {}).get("geosearch") or [])] if r.status_code == 200 else []
+    return [h.get("title", "") for h in ((r.json().get("query") or {}).get("geosearch") or []) if (h.get("dist") is None or h["dist"] <= within_m)] if r.status_code == 200 else []
 
 
 def wikipedia_nearby(lat, lon, fetch, radius_m=1500, limit=12):

@@ -193,7 +193,7 @@ def judge(pages, passages, hotel, city, place_terms, ai_cited_urls=()):
     return [o for o in ops if o["can_comment"] != "closed"][:12], [o for o in ops if o["can_comment"] == "closed"][:6]
 
 
-def run(hotel, city, questions, place_terms=(), *, topics=(), api_key=None, model=None, client=None, ai_cited_urls=()):
+def run(hotel, city, questions, place_terms=(), *, topics=(), api_key=None, model=None, client=None, ai_cited_urls=(), _retried=False):
     """-> the envelope {"status", "reason", "opportunities", "closed", "searches", "cost_usd", "forums"}. Never raises. `questions` are the hotel's market questions (their wording is what the search looks for)."""
     model = model or ai_sample.MODEL_DEFAULT
     if not hotel or not (city or "").strip():
@@ -208,7 +208,7 @@ def run(hotel, city, questions, place_terms=(), *, topics=(), api_key=None, mode
     town = city.split(",")[0].strip()
     qs = [q for q in (questions or [])][:6] or [f"Where should I stay in {town}?"]
     extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
-    tool = {**ai_sample.SEARCH_TOOL, "max_uses": MAX_SEARCHES, "allowed_domains": list(FORUMS)}
+    tool = {**ai_sample.SEARCH_TOOL, "max_uses": MAX_SEARCHES, **({} if _retried else {"allowed_domains": list(FORUMS)})}
     topics = list(topics or [])[:6] or [f"best hotels in {town}", f"where to stay in {town}"]
     messages = [{"role": "user", "content": PROMPT.format(city=town, topics="\n".join("- " + t for t in topics), questions="\n".join("- " + q for q in qs))}]
     pages, passages, searches, tin, tout = {}, [], 0, 0, 0
@@ -225,7 +225,11 @@ def run(hotel, city, questions, place_terms=(), *, topics=(), api_key=None, mode
                 continue
             break
     except Exception as e:  # noqa: BLE001 - never fail the audit
-        return _envelope("unavailable", ai_sample._reason_for(e), searches=searches, topics=topics, cost_usd=round(ai_sample.cost_usd(model, tin, tout, searches), 5))
+        detail = f"{type(e).__name__}: {str(e)[:220]}"
+        if not _retried and client is not None and "allowed_domains" in tool:
+            # the first request was refused (a site on the list may not be searchable): try again without the list, and let the rules below keep only threads on the open forums
+            return run(hotel, city, questions, place_terms, topics=topics, api_key=api_key, model=model, client=client, ai_cited_urls=ai_cited_urls, _retried=True)
+        return _envelope("unavailable", ai_sample._reason_for(e) + " (" + detail + ")", searches=searches, topics=topics, cost_usd=round(ai_sample.cost_usd(model, tin, tout, searches), 5))
     ops, closed = judge(list(pages.values()), passages, hotel, town, [town] + list(place_terms or []), ai_cited_urls)
     reason = "" if ops or closed else "No open conversation matching the hotel's market turned up in these searches. That is what the searches saw, not proof there are none: threads the search cannot see are not counted."
     return _envelope("ok", reason, opportunities=ops, closed=closed, searches=searches, topics=topics, cost_usd=round(ai_sample.cost_usd(model, tin, tout, searches), 5))

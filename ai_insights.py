@@ -93,7 +93,8 @@ def source_table(items, footprint, entities, own_domain="", brand_domains=()):
 
 def canon(name):
     """A hotel's identity for counting: lower-case, accents folded, generic words dropped ('Oatlands Park Hotel' = 'Oatlands Park')."""
-    toks = [t for t in re.split(r"[^a-z0-9]+", evidence.fold(name)) if t and t not in ai_sample._GENERIC]
+    base = re.sub(r"\s*\([^)]*\)", " ", name or "")                  # a brand or district in brackets does not make another hotel: 'Hôtel du Louvre (Unbound Collection by Hyatt)' = 'Hôtel du Louvre'
+    toks = [t for t in re.split(r"[^a-z0-9]+", evidence.fold(base)) if t and t not in ai_sample._GENERIC]
     return " ".join(toks)
 
 

@@ -85,6 +85,7 @@ F = {
     ("ai", "AI3"): (3, 4, 3, "fix"), ("ai", "AI2"): (1, 3, 3, "opportunity"),     # AI3: the assistant's statement differs from the hotel's own record
     ("ai", "AG1"): (3, 4, 4, "opportunity"), ("ai", "AG2"): (3, 4, 4, "opportunity"), ("ai", "AG3"): (3, 4, 4, "opportunity"),     # not named for a question the hotel is positioned for, with the evidence beside it
     ("ai", "AGO1"): (2, 3, 4, "opportunity"), ("ai", "AGO2"): (2, 3, 4, "opportunity"), ("ai", "AGO3"): (2, 3, 4, "opportunity"),     # a named editorial list that omits the hotel
+    ("sources", "SG1"): (3, 4, 4, "opportunity"),         # the sites AI relies on that name rivals and not this hotel
     ("facility", "FD"): (3, 4, 4, "fix"),                # a facility the pages mention but barely describe: nothing for an assistant to quote
     ("direct", "DS1"): (3, 4, 4, "opportunity"), ("direct", "DS2"): (2, 4, 4, "opportunity"),     # AI leans on agents rather than the hotel's own site: the fee-saving opportunity
     ("reddit", "FM1"): (2, 4, 4, "opportunity"),     # open conversations the hotel could honestly join
