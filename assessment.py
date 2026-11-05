@@ -115,7 +115,7 @@ def assess(rep):
     # ---- observed AI visibility
     ai = rep.get("ai_sample") or {}
     if ai.get("status") == "ok":
-        put("partial", "Observed AI visibility", f"sampled on one assistant only ({ai.get('model', 'Claude')} with web search); ChatGPT, Gemini and Copilot were not tested")
+        put("partial", "Observed AI visibility", f"sampled on one assistant only ({ai.get('model', 'Claude')} with web search); a sample of answers, not a ranking")
     else:
         put("not_assessed", "Observed AI visibility", ai.get("reason") or "no AI assistant was asked about the hotel")
     return out

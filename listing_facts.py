@@ -30,6 +30,42 @@ _STARS_WORD = re.compile(r"\b(one|two|three|four|five)[\s-]star\b|\b([1-5])\s*(?
 _PHONE = re.compile(r"(?:tel(?:ephone)?|phone|call|t:)\D{0,12}(\+?\d[\d\s().-]{7,}\d)|(\+\d{1,3}[\s.-]?\d(?:[\s.-]?\d){7,12})", re.I)
 _NUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
 PLATFORM_LABELS = [label for label, _t in identity.KEY_PLATFORMS]
+_UK_POSTCODE = re.compile(r"\b([A-Z]{1,2}\d[A-Z\d]?)\s?(\d[A-Z]{2})\b")
+_POSTAL5 = re.compile(r"\b(\d{5})\b")
+_TITLE_SPLIT = re.compile(r"\s[-|\u2013\u2014]\s|\s\|\s|,\s|\s\(")
+_TITLE_NOISE = re.compile(r"\b(?:updated\s+)?20\d\d\s+prices?\b|\bfrom\s+[£€$]\s?\d+\b|\breviews?\b|\bphotos?\b|\bdeals?\b|\bbooking\.com\b|\btripadvisor\b|\bexpedia\b|\bhotels\.com\b|\btrivago\b|\bagoda\b|\bkayak\b|\btrip\.com\b|\blastminute\.com\b|\bbook now\b|\bsave\b", re.I)
+
+
+def shown_name(title):
+    """The hotel's name as a platform's page title shows it: the first part of the title, without the platform's own name, prices, 'reviews' or the town after a comma."""
+    first = _TITLE_SPLIT.split(title or "")[0]
+    first = _TITLE_NOISE.sub(" ", first)
+    return " ".join(first.split()).strip(" -|:,")
+
+
+def name_verdict(shown, hotel):
+    """('same' | 'variant' | 'differs', why): the name a platform shows against the hotel's own, on the words that identify it (brand, place, distinctive terms), not on 'hotel' or 'the'."""
+    a, b = set(evidence.distinctive_tokens(hotel)), set(evidence.distinctive_tokens(shown))
+    import forums
+    for k, code in forums.AIRPORT_CODE.items():              # 'CDG' and 'Charles de Gaulle' are the same airport written two ways
+        kt = set(evidence.fold(k).split())
+        if code.lower() in b and kt <= a:
+            b = (b - {code.lower()}) | kt
+        elif code.lower() in a and kt <= b:
+            a = (a - {code.lower()}) | kt
+    if not a or not b:
+        return "same", ""
+    if a == b:
+        return "same", ""
+    only_site, only_listing = sorted(a - b), sorted(b - a)
+    ratio = len(a & b) / len(a | b)
+    why = ("the listing adds " + ", ".join(only_listing) if only_listing else "") + ("; " if only_listing and only_site else "") + ("the listing leaves out " + ", ".join(only_site) if only_site else "")
+    return ("variant" if ratio >= 0.5 else "differs"), why
+
+
+def _postcode(text):
+    m = _UK_POSTCODE.search((text or "").upper())
+    return (m.group(1) + m.group(2)) if m else None
 
 
 def _platform_of(url):
@@ -50,7 +86,7 @@ def _time_in(patterns, text):
     return None
 
 
-def listing_facts(passages, hotel):
+def listing_facts(passages, hotel, site=None):
     """
     passages: [{url, title, cited_text}] cited by the model. -> {platform: {"url", "title", "check_in", "check_out", "stars", "phone", "quotes": {fact: passage}}}
     Only passages from a page on the platform whose address, title or passage names the hotel are used.
@@ -59,9 +95,21 @@ def listing_facts(passages, hotel):
     for p in passages or []:
         plat = _platform_of(p.get("url"))
         text = p.get("cited_text") or ""
-        if not plat or not identity.names_hotel(p["url"], p.get("title", ""), text, hotel):
+        if not plat:
             continue
-        r = out.setdefault(plat, {"url": p["url"], "title": p.get("title", ""), "check_in": None, "check_out": None, "stars": None, "phone": None, "quotes": {}})
+        if not identity.names_hotel(p["url"], p.get("title", ""), text, hotel):
+            # a platform that shows a DIFFERENT name for the hotel is still the hotel when the passage carries its postcode or its telephone number: that is exactly the inconsistency worth reporting
+            pc = (site or {}).get("postcode") or ""
+            ph = (site or {}).get("phone") or ""
+            blob = f"{p.get('title', '')} {text}"
+            if not ((pc and pc.upper().replace(" ", "") in blob.upper().replace(" ", "")) or (len(ph) >= 9 and ph[-9:] in re.sub(r"\D", "", blob))):
+                continue
+        r = out.setdefault(plat, {"url": p["url"], "title": p.get("title", ""), "check_in": None, "check_out": None, "stars": None, "phone": None, "name": None, "postcode": None, "quotes": {}})
+        if not r["name"] and shown_name(p.get("title", "")):
+            r["name"], r["quotes"]["name"] = shown_name(p.get("title", "")), (p.get("title") or "")[:200]
+        pc = _postcode(text) or _postcode(p.get("title", ""))
+        if pc and not r["postcode"]:
+            r["postcode"], r["quotes"]["postcode"] = pc, text[:200]
         for fact, val in (("check_in", _time_in(_CIX, text)), ("check_out", _time_in(_COX, text) or ("12:00" if _NOON.search(text) else None))):
             if val and not r[fact]:
                 r[fact], r["quotes"][fact] = val, text[:200]
@@ -75,7 +123,7 @@ def listing_facts(passages, hotel):
     return out
 
 
-def site_facts(guest, own_pages):
+def site_facts(guest, own_pages, hotel="", location=None):
     """What the hotel's own pages state: check-in and check-out time, telephone, star rating."""
     import ai_niche
     sheet = {r["fact"]: r for r in (guest or {}).get("fact_sheet", []) if isinstance(r, dict)}
@@ -89,19 +137,31 @@ def site_facts(guest, own_pages):
     stars = ai_niche.stars_from_text([p.get("text", "") for p in own_pages or []])
     if stars:
         k["stars"] = stars
+    addr = (sheet.get("Address") or {}).get("value") or ""
+    pc = (_postcode(addr) or _postcode((location or {}).get("postcode") or "") or _postcode((location or {}).get("address") or "")
+          or (re.search(r"(\d{5})", addr) or re.search(r"(\d{5})", str((location or {}).get("postcode") or "")) or [None, None])[1])
+    if pc:
+        k["postcode"] = pc
+    if hotel:
+        k["name"] = hotel
     return k
 
 
-LABEL = {"check_in": "Check-in time", "check_out": "Check-out time", "stars": "Star rating", "phone": "Telephone"}
+LABEL = {"name": "Hotel name", "postcode": "Postcode", "check_in": "Check-in time", "check_out": "Check-out time", "stars": "Star rating", "phone": "Telephone"}
 
 
 def compare(listings, site):
     """Rows for every fact a listing shows that the hotel's own site also states. Never a row for a fact only one side has: that is 'not shown', not a difference."""
     rows = []
     for plat, l in listings.items():
-        for fact in ("check_in", "check_out", "stars", "phone"):
+        for fact in ("name", "postcode", "check_in", "check_out", "stars", "phone"):
             lv, sv = l.get(fact), site.get(fact)
             if lv is None or sv is None:
+                continue
+            if fact == "name":
+                verdict, why = name_verdict(lv, sv)
+                rows.append({"platform": plat, "fact": LABEL[fact], "listing_says": lv, "site_says": sv, "status": "matches" if verdict == "same" else "differs", "note": why,
+                             "url": l["url"], "passage": l["quotes"].get(fact, "")})
                 continue
             if fact == "phone":
                 verdict, _why = phones.compare(sv, lv)
@@ -145,14 +205,17 @@ def former_name_hits(passages, listings_pages, former, hotel):
     return out
 
 
-def build(lookup, hotel, guest, own_pages, former):
+def build(lookup, hotel, guest, own_pages, former, location=None):
     """-> the report block: {"listings", "rows", "former_name", "summary"} or None when there were no quoted passages at all."""
     passages = (lookup or {}).get("passages") or []
     if not passages:
         return None
-    listings = listing_facts(passages, hotel)
-    rows = compare(listings, site_facts(guest, own_pages))
+    site = site_facts(guest, own_pages, hotel, location)
+    listings = listing_facts(passages, hotel, site)
+    rows = compare(listings, site)
     hits = former_name_hits(passages, (lookup or {}).get("pages"), former, hotel)
     shown = {p: {k: v for k, v in l.items() if k != "quotes"} for p, l in listings.items()}
-    return {"source": SOURCE, "listings": shown, "rows": rows, "former_name": hits,
-            "summary": {"platforms_quoted": len(listings), "compared": len(rows), "differs": sum(1 for r in rows if r["status"] == "differs"), "former_name": len(hits)}}
+    names = [{"platform": p, "shown_name": l["name"], "status": next((r["status"] for r in rows if r["platform"] == p and r["fact"] == "Hotel name"), "matches"), "url": l["url"]} for p, l in listings.items() if l.get("name")]
+    return {"source": SOURCE, "listings": shown, "rows": rows, "former_name": hits, "names": names,
+            "summary": {"platforms_quoted": len(listings), "compared": len(rows), "differs": sum(1 for r in rows if r["status"] == "differs"), "former_name": len(hits),
+                        "names_shown": len(names), "names_differ": sum(1 for n in names if n["status"] == "differs")}}

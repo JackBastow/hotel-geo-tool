@@ -345,8 +345,8 @@ try:
     flat = " ".join(mt.split())
     check("the seven management sections are there, in order", all(flat.find(h_) >= 0 for h_ in ("Executive summary", "Discoverability and technical readiness", "Traveller recommendation readiness", "External presence and reputation",
                                                                                                 "Commercial opportunities", "What to do first: the action plan", "Methodology and limitations")))
-    check("it says only one assistant was sampled and which were not tested", "Sampled on one assistant only" in flat and "NOT tested" in flat)
-    check("the appendix carries the evidence, the AI test log and the hand-testing checklist", all(w in " ".join(at.split()) for w in ("Traveller requirements: the evidence for each", "External presence: each source", "AI recommendation tests: the log", "Checklist to test by hand")))
+    check("it says it is a sample from one assistant, and does not list assistants that were not asked", "Sampled on one assistant only" in flat and "NOT tested" not in flat and "NOT TESTED" not in flat)
+    check("the appendix carries the evidence, the AI test log and the hand-testing checklist", all(w in " ".join(at.split()) for w in ("Traveller requirements: the evidence for each", "External presence: each source", "AI recommendation tests: the log", "Checklist: try these prompts yourself")))
     html = report_view.render(rep, token="t" * 32)
     check("the web report shows the new cards", all(w in html for w in ("Traveller recommendation readiness", "The hotel on outside sources", "Booking readiness", "Do AI assistants name this hotel?", "How the readiness score is calculated")))
 except Exception as e:  # noqa: BLE001

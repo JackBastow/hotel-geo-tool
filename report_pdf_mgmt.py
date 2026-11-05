@@ -97,13 +97,13 @@ def _ai_line(rep):
     ai = rep.get("ai_sample") or {}
     log = ai_sample.test_log(ai) if ai.get("status") == "ok" else None
     if not log:
-        return ("Not measured. No AI assistant was asked about the hotel in this audit, so nothing here shows whether ChatGPT, Gemini, Copilot or any other assistant recommends it.", False)
+        return ("Not measured. No AI assistant was asked about the hotel in this audit, so AI visibility was not measured.", False)
     s = log["summary"]
     import trend
     where = f" Searches were run as if from {ai['search_country']}." if ai.get("search_country") else ""
     return (f"Sampled on one assistant only: {log['platform']}, on {log['date'] or 'the audit date'}.{where} It named the hotel in {s['appeared']} of {s['non_branded_answers']} answers to {s['prompts']} questions that do not "
             f"mention the hotel ({trend.band(s['appeared'], s['non_branded_answers'])}; from that many answers the true rate is plausibly {round(100 * trend.wilson(s['appeared'], s['non_branded_answers'])[0])}% to "
-            f"{round(100 * trend.wilson(s['appeared'], s['non_branded_answers'])[1])}%), and recommended it in {s['recommended']}. ChatGPT, Gemini and Copilot were NOT tested, so this is a sample, not a measure of AI visibility.", True)
+            f"{round(100 * trend.wilson(s['appeared'], s['non_branded_answers'])[1])}%), and recommended it in {s['recommended']}. This is a sample of answers, not a ranking.", True)
 
 
 def _exec_sentences(c, h, top, hotel):
@@ -219,29 +219,16 @@ def _scoreboard(rep, h):
 
 
 def _engines_band(rep):
-    """One band near the top of page 1: which assistants were asked, and which were not."""
+    """One line near the top of page 1: which assistant was asked, with how many prompts and answers."""
     import engines
     from reportlab.platypus import Table, TableStyle
     from reportlab.lib import colors
-    rows = engines.rows(rep)
-    yes = [e["name"] for e in rows if e["tested"]]
-    no = [e["name"] for e in rows if not e["tested"]]
-    cells = [[R.Paragraph("<font color='%s'><b>TESTED</b></font><br/>%s" % (R.GOOD, esc(", ".join(yes) or "none")), R.S["cell"]),
-              R.Paragraph("<font color='%s'><b>NOT TESTED</b></font><br/>%s" % (R.BAD, esc(", ".join(no))), R.S["cell"])]]
-    t = Table(cells, colWidths=[0.3 * R.W, 0.7 * R.W])
-    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f1f8f3")), ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#fdf3f2")),
-                           ("LEFTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("LINEAFTER", (0, 0), (0, 0), 3, colors.white)]))
-    return [Spacer(1, 3), para("AI assistants asked in this report", "h3"), t]
-
-
-def _engines_block(rep):
-    """Which assistants were really asked, and which were not: so nobody reads the report as saying what ChatGPT or Gemini recommend."""
-    import engines
-    rows = [["AI assistant", "Tested?", "What was done"]]
-    for e in engines.rows(rep):
-        rows.append([e["name"] + " (" + e["maker"] + ")", R.coloured("TESTED", R.GOOD) if e["tested"] else R.coloured("NOT TESTED", R.BAD), e["detail"]])
-    return [para("Which AI assistants this report tested", "h3"), table(rows, [0.24, 0.13, 0.63]),
-            para("A result for one assistant says nothing about another: they use different sources and often give different answers. " + ("Asked in this audit: " + ", ".join(e["name"] for e in engines.rows(rep) if e["tested"]) + "." if any(e["tested"] for e in engines.rows(rep)) else "No assistant was asked in this audit."), "tiny")]
+    tested = [e for e in engines.rows(rep) if e["tested"]]
+    if not tested:
+        return []
+    t = Table([[R.Paragraph("<font color='%s'><b>AI assistant asked</b></font><br/>%s" % (R.GOOD, esc(tested[0]["detail"].replace("Tested: ", "", 1))), R.S["cell"])]], colWidths=[R.W])
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f1f8f3")), ("LEFTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
+    return [Spacer(1, 3), t]
 
 
 def _strengths_weaknesses(rep, c, h, top):
@@ -496,7 +483,6 @@ def story(rep, H1):
                     "This report scores readiness. It does not claim to measure visibility.", "tiny"))
     out.append(R.PageBreak())
     out.append(H1("Competitors: who AI recommends instead"))
-    out += _engines_block(rep)
     out += _competitor_block(rep)
     out += _markets_block(rep, c)
     out.append(H1("Where AI gets its information"))
@@ -594,6 +580,16 @@ def story(rep, H1):
             note = "; ".join(r["contradictions"]) if r["contradictions"] else short(r["note"], 170)
             rows.append([r["source"], R.coloured(r["label"], EXT_COL[r["status"]]), note])
         out.append(table(rows, [0.28, 0.2, 0.52]))
+        nm = (rep.get("listing_checks") or {}).get("names") or []
+        if nm:
+            out.append(para("How each booking platform shows the hotel's name", "h3"))
+            rows_n = [["Platform", "Name shown", "Same as the website?", "Difference"]]
+            by_row = {(r["platform"], r["fact"]): r for r in (rep.get("listing_checks") or {}).get("rows", [])}
+            for n_ in nm:
+                rw = by_row.get((n_["platform"], "Hotel name")) or {}
+                rows_n.append([n_["platform"], short(n_["shown_name"], 70), R.coloured("Yes", R.GOOD) if n_["status"] == "matches" else R.coloured("No", R.BAD), short(rw.get("note") or "-", 90)])
+            out.append(table(rows_n, [0.18, 0.36, 0.16, 0.30]))
+            out.append(para("Read from the titles and quoted passages in public search results, not from the platforms' own pages. Check the live listing before changing anything.", "tiny"))
         diffs = [f"{r['platform']}: {r['fact'].lower()} shows {r['listing_says']}, the website says {r['site_says']}" for r in (rep.get("listing_checks") or {}).get("rows", []) if r["status"] == "differs"]
         items = [f"{x['source']}: {x['text']}" for x in ext.get("contradictions", [])]
         out.append(para("Information inconsistencies", "h3"))
@@ -670,9 +666,9 @@ def story(rep, H1):
     out.append(para(f"Of the {len(c['recommendations'])} findings in this audit, {n_ver} are Confirmed, {n_lik} Likely and {n_chk} Worth checking (what each label means is explained in the executive summary). "
                     f"{len(c.get('dropped_recommendations') or [])} candidate finding(s) were withheld for lacking evidence or a specific action.", "base"))
     out.append(para("AI recommendation testing", "h3"))
-    out.append(para(("Genuine tests were run on one assistant only (" + (rep.get("ai_sample") or {}).get("model", "Claude") + " with web search); every prompt and answer is logged in the appendix, and a checklist is provided to test the "
-                     "other assistants by hand. No test of ChatGPT, Gemini or Copilot took place, so nothing here describes what they recommend. Observed AI visibility stays separate from the readiness score.")
-                    if ai_sampled else "No test of any AI assistant took place in this audit, so observed AI visibility is not measured; a checklist in the appendix lets the hotel test by hand. Readiness is reported on its own.", "base"))
+    out.append(para(("The AI assistant asked was " + (rep.get("ai_sample") or {}).get("model", "Claude") + " with live web search; every prompt and answer is logged in the appendix. "
+                     "Observed AI visibility stays separate from the readiness score.")
+                    if ai_sampled else "No AI assistant was asked in this audit, so observed AI visibility is not measured. Readiness is reported on its own.", "base"))
     out += R.bullets([f"The readiness score rests on {h['coverage_pct']:.0f}% of the full model and is a set-up indicator, not a measure of AI visibility.",
                       "Findings come from the hotel's own pages and public sources read during the audit; search results and open data vary between runs.",
                       "Nothing here guarantees that any AI assistant will recommend the hotel."])

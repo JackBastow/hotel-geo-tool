@@ -1270,7 +1270,7 @@ def ai_test_card(ai, hotel=""):
     st.markdown("##### AI recommendation tests: what was actually tested")
     log = ai_sample.test_log(ai)
     if not log:
-        st.warning("**Observed AI visibility: not measured.** No AI assistant was asked about the hotel in this audit, so nothing here shows whether ChatGPT, Gemini, Copilot or any other assistant recommends it. "
+        st.warning("**Observed AI visibility: not measured.** No AI assistant was asked about the hotel in this audit, so AI visibility was not measured. "
                    "The checklist below lets you test by hand.")
     else:
         s = log["summary"]

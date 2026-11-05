@@ -115,8 +115,8 @@ if pymupdf is not None:
           "Crawler access and speed" in atext and "Common Crawl" in atext and "PageSpeed Insights" in atext and "not a lock" in atext)
     check("the appendix carries the sampled AI answers with their limits",
           "What an AI assistant said: a sample" in atext and "not a ranking" in atext and "not named" in atext)
-    check("the management report no longer says no assistant was asked, once a sample exists, and says only one assistant was tested",
-          "No AI assistant was asked" not in re.sub(r"\s+", " ", mtext) and "Sampled on one assistant only" in re.sub(r"\s+", " ", mtext) and "NOT tested" in re.sub(r"\s+", " ", mtext))
+    check("the management report no longer says no assistant was asked, once a sample exists, and does not list assistants that were not asked",
+          "No AI assistant was asked" not in re.sub(r"\s+", " ", mtext) and "Sampled on one assistant only" in re.sub(r"\s+", " ", mtext) and "NOT tested" not in re.sub(r"\s+", " ", mtext) and "ChatGPT" not in re.sub(r"\s+", " ", mtext))
     check("the appendix carries the reviews-and-replies snapshot with its limits",
           "Reviews and replies: an indicative snapshot" in atext and "not the hotel's reply rate" in re.sub(r"\s+", " ", atext))
     check("the management report points to it instead of saying reviews cannot be looked at at all",

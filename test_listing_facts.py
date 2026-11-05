@@ -70,7 +70,7 @@ check("a name that is only an inference from an archived homepage title is never
 
 print("4. the whole block, and the advice")
 blk = lf.build({"passages": P, "pages": []}, HOTEL, {"fact_sheet": [{"fact": "Check-in time", "value": "15:00"}, {"fact": "Check-out time", "value": "12:00"}]}, [{"text": "our 5-star hotel"}], [])
-check("the block summarises quoted listings, facts compared and differences", blk["summary"]["platforms_quoted"] == 3 and blk["summary"]["compared"] == 5 and blk["summary"]["differs"] == 2, blk["summary"])
+check("the block summarises quoted listings, facts compared and differences", blk["summary"]["platforms_quoted"] == 3 and blk["summary"]["compared"] == 8 and blk["summary"]["differs"] == 2 and blk["summary"]["names_shown"] == 3 and blk["summary"]["names_differ"] == 0, blk["summary"])
 check("the block carries no passages or text beyond the quoted figures' short quotes", "passages" not in blk and all(len(r["passage"]) <= 200 for r in blk["rows"]))
 check("no quoted passages, no block", lf.build({"passages": []}, HOTEL, {}, [], []) is None and lf.build(None, HOTEL, {}, [], []) is None)
 recs = advice._from_listing_checks({**blk, "former_name": hits})

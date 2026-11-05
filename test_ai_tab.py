@@ -44,14 +44,14 @@ check("it opens with the question and a one-sentence answer with the honest rang
 check("four numbers sit beside it", glance.count('class="metric"') == 4 and "Named in" in glance and "Most-named rival" in glance and "Own website cited" in glance)
 check("a bar for every search says 'n of m' and who was named instead", "hk-bar wide" in glance and "0 of 2" in glance and "Named instead:" in glance)
 check("what stands out is a short list, not a table", "What stands out" in glance and glance.count("<li>") <= 4)
-check("the limits are one line: one assistant, a sample, other assistants not tested", "A sample, not a ranking or a score" in glance and "not tested" in glance)
+check("the limits are one line: one assistant, a sample; nothing is said about assistants that were not asked", "A sample, not a ranking or a score" in glance and "not tested" not in glance and "ChatGPT" not in glance)
 
 print("2. everything else is one click away, in titled sections")
 titles = re.findall(r"<details[^>]*>\s*<summary>(.*?)</summary>", ai, re.S)
 top = [t for t in titles if not t.startswith(("▶",))][:12]
 text = " | ".join(re.sub(r"<[^>]+>", "", t) for t in titles)
 for want in ("Who was named instead, and what the evidence shows", "Your own prompts", "Where the assistant got its information", "What the assistant says about the hotel", "The hotels named most often",
-             "Every question and answer", "How the questions were chosen", "Test it by hand"):
+             "Every question and answer", "How the questions were chosen", "Try these prompts yourself"):
     check(f"a section: {want}", want in text, text[:300])
 opens = re.findall(r"<details open[^>]*>\s*<summary>(.*?)</summary>", ai, re.S)
 check("only the sections that matter most start open: the gap and the person's own prompts", all(("Who was named instead" in o or "Your own prompts" in o) for o in opens) and len(opens) <= 3, opens)

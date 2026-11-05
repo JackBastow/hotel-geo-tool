@@ -230,5 +230,5 @@ def panel(db, hotel):
     own = key.split("/")[0]
     chips = ('<div class="hk-chips"><span class="hk-chip brand">Engine: Claude with live web search</span><span class="hk-chip">' + f'{len(runs)} weekly check{"s" if len(runs) != 1 else ""}</span>'
              '<span class="hk-chip">Sampled answers: small moves are noise</span></div>')
-    return (f'<p class="lede">How AI assistants talk about this hotel and the hotels around it. One assistant, a sample of answers each week: ChatGPT, Gemini and Google AI Overviews are not included. '
+    return (f'<p class="lede">How AI assistants talk about this hotel and the hotels around it. A sample of answers each week from one assistant. '
             f'Coverage is how often the hotel was named; position is its average place in the hotels listed.</p>{chips}{brand}{citation_section(cur, prev, own)}')

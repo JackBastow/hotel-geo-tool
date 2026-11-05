@@ -1078,6 +1078,46 @@ def apply_identity(scorecard, name_forms, fact_differences):
     return before - ent["score"]
 
 
+LISTING_DIFF_PENALTY = 10           # points off OTAs & Travel Platforms for each fact (name, address, phone, check-in...) a platform shows differently from the website
+LISTING_VERIFIED_BONUS = 15         # presence alone is capped at 75; platforms whose quoted details were checked and agree can lift it to 90 (never higher: the platforms' own pages are not read)
+LISTING_MIN_COMPARISONS = 4
+
+
+def _retotal(scorecard, note):
+    cats = scorecard.get("categories") or []
+    tot = totals(cats)
+    scorecard.update(overall=tot["overall"], coverage_pct=tot["coverage_pct"], assessed_weight=tot["assessed_weight"], breakdown=tot["breakdown"], simple_average=tot["simple_average"], method=tot["method"])
+    scorecard["caveat"] = (scorecard.get("caveat") or "") + " " + note
+
+
+def apply_listings(scorecard, listing_checks):
+    """
+    OTAs & Travel Platforms is first a presence score (which platforms list the hotel), capped at 75 because the platforms' pages are never read. The listing check then compares what each platform's quoted
+    passages say (the name it shows, postcode, phone, check-in and check-out times, stars) with the hotel's own site. A difference lowers the score; enough agreeing comparisons across at least two platforms lift
+    it, to 90 at most. The evidence line says which. -> the change in points (0 when nothing was compared).
+    """
+    cats = scorecard.get("categories") or []
+    ota = next((c for c in cats if c["key"] == "otas"), None)
+    rows = (listing_checks or {}).get("rows") or []
+    if not ota or not ota.get("assessed") or ota.get("score") is None or not rows:
+        return 0
+    diffs = [r for r in rows if r["status"] == "differs"]
+    plats = {r["platform"] for r in rows}
+    before = ota["score"]
+    if diffs:
+        ota["score"] = max(0, before - LISTING_DIFF_PENALTY * min(len(diffs), 4))
+        line = f"Lowered from {before} to {ota['score']}: {len(diffs)} detail(s) on {', '.join(sorted({r['platform'] for r in diffs}))} differ from the website (" + "; ".join(f"{r['fact'].lower()}" for r in diffs[:4]) + ")"
+    elif len(rows) >= LISTING_MIN_COMPARISONS and len(plats) >= 2:
+        ota["score"] = min(90, before + LISTING_VERIFIED_BONUS)
+        line = f"Raised from {before} to {ota['score']}: {len(rows)} details on {len(plats)} platforms (name, address, phone, times) were compared with the website and agree"
+    else:
+        ota["evidence"] = list(ota.get("evidence") or []) + [f"{len(rows)} detail(s) on {len(plats)} platform(s) were compared with the website and agree; too few to raise the score"]
+        return 0
+    ota["evidence"] = list(ota.get("evidence") or []) + [line]
+    _retotal(scorecard, f"OTAs & Travel Platforms changed from {before} to {ota['score']} after the listings were compared with the website.")
+    return ota["score"] - before
+
+
 def all_recommendations(scorecard):
     """Every recommendation, worst first, tagged with the category it came from."""
     rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}

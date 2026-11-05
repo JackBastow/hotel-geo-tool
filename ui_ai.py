@@ -93,7 +93,7 @@ def ai_tab(fa_res, consult, prev_full=None):
         st.markdown(f"**{trend.band(named, n).capitalize()}.** The assistant named the hotel in **{named} of {n} answers** to searches that do not mention it. From that many answers the true rate is plausibly "
                     f"{round(100 * lo)}% to {round(100 * hi)}%.")
     st.caption(f"One assistant ({ui_consult.md_safe(ai.get('model', ''))}) with live web search" + (f", searching as if from {ui_consult.md_safe(ai['search_country'])}," if ai.get("search_country") else "")
-               + f" on {ui_consult.md_safe(ai.get('run_at', ''))}. A sample, not a ranking or a score. ChatGPT, Gemini and Copilot were not tested.")
+               + f" on {ui_consult.md_safe(ai.get('run_at', ''))}. A sample, not a ranking or a score.")
     sb = (ins or {}).get("scoreboard") or {}
     osr = (ins or {}).get("own_site") or {}
     top = None
@@ -150,4 +150,4 @@ def ai_tab(fa_res, consult, prev_full=None):
         _section("The hotels named most often across all the answers", lambda: ui_consult.ins_sections(ai, ins, only=("brand", "leaderboard", "niche", "alternatives")))
     _section("Every question and answer", lambda: ui_consult.all_answers(ai, log, ins))
     _section("How the questions were chosen", lambda: (ui_consult.market_card(ai.get("market")), ui_consult.question_plan_card(fa_res.get("question_plan"))))
-    _section("Test it by hand in ChatGPT, Gemini and Copilot", lambda: ui_consult.manual_checklist_card(ai, fa_res["meta"].get("hotel", "")))
+    _section("Try these prompts yourself", lambda: ui_consult.manual_checklist_card(ai, fa_res["meta"].get("hotel", "")))

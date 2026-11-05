@@ -513,7 +513,7 @@ def ai_test_section(ai, hotel=""):
         out.append(table(rows, [0.38, 0.14, 0.09, 0.11, 0.07, 0.11, 0.1]))
     ck = ai_sample.manual_checklist(ai, hotel)
     if ck["prompts"]:
-        out.append(para("Checklist to test by hand in ChatGPT, Gemini and Copilot (results are not measured by this tool)", "h3"))
+        out.append(para("Checklist: try these prompts yourself (results are not measured by this tool)", "h3"))
         out.append(table([["Prompt"] + ck["assistants"]] + [[p] + ["[ ]  appeared / recommended / place / site cited"] * len(ck["assistants"]) for p in ck["prompts"]], [0.4] + [0.2] * len(ck["assistants"])))
     return out
 
