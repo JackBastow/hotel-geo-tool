@@ -827,6 +827,11 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         except Exception:  # noqa: BLE001
             return ctx, ""
 
+    _fc_other = None                  # rival sites and cited pages that refuse our reader are read through Firecrawl (a few pages an audit)
+    if firecrawl_api_key:
+        import firecrawl_reader
+        _fc_other = firecrawl_reader.fallback_fetch(guest_questions.fetch_page, firecrawl_api_key)
+
     # Comparable hotels: read in the background as soon as the map data is in (a few polite fetches of other hotels' pages, capped at 25 seconds), joined when the report is assembled.
     competitors_ex = competitors_future = None
     try:
@@ -835,7 +840,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         _osm_ctx, places_note = _with_places(_osm_ctx)
         if own_pages and hotel:
             competitors_ex = ThreadPoolExecutor(max_workers=1)
-            competitors_future = competitors_ex.submit(competitors_mod.run, _osm_ctx, own_pages, base, hotel)
+            competitors_future = competitors_ex.submit(competitors_mod.run, _osm_ctx, own_pages, base, hotel, fetch=_fc_other)
     except Exception:  # noqa: BLE001
         competitors_future = None
     wd_entity = next((e for e in ext["entities"]
@@ -1143,7 +1148,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             _h = urllib.parse.urlparse(base).netloc.lower()
             _h = _h[4:] if _h.startswith("www.") else _h
             ai_gap_result = ai_gap.run(ai_result, ai_insight_result, {"hotel": hotel, "city": city, "own_domain": _h, "brand_domains": (_h,) if site["meta"].get("scope") else (), "own_pages": own_pages,
-                                                                      "base": base, "osm_ctx": _octx, "hotel_tier": ((market_profile or {}).get("tier") or {}).get("key")}, api_key=anthropic_api_key, model=anthropic_model)
+                                                                      "base": base, "osm_ctx": _octx, "hotel_tier": ((market_profile or {}).get("tier") or {}).get("key")}, api_key=anthropic_api_key, model=anthropic_model, fetch=_fc_other)
         except Exception as e:  # noqa: BLE001 - an extra; the sample and its analysis still show
             ai_gap_result = {"source": ai_gap.SOURCE, "status": "unavailable", "reason": f"The comparison with the hotels named instead did not finish ({type(e).__name__}).", "markets": [], "gaps": [],
                              "articles": [], "opportunities": [], "rivals": [], "comparison": None, "observations": {}, "limits": ai_gap.LIMITS, "cost_usd": 0.0}
@@ -1224,6 +1229,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "ai_sample": ai_result,
         "market_profile": market_profile,
         "question_plan": question_plan,
+        "firecrawl_other": {"credits": (_fc_other.state["credits"] if _fc_other else 0), "pages": (_fc_other.state["used"] if _fc_other else [])},
         "places_nearby": {"calls": places_nearby_info.get("calls", 0), "note": places_nearby_info.get("note", "")} if places_nearby_key else None,
         "benchmark": benchmark_info,
         "custom_prompts": [q["text"] for q in custom_qs],

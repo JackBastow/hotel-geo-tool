@@ -112,6 +112,28 @@ check("a page with HTML is parsed like one we fetched: title, heading, markup si
 thin = fc.build_page("https://hotel.example/", {"html": "<html><body><div id=app></div></body></html>", "markdown": "# Hotel Example" + chr(10)*2 + "A lovely hotel. " * 20, "links": [], "title": "T"})
 check("a script-built page (no text in the HTML) falls back to the markdown, text only", thin["text_only"] and thin["ok"] and not thin.get("html_via"))
 
+print("2c. Firecrawl for other sites (rivals, cited pages)")
+base_calls = []
+
+
+def base_fetch(u):
+    base_calls.append(u)
+    return {"ok": False, "status": 403, "url": u} if "blocked" in u else ({"ok": True, "status": 200, "url": u, "text": "fine"} if "fine" in u else {"ok": False, "status": 404, "url": u})
+
+
+fb = fc.fallback_fetch(base_fetch, "K", limit=2, post=fc_html_post, robots_ok=True)
+check("a page that reads normally is returned as is, with no Firecrawl credit", fb("https://fine.example/")["text"] == "fine" and fb.state["credits"] == 0)
+check("a page that is simply missing (404) is not retried through Firecrawl", fb("https://gone.example/")["status"] == 404 and fb.state["credits"] == 0)
+r = fb("https://blocked.example/")
+check("a page our reader was refused on (403) is read through Firecrawl, and counted", r["ok"] and r.get("html_via") == "firecrawl" and fb.state["credits"] == 1)
+fb("https://blocked2.example/")
+check("it stops at the per-audit limit, then the refusal is returned as it was", fb("https://blocked3.example/")["status"] == 403 and fb.state["credits"] == 2)
+fb2 = fc.fallback_fetch(base_fetch, "K", post=fc_html_post, robots_ok=False)
+check("a site whose robots.txt asks readers to keep out is left alone", fb2("https://blocked.example/")["status"] == 403 and fb2.state["credits"] == 0)
+check("no key: the refusal is returned unchanged", fc.fallback_fetch(base_fetch, None)("https://blocked.example/")["status"] == 403)
+src = open("full_audit.py", encoding="utf8").read()
+check("the audit hands it to the rival and cited-page readers", src.count("fetch=_fc_other") == 2)
+
 print("3. OpenStreetMap (Overpass)")
 check("more than one server is configured, the main one first", len(sources.OVERPASS) >= 2 and "overpass-api.de" in sources.OVERPASS[0])
 seen = []

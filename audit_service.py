@@ -132,8 +132,9 @@ def run(params, cfg, progress=None):
     if spent:
         store.record_usage(max(1, round(spent * 1000)), service="claude")      # estimated spend, in thousandths of a dollar
     fc = (fa_res.get("guest_questions") or {}).get("firecrawl") or {}
-    if fc.get("credits"):
-        store.record_usage(int(fc["credits"]), service="firecrawl")
+    fc_credits = int(fc.get("credits") or 0) + int((fa_res.get("firecrawl_other") or {}).get("credits") or 0)
+    if fc_credits:
+        store.record_usage(fc_credits, service="firecrawl")
     if (fa_res.get("places_nearby") or {}).get("calls"):
         store.record_usage(int(fa_res["places_nearby"]["calls"]), service="google_places")
     llm_reads = sum(1 for e in tr.get("editorial_hits", []) + tr.get("other_hits", []) if e.get("read", {}).get("via") == "llm")

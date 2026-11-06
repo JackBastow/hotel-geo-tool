@@ -111,3 +111,37 @@ def read_hotel_pages(start_url, *, api_key=None, max_pages=MAX_PAGES, progress=N
     except Exception as e:  # noqa: BLE001 - never fail the audit
         return out("unavailable", f"Firecrawl did not answer ({type(e).__name__}).", [], 0)
     return out("ok", "", pages, credits)
+
+
+REFUSED = (401, 403, 429, 451)
+
+
+def fallback_fetch(base_fetch, api_key, limit=8, post=requests.post, robots_ok=None):
+    """
+    Wraps a page fetcher (guest_questions.fetch_page) for OTHER sites the audit reads: rival hotels' sites, pages that AI answers cited. When our own reader is refused (401/403/429/451) and the site's robots.txt allows
+    automated reading, the same page is read through Firecrawl instead, up to `limit` pages an audit. Nothing is hidden: no stealth proxy, and a refusal that Firecrawl cannot read either stays a refusal.
+    The returned function has .credits (pages read through Firecrawl) and .used (their addresses).
+    """
+    state = {"credits": 0, "used": []}
+
+    def fetch(url):
+        pg = base_fetch(url)
+        if not api_key or (pg or {}).get("ok") or (pg or {}).get("status") not in REFUSED or state["credits"] >= limit:
+            return pg
+        try:
+            if not (polite.allowed(url) if robots_ok is None else robots_ok):
+                return pg
+            state["credits"] += 1
+            res = scrape(url, api_key, post=post)
+            if not res["ok"]:
+                return pg
+            new = build_page(url, res)
+            if new.get("ok"):
+                state["used"].append(url)
+                return new
+        except Exception:  # noqa: BLE001
+            pass
+        return pg
+
+    fetch.state = state
+    return fetch
