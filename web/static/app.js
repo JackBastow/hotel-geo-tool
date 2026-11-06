@@ -220,7 +220,23 @@ document.addEventListener("click", function (ev) {
 })();
 
 /* the portfolio page: while any check is running, refresh the page every few seconds so the status column stays current */
-(function () { if (document.querySelector("[data-pf-active]")) { setTimeout(function () { window.location.reload(); }, 5000); } })();
+/* only the table is refreshed (never the whole page), so a form being filled in, such as "Add a hotel", is left alone */
+(function () {
+  if (!document.querySelector("[data-pf-active]")) { return; }
+  function statusTable(doc) {
+    var ts = doc.querySelectorAll("table.table"), i;
+    for (i = 0; i < ts.length; i++) { if (/Right now/.test(ts[i].textContent)) { return ts[i]; } }
+    return null;
+  }
+  function tick() {
+    fetch(window.location.pathname, { credentials: "same-origin", headers: { "X-Requested-With": "fetch" } }).then(function (r) { return r.text(); }).then(function (t) {
+      var doc = new DOMParser().parseFromString(t, "text/html"), cur = statusTable(document), nw = statusTable(doc);
+      if (cur && nw) { cur.innerHTML = nw.innerHTML; }
+      if (doc.querySelector("[data-pf-active]")) { setTimeout(tick, 5000); }
+    }).catch(function () { setTimeout(tick, 8000); });
+  }
+  setTimeout(tick, 5000);
+})();
 
 /* the Prompts tab: edit, add, remove, save a draft, confirm */
 (function () {
