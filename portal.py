@@ -162,6 +162,13 @@ def register(app, cfg):
         return form(title, heading, intro, fields, "Save and continue")
 
     # ---------------------------------------------------------------- dashboard
+    def _opps(d, runs):
+        try:
+            import opportunities
+            return opportunities.build(d.get_report(runs[0]["id"])) if runs else []
+        except Exception:  # noqa: BLE001 - the dashboard still shows
+            return []
+
     def dashboard_page(hotel, user, hotels):
         d = db()
         acts = progress.actions_for(d, hotel)
@@ -171,7 +178,7 @@ def register(app, cfg):
         pst = prompt_sets.state(d, hotel)
         since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
         body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), ai=ai_dash.panel(d, hotel), prompts=prompts_view.panel(pst, hotel, "/portal/api/prompts/" + str(hotel["id"]), True, since),
-                                     prompts_alert=bool(pst["draft"] and not pst["active"]),
+                                     prompts_alert=bool(pst["draft"] and not pst["active"]), opps=_opps(d, runs),
                                      live=app.extensions["weekly"].hotel_state(hotel["id"]), live_url=f"/portal/api/status/{hotel['id']}")
         return shell(hotel["name"] + ": progress", body, user, hotels)
 

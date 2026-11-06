@@ -352,7 +352,7 @@ EXTENDED = [
      "facts": {
          "what the rate includes": re.compile(r"(?:rate|room|price|stay)s?\s+(?:includes?|inclusive of|are inclusive)|included in (?:the|your) (?:rate|room|price)|rates? (?:include|are)|breakfast (?:is )?included|complimentary (?:wi-?fi|breakfast|water|access)", re.I),
          "what costs extra": re.compile(r"(?:at )?(?:an )?extra (?:charge|cost|fee)|supplement|additional (?:charge|fee|cost)|surcharge|city tax|tourist tax|tourism tax|resort fee|destination fee|local tax|deposit|not included|charged (?:separately|extra)|per (?:night|person|day) (?:fee|charge)", re.I)},
-     "example": "Your rate includes [breakfast, Wi-Fi, access to the gym]. Not included: parking (\u00a3[x] a night), [city tax of \u00a3[x] per person per night], [late check-out], [spa access]."},
+     "example": "Included in every rate: [Wi-Fi, water, access to the gym]. Charged on top for everyone: [city tax of \u20ac[x] per person per night]. Breakfast, parking, cancellation and late check-out depend on the rate you choose: the terms are shown when you select it."},
     {"id": "room_configuration", "q": "Which rooms sleep how many guests, and what is the bed set-up?", "applies": None, "core": True, "high_value": False,
      "slugs": ("rooms", "accommodation", "suites", "family"), "fallback": "your Rooms page",
      "facts": {

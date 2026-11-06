@@ -271,3 +271,15 @@ document.addEventListener("click", function (ev) {
   box.addEventListener("change", function () { refresh(); });
   refresh();
 })();
+
+/* the actions on the dashboard: filter by kind (AI visibility, website content, data accuracy) */
+document.addEventListener("click", function (ev) {
+  var b = ev.target.closest(".fchip[data-t]");
+  if (!b) { return; }
+  var box = b.closest("#act-list");
+  if (!box) { return; }
+  box.querySelectorAll(".fchip[data-t]").forEach(function (x) { x.classList.toggle("on", x === b); });
+  var want = b.getAttribute("data-t");
+  box.querySelectorAll(".act").forEach(function (a) { a.hidden = !(want === "all" || a.getAttribute("data-track") === want); });
+  box.querySelectorAll("h3.grp").forEach(function (h) { var n = h.nextElementSibling, any = false; while (n && n.classList && n.classList.contains("act")) { if (!n.hidden) { any = true; } n = n.nextElementSibling; } h.hidden = !any; });
+});

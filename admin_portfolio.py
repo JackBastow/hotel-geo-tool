@@ -28,6 +28,14 @@ def _key_for(website):
     return backend.hotel_key({"meta": {"base": urlscope.normalise(website)[0]}})
 
 
+def _safe_opps(s, runs):
+    try:
+        import opportunities
+        return opportunities.build(s.get_report(runs[0]["id"])) if runs else []
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def register(app, cfg, guard, shell, store_or_msg, csrf):
     def checked_post():
         g = guard()
@@ -147,7 +155,7 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
                  '<button class="btn" type="submit">Make an invite link</button></form><p class="caption">There is no email service: you get a link to send them yourself. It works once and expires in 7 days.</p>'
                  + (f'<h6>Links still open</h6><ul>{invites}</ul>' if invites else "") + "</section>")
         view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=csrf(), ai=ai_dash.panel(s, h), prompts=prompts_view.panel(pst, h, f"/admin/hotel/{hid}/prompts", True, since),
-                                     prompts_alert=bool(pst["draft"] and not pst["active"]),
+                                     prompts_alert=bool(pst["draft"] and not pst["active"]), opps=_safe_opps(s, runs),
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"/admin/hotel/{hid}/status")
         return shell("portfolio", h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
 

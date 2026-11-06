@@ -16,6 +16,7 @@ Imported lazily by report_pdf.build_story (it uses report_pdf's helpers).
 from reportlab.platypus import KeepTogether, PageBreak, Spacer
 
 import headline as headline_mod
+import advice
 import ai_insights
 import report_pdf as R
 import scoring
@@ -72,7 +73,7 @@ def _conf(r):
 def action_card(i, r):
     head = R.Paragraph(f"{i}. {esc(short(r['title'], 120))}", R.S["h3"])
     meta = R.P(cat(R.coloured(r["priority"].upper() + " priority", PRI_COL[r["priority"]]),
-                   f" - effort {r['effort']} - {_conf(r)} - owner: {r.get('owner') or r['team'].capitalize()}" + (f" - type: {TRACKS.get(r.get('track'), '')}" if r.get("track") else "")), "small")
+                   f" - effort {r['effort']} - {_conf(r)} - owner: {r.get('owner') or r['team'].capitalize()} - type: {TRACKS.get(r.get('track') or advice.track_of(r), '')}"), "small")
     rows = [["Issue", short(r["finding"], 250)],
             ["Evidence", _ev1(r)],
             ["Why it matters", short(r["why"], 230)],
@@ -294,6 +295,34 @@ def _strengths_weaknesses(rep, c, h, top):
 
 # ----------------------------------------------------------------------------- competitors and sources
 
+def _opportunities_block(rep):
+    """The few things worth a manager's attention: where the hotel is a credible choice, is not being named, and rivals are, with the evidence and the actions that support it."""
+    import opportunities
+    ops = opportunities.build(rep)
+    if not ops:
+        return [para("No search was found where this hotel is a credible choice and is not being named while comparable hotels are. That is what this sample showed: a wider or repeated sample may find more.", "base")]
+    out = [para("Each is a kind of traveller or search where the hotel is a credible option, the assistant did not name it, and rival hotels were named. They come first because they are what decides whether the hotel is recommended; the website actions that follow support them.", "muted")]
+    for i, o in enumerate(ops, 1):
+        rows = [["What is happening", opportunities.sentence(o)]]
+        if o["questions"]:
+            rows.append(["Searches it covers", "; ".join(short(q, 90) for q in o["questions"])])
+        if o["rivals"]:
+            rows.append(["Who appears instead", ", ".join(f"{r['name']} ({r['answers']} of {r['of']} answers)" for r in o["rivals"])])
+        if o["reasons"]:
+            rows.append(["Reasons the assistant gave", " ".join(short(x, 190) for x in o["reasons"])])
+        if o["differences"]:
+            rows.append(["Differences the evidence shows", " ".join(short(x, 190) for x in o["differences"][:2])])
+        if o["sources"]:
+            rows.append(["Sites it cited", "; ".join(f"{s['domain']}" + (f" (names {', '.join(s['rivals'][:2])})" if s.get("rivals") else "") + (" - sponsored: check before approaching" if s.get("sponsored") else "") for s in o["sources"])])
+        if o["kind"] == "sources":
+            rows.append(["Before approaching a publication", "Check it suits this hotel: its readers (luxury or value, business or leisure), whether it is independent or sponsored, and how it takes hotel submissions or enquiries. Do not pay for coverage that is not disclosed."])
+        if o["supporting"]:
+            rows.append(["Supporting actions", "; ".join(f"{short(x['title'], 70)} ({x['ref']})" for x in o["supporting"])])
+        out.append(KeepTogether([para(f"{i}. {o['title']}", "h3"), table(rows, [0.22, 0.78], header=False, zebra=False), Spacer(1, 4)]))
+    out.append(para("The reasons are what the assistant said and the sites it cited in one sample of answers: evidence to investigate, not a statement of how the model decides.", "tiny"))
+    return out
+
+
 def _competitor_block(rep):
     """Every hotel the assistant named, ranked: how often, where in its list, and how it described each. The hotel is marked."""
     ins = rep.get("ai_insights") or {}
@@ -421,7 +450,7 @@ def _tracks_block(c):
                "content": "Helping travellers and assistants understand the hotel: facts and detail missing from its own pages",
                "accuracy": "Keeping facts consistent across sources: names, phones, listings"}
     for k in ("visibility", "content", "accuracy"):
-        rs = sorted((r for r in recs if r.get("track") == k and r.get("kind") != "opportunity" or r.get("track") == k), key=lambda r: -r["rank"])[:3]
+        rs = sorted((r for r in recs if (r.get("track") or advice.track_of(r)) == k), key=lambda r: -r["rank"])[:3]
         rows.append([TRACKS[k], purpose[k], "; ".join(short(r.get("short_title") or r["title"], 70) + f" ({r['ref']})" for r in rs) or "None found"])
     out.append(table(rows, [0.2, 0.34, 0.46]))
     return out
@@ -512,6 +541,8 @@ def story(rep, H1):
     out.append(para("Readiness and observed AI visibility are kept separate on purpose: a well-prepared hotel can still not be recommended, and a hotel can be recommended by chance while poorly prepared. "
                     "This report scores readiness. It does not claim to measure visibility.", "tiny"))
     out.append(R.PageBreak())
+    out.append(H1("Your biggest AI discovery opportunities"))
+    out += _opportunities_block(rep)
     out.append(H1("Competitors: who AI recommends instead"))
     out += _competitor_block(rep)
     out += _markets_block(rep, c)

@@ -24,8 +24,10 @@ _BUSINESS_TEXT = re.compile(r"business (?:travel|guests?|travellers?|traveler|ce
 _CITY_TEXT = re.compile(r"city[- ]cent(?:re|er)|downtown|town cent(?:re|er)|old town|(?:in|at) the heart of|city centre location", re.I)
 _RESORT_TEXT = re.compile(r"\bresort\b|all[- ]inclusive|beachfront|golf course|kids'? club|water ?park|private beach", re.I)
 _BOUTIQUE_TEXT = re.compile(r"\bboutique\b", re.I)
-_SPA_WORDS = [re.compile(p, re.I) for p in (r"\btreatments?\b", r"\bmassage\b", r"\bsauna\b", r"steam room", r"hydrotherapy", r"\bthermal\b", r"\bwellness\b", r"spa pool", r"\bfacials?\b", r"relaxation (?:room|area)",
-                                              r"spa (?:day|break|package|menu|suite)", r"\bjacuzzi\b|hot tub")]
+_SPA_WORDS = [re.compile(p, re.I) for p in (r"\btreatments?\b", r"\bmassage\b", r"\bsauna\b", r"steam room", r"hydrotherapy", r"spa pool", r"\bfacials?\b", r"relaxation (?:room|area)",
+                                              r"spa (?:day|break|package|menu|suite)", r"\bjacuzzi\b|hot tub")]          # 'wellness' alone is a marketing word (a 'wellness offer', a gym): it does not make a spa
+_SPA_CORE = re.compile(r"\btreatments?\b|\bmassage\b|\bfacials?\b|hydrotherapy|spa (?:day|break|package|menu|suite)", re.I)
+_SPA_PLACE = re.compile(r"\b(?:the|our|a|its|on-site|in-house)\s+(?:\w+\s+)?spa\b|\bspa (?:centre|center|area|menu|treatment)", re.I)
 _FAMILY_STRONG = [re.compile(p, re.I) for p in (r"kids'? club|children'?s club", r"children'?s (?:pool|playground|activities|entertainment)", r"play ?(?:ground|area|room)", r"family[- ]friendly (?:hotel|resort)|family hotel",
                                                  r"family (?:entertainment|activities|programme|program)", r"babysitt")]
 
@@ -93,7 +95,9 @@ def classify(site, features, intents, osm_ctx=None, hotel="", prof=None):
             spa_hits |= n
         if len(n) >= 2 or (pagetarget.classify(site, p) == "spa" and re.search(r"\bspa\b|treatment|massage|sauna|steam room|wellness", t, re.I)):
             spa_pages.add(p["url"])
-    if len(spa_hits) >= 2 and spa_pages:
+    has_core = any(_SPA_CORE.search(t) for _p, t in pages)
+    has_place = any(_SPA_PLACE.search(t) for _p, t in pages)
+    if len(spa_hits) >= 2 and spa_pages and has_core and has_place:            # a real spa: treatments (not just a sauna or a gym) AND the hotel's own spa named as a place
         add("spa_hotel", "strong" if len(spa_pages) >= 2 else "some", [f"{len(spa_hits)} spa features (treatments, sauna, steam room, wellness...) described on {len(spa_pages)} page(s)"])
     # ---- luxury, from the tier the audit already works out
     tier = (prof or {}).get("tier") or {}

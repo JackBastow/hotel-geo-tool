@@ -117,6 +117,11 @@ def analyse(site):
                 missing.append({"key": dkey, "label": dlabel, "example": example})
             if dkey == "names":
                 names = sorted({re.sub(r"^(?:The|Our)\s+", "", m.group(0)) for url, text, _n, _d in use for m in rg.finditer(text)})[:6]
+        if key == "spa":
+            alltext = " ".join(t for _u, t in pages)
+            operates = bool(dedicated) or (bool({d["key"] for d in found} & {"treatments", "facilities"}) and re.search(r"\b(?:the|our|a|its|on-site|in-house)\s+(?:\w+\s+)?spa\b", alltext, re.I))
+            if not operates:
+                continue                        # 'Wellness Offer', a gym or a package is not a spa: nothing is recommended about a facility the hotel may not have
         url0, text0, _n0, _d0 = use[0]
         m0 = trig.search(text0)
         out.append({"key": key, "label": f["label"], "short": f["short"], "pages": [u for u, *_r in use][:4], "dedicated": bool(dedicated), "found": found, "missing": missing,

@@ -119,7 +119,11 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         reconciled = report_check.reconcile(recs, facility, travel if isinstance(travel, dict) else None, profile, external)
     except Exception:  # noqa: BLE001 - a check on the checks must never stop the report
         reconciled = []
+    RATE_NOTE = (" Rates vary by date, package, membership and booking channel, so state what is included in every rate and point guests to the terms shown when they book for anything that varies, "
+                 "rather than listing everything for every rate.")
     for r in recs:
+        if "rate_inclusions" in (r.get("question_ids") or []) and RATE_NOTE.strip() not in r.get("action", ""):
+            r["action"] = r["action"].rstrip() + RATE_NOTE
         r["track"] = advice.track_of(r)
     top = advice.top_actions(recs)
     quick = advice.quick_wins(recs, exclude_ids={r["id"] for r in top})

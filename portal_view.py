@@ -125,8 +125,10 @@ def action_card(a, sm, editable):
     do = (row("What to do", esc(rec.get("action", ""))) + row("Example wording", esc(rec.get("example", "")) if rec.get("example") else "")
           + row("How you will know", esc(rec.get("success_check") or rec.get("expected_outcome") or "")))
     conf = rec.get("confidence_label")
-    return (f'<article class="act {PRI_TONE.get(a["priority"], "")}" data-id="{a["id"]}" data-kind="{kind}"><details class="rec-d"><summary><span class="rec-t">{esc(a["title"])}</span>'
-            f'<span class="rec-meta">{chip((a["priority"] or "").capitalize(), PRI_TONE.get(a["priority"], ""))}{chip(team)}{chip("Effort: " + a["effort"]) if a["effort"] else ""}{chip(conf) if conf else ""}</span></summary>'
+    import advice
+    track = rec.get("track") or advice.track_of({"id": rec.get("id", ""), "source": a.get("source") or rec.get("source", ""), "tag": rec.get("tag", "")})
+    return (f'<article class="act {PRI_TONE.get(a["priority"], "")}" data-id="{a["id"]}" data-kind="{kind}" data-track="{track}"><details class="rec-d"><summary><span class="rec-t">{esc(a["title"])}</span>'
+            f'<span class="rec-meta">{chip((a["priority"] or "").capitalize(), PRI_TONE.get(a["priority"], ""))}{chip(team)}{chip("Effort: " + a["effort"]) if a["effort"] else ""}{chip(conf) if conf else ""}{chip(advice.TRACKS.get(track, ""), "brand")}</span></summary>'
             f'<div class="rec-body">{why}{do}</div></details><div class="act-row">{_state_chips(a, sm["latest_run_id"], sm["runs"])}{buttons}</div></article>')
 
 
@@ -136,7 +138,10 @@ def action_board(sm, actions, editable):
     groups = {k: [] for k, _t, _o in SECTIONS}
     for a in actions:
         groups[progress.classify(a)].append(a)
-    out = []
+    bar = ('<div class="filters-bar" role="group" aria-label="Filter by kind of action"><button type="button" class="fchip on" data-t="all">All kinds</button>'
+           '<button type="button" class="fchip" data-t="visibility">AI visibility opportunities</button><button type="button" class="fchip" data-t="content">Website content</button>'
+           '<button type="button" class="fchip" data-t="accuracy">Data accuracy</button></div>')
+    out = [bar]
     for key, title, openn in SECTIONS:
         items = sorted(groups[key], key=lambda a: (PRI_ORDER.get(a["priority"], 9), a["id"]))
         if not items:
@@ -167,7 +172,18 @@ def live_panel(state, url):
             f'<span class="hk-muted">This takes a few minutes. This page updates by itself.</span></div><ul class="live-m">{msgs}</ul></section>')
 
 
-def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_url="", prompts="", prompts_alert=False):
+def opportunities_panel(ops):
+    """The Overview's list of the few biggest AI discovery opportunities, each with the evidence in one line and the supporting actions."""
+    if not ops:
+        return ""
+    import opportunities
+    cards = "".join(
+        f'<article class="prio"><div class="prio-n">{i}</div><div><h4>{esc(o["title"])}</h4><p class="prio-why">{esc(opportunities.sentence(o))}</p>'
+        + (f'<div class="prio-do"><b>Supporting actions</b> {esc("; ".join(x["title"] for x in o["supporting"][:3]))}</div>' if o["supporting"] else "") + "</div></article>" for i, o in enumerate(ops, 1))
+    return f'<div class="sec-head"><h3>Your biggest AI discovery opportunities</h3></div><div class="prios">{cards}</div>'
+
+
+def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_url="", prompts="", prompts_alert=False, opps=None):
     h = sm["hotel"]
     nxt = ""
     if h.get("weekly") and sm["last_run_at"]:
@@ -186,7 +202,7 @@ def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_
     board = action_board(sm, actions, editable)
     caveat = ('<p class="caption">This shows progress: what has been done and how the score has moved. It does not prove that the actions caused the change. The AI figures come from a sample of answers from one assistant, '
               'which is why they are given with a range.</p>')
-    overview = (f'{progress_line(sm)}{kpis(sm)}{caveat}'
+    overview = (f'{progress_line(sm)}{kpis(sm)}{opportunities_panel(opps)}{caveat}'
                 f'<div class="sec-head"><h3>Readiness score over time</h3></div><section class="panel">{trend_svg(sm["points"])}</section>'
                 f'<div class="sec-head"><h3>Actions completed over time</h3></div><section class="panel">{trend_svg(sm["completed_points"], maximum=max(4, sm["actions"]["total"] or 4), name="Actions completed")}</section>')
     recs = (('<p class="lede">Mark each action as you go. After every weekly check the list updates: fixed items are ticked off, and new ones are added.</p>' if editable else "") + f'<div id="act-list">{board}</div>')
