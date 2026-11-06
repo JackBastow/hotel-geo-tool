@@ -301,3 +301,31 @@ table.data tr.you td { background: #fff3ef; font-weight: 600; }
 .kind { display: inline-flex; align-items: center; gap: 10px; background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 999px; font-weight: 600; font-size: .95rem; }
 .kind svg { width: 22px; height: 22px; color: var(--gold); flex: none; }
 @media (max-width: 760px) { .glance { padding: 24px 22px; } .glance dl { grid-template-columns: 1fr; } }
+
+
+/* ---- worked example: a missed question followed to an action ---- */
+.chain { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 28px 30px; box-shadow: var(--shadow); margin-top: 36px; }
+.chain-head { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.chain-head h3 { font-size: 1.35rem; margin: 0; }
+.chain-tag { font: 700 .7rem/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; background: #fdf0d2; color: #85590a; padding: 6px 12px; border-radius: 99px; }
+.chain ol { list-style: none; padding: 0; margin: 0; counter-reset: c; }
+.chain li { counter-increment: c; display: grid; grid-template-columns: 34px 170px 1fr; gap: 6px 14px; padding: 13px 0; border-top: 1px solid var(--line); align-items: start; }
+.chain li::before { content: counter(c); width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--gold); display: grid; place-items: center; font: 700 .8rem/1 var(--sans); }
+.chain li b { font: 700 .8rem/1.5 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--gold-d); padding-top: 4px; }
+.chain li span { color: #2d3248; font-size: .98rem; }
+.chain li.act-row span { font-weight: 600; }
+.chain .fine { margin: 14px 0 0; }
+@media (max-width: 760px) { .chain { padding: 22px 20px; } .chain li { grid-template-columns: 30px 1fr; } .chain li span { grid-column: 2; } }
+
+/* ---- portfolio dashboard illustration (sample data) ---- */
+.dash { background: #fff; border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 40px 70px -35px rgba(10,15,31,.45); overflow: hidden; max-width: 940px; margin: 0 auto; }
+.dash-top { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: var(--ink); color: #fff; font-size: .95rem; }
+.dash-top span { font: 700 .68rem/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; background: #fdf0d2; color: #85590a; padding: 5px 10px; border-radius: 99px; }
+.dash-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 18px 20px 6px; }
+.dash-tiles div { background: var(--paper); border-radius: 12px; padding: 12px 14px; } .dash-tiles small { display: block; color: var(--muted); font-size: .72rem; } .dash-tiles b { font: 600 1.5rem/1.2 var(--serif); }
+.dash table { width: 100%; border-collapse: collapse; font-size: .9rem; margin: 10px 0 6px; }
+.dash th { text-align: left; color: var(--muted); font-weight: 600; font-size: .74rem; padding: 8px 20px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.dash td { padding: 12px 20px; border-bottom: 1px solid #f0ebde; white-space: nowrap; } .dash td.n { font-variant-numeric: tabular-nums; }
+.dash td:first-child { font-weight: 600; white-space: normal; } .dash .up { color: var(--signal-d); font-weight: 700; } .dash .down { color: #b4412f; font-weight: 700; }
+.dash-scroll { overflow-x: auto; }
+@media (max-width: 760px) { .dash-tiles { grid-template-columns: 1fr 1fr; } }
