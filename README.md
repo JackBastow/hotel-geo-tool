@@ -412,6 +412,14 @@ incentivised reviews, keyword-stuffed guest reviews or indiscriminate outreach.
 - **Specific prompts** (`query_matrix.py`). Suggestions built from verified attributes (a place near the hotel + a facility, traveller or requirement the pages state), shown in the Prompts tab with an Add button; nothing changes until the hotel confirms the set.
 - Shown on page 2 onwards of the management report and in the dashboard's **Strategy** tab; the engine's recommendations (`DE-*`, `SG1`) are AI visibility actions.
 
+## Extra data sources: Firecrawl, Google Places, Overpass
+
+All optional; keys live only in the host's environment (Render), never in code or the repo.
+
+- **Firecrawl** (`firecrawl_reader.py`, key `FIRECRAWL_API_KEY`). A second fallback reader for the hotel's OWN pages when the site refuses ours: tried before Anthropic's page reader, only when our reader got fewer than three pages, only inside the hotel's folder, only where robots.txt allows it, basic proxy (no stealth), text only, one credit a page against `FIRECRAWL_MONTHLY_CAP` (default 900; the free plan is 1,000).
+- **Google Places** (`places_nearby.py`, key `GOOGLE_PLACES_API_KEY`). The hotel's Google place and the lodging around it, requested with the cheapest field set (no ratings, reviews or website unless `GOOGLE_PLACES_WEBSITES=1`), at most two calls an audit against `GOOGLE_PLACES_MONTHLY_CAP` (default 4,000). Used to complete the list of comparable hotels when OpenStreetMap is short or down. Google requires billing to be enabled on the project and has attribution and storage terms: results are marked as coming from Google Maps Platform.
+- **OpenStreetMap / Overpass** (`sources.py`, no key). The main public server first, then mirrors (short timeouts), and a day's memory of a complete answer so weekly checks do not repeat heavy queries. `OVERPASS_ENDPOINTS` overrides the list.
+
 ## Running it yourself, locally
 
 ```powershell

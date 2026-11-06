@@ -991,7 +991,7 @@ def build_scorecard(site, entities, consistency, location, discovery,
 
     # A site that could not be read cannot be scored: 0 or 40 from nothing would read as a verdict on the hotel.
     if guest_result is not None and guest_result.get("read_via"):
-        why = ("The site refused this tool's own reader, so its pages were read through Anthropic's page reader as plain text. Markup, headings, images "
+        why = ("The site refused this tool's own reader, so its pages were read through a fallback page reader (Firecrawl or Anthropic's) as plain text. Markup, headings, images "
                "and the profiles linked from the page cannot be inspected that way, so this was not scored.")
         for i, c in enumerate(cats):
             if c["key"] == "website":

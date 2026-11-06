@@ -714,7 +714,7 @@ txt = consultant.analyse(own_pages=site16, pages_meta=pm21, base=BASE, hotel=HOT
 html = consultant.analyse(own_pages=site16, pages_meta=pm21, base=BASE, hotel=HOTEL, city=CITY, location={}, guest=guest_for(site16),
                           site={"robots": {"present": True}, "sitemap": {"present": True}}, entities=[], intel=None, osm_ctx=osm_fail)
 check("the coverage carries the text-only flag and says how the pages were read",
-      txt["coverage"]["text_only"] and "plain text" in txt["coverage"]["note"] and "Anthropic's page reader" in txt["coverage"]["note"] and not html["coverage"].get("text_only"))
+      txt["coverage"]["text_only"] and "plain text" in txt["coverage"]["note"] and "fallback page reader" in txt["coverage"]["note"] and not html["coverage"].get("text_only"))
 check("no structured-data claim of any kind is made from plain text (no 'no Hotel markup', no items, no SD recommendations)",
       txt["structured"]["items"] == [] and txt["structured"]["unreadable"] and not any(r["id"].startswith("SD") or r["source"] == "structured" for r in txt["recommendations"]))
 check("none of the HTML-only technical findings appear (titles, descriptions, headings, alt text, noindex, canonical, scripts)",

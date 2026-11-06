@@ -20,6 +20,7 @@ and are printed in the report's methodology section.
 
 import math
 import re
+import os
 import time
 import urllib.parse
 
@@ -184,7 +185,9 @@ OSM_ACCESS = (
 # Only the main public instance: the community mirrors tried (kumi.systems,
 # private.coffee) timed out on every request when tested, and a hanging
 # fallback just doubles the wait.
-OVERPASS = ["https://overpass-api.de/api/interpreter"]
+OVERPASS = [u.strip() for u in (os.environ.get("OVERPASS_ENDPOINTS") or "https://overpass-api.de/api/interpreter,https://overpass.private.coffee/api/interpreter,https://overpass.kumi.systems/api/interpreter").split(",") if u.strip()]
+_OSM_CACHE = {}                  # (lat, lon rounded to 3 places) -> (time, context): the weekly checks of one hotel do not ask the public servers the same heavy questions every week
+OSM_CACHE_S = 24 * 3600
 
 
 def _center(el):
@@ -199,6 +202,10 @@ def osm_context(lat, lon, hotel_name=""):
     if lat is None or lon is None:
         return _envelope("OpenStreetMap context", OSM_ACCESS, "unavailable",
                          "No verified coordinates for the hotel, so local context was not looked up.")
+    ck = (round(lat, 3), round(lon, 3))
+    hit = _OSM_CACHE.get(ck)
+    if hit and time.time() - hit[0] < OSM_CACHE_S:
+        return hit[1]
     # Several small queries, not one big one: the public Overpass servers
     # reject or time out heavy requests, and a partial answer that says what
     # is missing beats a blanket failure. A hard deadline keeps one slow
@@ -219,11 +226,12 @@ def osm_context(lat, lon, hotel_name=""):
             continue
         q = f"[out:json][timeout:15];({body});out center tags 80;"
         data, err = None, "not tried"
-        for ep in OVERPASS:
-            data, code, err = _get(ep, method="POST", data={"data": q}, timeout=(6, 28))
+        for k_, ep in enumerate(OVERPASS):
+            tmo = (6, 28) if k_ == 0 else (4, 12)          # the main server is given time; a mirror that hangs is given up on quickly
+            data, code, err = _get(ep, method="POST", data={"data": q}, timeout=tmo)
             if code == 429 and time.time() < deadline - 10:
                 time.sleep(6)
-                data, code, err = _get(ep, method="POST", data={"data": q}, timeout=(6, 28))
+                data, code, err = _get(ep, method="POST", data={"data": q}, timeout=tmo)
             # Overpass answers HTTP 200 with a "remark" and no elements when it
             # ran out of time/memory. That is a failure, not "nothing nearby".
             if data is not None and data.get("remark") and not data.get("elements"):
@@ -279,9 +287,12 @@ def osm_context(lat, lon, hotel_name=""):
         return _envelope("OpenStreetMap context", OSM_ACCESS, "no_results",
                          "OpenStreetMap lists no named stations, attractions or hotels near this point.")
     ctx["failed_parts"] = failed
-    return _envelope("OpenStreetMap context", OSM_ACCESS, items=[ctx],
-                     reason=(f"Partial: {', '.join(failed)} could not be retrieved from the "
-                             "public servers." if failed else ""))
+    res = _envelope("OpenStreetMap context", OSM_ACCESS, items=[ctx],
+                    reason=(f"Partial: {', '.join(failed)} could not be retrieved from the "
+                            "public servers." if failed else ""))
+    if not failed:
+        _OSM_CACHE[ck] = (time.time(), res)                 # only a complete answer is remembered
+    return res
 
 
 # ---------------------------------------------------------------------- Wayback

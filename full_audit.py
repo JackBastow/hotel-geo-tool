@@ -610,7 +610,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
                    youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None,
-                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None, ai_depth="standard"):
+                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None, ai_depth="standard", firecrawl_api_key=None, places_nearby_key=None):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -738,6 +738,17 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
 
     # The site refused our reader (a chain's bot protection, say). Fall back to Anthropic's openly identified page reader for the hotel's own
     # pages: only when our reader got fewer than three, only inside the hotel's own folder, and always reported as such.
+    if firecrawl_api_key and hotel and guest.get("pages_ok", 0) < 3:
+        import firecrawl_reader
+        ffb = firecrawl_reader.read_hotel_pages(home_url, api_key=firecrawl_api_key, progress=say)
+        if ffb["status"] == "ok" and sum(1 for p in ffb["pages"] if p["ok"]) >= 1:
+            refused = guest.get("pages_failed") or []
+            guest = guest_questions.run_prefetched(site, base, hotel, ffb["pages"], location=location)
+            guest["read_via"] = "firecrawl"
+            guest["firecrawl"] = {"credits": ffb["credits"], "status": "ok"}
+            guest["own_reader_refused"] = refused[:3]
+        else:
+            guest["firecrawl"] = {"credits": ffb.get("credits", 0), "status": ffb["status"], "reason": ffb.get("reason", "")}
     if anthropic_api_key and hotel and guest.get("pages_ok", 0) < 3:
         fb = claude_reader.read_hotel_pages(home_url, api_key=anthropic_api_key, model=anthropic_model, progress=say)
         if fb["status"] == "ok" and sum(1 for p in fb["pages"] if p["ok"]) >= 1:
@@ -800,11 +811,27 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                       "tavily_credits": 0, "reads": {}}
         finally:
             collect_ex.shutdown(wait=False, cancel_futures=True)
+    places_nearby_info = {"calls": 0}
+
+    def _with_places(ctx):
+        """Google's nearby hotels added to the map context when it is missing or short (one call, only with a key); never raises."""
+        if not places_nearby_key or places_nearby_info["calls"]:
+            return ctx, ""
+        try:
+            import places_nearby
+            new, note = places_nearby.supplement_osm(ctx, location.get("lat"), location.get("lon"), hotel, api_key=places_nearby_key)
+            places_nearby_info["calls"] = (new or {}).get("places_calls", 0) if new is not ctx else 0
+            places_nearby_info["note"] = note
+            return new, note
+        except Exception:  # noqa: BLE001
+            return ctx, ""
+
     # Comparable hotels: read in the background as soon as the map data is in (a few polite fetches of other hotels' pages, capped at 25 seconds), joined when the report is assembled.
     competitors_ex = competitors_future = None
     try:
         _osm_item = ((corpus.get("sources") or {}).get("osm_context") or {})
         _osm_ctx = (_osm_item.get("items") or [None])[0] if _osm_item.get("status") == "ok" else None
+        _osm_ctx, places_note = _with_places(_osm_ctx)
         if own_pages and hotel:
             competitors_ex = ThreadPoolExecutor(max_workers=1)
             competitors_future = competitors_ex.submit(competitors_mod.run, _osm_ctx, own_pages, base, hotel)
@@ -867,6 +894,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             import insight_content as _ic0
             _osm = ((corpus.get("sources") or {}).get("osm_context") or {})
             _osm_ctx = (_osm.get("items") or [None])[0] if _osm.get("status") == "ok" else None
+            _osm_ctx, _pn = _with_places(_osm_ctx)
             _site0 = _ic0.Site(own_pages, base, hotel, city) if own_pages else None
             _host1 = urllib.parse.urlparse(base).netloc.lower()
             _feats0 = _ic0.features(_site0) if _site0 else []
@@ -1195,6 +1223,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "ai_sample": ai_result,
         "market_profile": market_profile,
         "question_plan": question_plan,
+        "places_nearby": {"calls": places_nearby_info.get("calls", 0), "note": places_nearby_info.get("note", "")} if places_nearby_key else None,
         "benchmark": benchmark_info,
         "custom_prompts": [q["text"] for q in custom_qs],
         "ai_insights": ai_insight_result,

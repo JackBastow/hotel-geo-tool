@@ -17,7 +17,7 @@ import insight_content as ic
 import insight_tech as it
 
 
-TEXT_ONLY_NOTE = "These pages were read through Anthropic's page reader as plain text, because the site refused this tool's own reader. What the pages SAY was checked (guest questions, facts, location, consistency); markup, page titles, image text and other technical details could not be inspected and are not assessed."
+TEXT_ONLY_NOTE = "These pages were read through a fallback page reader (Firecrawl or Anthropic's) as plain text, because the site refused this tool's own reader. What the pages SAY was checked (guest questions, facts, location, consistency); markup, page titles, image text and other technical details could not be inspected and are not assessed."
 
 
 def crawl_coverage(pages_read, pages_meta):

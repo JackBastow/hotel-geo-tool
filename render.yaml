@@ -32,6 +32,10 @@ services:
         sync: false
       - key: PAGESPEED_API_KEY
         sync: false
+      - key: FIRECRAWL_API_KEY
+        sync: false            # optional: a second page reader for hotels whose site refuses ours
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false            # optional: the hotel's Google place and the hotels around it
       - key: YOUTUBE_API_KEY
         sync: false
       - key: CRON_TOKEN
