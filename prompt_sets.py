@@ -124,6 +124,28 @@ def ensure_draft(db, hotel, report):
     return db.insert_prompt_set(hotel["id"], "draft", chosen, "recommended")
 
 
+def ensure_from_history(db, hotel):
+    """
+    A hotel registered AFTER its audits were saved has runs but no prompt set (a set is made when an audit is saved). When it has none, build the recommended draft from its newest saved audit that has prompts
+    (its question pool, or the benchmark prompts that audit froze), leaving out any prompt built on a scrap of page text. Returns the draft id, or None. Never raises.
+    """
+    try:
+        if db.prompt_sets(hotel["id"]):
+            return None
+        import placenames
+        for r in db.hotel_runs(hotel["hotel_key"]):
+            rep = db.get_report(r["id"])
+            pool = [q for q in pool_from_report(rep) if not placenames.has_scrap(q.get("text"))]
+            chosen = recommend_set(pool, hotel["name"])
+            if len(chosen) >= 3:
+                return db.insert_prompt_set(hotel["id"], "draft", chosen, "recommended")
+        pool = [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why"), "priority": "core", "kind": "niche"} for b in db.get_benchmark(hotel["hotel_key"]) if b.get("text") and not placenames.has_scrap(b["text"])]
+        chosen = recommend_set(pool, hotel["name"])
+        return db.insert_prompt_set(hotel["id"], "draft", chosen, "recommended") if len(chosen) >= 3 else None
+    except Exception:  # noqa: BLE001 - the dashboard still shows
+        return None
+
+
 def state(db, hotel):
     """What the Prompts tab shows: {"active": confirmed set or None, "draft": draft or None, "history": [...]}."""
     sets = db.prompt_sets(hotel["id"])

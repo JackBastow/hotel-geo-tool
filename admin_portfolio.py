@@ -127,6 +127,7 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         acts = progress.actions_for(s, h)
         runs = s.hotel_runs(h["hotel_key"])
         sm = progress.hotel_summary(s, h, list(reversed(runs)), acts)
+        prompt_sets.ensure_from_history(s, h)
         pst = prompt_sets.state(s, h)
         since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
         users = s.users_for_hotel(hid)

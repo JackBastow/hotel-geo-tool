@@ -143,6 +143,20 @@ check("the operator can reset a hotel's frozen prompts and its unconfirmed draft
 check("a hotel's CONFIRMED set is never touched by a reset", len(db.confirmed_prompts_for_key("hotel-opera.com")) == 12 and adm.post(f"/admin/hotel/{hid}/reset-prompts", data={"csrf": atok}).status_code == 200 and len(db.confirmed_prompts_for_key("hotel-opera.com")) == 12)
 check("a reset needs the page's token", adm.post(f"/admin/hotel/{ha}/reset-prompts", data={}).status_code == 400)
 
+print("7. a hotel registered after its audits were saved still gets its recommended prompts")
+rep2 = copy.deepcopy(base)
+rep2["meta"].update(base="https://www.late-hotel.com/", website="late-hotel.com", hotel="Late Hotel", run_at="2026-10-14T09:00:00+00:00")
+rep2["consultant"]["coverage"] = {"pages_read": 8}
+rep2["benchmark"] = {"prompts": [{"text": t_["text"], "angle": t_["angle"], "why": "w"} for t_ in Q[:10]] + [{"text": "I'm flying out of Parking Lot Airports Dusseldorf Airport early tomorrow, which hotels near Paris have a shuttle?", "angle": "Airport", "why": "w"}]}
+rep2.pop("question_plan", None)
+app.extensions["reports"].save(rep2)                   # saved BEFORE the hotel is registered: no draft is made
+hl = db.create_hotel("Late Hotel", "late-hotel.com", "Paris", "late-hotel.com")
+check("before anyone opens it, the hotel has no prompt set", db.prompt_sets(hl) == [])
+pg = adm.get(f"/admin/hotel/{hl}").get_data(as_text=True)
+d2 = ps.state(db, db.get_hotel(hl))["draft"]
+check("opening the hotel builds the recommended draft from its saved audit, and the tab shows it to review (not the 'appears after the first check' message)", d2 and len(d2["prompts"]) >= 8 and "Review the recommended prompts" in pg and "appear here after the first check" not in pg, (d2 and len(d2["prompts"])))
+check("a prompt built on a scrap of page text is left out of it", not any("Parking Lot" in p["text"] for p in d2["prompts"]))
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)
