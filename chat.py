@@ -67,13 +67,19 @@ def facts():
     email = (s.get("contact") or {}).get("email") or "the contact page"
     lines = []
     for p in plans:
-        price = f"{_money(p['monthly'])}{' per hotel' if p.get('per_hotel') else ''} a month"
-        if p.get("min_hotels"):
-            price += f" (minimum {p['min_hotels']} hotels, so from {_money(round(p['min_hotels'] * p['monthly'], 2))} a month)"
-        if p.get("tier_from"):
-            price += f" ({_money(p['tier_monthly'])} per hotel once there are {p['tier_from']} or more hotels)"
-        price += f", or {_money(p['annual'])} a year" if p.get("annual") else " (monthly billing only)"
-        lines.append(f"- {p['name']}: {price}, plus VAT where it applies. {p['for']} Includes: " + "; ".join(p["features"]) + ".")
+        if p.get("custom"):
+            lines.append(f"- {p['name']}: for {p['min_hotels']} or more hotels, priced by custom quotation (ask via the contact page). {p['for']} Includes: " + "; ".join(p["features"]) + ".")
+            continue
+        if p.get("tiers"):
+            price = "; ".join(f"{_money(t['price'])} per hotel a month for {t['from']} to {t['to']} hotels" for t in p["tiers"])
+            price += " (the price for the tier applies to every hotel on the account; monthly billing only; for an annual portfolio contract, ask for a quotation)"
+        else:
+            price = f"{_money(p['monthly'])}{' per hotel' if p.get('per_hotel') else ''} a month"
+            price += f", or {_money(p['annual'])} a year" + (f" (saves {_money(round(p['monthly'] * 12 - p['annual'], 2))} a year)" if p["monthly"] * 12 > p["annual"] else "") if p.get("annual") else " (monthly billing only)"
+        lines.append(f"- {p['name']}: {price}, plus VAT (all prices exclude VAT; VAT is added at checkout where it applies). {p['for']} Includes: " + "; ".join(p["features"]) + ".")
+    fd = s.get("founding") or {}
+    if fd:
+        lines.append(f"- Founding Hotel programme: {_money(fd['price'])} a month for the first {fd['months']} months for a small number of selected hotels, by application at presencepro.co.uk/founding.html. It is not automatic: each application is reviewed and approved, and approved hotels receive a code to use at checkout. Do not say how many places are left. It includes: " + "; ".join(fd.get("benefits", [])) + ". In return founding hotels are asked for: " + "; ".join(fd.get("asks", [])) + ". Testimonials and named case studies are never required. After the first {fd['months']} months the subscription moves to the standard price in force then, and Presence Pro tells the hotel in advance.")
     price_block = "\n".join(lines) if lines else "- Plans and prices are on the pricing page."
     return f"""PRESENCE PRO FACT SHEET
 
@@ -85,7 +91,7 @@ What a report covers:
 - Where the hotel is listed: booking and review sites, maps, open data (OpenStreetMap, Wikidata), press coverage, awards, checked across 30 points. Presence Pro identifies listings from public search results; it does not read Booking.com or Tripadvisor pages directly because their terms prohibit automated collection.
 - Reviews: the hotel can upload its own review export (CSV or Excel from Booking.com, Tripadvisor, Google or Expedia) for a full analysis of reply rate, unanswered critical reviews, how replies read, and what guests praise and criticise. Review text is analysed for that run only and not saved.
 - Open forum conversations: Reddit, Quora and similar threads where travellers ask where to stay, with honest suggested wording. Nothing is ever posted by Presence Pro.
-- Two plans, kept distinct: Single hotel is a clear monthly report for each hotel. Portfolio is for groups of five or more hotels and is much more than a monthly report: a portfolio dashboard with every hotel's score, trends and AI visibility side by side, ongoing analysis of which hotels need attention and which are improving, actions tracked hotel by hotel, and a dashboard for each hotel.
+- Three options, kept distinct: Single hotel is a clear monthly report for each hotel. Portfolio is for groups of 5 to 49 hotels and is much more than a monthly report: a portfolio dashboard with every hotel's score, trends and AI visibility side by side, ongoing analysis of which hotels need attention and which are improving, actions tracked hotel by hotel, and a dashboard for each hotel. Enterprise (50 or more hotels) is a custom quotation. Presence Pro is primarily software and reports: it does not include unlimited consulting or hands-on implementation, and it does not quote prices for advisory work.
 - A plan: a readiness score shown together with how much of the model it rests on, the few actions most worth doing, each labelled Confirmed, Likely or Worth checking, and a monthly comparison with the previous report. Delivered as a management PDF (about 5 to 10 pages) and a technical and evidence appendix.
 
 Honesty rules (state these plainly when relevant):

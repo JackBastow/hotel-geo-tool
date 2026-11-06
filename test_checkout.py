@@ -23,8 +23,11 @@ def check(name, cond, detail=""):
 
 
 SITE = {"plans": [
-    {"id": "single", "name": "Single hotel", "monthly": 49.99, "annual": 499.99, "per_hotel": True},
-    {"id": "portfolio", "name": "Portfolio", "monthly": 89.99, "annual": None, "per_hotel": True, "min_hotels": 5}],
+    {"id": "single", "name": "Single hotel", "monthly": 99, "annual": 990, "per_hotel": True},
+    {"id": "portfolio", "name": "Portfolio", "monthly": 79, "annual": None, "per_hotel": True, "min_hotels": 5, "max_hotels": 49,
+     "tiers": [{"from": 5, "to": 19, "price": 79}, {"from": 20, "to": 49, "price": 69}]},
+    {"id": "enterprise", "name": "Enterprise", "custom": True, "min_hotels": 50}],
+    "founding": {"price": 49.99, "months": 12, "places": 10},
     "stripe": {"prices": {"single": {"monthly": "price_single_m", "annual": "price_single_y"}, "portfolio": {"monthly": "price_port_m"}}}}
 chat._site_cache["v"] = SITE
 
@@ -43,12 +46,20 @@ class FakeStripe:
 print("1. what is sent to Stripe")
 p = checkout.build_params("portfolio", "monthly", 7)
 check("the price comes from the server, with the chosen number of hotels", p["line_items[0][price]"] == "price_port_m" and p["line_items[0][quantity]"] == "7" and p["mode"] == "subscription")
-check("the visitor can still change the number, within the plan's limits", p["line_items[0][adjustable_quantity][enabled]"] == "true" and p["line_items[0][adjustable_quantity][minimum]"] == "5" and p["line_items[0][adjustable_quantity][maximum]"] == "99")
+check("the visitor can still change the number, within the plan's limits", p["line_items[0][adjustable_quantity][enabled]"] == "true" and p["line_items[0][adjustable_quantity][minimum]"] == "5" and p["line_items[0][adjustable_quantity][maximum]"] == "49")
 check("three required details are asked for, about the first hotel", [p[f"custom_fields[{i}][key]"] for i in range(3)] == ["hotel_name", "hotel_city", "hotel_website"] and "first hotel" in p["custom_fields[0][label][custom]"])
 check("after paying they land on the welcome page; cancelling goes back to pricing", p["success_url"].endswith("/welcome.html") and p["cancel_url"].endswith("/pricing.html"))
-check("the button note states the number and price", "7 hotels at £89.99 each per month" in p["custom_text[submit][message]"])
+check("the button note states the number and price", "£79 each for 5 to 19 hotels" in p["custom_text[submit][message]"] and "£69 each for 20 to 49 hotels" in p["custom_text[submit][message]"] and "exclude VAT" in p["custom_text[submit][message]"])
 one = checkout.build_params("single", "annual", 1)
-check("a yearly single hotel uses the yearly price and says 'your hotel' for one", one["line_items[0][price]"] == "price_single_y" and "Name of your hotel" == one["custom_fields[0][label][custom]"] and "1 hotel at £499.99 each per year" in one["custom_text[submit][message]"])
+check("a yearly single hotel uses the yearly price and says 'your hotel' for one", one["line_items[0][price]"] == "price_single_y" and "Name of your hotel" == one["custom_fields[0][label][custom]"] and "1 hotel at £990 each per year" in one["custom_text[submit][message]"])
+check("Single Hotel is 99 a month and 990 a year, saving 198", one["line_items[0][price]"] == "price_single_y" and 99 * 12 - 990 == 198)
+big = checkout.build_params("portfolio", "monthly", 20)
+check("Portfolio at 20 hotels still sends the one volume price; the tier is applied by Stripe, and 20 is within limits", big["line_items[0][price]"] == "price_port_m" and big["line_items[0][quantity]"] == "20")
+check("unit_price: 5 to 19 is 79, 20 to 49 is 69, applied to every hotel", [checkout.unit_price(checkout.plans()["portfolio"], "monthly", n) for n in (5, 19, 20, 49)] == [79, 79, 69, 69])
+f = checkout.build_params("portfolio", "annual", 1, founding=True)
+check("Founding: always one hotel, Single, monthly, with a box for the approval code and no quantity change", f["line_items[0][price]"] == "price_single_m" and f["line_items[0][quantity]" ] == "1" and f["allow_promotion_codes"] == "true" and "line_items[0][adjustable_quantity][enabled]" not in f and f["metadata[founding]"] == "true")
+check("Founding: the note says the price, the length and that VAT is extra, and cancelling returns to the founding page", "£49.99 a month for your first 12 months" in f["custom_text[submit][message]"] and "exclude VAT" in f["custom_text[submit][message]"] and f["cancel_url"].endswith("/founding.html"))
+check("An ordinary checkout never shows the promotion-code box", "allow_promotion_codes" not in p and "allow_promotion_codes" not in one)
 check("Portfolio has no yearly price, so a yearly request becomes monthly", checkout.build_params("portfolio", "annual", 5)["line_items[0][price]"] == "price_port_m")
 chat._site_cache["v"] = {**SITE, "stripe": {"prices": {"single": {"monthly": "price_single_m", "annual": ""}, "portfolio": {"monthly": "price_port_m"}}}}
 try:
@@ -60,7 +71,7 @@ check("the same request for monthly still works", checkout.build_params("single"
 chat._site_cache["v"] = SITE
 
 print("2. what is refused")
-for plan, interval, qty, why in (("portfolio", "monthly", 4, "below the minimum of five"), ("single", "monthly", 0, "zero hotels"), ("single", "monthly", 500, "too many"), ("single", "monthly", "lots", "not a number"), ("nope", "monthly", 1, "unknown plan")):
+for plan, interval, qty, why in (("portfolio", "monthly", 4, "below the minimum of five"), ("portfolio", "monthly", 50, "50 or more is by quotation only"), ("enterprise", "monthly", 60, "Enterprise cannot be bought online"), ("single", "monthly", 0, "zero hotels"), ("single", "monthly", 500, "too many"), ("single", "monthly", "lots", "not a number"), ("nope", "monthly", 1, "unknown plan")):
     try:
         checkout.build_params(plan, interval, qty)
         check(f"refused: {why}", False)
@@ -100,14 +111,14 @@ app = server.create_app(cfg, run_fn=lambda a, b: {})
 c = app.test_client()
 H = {"Origin": "https://presencepro.co.uk"}
 stub = FakeStripe()
-checkout.create = lambda plan, interval, qty, secret, post=None: real_create(plan, interval, qty, secret, post=stub)
+checkout.create = lambda plan, interval, qty, secret, post=None, founding=False: real_create(plan, interval, qty, secret, post=stub, founding=founding)
 ok = c.post("/api/checkout", json={"plan": "portfolio", "interval": "monthly", "quantity": 6}, headers=H)
 check("from the marketing site it returns the checkout address, even with a site password set", ok.status_code == 200 and ok.get_json()["url"].startswith("https://checkout.stripe.com"))
 check("the server's price and the chosen number were what Stripe received", stub.calls[0]["data"]["line_items[0][price]"] == "price_port_m" and stub.calls[0]["data"]["line_items[0][quantity]"] == "6")
 check("only that origin is allowed", ok.headers.get("Access-Control-Allow-Origin") == "https://presencepro.co.uk")
 check("the browser's pre-flight check is answered", c.open("/api/checkout", method="OPTIONS", headers={**H, "Access-Control-Request-Method": "POST"}).status_code == 204)
 bad = c.post("/api/checkout", json={"plan": "portfolio", "interval": "monthly", "quantity": 2}, headers=H)
-check("too few hotels is a 400 with a sentence to show", bad.status_code == 400 and "between 5 and 99" in bad.get_json()["error"])
+check("too few hotels is a 400 with a sentence to show", bad.status_code == 400 and "between 5 and 49" in bad.get_json()["error"])
 check("from another website it is refused", c.post("/api/checkout", json={"plan": "single", "quantity": 1}, headers={"Origin": "https://evil.example"}).status_code == 403)
 check("with no origin (a script) it is refused", c.post("/api/checkout", json={"plan": "single", "quantity": 1}).status_code == 403)
 check("a browser cannot send its own price", "price" not in str(stub.calls[0]["data"].get("line_items[0][price]")).replace("price_port_m", ""))
@@ -115,7 +126,7 @@ checkout.create = lambda *a, **k: (_ for _ in ()).throw(checkout.Unavailable("On
 r503 = c.post("/api/checkout", json={"plan": "single", "quantity": 1}, headers=H)
 check("when it cannot work the site gets a 503, so it can fall back to the Payment Link", r503.status_code == 503)
 check("the rest of the site still needs the password", c.get("/").status_code == 302)
-checkout.create = lambda plan, interval, qty, secret, post=None: real_create(plan, interval, qty, secret, post=stub)
+checkout.create = lambda plan, interval, qty, secret, post=None, founding=False: real_create(plan, interval, qty, secret, post=stub, founding=founding)
 spam = server.create_app(audit_service.Config({}), run_fn=lambda a, b: {}).test_client()
 codes = [spam.post("/api/checkout", json={"plan": "single", "quantity": 1}, headers=H).status_code for _ in range(12)]
 check("one visitor cannot open checkout without limit", codes[-1] == 429 and 429 not in codes[:10])

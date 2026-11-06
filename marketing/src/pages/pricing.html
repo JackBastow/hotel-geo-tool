@@ -1,12 +1,13 @@
 ---
 title: Pricing | Presence Pro
-description: Monthly AI visibility reports for your hotel from {{ lowest_price }} a month. Pay securely by card through Stripe, cancel any time.
+description: Presence Pro pricing. Single Hotel {{ price_single }} a month or {{ price_single_annual }} a year, Portfolio from {{ price_portfolio_large }} per hotel a month, Enterprise by quotation. Prices exclude VAT.
 nav: pricing
 ---
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
-{"@type":"Question","name":"How much does Presence Pro cost?","acceptedAnswer":{"@type":"Answer","text":"Single hotel is {{ price_single }} per hotel a month or a lower yearly price, and you can buy it for as many hotels as you need. Portfolio is {{ price_portfolio }} per hotel a month for five or more hotels, and adds a portfolio dashboard and a dashboard for each hotel. Prices exclude VAT."}},
-{"@type":"Question","name":"What is the difference between Single hotel and Portfolio?","acceptedAnswer":{"@type":"Answer","text":"Single hotel is a clear monthly report on each hotel. Portfolio adds a live dashboard and ongoing analysis across every hotel you run, with trends, which hotels need attention, tracked actions and a dashboard for each hotel."}},
+{"@type":"Question","name":"How much does Presence Pro cost?","acceptedAnswer":{"@type":"Answer","text":"Single Hotel is {{ price_single }} per hotel a month, or {{ price_single_annual }} a year (a saving of {{ price_single_saving }}). Portfolio is for 5 to 49 hotels: {{ price_portfolio }} per hotel a month for 5 to 19 hotels and {{ price_portfolio_large }} per hotel a month for 20 to 49 hotels, with the tier price applying to every hotel. Enterprise, for 50 or more hotels, is a custom quotation. All prices exclude VAT, which is added at checkout where it applies."}},
+{"@type":"Question","name":"What is the Founding Hotel programme?","acceptedAnswer":{"@type":"Answer","text":"A limited number of selected hotels can join Presence Pro as early partners for {{ price_founding }} a month for their first {{ founding_months }} months, by application. In return they are asked to help shape the platform through feedback. After {{ founding_months }} months the subscription moves to the standard price in force at the time, with notice in advance."}},
+{"@type":"Question","name":"What is the difference between Single Hotel and Portfolio?","acceptedAnswer":{"@type":"Answer","text":"Single Hotel is a clear monthly report on each hotel. Portfolio adds a live dashboard and ongoing analysis across every hotel you run, with trends, which hotels need attention, tracked actions and a dashboard for each hotel."}},
 {"@type":"Question","name":"Can I cancel?","acceptedAnswer":{"@type":"Answer","text":"Yes, at any time. Cancelling stops the next payment and your plan runs to the end of the period you have paid for."}},
 {"@type":"Question","name":"How do I pay?","acceptedAnswer":{"@type":"Answer","text":"By card through Stripe. Presence Pro never sees or stores your card number."}}
 ]}
@@ -14,11 +15,11 @@ nav: pricing
 <section class="page-hero dark">
   <div class="wrap">
     <p class="eyebrow">Pricing</p>
-    <h1>A monthly report, or a dashboard for the whole group. <em>Cancel any time.</em></h1>
-    <p class="lede"><b>Single hotel</b> is a clear monthly report on your hotel. <b>Portfolio</b> adds a live dashboard and ongoing analysis across every hotel you run.</p>
-    <div class="toggle" role="group" aria-label="Billing period">
+    <h1>Understand how AI recommends hotels, <em>and where yours could be missing out.</em></h1>
+    <p class="lede"><b>Single Hotel</b> is a clear monthly report on your hotel. <b>Portfolio</b> adds a live dashboard and ongoing analysis across every hotel you run. All prices exclude VAT.</p>
+    <div class="toggle" role="group" aria-label="Billing period for Single Hotel">
       <button type="button" data-interval="monthly" aria-pressed="true">Monthly</button>
-      <button type="button" data-interval="annual" aria-pressed="false">Yearly <small>Single hotel</small></button>
+      <button type="button" data-interval="annual" aria-pressed="false">Yearly <small>Single Hotel, save {{ price_single_saving }}</small></button>
     </div>
   </div>
 </section>
@@ -28,10 +29,33 @@ nav: pricing
     {{ plans_cards }}
     <div class="pay-note rv">
       <span>Paid by card through Stripe. We never see your card details</span>
-      <span>Prices exclude VAT, added where it applies</span>
+      <span>Prices exclude VAT, added at checkout where it applies</span>
       <span>Cancel any time, from your receipt email or by asking us</span>
     </div>
-    <p class="plans-foot rv">Not sure yet? <a href="/sample-report.html">See a sample report</a> or <a href="/contact.html">ask us a question</a>. Running 20 or more hotels, or an agency? <a href="/contact.html">Talk to us</a>.</p>
+    <p class="plans-foot rv">Not sure yet? <a href="/sample-report.html">See a sample report</a> or <a href="/contact.html">ask us a question</a>. Presence Pro is primarily software and monthly reports; it does not include unlimited consulting or hands-on implementation.</p>
+  </div>
+</section>
+
+<section class="light" id="portfolio" style="padding-top:0;scroll-margin-top:90px">
+  <div class="wrap">
+    <div class="sec-head center rv" style="text-align:center;margin-left:auto;margin-right:auto"><p class="eyebrow">Portfolio pricing</p><h2>The more hotels, the lower the price per hotel.</h2><p>Two tiers, one simple rule: the tier you fall into sets the price for every hotel on your account.</p></div>
+    {{ portfolio_buy }}
+  </div>
+</section>
+
+<section class="founding-band dark" id="founding">
+  <div class="wrap two">
+    <div class="rv">
+      <p class="eyebrow">Founding Hotel programme</p>
+      <h2>{{ founding_headline }}</h2>
+      <p>{{ founding_message }}</p>
+      <p class="fine">By application. Each hotel is reviewed and approved; nothing is granted automatically.</p>
+      <div class="cta-row"><a class="btn gold" href="/founding.html">Apply for Founding Hotel Access</a></div>
+    </div>
+    <div class="rv d1">
+      <div class="founding-price"><b>{{ price_founding }}</b><span>a month for your first {{ founding_months }} months, then the standard price in force at the time, with notice in advance</span></div>
+      {{ founding_benefits }}
+    </div>
   </div>
 </section>
 
@@ -95,13 +119,17 @@ nav: pricing
     <div class="sec-head center rv" style="text-align:center"><p class="eyebrow">Billing questions</p><h2>The small print, in plain English</h2></div>
     <div class="faq rv">
       <details><summary>How do I pay?</summary><p>By debit or credit card, through Stripe. Stripe handles the payment securely and sends you a receipt. Presence Pro never sees or stores your card number.</p></details>
-      <details><summary>Is VAT included?</summary><p>Prices on this page are before VAT. VAT is added at checkout where it applies, and appears on your invoice.</p></details>
+      <details><summary>Is VAT included?</summary><p>No. Every price on this site is before VAT. VAT is added at checkout where it applies, and appears on your invoice.</p></details>
       <details><summary>Can I cancel?</summary><p>Yes, at any time. Cancelling stops the next payment and your plan runs to the end of the period you've already paid for. There's no minimum term. Full terms are in our <a href="/terms.html">terms of service</a>.</p></details>
-      <details><summary>What's the difference between monthly and yearly?</summary><p>Yearly billing is available on the Single hotel plan: it is paid once and costs less than twelve monthly payments, and the page shows exactly how much you save. Portfolio is billed monthly. Reports are the same either way.</p></details>
-      <details><summary>How does Portfolio pricing work?</summary><p>Portfolio is for groups with five or more hotels. You pay the same price for every hotel, every month, and you choose how many hotels when you subscribe. You get a portfolio dashboard with trends across all your hotels, and each hotel also gets its own dashboard that shows only that hotel. To add or remove hotels later, use the billing link in your Stripe receipt or email us.</p></details>
-      <details><summary>Why does Portfolio cost more per hotel?</summary><p>Because it includes more: a portfolio dashboard with trends across every hotel, ongoing analysis of which hotels need attention, actions tracked hotel by hotel, a separate dashboard for each hotel, and priority support. If you only want the monthly report for several hotels, Single hotel can be bought for as many hotels as you like.</p></details>
-      <details><summary>Can I buy Single hotel for more than one hotel?</summary><p>Yes. Choose how many hotels at checkout, and each gets its own monthly report. If you reach five hotels and want the portfolio dashboard and a dashboard for each hotel, email us and we'll move you to Portfolio.</p></details>
-      <details><summary>Can I change plan?</summary><p>Yes. Email us and we'll move you between Single hotel and Portfolio.</p></details>
+      <details><summary>What's the difference between monthly and yearly?</summary><p>Yearly billing is available on Single Hotel at {{ price_single_annual }} per hotel, paid once upfront. That saves {{ price_single_saving }} a year compared with twelve monthly payments of {{ price_single }}. Portfolio is billed monthly; for an annual portfolio contract, <a href="/contact.html?plan=enterprise">ask for a quotation</a>. Reports are the same either way.</p></details>
+      <details><summary>How does Portfolio pricing work?</summary><p>Portfolio is for groups of 5 to 49 hotels. For 5 to 19 hotels each hotel is {{ price_portfolio }} a month; for 20 to 49 hotels each hotel is {{ price_portfolio_large }} a month. The tier you fall into sets the price for every hotel on the account, not just the extra ones. You get a portfolio dashboard with trends across all your hotels, and each hotel also gets its own dashboard that shows only that hotel. To add or remove hotels later, email us.</p></details>
+      <details><summary>Why does Portfolio cost less per hotel than Single Hotel?</summary><p>It is volume pricing: the more hotels on one account, the lower the price per hotel. Portfolio also includes more than Single Hotel: the dashboards and ongoing analysis across the group.</p></details>
+      <details><summary>Do I need to prove how many hotels I have?</summary><p>Portfolio pricing is for the hotels you own or manage. We may ask you to confirm the list, and if the number on your account does not match the hotels you actually have, we'll adjust the plan. If you want a monthly report for only a few hotels, Single Hotel can be bought for as many hotels as you like.</p></details>
+      <details><summary>What if I have 50 or more hotels?</summary><p>Enterprise is a custom quotation. It can include options such as portfolio-wide reporting, centralised dashboards, cross-property benchmarking, consolidated billing, custom reporting, additional account support and tailored implementation arrangements, which we agree with you. <a href="/contact.html?plan=enterprise">Contact us</a>.</p></details>
+      <details><summary>What is the Founding Hotel programme?</summary><p>A limited number of selected hotels can join as early partners at {{ price_founding }} a month for their first {{ founding_months }} months, and help shape the platform through feedback. It is by application and approval, not automatic. After {{ founding_months }} months the subscription moves to the standard price in force at the time, and we tell you in advance. See <a href="/founding.html">the details and how to apply</a>.</p></details>
+      <details><summary>Does Presence Pro include consulting or hands-on help?</summary><p>Presence Pro is primarily software and monthly reports: what AI says about your hotel, why, and what to fix first. It does not include unlimited consulting or hands-on implementation. Advisory support may be offered separately later.</p></details>
+      <details><summary>Can I buy Single Hotel for more than one hotel?</summary><p>Yes. Choose how many hotels at checkout, and each gets its own monthly report. If you have 5 or more hotels and want the portfolio dashboard and a dashboard for each hotel, Portfolio costs less per hotel.</p></details>
+      <details><summary>Can I change plan?</summary><p>Yes. Email us and we'll move you between plans. Existing subscriptions keep the price they started on until we tell you otherwise, with notice in advance.</p></details>
       <details><summary>Will the reports guarantee AI recommends my hotel?</summary><p>No, and no honest provider can promise that. The report shows what an AI assistant said, where it got its information and what your own pages leave unanswered, so you can fix real gaps. The AI answers are a labelled sample of one assistant on one day.</p></details>
       <details><summary>What if I want to see one first?</summary><p>Read the <a href="/sample-report.html">sample report</a>, or <a href="/contact.html">ask us</a> any question about what your hotel's report would cover.</p></details>
       <details><summary>I need an invoice or have a billing problem</summary><p>Stripe emails a receipt with every payment. For an invoice in your company's name or anything else about billing, email <a href="mailto:{{ contact.email }}">{{ contact.email }}</a>.</p></details>

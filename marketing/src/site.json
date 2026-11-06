@@ -17,21 +17,21 @@
     "portal_url": "",
     "links": {
       "single": {
-        "monthly": "https://buy.stripe.com/6oUbIU7FE14g9aT15Dbsc01",
-        "annual": "https://buy.stripe.com/6oUdR20dc8wIbj1aGdbsc02"
+        "monthly": "",
+        "annual": ""
       },
       "portfolio": {
-        "monthly": "https://buy.stripe.com/6oUbIU2lkeV6bj16pXbsc03",
+        "monthly": "",
         "annual": ""
       }
     },
     "prices": {
       "single": {
-        "monthly": "price_1UYWDZ2WcAnvpfpqkAw8OR4S",
-        "annual": "price_1UYWEG2WcAnvpfpqUI3r8BYF"
+        "monthly": "price_1UYl7l2WcAnvpfpq5Hep0LSM",
+        "annual": "price_1UYl992WcAnvpfpqbkr9e6R8"
       },
       "portfolio": {
-        "monthly": "price_1UYWvG2WcAnvpfpqqBAjc7tE"
+        "monthly": "price_1UYlBc2WcAnvpfpqPKC26Kj9"
       }
     },
     "checkout": true
@@ -39,15 +39,17 @@
   "plans": [
     {
       "id": "single",
-      "name": "Single hotel",
-      "monthly": 49.99,
-      "annual": 499.99,
+      "name": "Single Hotel",
+      "monthly": 99,
+      "annual": 990,
       "per_hotel": true,
-      "for": "A clear report on your hotel, every month.",
+      "for": "A clear monthly report on your hotel, with competitor intelligence and a ranked plan.",
       "features": [
         "A monthly report for each hotel: what AI says about it, who gets named instead, and what to fix first",
-        "A management PDF, plus the evidence behind every finding",
-        "Compared with last month, so you can see what moved",
+        "Competitor intelligence: which comparable hotels are named, and the pages the assistant cited",
+        "Website and external-presence analysis, with the evidence behind each finding",
+        "Prioritised recommendations, ranked by risk and effort",
+        "Change since your last report, so you can see what moved",
         "Your own questions tested, and your review export analysed",
         "Email support"
       ]
@@ -55,22 +57,70 @@
     {
       "id": "portfolio",
       "name": "Portfolio",
-      "monthly": 89.99,
+      "monthly": 79,
       "annual": null,
       "per_hotel": true,
       "min_hotels": 5,
+      "max_hotels": 49,
       "highlight": true,
-      "for": "A live dashboard and ongoing analysis across all your hotels. Far more than a monthly report.",
+      "tiers": [
+        {
+          "from": 5,
+          "to": 19,
+          "price": 79
+        },
+        {
+          "from": 20,
+          "to": 49,
+          "price": 69
+        }
+      ],
+      "for": "For groups: a dashboard and ongoing analysis across all your hotels, priced per hotel.",
       "features": [
-        "Everything in the monthly report, for every hotel",
+        "Everything in Single Hotel, for every hotel",
         "A portfolio dashboard: every hotel's score, trends and AI visibility side by side",
         "See which hotels need attention, and which are improving",
-        "Actions tracked hotel by hotel, so you can see what has been done",
-        "Each hotel also gets its own dashboard, showing only that hotel",
-        "The same price for every hotel you add",
-        "Priority support"
+        "Actions tracked hotel by hotel",
+        "A dashboard for each hotel, showing only that hotel",
+        "Priority email support"
+      ]
+    },
+    {
+      "id": "enterprise",
+      "name": "Enterprise",
+      "custom": true,
+      "min_hotels": 50,
+      "for": "For 50 or more hotels, with a tailored quotation.",
+      "features": [
+        "Everything in Portfolio",
+        "Options available for discussion: portfolio-wide reporting, centralised dashboards, cross-property benchmarking, consolidated billing, custom reporting, additional account support and tailored implementation arrangements"
       ]
     }
   ],
-  "form_key": "8c752aa7-4ddb-49f8-93cc-1c06a48d5bad"
+  "form_key": "8c752aa7-4ddb-49f8-93cc-1c06a48d5bad",
+  "founding": {
+    "price": 49.99,
+    "months": 12,
+    "places": 10,
+    "coupon": "founding-hotel",
+    "headline": "Become one of our first 10 Founding Hotels",
+    "message": "Join Presence Pro as an early partner and receive our complete GEO intelligence platform for £49.99/month for your first 12 months. In return, help us shape the platform through your feedback.",
+    "benefits": [
+      "Access to the core Presence Pro platform",
+      "A monthly GEO assessment of your hotel",
+      "AI recommendation visibility, sampled each month",
+      "Competitor intelligence",
+      "Website and external-presence analysis",
+      "Prioritised recommendations, ranked by risk and effort",
+      "Historical performance tracking, building up month by month from your first report",
+      "£49.99 a month for your first 12 months"
+    ],
+    "asks": [
+      "Occasional feedback on the reports and the platform",
+      "Periodic product-feedback discussions",
+      "Help us understand which recommendations you find most useful",
+      "Permission to use your results, anonymised, to improve the platform",
+      "Consider (never required) sharing a testimonial or case study, which would only ever happen with your separate, explicit approval"
+    ]
+  }
 }

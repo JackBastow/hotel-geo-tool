@@ -8,15 +8,16 @@
 
   var num = function (n) { return Number.isInteger(n) ? String(n) : n.toFixed(2); };
   var plans = (cfg.PLANS || []).map(function (p) {
+    if (p.custom) return p.name + " is a custom quotation for " + p.min_hotels + " or more hotels";
+    if (p.tiers) return p.name + " " + p.tiers.map(function (t) { return money(num(t.price)) + " per hotel a month for " + t.from + " to " + t.to + " hotels"; }).join(", ") + " (monthly billing only)";
     var t = p.name + " " + money(num(p.monthly)) + (p.per_hotel ? " per hotel a month" : " a month");
-    if (p.min_hotels) t += " (minimum " + p.min_hotels + " hotels)";
-    if (p.tier_from) t += " (" + money(num(p.tier_monthly)) + " per hotel from " + p.tier_from + " hotels)";
     if (p.annual) t += ", or " + money(num(p.annual)) + " a year";
     return t;
   }).join("; ");
+  var founding = cfg.FOUNDING ? " We also have a Founding Hotel offer, " + money(num(cfg.FOUNDING.price)) + " a month for the first " + cfg.FOUNDING.months + " months, for selected hotels by application: /founding.html." : "";
   var QUICK = [
     { q: "What do you check?", a: "We check three things for your hotel: whether your own website answers the questions guests ask, what an AI assistant says when travellers ask where to stay (and who it names instead), and where your hotel is listed across booking sites, maps and the press. You get a plain-English plan of what to fix first. There's more on the What we do page: /what-we-do.html" },
-    { q: "How much does it cost?", a: "Monthly reports: " + plans + ", plus VAT where it applies. Details: /pricing.html" },
+    { q: "How much does it cost?", a: "Prices exclude VAT. " + plans + "." + founding + " Details: /pricing.html" },
     { q: "Does it cover ChatGPT?", a: "Not directly, and we'd rather say so. The sampled answers come from one AI assistant with live web search, and the report labels them as a sample of one assistant on one day. For ChatGPT, Gemini and others the report gives you a checklist to test by hand. Nobody can honestly promise that an assistant will recommend your hotel." },
     { q: "How do I pay or cancel?", a: "You pay by card through Stripe, so we never see your card details. It's a monthly subscription you can cancel any time; it ends at the close of the period you've paid for. For anything about billing, email " + (cfg.EMAIL || "us") + "." }
   ];

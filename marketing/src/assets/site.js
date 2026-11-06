@@ -31,58 +31,85 @@
     rv.forEach(function (e) { io.observe(e); });
   }
 
-  // billing: monthly / yearly switch and the buy buttons (Stripe Payment Links from site.json; the contact page until a link exists)
+  // billing: monthly / yearly switch and the buy buttons. Subscribe opens Stripe through our own checkout; a Payment Link from site.json
+  // (if one is set) or the contact page is the fallback.
   var interval = "monthly";
-  // a plan with no yearly link (Portfolio is billed monthly) falls back to its monthly link
   function link(id) { var l = cfg.LINKS && cfg.LINKS[id]; if (!l) return ""; return l[interval] || (interval === "annual" ? l.monthly || "" : ""); }
   function paint() {
     var key = interval === "annual" ? "a" : "m";
     $$("[data-m]").forEach(function (e) { var v = e.getAttribute("data-" + key); if (v !== null) e.textContent = v; });
     $$("[data-buy]").forEach(function (a) {
       var id = a.getAttribute("data-buy"), url = link(id);
-      if (url) { a.href = url; a.textContent = "Subscribe"; a.target = "_blank"; a.rel = "noopener"; }
-      else { a.href = "/contact.html?plan=" + id + "&billing=" + interval; a.textContent = "Get started"; a.removeAttribute("target"); }
+      if (url) { a.href = url; a.target = "_blank"; a.rel = "noopener"; }
+      else { a.href = "/contact.html?plan=" + id + "&billing=" + (id === "single" ? interval : "monthly"); a.removeAttribute("target"); }
     });
     $$(".toggle button").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-interval") === interval ? "true" : "false"); });
     calcs();
   }
+  // price for one hotel at this number: Portfolio has volume tiers, the tier price applying to every hotel
+  function unit(c, n, yearly) {
+    var t = c.getAttribute("data-tiers");
+    if (t && !yearly) {
+      try { var a = JSON.parse(t); for (var i = 0; i < a.length; i++) { if (n >= a[i].from && n <= a[i].to) return a[i].price; } return a[a.length - 1].price; } catch (e) { /* fall through */ }
+    }
+    return parseFloat(c.getAttribute(yearly ? "data-pa" : "data-pm"));
+  }
+  function bounds(c) { return { lo: parseInt(c.getAttribute("data-min"), 10) || 1, hi: parseInt(c.getAttribute("data-max"), 10) || 99 }; }
   // "How many hotels?" totals on the pricing cards
   function calcs() {
     $$("[data-calc]").forEach(function (c) {
-      var inp = $("input", c), lo = parseInt(c.getAttribute("data-min"), 10) || 1;
-      var n = Math.max(lo, Math.min(999, parseInt(inp.value, 10) || lo));
+      var inp = $("input", c), bd = bounds(c);
+      var n = Math.max(bd.lo, Math.min(bd.hi, parseInt(inp.value, 10) || bd.lo));
       var yearly = interval === "annual" && c.getAttribute("data-pa");
-      var each = parseFloat(c.getAttribute(yearly ? "data-pa" : "data-pm"));
-      var total = (n * each).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      $(".total", c).textContent = n + (n === 1 ? " hotel: " : " hotels: ") + "\u00a3" + total + (yearly ? " a year" : " a month");
+      var each = unit(c, n, yearly);
+      var money = function (x) { return "\u00a3" + x.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+      $(".total", c).textContent = n + (n === 1 ? " hotel" : " hotels") + (n > 1 ? " at " + money(each) + " each" : "") + ": " + money(n * each) + (yearly ? " a year" : " a month") + " plus VAT";
       var q = $(".qtyn", c); if (q) q.textContent = n;
+      var x = $(".cross[data-from]", c); if (x) x.hidden = n < (parseInt(x.getAttribute("data-from"), 10) || 5);
     });
   }
   $$("[data-calc] .step-btn").forEach(function (b) {
     b.addEventListener("click", function () {
-      var c = b.closest("[data-calc]"), i = $("input", c), lo = parseInt(c.getAttribute("data-min"), 10) || 1;
-      i.value = Math.max(lo, Math.min(999, (parseInt(i.value, 10) || lo) + parseInt(b.getAttribute("data-dir"), 10)));
+      var c = b.closest("[data-calc]"), i = $("input", c), bd = bounds(c);
+      i.value = Math.max(bd.lo, Math.min(bd.hi, (parseInt(i.value, 10) || bd.lo) + parseInt(b.getAttribute("data-dir"), 10)));
       calcs();
     });
   });
   $$("[data-calc] input").forEach(function (i) {
     i.addEventListener("input", calcs);
-    i.addEventListener("change", function () { var c = i.closest("[data-calc]"), lo = parseInt(c.getAttribute("data-min"), 10) || 1; if ((parseInt(i.value, 10) || 0) < lo) i.value = lo; calcs(); });
+    i.addEventListener("change", function () { var c = i.closest("[data-calc]"), bd = bounds(c), v = parseInt(i.value, 10) || 0; if (v < bd.lo) i.value = bd.lo; if (v > bd.hi) i.value = bd.hi; calcs(); });
   });
-  // Subscribe: open Stripe with the number of hotels already chosen. If that cannot be done, fall back to the plain Payment Link.
+  // open Stripe with the number of hotels already chosen. If our checkout cannot be reached, fall back to `go` (a Payment Link or the contact page).
+  function openCheckout(a, body, go, failText) {
+    var label = a.textContent;
+    a.textContent = "Opening checkout\u2026"; a.setAttribute("aria-busy", "true");
+    var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, 70000);   // the free host can take a minute to wake
+    var back = function () { a.textContent = label; a.removeAttribute("aria-busy"); };
+    fetch(cfg.CHECKOUT_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal })
+      .then(function (r) { clearTimeout(t); return r.json().catch(function () { return {}; }).then(function (j) { if (r.ok && j.ok && j.url) { window.location.href = j.url; return; } if (r.status === 400 && j.error) { throw new Error(j.error); } throw new Error("fallback"); }); })
+      .catch(function (err) {
+        clearTimeout(t); back();
+        if (err && err.message && err.message !== "fallback" && err.name !== "AbortError" && err.message !== "Failed to fetch") { alert(err.message); }
+        else if (go) { window.location.href = go; }
+        else { alert(failText || ("Sorry, checkout could not be opened just now. Please email " + (cfg.EMAIL || "us") + ".")); }
+      });
+  }
   $$("[data-buy]").forEach(function (a) {
     a.addEventListener("click", function (e) {
       if (!cfg.CHECKOUT_ON || !cfg.CHECKOUT_URL) return;
       var card = a.closest(".plan"), box = card && $("[data-calc] input", card);
       if (!box) return;
       e.preventDefault();
-      var go = a.getAttribute("href"), label = a.textContent;
-      a.textContent = "Opening checkout\u2026"; a.setAttribute("aria-busy", "true");
-      var qty = parseInt(box.value, 10) || 1, plan = a.getAttribute("data-buy");
-      var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, 70000);   // the free host can take a minute to wake
-      fetch(cfg.CHECKOUT_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: plan, interval: interval, quantity: qty }), signal: ctl.signal })
-        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (r.ok && j.ok && j.url) { window.location.href = j.url; return; } if (r.status === 400 && j.error) { throw new Error(j.error); } window.location.href = go; }); })
-        .catch(function (err) { clearTimeout(t); a.textContent = label; a.removeAttribute("aria-busy"); if (err && err.message && err.name !== "AbortError" && err.message !== "Failed to fetch") { alert(err.message); } else { window.location.href = go; } });
+      var plan = a.getAttribute("data-buy");
+      openCheckout(a, { plan: plan, interval: plan === "single" ? interval : "monthly", quantity: parseInt(box.value, 10) || 1 }, a.getAttribute("href"));
+    });
+  });
+  // Founding Hotel: an approved hotel continues to checkout and enters the code it was given
+  $$("[data-founding-buy]").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      if (!cfg.CHECKOUT_ON || !cfg.CHECKOUT_URL) return;
+      e.preventDefault();
+      openCheckout(a, { founding: true, plan: "single", interval: "monthly", quantity: 1 }, "", "Sorry, checkout could not be opened just now. Please email " + (cfg.EMAIL || "us") + " and we will help.");
     });
   });
   $$(".toggle button").forEach(function (b) { b.addEventListener("click", function () { interval = b.getAttribute("data-interval"); paint(); }); });
@@ -223,8 +250,11 @@
     var saving = value * pct / 100;
     var out = [];
     var single = plans.single, port = plans.portfolio;
-    if (single) out.push({ name: "Single hotel", cost: hotels * single.monthly });
-    if (port && hotels >= (port.min_hotels || 1)) out.push({ name: "Portfolio", cost: hotels * port.monthly });
+    if (single && hotels <= 99) out.push({ name: "Single hotel", cost: hotels * single.monthly });
+    if (port && port.tiers && hotels >= (port.min_hotels || 1) && hotels <= (port.max_hotels || 999)) {
+      var tier = port.tiers.filter(function (t) { return hotels >= t.from && hotels <= t.to; })[0] || port.tiers[port.tiers.length - 1];
+      out.push({ name: "Portfolio", cost: hotels * tier.price });
+    }
     q(".be-out").innerHTML = "";
     out.forEach(function (o) {
       var n = Math.ceil(o.cost / saving);
@@ -232,6 +262,7 @@
       c.innerHTML = "<small>" + o.name + " for " + hotels + (hotels === 1 ? " hotel" : " hotels") + "</small><b>" + gbp(o.cost) + " a month</b><p>Covered if <b style=\"display:inline;font-size:inherit\">" + n + (n === 1 ? " booking" : " bookings") + "</b> a month " + (n === 1 ? "moves" : "move") + " from a booking site to your own website, saving about " + gbp(saving) + " each.</p>";
       q(".be-out").appendChild(c);
     });
+    if (hotels >= 50) { var e = document.createElement("div"); e.className = "be-card"; e.innerHTML = "<small>" + hotels + " hotels</small><b>Custom quotation</b><p>For 50 or more hotels we quote individually. <a href=\"/contact.html?plan=enterprise\">Contact us</a>.</p>"; q(".be-out").appendChild(e); }
   }
   Array.prototype.forEach.call(root.querySelectorAll("input"), function (i) { i.addEventListener("input", run); });
   run();
@@ -262,6 +293,36 @@
       var body = "Name: " + d.get("name") + "\nEmail: " + email + "\nHotel: " + hotel + "\nTown or city: " + d.get("city") + "\nWebsite: " + d.get("website");
       window.location.href = "mailto:" + cfg.EMAIL + "?subject=" + encodeURIComponent("Presence Pro snapshot request: " + hotel) + "&body=" + encodeURIComponent(body);
       say("ok", "Your email app should open with your request ready to send.");
+    }
+  });
+})();
+
+/* Founding Hotel application. Sends from the page through the form service; falls back to an email if none is set. */
+(function () {
+  "use strict";
+  var form = document.getElementById("foundingForm");
+  if (!form) return;
+  var cfg = window.PP || {}, msg = document.getElementById("foundingMsg");
+  var say = function (kind, text) { msg.className = "msg " + kind; msg.textContent = text; };
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var d = new FormData(form);
+    if (d.get("company")) { say("ok", "Thanks, we'll be in touch."); return; }
+    var email = String(d.get("email") || "").trim();
+    var need = ["name", "hotel", "city", "website"].every(function (k) { return String(d.get(k) || "").trim(); });
+    if (!need || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { say("err", "Please add your name, email, and your hotel's name, town or city and website."); return; }
+    if (!d.get("agree")) { say("err", "Please tick the box to confirm you understand how the programme works."); return; }
+    var hotel = String(d.get("hotel")).trim();
+    if (cfg.FORM_ENDPOINT && window.PPsend) {
+      var btn = form.querySelector("button[type=submit]"); btn.disabled = true;
+      window.PPsend(d, "Presence Pro Founding Hotel application: " + hotel)
+        .then(function () { form.reset(); say("ok", "Thanks, we have your application. We'll reply to " + email + " within a few working days, whether or not it's a yes."); })
+        .catch(function () { say("err", "Sorry, that didn't send. Please email " + cfg.EMAIL + " with your hotel's name, town and website."); })
+        .then(function () { btn.disabled = false; });
+    } else {
+      var body = "Name: " + d.get("name") + "\nEmail: " + email + "\nRole: " + (d.get("role") || "") + "\nHotel: " + hotel + "\nTown or city: " + d.get("city") + "\nWebsite: " + d.get("website") + "\n\n" + (d.get("message") || "");
+      window.location.href = "mailto:" + cfg.EMAIL + "?subject=" + encodeURIComponent("Presence Pro Founding Hotel application: " + hotel) + "&body=" + encodeURIComponent(body);
+      say("ok", "Your email app should open with your application ready to send.");
     }
   });
 })();

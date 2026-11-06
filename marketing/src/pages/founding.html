@@ -1,0 +1,80 @@
+---
+title: Founding Hotel programme | Presence Pro
+description: Apply to become one of the first Founding Hotels on Presence Pro and get the platform for {{ price_founding }} a month for your first {{ founding_months }} months, in return for your feedback.
+nav: pricing
+---
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"What is the Presence Pro Founding Hotel programme?","acceptedAnswer":{"@type":"Answer","text":"A limited number of selected hotels join Presence Pro as early partners for {{ price_founding }} a month for their first {{ founding_months }} months, and help shape the platform through feedback. It is by application and approval, not automatic."}},
+{"@type":"Question","name":"What happens after the first {{ founding_months }} months?","acceptedAnswer":{"@type":"Answer","text":"The subscription moves to the standard price in force at that time. Presence Pro tells the hotel in advance and the hotel can cancel instead."}},
+{"@type":"Question","name":"Do Founding Hotels have to give a testimonial?","acceptedAnswer":{"@type":"Answer","text":"No. Testimonials and named case studies are never mandatory, and would only happen with the hotel's separate, explicit approval."}}
+]}
+</script>
+<section class="page-hero dark">
+  <div class="wrap">
+    <p class="eyebrow">Founding Hotel programme</p>
+    <h1>{{ founding_headline }}</h1>
+    <p class="lede">{{ founding_message }}</p>
+    <div class="cta-row"><a class="btn gold" href="#apply">Apply for Founding Hotel Access</a><a class="btn ghost" href="/pricing.html">See standard pricing</a></div>
+  </div>
+</section>
+
+<section class="light">
+  <div class="wrap two">
+    <div class="block rv">
+      <span class="sec-num">What you get</span>
+      <h2>The platform, at {{ price_founding }} a month for {{ founding_months }} months.</h2>
+      {{ founding_benefits }}
+      <p class="fine">Standard pricing is {{ price_single }} a month per hotel plus VAT. All prices exclude VAT, which is added at checkout where it applies. Presence Pro is primarily software and monthly reports; it does not include unlimited consulting or hands-on implementation.</p>
+    </div>
+    <div class="block rv d1">
+      <span class="sec-num">What we ask</span>
+      <h2>Help us shape it.</h2>
+      {{ founding_asks }}
+      <p class="fine">Nothing here is a condition of a good report, and none of it makes the results look better than they are.</p>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head rv"><p class="eyebrow">How it works</p><h2>By application, not automatic.</h2></div>
+    <div class="kv">
+      <div class="card rv"><b>1. Apply</b><p>Tell us about your hotel below. We read every application, and we aim to reply within a few working days.</p></div>
+      <div class="card rv d1"><b>2. We review and approve</b><p>We choose a small group of hotels that we can learn the most from, across different kinds of hotel. Applying does not guarantee a place, and we'll tell you either way.</p></div>
+      <div class="card rv d2"><b>3. Subscribe with your code</b><p>If you're approved we email you a one-time code. At checkout you enter it and pay {{ price_founding }} a month (plus VAT where it applies). The offer ends by itself after {{ founding_months }} months.</p></div>
+    </div>
+    <div class="callout rv" style="margin-top:36px"><h3>After {{ founding_months }} months</h3><p>Your subscription moves to the standard price in force at that time. We write to you well before it changes, and you can cancel instead; cancelling stops the next payment and your plan runs to the end of the period you've paid for. Founding terms are in the <a href="/terms.html#founding" style="color:var(--gold-d);font-weight:600">terms of service</a>.</p></div>
+  </div>
+</section>
+
+<section class="light" id="apply" style="scroll-margin-top:90px">
+  <div class="wrap contact-grid">
+    <div class="form-card rv">
+      <h2 style="margin-bottom:6px">Apply for Founding Hotel Access</h2>
+      <p style="color:var(--muted);margin:0 0 18px">Takes two minutes. No payment now.</p>
+      <form class="form" id="foundingForm" novalidate>
+        <div><label for="fn">Your name</label><input id="fn" name="name" autocomplete="name" required maxlength="120"></div>
+        <div><label for="fe">Email</label><input id="fe" name="email" type="email" autocomplete="email" required maxlength="200"></div>
+        <div><label for="fr">Your role</label><input id="fr" name="role" placeholder="Owner, general manager, revenue..." maxlength="120"></div>
+        <div><label for="fh">Hotel name</label><input id="fh" name="hotel" required maxlength="120"></div>
+        <div><label for="fc">Town or city</label><input id="fc" name="city" required maxlength="120"></div>
+        <div><label for="fw">Hotel website</label><input id="fw" name="website" autocomplete="url" placeholder="yourhotel.com" required maxlength="300"></div>
+        <div class="full"><label for="fm">Why are you interested, and what would you most like to learn? <span style="font-weight:400;color:var(--muted)">(optional)</span></label><textarea id="fm" name="message" rows="4" maxlength="2000"></textarea></div>
+        <div class="full"><label class="chk"><input type="checkbox" name="agree" value="yes" required> I understand that Founding Hotel places are by approval, and that in return I'd be asked for feedback as described above.</label></div>
+        <input class="hp" type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <div class="full"><button class="btn gold" type="submit" style="width:100%;padding:1rem">Apply for Founding Hotel Access</button></div>
+      </form>
+      <div class="msg" id="foundingMsg" role="status"></div>
+      <p class="note" style="color:var(--muted);font-size:.84rem;margin-top:14px">We use your details to review your application and reply. No newsletters unless you ask. See the <a href="/privacy.html" style="color:var(--gold-d)">privacy notice</a>.</p>
+    </div>
+
+    <div class="rv d1">
+      <ul class="side-list">
+        <li><b>Already approved?</b><span>Use the code in your approval email. <a href="/pricing.html" data-founding-buy style="color:var(--gold-d);font-weight:600">Continue to checkout</a> and add it there. Without a valid code the offer price will not apply.</span></li>
+        <li><b>Would you rather see one first?</b><span>Read the <a href="/sample-report.html" style="color:var(--gold-d)">sample report</a>, or request a free <a href="/snapshot.html" style="color:var(--gold-d)">one-page snapshot</a> of your hotel.</span></li>
+        <li><b>Questions?</b><span>Ask us on the <a href="/contact.html" style="color:var(--gold-d)">contact page</a>.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>

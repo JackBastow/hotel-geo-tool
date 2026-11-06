@@ -8,7 +8,7 @@ body: home
 {"@type":"Organization","@id":"{{ url }}/#org","name":"Presence Pro","url":"{{ url }}","email":"{{ contact.email }}"},
 {"@type":"WebSite","name":"Presence Pro","url":"{{ url }}","publisher":{"@id":"{{ url }}/#org"}},
 {"@type":"SoftwareApplication","name":"Presence Pro","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"{{ url }}","description":"A monthly report on how AI assistants and open data describe a hotel, which sources they rely on, and what to fix first.","offers":{{ offers_json }}},
-{"@type":"Service","name":"AI visibility reports for hotels","serviceType":"AI search visibility reporting for hotels","description":"A monthly report on how AI assistants describe a hotel, who they name instead, which sources they rely on, and what to fix first. Single hotel and portfolio plans.","provider":{"@id":"{{ url }}/#org"},"areaServed":{"@type":"Country","name":"United Kingdom"},"audience":{"@type":"Audience","audienceType":"Hotels, hotel groups and hospitality agencies"}}
+{"@type":"Service","name":"AI visibility reports for hotels","serviceType":"AI search visibility reporting for hotels","description":"A monthly report on how AI assistants describe a hotel, who they name instead, which sources they rely on, and what to fix first. Single Hotel, Portfolio and Enterprise plans.","provider":{"@id":"{{ url }}/#org"},"areaServed":{"@type":"Country","name":"United Kingdom"},"audience":{"@type":"Audience","audienceType":"Hotels, hotel groups and hospitality agencies"}}
 ]}
 </script>
 <script type="application/ld+json">
@@ -57,7 +57,7 @@ body: home
       <dl>
         <div><dt>What it is</dt><dd>A monthly report on how AI assistants describe your hotel, who they name instead, and what to fix first.</dd></div>
         <div><dt>Who it's for</dt><dd>Hotels, hotel groups and the agencies that work for them. Any hotel with a website.</dd></div>
-        <div><dt>What it costs</dt><dd>From {{ price_single }} per hotel a month. Portfolio, with a dashboard across all your hotels, is {{ price_portfolio }} per hotel from five hotels. Cancel any time.</dd></div>
+        <div><dt>What it costs</dt><dd>Single Hotel is {{ price_single }} per hotel a month. Portfolio, with a dashboard across all your hotels, is from {{ price_portfolio_large }} per hotel a month. Prices exclude VAT. Cancel any time.</dd></div>
         <div><dt>What it isn't</dt><dd>Not a ranking, and not a promise that any assistant will recommend you. AI answers are a labelled sample.</dd></div>
       </dl>
     </div>
@@ -360,11 +360,11 @@ body: home
   <div class="wrap">
     <div class="sec-head center rv" style="text-align:center">
       <p class="eyebrow">Pricing</p>
-      <h2>One hotel, or the whole group.</h2>
-      <p>A monthly report for one hotel, or a dashboard with ongoing analysis for your whole group. From {{ lowest_price }} a hotel a month. Cancel any time.</p>
+      <h2>One hotel, a portfolio, or the whole group.</h2>
+      <p>A monthly report for one hotel, or a dashboard with ongoing analysis for your whole group. Single Hotel from {{ lowest_price }} a month, Portfolio from {{ price_portfolio_large }} a hotel a month. Prices exclude VAT. Cancel any time.</p>
     </div>
     {{ plans_home }}
-    <p class="plans-foot rv"><a href="/pricing.html">Compare plans and subscribe &rarr;</a> &nbsp;&middot;&nbsp; or <a href="/contact.html">ask us a question first</a></p>
+    <p class="plans-foot rv"><a href="/pricing.html">Compare plans and subscribe &rarr;</a> &nbsp;&middot;&nbsp; <a href="/founding.html">Apply to be a Founding Hotel</a> &nbsp;&middot;&nbsp; <a href="/contact.html">ask us a question first</a></p>
   </div>
 </section>
 
@@ -379,7 +379,7 @@ body: home
       <details><summary>How do I get my reports?</summary><p>You subscribe and tell us your hotel's website. We prepare your report and email it to you, then again every month, with the change since the last one. There's nothing to install and no tool to learn.</p></details>
       <details><summary>What happens to my data?</summary><p>Your reports are sent only to you. We keep the results so your hotel can be tracked from month to month, and we never show them to anyone else. Review text from an export is analysed for that run only and is not saved; only counts and rates are kept. See the <a href="/privacy.html" style="color:var(--gold-d)">privacy notice</a>.</p></details>
       <details><summary>Does it work outside the UK?</summary><p>Yes. It works for any hotel with a website, and searches are run as if from the hotel's own country. A few checks, such as the UK food hygiene rating, apply only where that data exists, and say so when they don't.</p></details>
-      <details><summary>What does it cost, and can I cancel?</summary><p>Monthly reports start at {{ lowest_price }} a month plus VAT where it applies, and you can cancel at any time; it ends at the close of the period you've paid for. See <a href="/pricing.html" style="color:var(--gold-d)">pricing</a>.</p></details>
+      <details><summary>What does it cost, and can I cancel?</summary><p>Single Hotel is {{ lowest_price }} a month per hotel (or {{ price_single_annual }} a year), Portfolio is from {{ price_portfolio_large }} per hotel a month, and Enterprise is by quotation. All prices exclude VAT, which is added at checkout where it applies, and you can cancel at any time; it ends at the close of the period you've paid for. See <a href="/pricing.html" style="color:var(--gold-d)">pricing</a>.</p></details>
     </div>
   </div>
 </section>

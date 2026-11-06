@@ -14,7 +14,7 @@
 - It does not read Booking.com or Tripadvisor pages directly (their terms prohibit automated collection).
 - It does not score what it could not measure.
 
-## Pricing (GBP, plus VAT where it applies; monthly subscription, cancel any time)
+## Pricing (GBP, all prices exclude VAT, which is added at checkout where it applies; subscription, cancel any time)
 {{ llms_plans }}
 Reports are prepared for subscribers by Presence Pro; there is no self-service tool. A free one-page snapshot can be requested at {{ url }}/snapshot.html.
 
@@ -22,6 +22,7 @@ Reports are prepared for subscribers by Presence Pro; there is no self-service t
 - {{ url }}/what-we-do.html
 - {{ url }}/sample-report.html
 - {{ url }}/pricing.html
+- {{ url }}/founding.html
 - {{ url }}/about.html
 - {{ url }}/guides.html
 - {{ url }}/how-ai-assistants-choose-hotels.html

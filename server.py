@@ -306,7 +306,7 @@ def create_app(cfg=None, run_fn=None):
         if not checkout_limiter.allow(visitor_id()):
             return jsonify(ok=False, error="Too many attempts. Please try again in a few minutes."), 429
         try:
-            return jsonify(ok=True, url=checkout.create(str(d.get("plan") or ""), str(d.get("interval") or "monthly"), d.get("quantity"), os.environ.get("STRIPE_SECRET_KEY", "").strip()))
+            return jsonify(ok=True, url=checkout.create(str(d.get("plan") or ""), str(d.get("interval") or "monthly"), d.get("quantity"), os.environ.get("STRIPE_SECRET_KEY", "").strip(), founding=bool(d.get("founding"))))
         except checkout.Invalid as e:
             return jsonify(ok=False, error=str(e)), 400
         except checkout.Unavailable as e:
