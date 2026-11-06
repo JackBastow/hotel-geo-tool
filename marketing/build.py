@@ -239,6 +239,18 @@ def llms_plan_lines(site):
     return "\n".join(lines)
 
 
+def analytics_blocks(site):
+    """Cloudflare Web Analytics (free, no cookies, no fingerprinting) is switched on by putting its token in site.json.
+    The privacy page says what is true either way."""
+    tok = ((site.get("analytics") or {}).get("cloudflare_token") or "").strip()
+    if not tok:
+        return {"analytics_snippet": "",
+                "privacy_trackers": "This website sets no cookies, has no analytics or advertising trackers, and loads nothing from other companies' servers when you read it."}
+    beacon = '{"token": "' + html.escape(tok) + '"}'
+    return {"analytics_snippet": "<script defer src=\"https://static.cloudflareinsights.com/beacon.min.js\" data-cf-beacon='" + beacon + "'></script>",
+            "privacy_trackers": "This website sets no cookies and has no advertising trackers. It uses Cloudflare Web Analytics to count visits (which pages, roughly where from, which device type). It uses no cookies or local storage and does not fingerprint or identify you, and we use it only to see whether the site is working. It is the one thing loaded from another company's servers."}
+
+
 def runtime_config(site):
     links = site["stripe"]["links"]
     keep = ("id", "name", "monthly", "annual", "per_hotel", "min_hotels", "max_hotels", "tiers", "custom")
@@ -274,7 +286,7 @@ def build(dev=False):
               "price_single_saving": money(sg["monthly"] * 12 - sg["annual"]),
               "price_portfolio": money(pf["tiers"][0]["price"]), "price_portfolio_large": money(pf["tiers"][1]["price"]),
               "price_founding": money(fd["price"]), "founding_headline": fd["headline"], "founding_message": fd["message"], "founding_benefits": "<ul>" + "".join(f"<li>{html.escape(x)}</li>" for x in fd["benefits"]) + "</ul>", "founding_asks": "<ul>" + "".join(f"<li>{html.escape(x)}</li>" for x in fd["asks"]) + "</ul>", "founding_months": str(fd["months"]), "founding_places": str(fd["places"]),
-              "llms_plans": llms_plan_lines(site)}
+              "llms_plans": llms_plan_lines(site), **analytics_blocks(site)}
     pages, sitemap = [], []
     pdir = os.path.join(SRC, "pages")
     for name in sorted(os.listdir(pdir)):

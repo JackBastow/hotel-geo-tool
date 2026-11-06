@@ -122,5 +122,8 @@
       "Permission to use your results, anonymised, to improve the platform",
       "Consider (never required) sharing a testimonial or case study, which would only ever happen with your separate, explicit approval"
     ]
+  },
+  "analytics": {
+    "cloudflare_token": ""
   }
 }
