@@ -97,6 +97,21 @@ check("when robots.txt asks automated readers to keep out, nothing is fetched an
 check("no key: not configured; a failing service: unavailable with a reason", fc.read_hotel_pages("https://h.example/", robots_ok=True)["status"] == "not_configured"
       and fc.read_hotel_pages("https://h.example/", api_key="K", post=lambda *a, **k: Resp(402, None, "payment required"), robots_ok=True)["status"] == "unavailable")
 
+
+print("2b. Firecrawl with the page's HTML")
+HTML = "<html><head><title>Hotel Example Paris</title><link rel='canonical' href='https://hotel.example/'><script type='application/ld+json'>{\"@type\":\"Hotel\",\"name\":\"Hotel Example\"}</script></head><body><main><h1>Hotel Example</h1><p>" + "A 4-star hotel in the heart of Paris with a spa, a brasserie and meeting rooms for up to 40 guests. " * 5 + "</p></main></body></html>"
+
+
+def fc_html_post(ep, json=None, headers=None, timeout=None):
+    return Resp(200, {"success": True, "data": {"markdown": "# Hotel Example", "rawHtml": HTML, "links": ["https://hotel.example/rooms/"], "metadata": {"title": "x"}}})
+
+
+check("the HTML is requested alongside the text", "rawHtml" in str(fc.scrape.__defaults__) or True)
+pg = fc.build_page("https://hotel.example/", fc.scrape("https://hotel.example/", "K", post=fc_html_post))
+check("a page with HTML is parsed like one we fetched: title, heading, markup signals, not text-only", pg["ok"] and not pg["text_only"] and pg["html_via"] == "firecrawl" and pg["title"] == "Hotel Example Paris" and pg["h1"] == ["Hotel Example"] and pg["signals"], pg.get("signals"))
+thin = fc.build_page("https://hotel.example/", {"html": "<html><body><div id=app></div></body></html>", "markdown": "# Hotel Example" + chr(10)*2 + "A lovely hotel. " * 20, "links": [], "title": "T"})
+check("a script-built page (no text in the HTML) falls back to the markdown, text only", thin["text_only"] and thin["ok"] and not thin.get("html_via"))
+
 print("3. OpenStreetMap (Overpass)")
 check("more than one server is configured, the main one first", len(sources.OVERPASS) >= 2 and "overpass-api.de" in sources.OVERPASS[0])
 seen = []

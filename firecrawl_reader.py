@@ -6,7 +6,8 @@ so the audit keeps working on pages that would otherwise stay unread, and it cos
   * only the hotel's own website, only inside the hotel's own folder (urlscope), and only when our own reader got fewer than three pages;
   * only where the site's robots.txt allows it: if it asks automated readers to keep out, this reader is not used, and the report says the pages stay unread;
   * the standard (not the 'stealth') proxy mode is requested: nothing here tries to disguise the request or get round a block;
-  * pages come back as text only, so markup, titles, canonical tags and image text are NOT assessed from them, and the report says the pages were read through Firecrawl;
+  * the page's HTML is requested too and parsed like any page this tool fetched, so titles, headings, markup and structured data can be checked; what depends on how OUR reader is treated (the sitemap, robots.txt,
+    error codes, speed, script-built content) is still not judged, and the report says the pages were read through Firecrawl; a page whose HTML has too little text falls back to its markdown, text only;
   * a call per page against a monthly cap (store.SERVICE_CAPS['firecrawl']) kept under the free allowance; at most MAX_PAGES pages.
 No key -> 'not configured'. It never raises.
 """
@@ -37,7 +38,7 @@ def scrape(url, api_key, post=requests.post, timeout=45):
     last = ""
     for ep in API:
         try:
-            r = post(ep, json={"url": url, "formats": ["markdown", "links"], "onlyMainContent": False, "proxy": "basic"}, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, timeout=timeout)
+            r = post(ep, json={"url": url, "formats": ["markdown", "rawHtml", "links"], "onlyMainContent": False, "proxy": "basic"}, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, timeout=timeout)
         except Exception as e:  # noqa: BLE001
             last = f"{type(e).__name__}"
             continue
@@ -51,8 +52,30 @@ def scrape(url, api_key, post=requests.post, timeout=45):
         except ValueError:
             return {"ok": False, "markdown": "", "links": [], "title": "", "reason": "unreadable reply"}
         md = data.get("markdown") or ""
-        return {"ok": bool(md.strip()), "markdown": md, "links": [l if isinstance(l, str) else (l or {}).get("url", "") for l in data.get("links") or []], "title": (data.get("metadata") or {}).get("title", ""), "reason": "" if md.strip() else "empty page"}
-    return {"ok": False, "markdown": "", "links": [], "title": "", "reason": last or "no answer"}
+        html = data.get("rawHtml") or data.get("html") or ""
+        return {"ok": bool(md.strip() or html.strip()), "markdown": md, "html": html, "links": [l if isinstance(l, str) else (l or {}).get("url", "") for l in data.get("links") or []], "title": (data.get("metadata") or {}).get("title", ""), "reason": "" if (md.strip() or html.strip()) else "empty page"}
+    return {"ok": False, "markdown": "", "html": "", "links": [], "title": "", "reason": last or "no answer"}
+
+
+def build_page(url, res):
+    """
+    One scraped page -> the page dict the audit uses. With the page's HTML it is parsed exactly as a page this tool fetched itself (title, headings, markup, structured data, images, canonical), so the
+    technical checks can run on it; if the HTML has too little text (a script-built page) the markdown is used and the page stays text-only. Pages built from HTML carry html_via='firecrawl'.
+    """
+    import guest_questions
+    html = res.get("html") or ""
+    if html.strip():
+        try:
+            parsed = guest_questions._parse_html(url, html)
+        except Exception:  # noqa: BLE001
+            parsed = None
+        if parsed and parsed.get("signals") and len(parsed.get("text") or "") >= guest_questions.MIN_READABLE_CHARS:
+            parsed["links"] = list(dict.fromkeys(parsed["links"] + [l for l in res.get("links") or [] if l]))[:150]
+            parsed.update(url=url, ok=True, reason="", status=200, final_url=url, text_only=False, html_via="firecrawl")
+            return parsed
+    pg = claude_reader.to_page(url, res.get("markdown") or "", res.get("title") or "")
+    pg["links"] = ([l for l in res.get("links") or [] if l] or pg["links"])[:150]
+    return pg
 
 
 def read_hotel_pages(start_url, *, api_key=None, max_pages=MAX_PAGES, progress=None, post=requests.post, robots_ok=None):
@@ -72,8 +95,7 @@ def read_hotel_pages(start_url, *, api_key=None, max_pages=MAX_PAGES, progress=N
         credits = 1
         if not first["ok"]:
             return out("unavailable", f"Firecrawl could not read the page either ({first['reason']}), so the site stays unread.", [], credits)
-        home = claude_reader.to_page(start_url, first["markdown"], first["title"])
-        home["links"] = (first["links"] or home["links"])[:150]
+        home = build_page(start_url, first)
         pages = [home]
         targets = [u for u in guest_questions.select_pages(start_url, home["links"], [], max_pages=max_pages + 3)
                    if u.rstrip("/") != start_url.rstrip("/") and not lexicon.LEGAL_PAGE.search(urllib.parse.urlparse(u).path) and not lexicon.BOOKING_PAGE.search(urllib.parse.urlparse(u).path)]
@@ -85,9 +107,7 @@ def read_hotel_pages(start_url, *, api_key=None, max_pages=MAX_PAGES, progress=N
             res = scrape(u, key, post=post)
             credits += 1
             if res["ok"]:
-                pg = claude_reader.to_page(u, res["markdown"], res["title"])
-                pg["links"] = (res["links"] or pg["links"])[:150]
-                pages.append(pg)
+                pages.append(build_page(u, res))
     except Exception as e:  # noqa: BLE001 - never fail the audit
         return out("unavailable", f"Firecrawl did not answer ({type(e).__name__}).", [], 0)
     return out("ok", "", pages, credits)

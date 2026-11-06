@@ -18,6 +18,7 @@ import insight_tech as it
 
 
 TEXT_ONLY_NOTE = "These pages were read through a fallback page reader (Firecrawl or Anthropic's) as plain text, because the site refused this tool's own reader. What the pages SAY was checked (guest questions, facts, location, consistency); markup, page titles, image text and other technical details could not be inspected and are not assessed."
+FC_HTML_NOTE = "The site refused this tool's own reader, so its pages were read through Firecrawl, which returned each page's HTML. Titles, headings, markup and structured data were checked from that. The sitemap, robots.txt, error codes, speed and script-built content depend on how this tool's own reader is treated, so they are not judged."
 
 
 def crawl_coverage(pages_read, pages_meta):
@@ -51,10 +52,13 @@ def crawl_coverage(pages_read, pages_meta):
 
 
 def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, entities, intel,
-            osm_ctx, jsonld_example="", web=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, booking=None, external=None, competitors=None, ai_gap=None, citations=None, forums=None):
+            osm_ctx, jsonld_example="", web=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, booking=None, external=None, competitors=None, ai_gap=None, citations=None, forums=None, fc_html=False):
     s = ic.Site(own_pages, base, hotel, city)
     s.osm_ctx = osm_ctx
     cov = crawl_coverage(len(s.pages), pages_meta)
+    if fc_html:
+        cov["read_via_html"] = True
+        cov["note"] = (cov["note"] + " " if cov["note"] else "") + FC_HTML_NOTE
     if text_only:
         cov["text_only"] = True
         cov["note"] = (cov["note"] + " " if cov["note"] else "") + TEXT_ONLY_NOTE
@@ -93,6 +97,9 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     if text_only:
         # the site refused this tool's own reader, so what this tool fetched itself (the sitemap, robots.txt) cannot be taken as 'absent': only findings that do not depend on it remain
         machine = [f for f in machine if f["id"] not in it.HTML_ONLY_FINDINGS and f["id"] not in ("sitemap_missing", "robots_block_all", "ai_blocked")]
+    if fc_html:
+        # the site refused this tool's own reader; the page markup came through the fallback reader, but what depends on how OUR reader was treated, or on pages that run scripts, is not judged
+        machine = [f for f in machine if f["id"] not in ("sitemap_missing", "robots_block_all", "ai_blocked", "js_booking", "js_empty", "http_errors", "slow_pages", "refused")]
     profile = it.readiness_profile(s, guest, intents, loc, sd, machine, cons, intel, coverage=cov,
                                    map_failed=(osm_ctx or {}).get("failed_parts", []) if osm_ctx else ["all (no map data)"], traveller=travel, external=external)
     if text_only:

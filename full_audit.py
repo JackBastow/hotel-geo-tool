@@ -746,6 +746,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             guest = guest_questions.run_prefetched(site, base, hotel, ffb["pages"], location=location)
             guest["read_via"] = "firecrawl"
             guest["firecrawl"] = {"credits": ffb["credits"], "status": "ok"}
+            guest["html_read"] = any(p.get("html_via") for p in ffb["pages"] if p["ok"])      # the markup came too, so technical checks can run
             guest["own_reader_refused"] = refused[:3]
         else:
             guest["firecrawl"] = {"credits": ffb.get("credits", 0), "status": ffb["status"], "reason": ffb.get("reason", "")}
@@ -1163,7 +1164,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         consult_result = consultant.analyse(
             own_pages=own_pages, pages_meta=guest.get("pages_meta", []), base=base, hotel=hotel, city=city,
             location=location, guest=guest, site=site, entities=ext["entities"], intel=intel_result,
-            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, ai_gap=ai_gap_result, citations=citations_result, forums=forums_result, listing_checks=listing_checks, reddit=reddit_result, booking=booking_result, external=external_result, competitors=competitors_result, text_only=bool(guest.get("read_via")),
+            osm_ctx=osm_ctx, web=web, ai=ai_result, reviews=review_result, ai_insights=ai_insight_result, ai_gap=ai_gap_result, citations=citations_result, forums=forums_result, listing_checks=listing_checks, reddit=reddit_result, booking=booking_result, external=external_result, competitors=competitors_result, text_only=bool(guest.get("read_via")) and not guest.get("html_read"), fc_html=bool(guest.get("html_read")),
             jsonld_example=fixes.hotel_jsonld({"base": base, "hotel": hotel, "location": location, "guest": guest,
                                                "discovery": discovery, "entities": ext["entities"], "site": site,
                                                "tavily": tavily_result}))
