@@ -831,3 +831,11 @@ Add `--hotel`, `--city`, and any of the optional API key environment
 variables from **Self-hosting with full coverage** above to broaden what it
 covers. `--include-ai-visibility` additionally runs a small live Gemini
 sample (12 calls) if `GEMINI_API_KEY` is set with billing enabled.
+
+## Consistency gate (report_gate.py)
+
+One pass over the finished report, before it is stored. It keeps one ledger of what the hotel's own pages show (the consultant layer's feature levels) and checks every section's wording against it:
+a finding that says a facility is "not mentioned" while the pages state it is set to Worth checking and marked disputed; advice to promote a facility the pages do not show (on a crawl good enough to judge) is
+removed with its reason; the hotel itself, a hotel over 15 km away and miscounted "N of M rivals" are corrected; questions naming an unverified place are reported; answer counts must agree between sections; and when
+the hotel was named in none of the answers the report says whether it was recognised by name and counts answers holding words of its name that were not counted. It only downgrades, removes or annotates, never invents.
+The checks that ran and what they settled are in `report['gate']` and the PDF methodology. Test: `python test_gate.py`.

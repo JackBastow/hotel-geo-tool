@@ -105,7 +105,7 @@ def _ai_line(rep):
     where = f" Searches were run as if from {ai['search_country']}." if ai.get("search_country") else ""
     return (f"Sampled on one assistant only: {log['platform']}, on {log['date'] or 'the audit date'}.{where} It named the hotel in {s['appeared']} of {s['non_branded_answers']} answers to {s['prompts']} questions that do not "
             f"mention the hotel ({trend.band(s['appeared'], s['non_branded_answers'])}; from that many answers the true rate is plausibly {round(100 * trend.wilson(s['appeared'], s['non_branded_answers'])[0])}% to "
-            f"{round(100 * trend.wilson(s['appeared'], s['non_branded_answers'])[1])}%), and recommended it in {s['recommended']}. This is a sample of answers, not a ranking.", True)
+            f"{round(100 * trend.wilson(s['appeared'], s['non_branded_answers'])[1])}%), and recommended it in {s['recommended']}. This is a sample of answers, not a ranking." + (" " + (rep.get("gate") or {}).get("ai_diagnosis", {}).get("reading", "") if (rep.get("gate") or {}).get("ai_diagnosis", {}).get("reading") else ""), True)
 
 
 def _exec_sentences(c, h, top, hotel):
@@ -787,6 +787,11 @@ def story(rep, H1):
     if rec_notes:
         out.append(para("Checks that disagreed, and how they were settled", "h3"))
         out += R.bullets([short(x, 260) for x in rec_notes])
+    g_ = rep.get("gate") or {}
+    if g_.get("checks"):
+        out.append(para("Consistency checks across this report", "h3"))
+        out.append(para(g_.get("summary", ""), "base"))
+        out += R.bullets([short(f"{x.get('topic') or x.get('id') or ''}: {x['what']}", 260) for x in g_.get("changes", []) if x["check"] != "ai_zero_diagnosis"][:8])
     out.append(para("AI recommendation testing", "h3"))
     out.append(para(("The AI assistant asked was " + (rep.get("ai_sample") or {}).get("model", "Claude") + " with live web search; every prompt and answer is logged in the appendix. "
                      "Observed AI visibility stays separate from the readiness score.")

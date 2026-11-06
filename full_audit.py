@@ -1249,6 +1249,11 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "amadeus_result": amadeus_result,
         "ai_visibility_raw": ai_visibility_raw,
     }
+    try:
+        import report_gate
+        result = report_gate.check(result)          # one pass over the whole report for contradictions and misleading items; it only downgrades, removes or annotates
+    except Exception:  # noqa: BLE001 - the report must never fail because of its own check
+        pass
     return headline.attach(result)
 
 
