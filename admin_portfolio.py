@@ -28,12 +28,18 @@ def _key_for(website):
     return backend.hotel_key({"meta": {"base": urlscope.normalise(website)[0]}})
 
 
-def _safe_opps(s, runs):
+def _latest_report(s, runs):
     try:
-        import opportunities
-        return opportunities.build(s.get_report(runs[0]["id"])) if runs else []
+        return s.get_report(runs[0]["id"]) if runs else None
     except Exception:  # noqa: BLE001
-        return []
+        return None
+
+
+def _safe(fn, *a):
+    try:
+        return fn(*a)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def register(app, cfg, guard, shell, store_or_msg, csrf):
@@ -137,6 +143,11 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         sm = progress.hotel_summary(s, h, list(reversed(runs)), acts)
         prompt_sets.ensure_from_history(s, h)
         pst = prompt_sets.state(s, h)
+        rep = _latest_report(s, runs)
+        import opportunities
+        import query_matrix
+        import strategy_view
+        have = [p["text"] for st_ in (pst["draft"], pst["active"]) if st_ for p in st_["prompts"]]
         since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
         users = s.users_for_hotel(hid)
         ut = "".join(f'<tr><td>{esc(u["email"])}</td><td>{esc(u["name"] or "")}</td><td>{esc(uk_time(u["last_login"])) or "never"}</td><td>{"active" if u["active"] else "switched off"}</td><td>'
@@ -154,8 +165,8 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
                  + f'<form class="filters" method="post" action="/admin/hotel/{hid}/invite"><input type="hidden" name="csrf" value="{c}"><label class="field"><span>Invite someone (their email)</span><input type="email" name="email" required></label>'
                  '<button class="btn" type="submit">Make an invite link</button></form><p class="caption">There is no email service: you get a link to send them yourself. It works once and expires in 7 days.</p>'
                  + (f'<h6>Links still open</h6><ul>{invites}</ul>' if invites else "") + "</section>")
-        view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=csrf(), ai=ai_dash.panel(s, h), prompts=prompts_view.panel(pst, h, f"/admin/hotel/{hid}/prompts", True, since),
-                                     prompts_alert=bool(pst["draft"] and not pst["active"]), opps=_safe_opps(s, runs),
+        view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=csrf(), ai=ai_dash.panel(s, h), prompts=prompts_view.panel(pst, h, f"/admin/hotel/{hid}/prompts", True, since, (_safe(query_matrix.suggest, rep, have) or []) if rep else []),
+                                     prompts_alert=bool(pst["draft"] and not pst["active"]), opps=(_safe(opportunities.build, rep) or []) if rep else [], strategy=(_safe(strategy_view.panel, rep) or "") if rep else "",
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"/admin/hotel/{hid}/status")
         return shell("portfolio", h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
 

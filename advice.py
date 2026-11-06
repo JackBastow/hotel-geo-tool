@@ -606,7 +606,7 @@ def _from_facility_depth(fd):
 
 TRACKS = {"visibility": "AI visibility opportunity", "content": "Website content", "accuracy": "Data accuracy"}
 _ACCURACY_SOURCES = {"consistency", "listings"}
-_VISIBILITY_SOURCES = {"ai", "ai_gap", "direct", "reddit", "forums", "sources"}
+_VISIBILITY_SOURCES = {"ai", "ai_gap", "direct", "reddit", "forums", "sources", "differentiation"}
 
 
 def track_of(rec):
@@ -624,11 +624,42 @@ def track_of(rec):
     return "content"
 
 
-def _from_source_gaps(ins):
+def _from_differentiation(d):
+    """
+    One recommendation per kind of traveller where the hotel has something distinctive (or under-explained) and the assistant is not naming it: position the hotel for that traveller by making the verified facts easy to
+    find. An advantage that rests on comparable hotels' pages is 'Likely'; a hypothesis is 'Worth checking'. Nothing here promises an AI recommendation.
+    """
+    out = []
+    for o in (d or {}).get("opportunities") or []:
+        if not o.get("gap") or o["kind"] == "strength":
+            continue
+        ev = [{"url": "", "snippet": o["evidence"][:300]}] if o.get("evidence") else []
+        r = _rec(f"DE-{o['theme']}", "authority", f"Position the hotel for {o['theme_label']}: it has something to say that its pages and its sources do not yet make easy to find",
+                 o["finding"] + " " + o["ai_result"], "The hotel is a credible choice for this kind of traveller and the assistant is not naming it. The facts that make it credible need to be easy for the assistant to find and quote, on the hotel's own pages and in "
+                 "the sources it relies on. This is one assistant on one day: evidence to act on carefully, not a promise of recommendations.", ev, o["action"], "high" if o["kind"] == "advantage" else "medium", "medium",
+                 confidence=BEST if o["confidence"] == "Confirmed" else (INFER if o["confidence"] == "Likely" else EXPER), team="marketing", source="differentiation", tag="DE", short_title=f"Position the hotel for {o['theme_label']}",
+                 summary=o["theme_label"])
+        r["kind_hint"] = "opportunity"
+        out.append(r)
+    return out[:3]
+
+
+def _from_source_gaps(ins, actions=None):
     """
     The pages the assistant relied on that name rival hotels and not this one, grouped by site: where the hotel is missing from the sources that decide who is recommended. A lead (one assistant, one day), with the exact
     pages, so the hotel can check whether it is listed there and how it is described. It says nothing about HOW to get coverage beyond the honest routes: claim or update a listing, or ask the site how hotels are included.
     """
+    if actions:
+        top = actions[:5]
+        ev = [{"url": (a["evidence"] or [""])[0], "snippet": f"{a['domain']} ({a['type_label'].lower()}), used {a['cited']} time(s)" + (f", naming {', '.join(a['rivals'])}" if a["rivals"] else "") + f". Route: {a['route']}."} for a in top]
+        names = ", ".join(a["domain"] for a in top[:3])
+        r = _rec("SG1", "authority", f"The assistant relies on {len(top)} sites that name rival hotels but not this one: {names}",
+                 "Sites the assistant relied on, most-used first: " + "; ".join(f"{a['domain']} ({a['type_label'].lower()}, {a['cited']})" for a in top) + ".",
+                 "Assistants recommend the hotels the pages they read talk about. Where those pages name rivals and not this hotel, the hotel is missing from part of the evidence the answer was built on. This is one assistant on one day, "
+                 "so it is a lead to check, not a proven cause.", ev, " ".join(f"{a['domain']}: {a['action']}" for a in top[:3]) + " Do not pay for, or invent, coverage, and keep every fact identical to the hotel's own site. "
+                 "Getting listed does not guarantee an AI recommendation.", "medium", "medium", confidence=EXPER, team="distribution", source="sources", tag="SG1", short_title="Get listed on the sites AI uses that name your rivals", summary=names)
+        r["kind_hint"] = "opportunity"
+        return [r]
     pages = [p for p in (ins or {}).get("pages") or [] if p.get("names_competitor") and not p.get("names_hotel") and not p.get("own_site")]
     if not pages:
         return []
@@ -1118,7 +1149,7 @@ def _from_intel(intel):
 
 # ---------------------------------------------------------------------- assemble
 
-def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, traveller=None, booking=None, external=None, competitors=None, suppressed=None, ai_gap=None, citations=None, forums=None, facility=None):
+def build(*, questions, location, consistency, hidden, structured, machine, intel, jsonld_example, site, coverage=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, traveller=None, booking=None, external=None, competitors=None, suppressed=None, ai_gap=None, citations=None, forums=None, facility=None, differentiation=None, source_actions=None):
     coverage = coverage or {}
     # the requirement checks say more, and more exactly, than the extended guest questions they cover
     superseded = {q for seg in (traveller or {}).get("assessed", []) for q in TRAVELLER_SUPERSEDES.get(seg, ())}
@@ -1146,7 +1177,8 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
         recs = [r for r in recs if r["id"] not in ("AI1", "AI4") and not (r["id"].startswith("X-S-editorial_outreach") and any(g["id"].startswith("AG-OUT") for g in gap_recs))]
         recs += gap_recs
     recs += _from_facility_depth(facility)
-    recs += _from_source_gaps(ai_insights)
+    recs += _from_source_gaps(ai_insights, source_actions)
+    recs += _from_differentiation(differentiation)
     recs += _from_direct(citations)
     recs += _from_forums(forums)
     recs += _from_listing_checks(listing_checks)

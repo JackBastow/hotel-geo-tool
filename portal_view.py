@@ -183,7 +183,7 @@ def opportunities_panel(ops):
     return f'<div class="sec-head"><h3>Your biggest AI discovery opportunities</h3></div><div class="prios">{cards}</div>'
 
 
-def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_url="", prompts="", prompts_alert=False, opps=None):
+def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_url="", prompts="", prompts_alert=False, opps=None, strategy=""):
     h = sm["hotel"]
     nxt = ""
     if h.get("weekly") and sm["last_run_at"]:
@@ -211,7 +211,7 @@ def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_
     if prompts_alert:
         overview = ('<section class="talk-callout"><div><h3>Confirm the prompts we ask AI about your hotel</h3><p>We have chosen a recommended set from your website and the places around you. Review it and confirm it, '
                     'so every check asks the same prompts and your progress can be tracked.</p></div><button type="button" class="btn primary" data-goto="prompts">Review the prompts &rarr;</button></section>') + overview
-    tabs = [("overview", "Overview", overview), ("ai", "AI visibility", ai or '<div class="alert info">AI visibility appears after the first check.</div>'), ("prompts", "Prompts", prompts or '<div class="alert info">Prompts appear after the first check.</div>'), ("actions", f"Recommendations ({open_n})", recs), ("history", "History", history)]
+    tabs = [("overview", "Overview", overview), ("ai", "AI visibility", ai or '<div class="alert info">AI visibility appears after the first check.</div>'), ("strategy", "Strategy", strategy or '<div class="alert info">The strategy view appears after the first check.</div>'), ("prompts", "Prompts", prompts or '<div class="alert info">Prompts appear after the first check.</div>'), ("actions", f"Recommendations ({open_n})", recs), ("history", "History", history)]
     nav = "".join(f'<button type="button" class="tab{" active" if i == 0 else ""}" data-tab="tab-{k}" data-name="{k}">{esc(lbl)}</button>' for i, (k, lbl, _b) in enumerate(tabs))
     body = "".join(f'<div class="tab-panel{" active" if i == 0 else ""}" id="tab-{k}">{b}</div>' for i, (k, _l, b) in enumerate(tabs))
     return f'<div class="pt" data-csrf="{esc(csrf)}">{hero}{live_panel(live, live_url)}<div class="tabs top"><div class="tab-bar" role="tablist">{nav}</div>{body}</div></div>'

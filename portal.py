@@ -162,11 +162,32 @@ def register(app, cfg):
         return form(title, heading, intro, fields, "Save and continue")
 
     # ---------------------------------------------------------------- dashboard
-    def _opps(d, runs):
+    def _latest(d, runs):
+        try:
+            return d.get_report(runs[0]["id"]) if runs else None
+        except Exception:  # noqa: BLE001 - the dashboard still shows
+            return None
+
+    def _opps(rep):
         try:
             import opportunities
-            return opportunities.build(d.get_report(runs[0]["id"])) if runs else []
-        except Exception:  # noqa: BLE001 - the dashboard still shows
+            return opportunities.build(rep) if rep else []
+        except Exception:  # noqa: BLE001
+            return []
+
+    def _strategy(rep):
+        try:
+            import strategy_view
+            return strategy_view.panel(rep)
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _suggestions(rep, pst):
+        try:
+            import query_matrix
+            have = [p["text"] for s in (pst["draft"], pst["active"]) if s for p in s["prompts"]]
+            return query_matrix.suggest(rep, have) if rep else []
+        except Exception:  # noqa: BLE001
             return []
 
     def dashboard_page(hotel, user, hotels):
@@ -176,9 +197,10 @@ def register(app, cfg):
         sm = progress.hotel_summary(d, hotel, list(reversed(runs)), acts)
         prompt_sets.ensure_from_history(d, hotel)
         pst = prompt_sets.state(d, hotel)
+        rep = _latest(d, d.hotel_runs(hotel["hotel_key"]))
         since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
-        body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), ai=ai_dash.panel(d, hotel), prompts=prompts_view.panel(pst, hotel, "/portal/api/prompts/" + str(hotel["id"]), True, since),
-                                     prompts_alert=bool(pst["draft"] and not pst["active"]), opps=_opps(d, runs),
+        body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), ai=ai_dash.panel(d, hotel), prompts=prompts_view.panel(pst, hotel, "/portal/api/prompts/" + str(hotel["id"]), True, since, _suggestions(rep, pst)),
+                                     prompts_alert=bool(pst["draft"] and not pst["active"]), opps=_opps(rep), strategy=_strategy(rep),
                                      live=app.extensions["weekly"].hotel_state(hotel["id"]), live_url=f"/portal/api/status/{hotel['id']}")
         return shell(hotel["name"] + ": progress", body, user, hotels)
 

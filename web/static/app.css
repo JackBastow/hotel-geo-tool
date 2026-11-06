@@ -227,3 +227,5 @@ svg.trend { width: 100%; height: auto; max-height: 340px; }
 .agree { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: .94rem; } .pbtns { margin-top: 10px; } .pmsg { margin-top: 10px; font-size: .92rem; } .pmsg.bad { color: var(--bad); } .pmsg.good { color: #067647; }
 .btn.small { padding: .3rem .7rem; font-size: .84rem; } .prompt-warn { font-size: .95rem; }
 @media (max-width: 720px) { .prow { grid-template-columns: 1fr; } .prow-n { display: none; } }
+
+.psug { margin-top: 12px; } .psug-row { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--line); } .psug-row:last-child { border: 0; } .psug-text { font-size: .96rem; }

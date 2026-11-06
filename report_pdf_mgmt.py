@@ -323,6 +323,58 @@ def _opportunities_block(rep):
     return out
 
 
+def _differentiation_block(rep):
+    """What is distinctive about the hotel, what it under-explains, and the kinds of traveller search where that could matter: each with how sure we are."""
+    import differentiation
+    c = rep.get("consultant") or {}
+    d = c.get("differentiation") or differentiation.build(rep)
+    out = []
+    rows = [["Kind", "What", "Evidence", "How sure"]]
+    for s in d.get("strengths", [])[:4]:
+        rows.append(["Verified strength", s["label"], short(s["proof"], 120), s["confidence"]])
+    for a in d.get("advantages", [])[:3]:
+        rows.append(["Advantage over comparable hotels", a["label"], short(a["proof"], 160), a["confidence"]])
+    for u in d.get("underexplained", [])[:3]:
+        rows.append(["Under-explained", u["label"], short(u["why"], 140), u["confidence"]])
+    if len(rows) == 1:
+        return [para("Nothing distinctive could be established from the pages and sources read.", "base")]
+    out.append(table(rows, [0.2, 0.2, 0.46, 0.14]))
+    ops = d.get("opportunities") or []
+    if ops:
+        out.append(para("Where this could matter", "h3"))
+        out.append(table([["Kind of traveller", "Finding", "In this sample", "How sure"]] + [[o["theme_label"].capitalize(), short(o["finding"], 150), short(o["ai_result"], 90), o["confidence"]] for o in ops[:4]], [0.2, 0.42, 0.24, 0.14]))
+    out.append(para(d.get("limits", ""), "tiny"))
+    return out
+
+
+def _rivals_block(rep):
+    """For the comparable hotels named most: why the assistant recommended them, what it cited, and how this hotel compares, as Supported or Hypothesis."""
+    import rival_analysis
+    c = rep.get("consultant") or {}
+    rs = c.get("rival_analysis") or rival_analysis.build(rep)
+    if not rs:
+        return []
+    out = [para("Why comparable hotels are recommended instead", "h3")]
+    for r in rs:
+        out.append(para(f"<b>{esc(r['name'])}</b> ({r['label']}). {esc(r['statement'])}" + (f" Cited alongside: {esc(', '.join(r['sources']))}." if r["sources"] else ""), "base"))
+    out.append(para("Supported means at least two kinds of evidence agree (what the assistant said, what it cited, what the rival's own site shows); a hypothesis is something to investigate. None of it describes how the model decides.", "tiny"))
+    return out
+
+
+def _source_actions_block(rep):
+    """The sites the assistant relies on, what kind each is, whether this hotel and its rivals are there, the route to inclusion and the sensible action."""
+    import source_actions
+    c = rep.get("consultant") or {}
+    rows_ = c.get("source_actions") or source_actions.build(rep)
+    if not rows_:
+        return []
+    rows = [["Site", "Hotel there?", "Rivals featured", "Route to inclusion", "Suggested action"]]
+    for s in rows_[:6]:
+        rows.append([Markup(f"<b>{esc(s['domain'])}</b><br/>{esc(s['type_label'])}, used {s['cited']} time(s)"), "Yes" if s["hotel_appears"] else "No", short(", ".join(s["rivals"]) or "-", 60), short(s["route"], 80), short(s["action"], 170)])
+    return [para("Where to get listed: the sites AI relies on", "h3"), table(rows, [0.22, 0.09, 0.19, 0.2, 0.3]),
+            para("Being listed or covered does not guarantee that any AI assistant will recommend the hotel, and paying for placement is not recommended. Check each site suits the hotel (its readers, whether it is independent or sponsored) before approaching it.", "tiny")]
+
+
 def _competitor_block(rep):
     """Every hotel the assistant named, ranked: how often, where in its list, and how it described each. The hotel is marked."""
     ins = rep.get("ai_insights") or {}
@@ -543,11 +595,15 @@ def story(rep, H1):
     out.append(R.PageBreak())
     out.append(H1("Your biggest AI discovery opportunities"))
     out += _opportunities_block(rep)
+    out.append(H1("What makes this hotel different"))
+    out += _differentiation_block(rep)
     out.append(H1("Competitors: who AI recommends instead"))
     out += _competitor_block(rep)
+    out += _rivals_block(rep)
     out += _markets_block(rep, c)
     out.append(H1("Where AI gets its information"))
     out += _sources_block(rep)
+    out += _source_actions_block(rep)
     out.append(H1("Open conversations you can join"))
     out += _forums_block(rep)
     out += _action_plan(c, recs, top, H1)

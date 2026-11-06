@@ -283,3 +283,22 @@ document.addEventListener("click", function (ev) {
   box.querySelectorAll(".act").forEach(function (a) { a.hidden = !(want === "all" || a.getAttribute("data-track") === want); });
   box.querySelectorAll("h3.grp").forEach(function (h) { var n = h.nextElementSibling, any = false; while (n && n.classList && n.classList.contains("act")) { if (!n.hidden) { any = true; } n = n.nextElementSibling; } h.hidden = !any; });
 });
+
+/* the Prompts tab: add one of the suggested prompts to the editor */
+document.addEventListener("click", function (ev) {
+  var b = ev.target.closest(".psugadd");
+  if (!b) { return; }
+  var box = document.querySelector(".prompts[data-url]");
+  var list = box && box.querySelector("#prow-list");
+  if (!list) { return; }
+  var max = +box.getAttribute("data-max");
+  if (list.querySelectorAll(".prow").length >= max) { alert("You can have at most " + max + " prompts."); return; }
+  var d = document.createElement("div"); d.className = "prow"; d.setAttribute("data-source", "suggested"); d.setAttribute("data-id", ""); d.setAttribute("data-angle", "Suggested"); d.setAttribute("data-style", "");
+  d.innerHTML = '<div class="prow-n"></div><div class="prow-main"><textarea rows="2" maxlength="220"></textarea><div class="prow-meta"><span class="hk-chip brand">Suggested</span></div><div class="prow-why"></div><div class="prow-err" hidden></div></div><button type="button" class="btn small pdel">Remove</button>';
+  d.querySelector("textarea").value = b.getAttribute("data-text");
+  d.querySelector(".prow-why").textContent = b.getAttribute("data-why") || "";
+  list.appendChild(d);
+  b.disabled = true; b.textContent = "Added";
+  box.dispatchEvent(new Event("input", { bubbles: true }));
+  d.scrollIntoView({ behavior: "smooth", block: "center" });
+});

@@ -105,7 +105,18 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         facility = facility_depth.analyse(s)
     except Exception:  # noqa: BLE001 - an extra check; the rest of the analysis stands
         facility = []
-    recs = advice.build(facility=facility, questions=questions, location=loc, consistency=cons, hidden=hidden, structured=sd,
+    try:
+        import differentiation
+        import rival_analysis
+        import source_actions
+        pseudo = {"meta": {"base": base, "hotel": hotel, "city": city}, "consultant": {"features": feats, "intents": intents, "facility_depth": facility, "traveller": travel if isinstance(travel, dict) else {}, "hotel_class": hclass,
+                                                                                    "opportunities": opps}, "ai_gap": ai_gap, "ai_insights": ai_insights}
+        diff = differentiation.build(pseudo)
+        rivals_view = rival_analysis.build(pseudo)
+        src_actions = source_actions.build(pseudo)
+    except Exception:  # noqa: BLE001 - an extra layer: the rest of the analysis stands
+        diff, rivals_view, src_actions = None, [], []
+    recs = advice.build(differentiation=diff, source_actions=src_actions, facility=facility, questions=questions, location=loc, consistency=cons, hidden=hidden, structured=sd,
                         machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai, reviews=reviews, text_only=text_only, ai_insights=ai_insights, ai_gap=ai_gap, citations=citations, forums=forums, listing_checks=listing_checks, reddit=reddit, traveller=travel, booking=booking, external=external, competitors=competitors, suppressed=suppressed)
     recs, dropped = advice.validate(recs, cov, s)
     if (site.get("meta") or {}).get("scope"):
@@ -140,7 +151,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         "recommendations": recs, "top_actions": [r["id"] for r in top], "quick_wins": [r["id"] for r in quick],
         "required_fixes": [r["id"] for r in recs if r["kind"] == "fix"],
         "opportunity_recs": [r["id"] for r in recs if r["kind"] == "opportunity"],
-        "opportunities": opps, "plan": plan, "working": working, "facility_depth": facility, "reconciled": reconciled,
+        "opportunities": opps, "plan": plan, "working": working, "facility_depth": facility, "reconciled": reconciled, "differentiation": diff, "rival_analysis": rivals_view, "source_actions": src_actions,
     }
 
 

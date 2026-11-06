@@ -22,7 +22,16 @@ def _row(p, editable, i):
     return (f'<div class="prow ro"><div class="prow-n">{i}</div><div class="prow-main"><div class="prow-text">{esc(p["text"])}</div><div class="prow-meta">{tag}{style}</div>{why}</div></div>')
 
 
-def panel(state, hotel, url, editable=True, runs_since=0):
+def _suggestions(sug):
+    if not sug:
+        return ""
+    rows = "".join(f'<div class="psug-row"><div><div class="psug-text">{esc(s["text"])}</div><div class="prow-why">Rests on: {esc("; ".join(s["rests_on"]))}. {esc(s["why"])}</div></div>'
+                   f'<button type="button" class="btn small psugadd" data-text="{esc(s["text"], quote=True)}" data-why="{esc("Rests on: " + "; ".join(s["rests_on"]), quote=True)}">Add</button></div>' for s in sug)
+    return ('<section class="panel psug"><h4>More specific prompts we could test</h4><p class="caption">Built from facts your own pages state (a place you are close to, a facility, a kind of traveller). Narrow searches show where the hotel '
+            f'deserves to compete. Add the ones you want; nothing changes until you confirm.</p>{rows}</section>')
+
+
+def panel(state, hotel, url, editable=True, runs_since=0, suggestions=None):
     """The whole tab as HTML. `state` is prompt_sets.state(); `url` is where changes are sent; `runs_since` is how many checks used the confirmed set."""
     active, draft = state["active"], state["draft"]
     warn = f'<div class="alert warning prompt-warn"><b>Before you confirm.</b> {esc(ps.WARNING)}</div>'
@@ -46,7 +55,7 @@ def panel(state, hotel, url, editable=True, runs_since=0):
         change_note = (f'<div class="alert warning"><b>You are changing a confirmed set.</b> Version {active["version"]} stays in use until you confirm this new set. Results after the change start a new baseline.</div>' if changing else "")
         agree2 = ('<label class="agree"><input type="checkbox" id="agree-change"> I understand that changing the prompts makes results from before and after the change harder to compare.</label>' if changing else "")
         return (head + guide + status + change_note + warn
-                + f'<section class="panel prompts" {attrs}><h4>{title}</h4><div class="pcount"></div><div id="prow-list">{rows}</div>'
+                + _suggestions(suggestions) + f'<section class="panel prompts" {attrs}><h4>{title}</h4><div class="pcount"></div><div id="prow-list">{rows}</div>'
                   '<div class="pbar"><button type="button" class="btn" id="padd">Add a prompt of your own</button></div>'
                   '<div class="pconfirm"><label class="agree"><input type="checkbox" id="agree"> I am happy with these prompts and I will keep them for a while.</label>' + agree2
                   + '<div class="pbtns"><button type="button" class="btn primary" id="pconfirm" disabled>Confirm these prompts</button> <button type="button" class="btn" id="psave">Save as a draft</button>'

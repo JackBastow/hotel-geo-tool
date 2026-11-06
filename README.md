@@ -404,6 +404,14 @@ incentivised reviews, keyword-stuffed guest reviews or indiscriminate outreach.
 - **Facility detail** (`facility_depth.py`). For event/meeting space, spa, restaurant and rooms, checks which details the pages actually state (sizes, capacities by layout, events hosted, named spaces, equipment, catering, how to enquire...) and recommends the missing ones, quoting what the page does say and giving a template to fill in with real facts.
 - **Reddit and similar** threads now appear in the management report with links, not only in the dashboard.
 
+## Strategy: differentiation, rivals, sources, specific prompts
+
+- **Differentiation** (`differentiation.py`). What the hotel states clearly (verified strengths), what it states that comparable hotels' pages do not (advantages: a silent rival page is never proof), what it under-explains (thin facility detail, what its site emphasises but the assistant did not pick up), each tied to the kind of traveller search and what the assistant did for it. Labels: Confirmed / Likely / Worth checking.
+- **Why rivals are recommended** (`rival_analysis.py`). For the comparable hotels named most: the assistant's reasons, the sites it cited, the facilities on the rival's own site, and how this hotel's pages compare. Supported = two kinds of evidence agree; otherwise Hypothesis.
+- **Where to get listed** (`source_actions.py`). Each site the assistant relied on by kind (tourism body, venue directory, publisher, comparison site, attraction, review platform), whether the hotel and its rivals appear, the route to inclusion (contact page, affiliate, sponsored, none found) and the action for that kind. Never suggests paying for coverage; never promises an AI recommendation.
+- **Specific prompts** (`query_matrix.py`). Suggestions built from verified attributes (a place near the hotel + a facility, traveller or requirement the pages state), shown in the Prompts tab with an Add button; nothing changes until the hotel confirms the set.
+- Shown on page 2 onwards of the management report and in the dashboard's **Strategy** tab; the engine's recommendations (`DE-*`, `SG1`) are AI visibility actions.
+
 ## Running it yourself, locally
 
 ```powershell
