@@ -302,7 +302,9 @@ def build(dev=False):
         page = fill(layout, site, {**extra, "content": content, "title": html.escape(meta.get("title", site["name"])), "description": html.escape(fill(meta.get("description", ""), site, extra), quote=True),
                                    "canonical": canonical, "robots_meta": '<meta name="robots" content="noindex, nofollow">' if noindex else "",
                                    "og_image": (f'<meta property="og:image" content="{site["url"]}/og.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{site["url"]}/og.png">' if has_og else '<meta name="twitter:card" content="summary">'),
-                                   "body_class": meta.get("body", "")})
+                                   "body_class": meta.get("body", ""),
+                                   "page_css": ('<link rel="stylesheet" href="/' + meta["css"] + '">') if meta.get("css") else "",
+                                   "page_js": ('<script src="/' + meta["js"] + '" defer></script>') if meta.get("js") else ""})
         with open(os.path.join(OUT, out_name), "w", encoding="utf8", newline="\n") as f:
             f.write(page)
         pages.append(out_name)

@@ -2,6 +2,8 @@
 title: Presence Pro: see how AI describes your hotel
 description: Hotel-specific AI discovery intelligence. See which hotels AI recommends instead of yours, which pages it relied on, and what to do about it. Monthly reports and a portfolio dashboard. Evidence for every finding.
 body: home
+css: home.css
+js: home.js
 ---
 <script type="application/ld+json">
 {"@context":"https://schema.org","@graph":[
@@ -20,10 +22,12 @@ body: home
 ]}
 </script>
 
-<!-- HERO -->
-<section class="hero hero-dark dark">
-  <div class="wrap">
-    <div class="hero-copy">
+<!-- THE STORY: hero and a scroll-driven demonstration share one sticky stage -->
+<section class="story" id="story">
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="wrap story-grid">
+
+    <article class="chap s0" data-scene="0">
       <p class="eyebrow">AI visibility for hotels</p>
       <h1>Make Your Hotel More Visible in <em>AI Search</em></h1>
       <p class="sub">Discover when AI recommends your competitors instead of you. Understand why, identify opportunities and track your hotel's visibility over time.</p>
@@ -36,54 +40,114 @@ body: home
         <li><b>2</b>AI visibility analysis</li>
         <li><b>3</b>Receive your snapshot</li>
       </ol>
-      <p class="hero-note">Free, no card needed. For independent hotels, groups and the agencies that serve them.</p>
-    </div>
+      <p class="hero-note">Free, no card needed. <a href="/methodology.html">How it works</a></p>
+      <p class="scroll-cue" aria-hidden="true"><span></span>Scroll to see it work</p>
+    </article>
 
-    <div class="hero-visual">
-      <img class="hv-photo" src="/img/hotel-evening.jpg" width="610" height="667" alt="" aria-hidden="true">
-      <div class="dash-ui" role="img" aria-label="Example dashboard for a fictional hotel: named by AI in 5 of 14 answers, 9 missed recommendations, competitor comparison and priority actions. Sample data.">
-        <div class="du-top"><span class="du-dots"><i></i><i></i><i></i></span><b>The Harbour Lane Hotel</b><em>Sample data</em></div>
-        <div class="du-tiles">
-          <div class="du-tile"><small>AI visibility</small><div class="du-ring" style="--p:36"><b class="du-count">36%</b></div><span>named in 5 of 14 answers</span></div>
-          <div class="du-tile warn"><small>Missed recommendations</small><b class="du-count">9</b><span>answers named rivals only</span></div>
-          <div class="du-tile"><small>Top competitor</small><b class="du-count">64%</b><span>The Lantern House</span></div>
-        </div>
-        <div class="du-grid">
-          <div class="du-panel">
-            <h4>Who AI names for your area</h4>
-            <div class="du-bar"><span>The Lantern House</span><i style="--w:64%"></i><em>64%</em></div>
-            <div class="du-bar"><span>Marlow &amp; Finch</span><i style="--w:43%"></i><em>43%</em></div>
-            <div class="du-bar you"><span>Your hotel</span><i style="--w:36%"></i><em>36%</em></div>
-            <div class="du-bar"><span>Cathedral Close Inn</span><i style="--w:29%"></i><em>29%</em></div>
-          </div>
-          <div class="du-panel">
-            <h4>Priority actions</h4>
-            <div class="du-act"><b>1</b><span>State whether parking can be reserved</span><em class="ok">Confirmed</em></div>
-            <div class="du-act"><b>2</b><span>Fix two different check-in times</span><em class="ok">Confirmed</em></div>
-            <div class="du-act"><b>3</b><span>Ask the city guide to list you</span><em class="ck">Worth checking</em></div>
+    <div class="story-stage" data-s="0" role="group" aria-label="Illustrative demonstration of how Presence Pro works, using a fictional hotel">
+      <span class="stage-tag">Illustrative demonstration &middot; fictional hotel</span>
+      <ol class="stage-dots" aria-hidden="true"><li></li><li></li><li></li><li></li><li></li></ol>
+      <div class="stage-inner">
+
+        <div class="pn pn-answer on" data-p="answer">
+          <div class="chat-q" data-text="Which hotel near the conference centre is best for a business trip?"><span class="t"></span><i class="caret"></i></div>
+          <div class="chat-a">
+            <div class="who"><i></i>AI assistant &middot; live web search</div>
+            <div class="rec r1"><b>1</b><div><strong>Cathedral Close Inn</strong><span>Four-star, six minutes' walk, meeting rooms</span></div></div>
+            <div class="rec r2"><b>2</b><div><strong>Marlow &amp; Finch Hotel</strong><span>City centre, business lounge, early breakfast</span></div></div>
+            <div class="rec r3"><b>3</b><div><strong>The Quayside</strong><span>Riverside, free parking, short taxi ride</span></div></div>
+            <div class="rec ghost"><b>?</b><div><strong>The Harbour Lane Hotel</strong><span>Your hotel: not named in this answer</span></div></div>
           </div>
         </div>
-        <p class="du-foot">Illustrative dashboard for a fictional hotel. All figures are invented for this example.</p>
+
+        <div class="pn pn-sources" data-p="sources" aria-hidden="false">
+          <svg class="lines" viewBox="0 0 600 64" preserveAspectRatio="none" aria-hidden="true"><path d="M300 0 C300 40 100 24 100 64"/><path d="M300 0 L300 64"/><path d="M300 0 C300 40 500 24 500 64"/></svg>
+          <div class="srcs3">
+            <div class="src s1"><small>Page it cited</small><b>Business-travel guide</b><span>Names Cathedral Close and Marlow &amp; Finch</span><em class="miss">You: not listed</em></div>
+            <div class="src s2"><small>Page it cited</small><b>Conference centre &ldquo;where to stay&rdquo;</b><span>Names the same two hotels</span><em class="miss">You: not listed</em></div>
+            <div class="src s3"><small>Page it cited</small><b>Booking site listing</b><span>Lists all four hotels</span><em class="hit">You: listed</em></div>
+          </div>
+        </div>
+
+        <div class="pn pn-site" data-p="site">
+          <div class="bw">
+            <div class="bw-bar"><i></i><i></i><i></i><span>harbourlanehotel.example</span></div>
+            <div class="bw-body">
+              <div class="bw-nav"><u></u><u></u><u class="pdf">Meetings (PDF)</u><u></u></div>
+              <div class="bw-hero"><s class="l1"></s><s class="l2"></s><s class="btn"></s></div>
+              <div class="bw-cols"><s></s><s></s><s></s></div>
+              <span class="scan"></span>
+              <span class="pin p1"><b>1</b></span><span class="pin p2"><b>2</b></span><span class="pin p3"><b>3</b></span>
+            </div>
+          </div>
+          <ul class="notes">
+            <li class="n1"><b>1</b>No mention of the conference centre, or the walk to it</li>
+            <li class="n2"><b>2</b>Meeting rooms exist only in a PDF</li>
+            <li class="n3"><b>3</b>Not on the two pages the assistant cited</li>
+          </ul>
+          <p class="hyp">Likely reasons to check, not proven causes.</p>
+        </div>
+
+        <div class="pn pn-actions" data-p="actions">
+          <h3>Priority actions</h3>
+          <div class="ac a1"><b>1</b><div><strong>Add the walking distance and meeting facilities as text</strong><span>On a page guests open. Evidence quoted.</span></div><em class="ok">Confirmed</em></div>
+          <div class="ac a2"><b>2</b><div><strong>Make check-in consistent: 15:00 here, 14:00 on the FAQ</strong><span>Both pages listed.</span></div><em class="ok">Confirmed</em></div>
+          <div class="ac a3"><b>3</b><div><strong>Ask the guide and the venue page to list you</strong><span>Honestly, and without paying for editorial.</span></div><em class="ck">Worth checking</em></div>
+        </div>
+
+        <div class="pn pn-dash" data-p="dash">
+          <div class="dsh">
+            <div class="dsh-top"><b>The Harbour Lane Hotel</b><em>Illustrative data</em></div>
+            <div class="dsh-tabs" role="tablist" aria-label="Choose a question">
+              <button type="button" role="tab" aria-selected="true" data-k="all">All questions</button>
+              <button type="button" role="tab" aria-selected="false" data-k="conf">Conference centre</button>
+              <button type="button" role="tab" aria-selected="false" data-k="park">Free parking</button>
+              <button type="button" role="tab" aria-selected="false" data-k="fam">Family-friendly</button>
+            </div>
+            <div class="dsh-tiles">
+              <div class="dt"><small>AI visibility</small><div class="ring" id="dRing" style="--p:36"><b id="dPct">36%</b></div><span id="dNamed">named in 5 of 14 answers</span></div>
+              <div class="dt warn"><small>Missed recommendations</small><b id="dMiss">9</b><span>answers named rivals only</span></div>
+              <div class="dt"><small>Top competitor</small><b id="dTop">64%</b><span id="dTopN">The Lantern House</span></div>
+            </div>
+            <div class="dsh-bars" id="dBars" aria-live="polite"></div>
+            <p class="dsh-foot">Next month the same questions are asked again, so you can see what moved.</p>
+          </div>
+        </div>
+
       </div>
     </div>
-  </div>
-</section>
 
-<!-- TRUST STRIP -->
-<section class="trust-strip" aria-label="Why you can rely on it">
-  <div class="wrap trust-grid">
-    <a class="trust rv" href="/sample-report.html"><b>See a full sample report</b><span>The real format, with a fictional hotel</span></a>
-    <div class="trust rv d1"><b>Evidence behind every finding</b><span>Each recommendation shows the page or words it rests on</span></div>
-    <a class="trust rv d2" href="/methodology.html"><b>Open about how it works</b><span>Sources, limits and what is not covered yet</span></a>
+    <article class="chap" data-scene="1">
+      <p class="kick"><b>1</b>Where AI looked</p>
+      <h2>It doesn't guess. It quotes pages, and you're not on them.</h2>
+      <p>Presence Pro finds the pages the assistant relied on, and whether your hotel appears on them.</p>
+    </article>
+    <article class="chap" data-scene="2">
+      <p class="kick"><b>2</b>Why you were missed</p>
+      <h2>Then it reads your side of the story.</h2>
+      <p>Your website, listings and reviews, read the way an assistant reads them. What's missing, with the exact words and the page where it belongs.</p>
+    </article>
+    <article class="chap" data-scene="3">
+      <p class="kick"><b>3</b>What to do first</p>
+      <h2>A short list, ranked, with the evidence.</h2>
+      <p>Each action shows what we found, why it matters and how sure we are. No evidence, no recommendation.</p>
+    </article>
+    <article class="chap" data-scene="4">
+      <p class="kick"><b>4</b>Track it</p>
+      <h2>Then it asks again, every month.</h2>
+      <p>The same questions, word for word, so you can see what moved. We can't promise results; we show you the gaps, and the progress.</p>
+      <div class="cta-row"><a class="btn gold lg" href="#snapshot">Get Your Free AI Visibility Snapshot &rarr;</a><a class="btn ghost lg" href="/sample-report.html">View Sample Report</a></div>
+    </article>
+
   </div>
 </section>
 
 <!-- WHY IT MATTERS -->
-<section id="why" class="alt">
+<section id="why" class="hs">
   <div class="wrap">
     <div class="sec-head rv">
       <p class="eyebrow">Why it matters</p>
-      <h2>Guests are asking AI where to stay.</h2>
+      <h2>Guests are already asking AI where to stay.</h2>
       <p>An assistant builds its answer from your website, booking and review sites, maps and the press. If those pieces are missing or disagree, you may not be in the answer.</p>
     </div>
     <div class="stats">
@@ -98,64 +162,41 @@ body: home
   </div>
 </section>
 
-<!-- AN OVERLOOKED HOTEL -->
-<section id="example">
-  <div class="wrap">
-    <div class="sec-head rv">
-      <p class="eyebrow">What you learn</p>
-      <h2>When AI recommends someone else, you see who, and why.</h2>
-      <p>An illustrative example of one missed question, followed to an action. A fictional hotel and invented figures, to show the method.</p>
-    </div>
-    <div class="example-grid">
-      <div class="chain rv">
-        <div class="chain-head"><h3>From a missed question to an action</h3><span class="chain-tag">Illustrative example</span></div>
-        <ol>
-          <li><b>The question</b><span>"Which hotels near the conference centre suit a business trip?"</span></li>
-          <li><b>Your visibility</b><span>Named in 0 of 5 answers.</span></li>
-          <li><b>Likely reasons</b><span>Your site never mentions the venue or the walk to it, your meeting rooms are only in a PDF, and you aren't on the two pages the assistant cited. Hypotheses to check, not proven causes.</span></li>
-          <li class="act-row"><b>The action</b><span>Add the walking distance and meeting facilities as text on a page guests open. Then ask both pages for a listing, honestly and without paying for editorial.</span></li>
-          <li><b>Next month</b><span>The same question is asked again, so you can see whether anything moved.</span></li>
-        </ol>
-      </div>
-      <div class="vs rv d1">
-        <h3>Who was named instead</h3>
-        <p class="vs-q">"Hotels near the conference centre"</p>
-        <div class="vs-row"><span>Cathedral Close Inn</span><div class="track"><i style="--w:100%"></i></div><em>5 of 5</em></div>
-        <div class="vs-row"><span>Marlow &amp; Finch Hotel</span><div class="track"><i style="--w:80%"></i></div><em>4 of 5</em></div>
-        <div class="vs-row you"><span>Your hotel</span><div class="track"><i style="--w:3%"></i></div><em>0 of 5</em></div>
-        <p class="vs-src"><b>Pages the assistant cited:</b> a business-travel guide and the venue's own "where to stay" page. Neither lists you.</p>
-        <p class="fine">Both rivals are comparable: four-star, city centre. What an assistant says can change for many reasons, so a change can't be shown to be caused by any one action.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- COMMERCIAL VALUE -->
-<section id="value" class="alt">
+<section id="value" class="hs hs2">
   <div class="wrap">
     <div class="sec-head rv">
       <p class="eyebrow">Why it can pay</p>
-      <h2>Give guests a reason to book with you, not a booking site.</h2>
-      <p>When your own pages don't answer a question, an assistant quotes a booking site instead, and the guest may book there. You then pay commission on someone who was already looking at you.</p>
+      <h2>A guest who books through a booking site usually costs you commission.</h2>
+      <p>When your own pages don't answer a question, an assistant quotes a booking site instead. Flip the switch to see the difference.</p>
     </div>
-    <div class="lanes lanes-row rv">
-      <div class="lane bad"><h4>Today, for many hotels</h4>
-        <div class="flow">
-          <div class="chip-step">A guest asks AI<i>"Which hotel near the cathedral has parking?"</i></div><span class="arr" aria-hidden="true">&rarr;</span>
-          <div class="chip-step">It quotes a booking site, because your page doesn't say</div><span class="arr" aria-hidden="true">&rarr;</span>
-          <div class="chip-step end">The guest books there. You pay commission.</div>
-        </div></div>
-      <div class="lane good"><h4>With the gaps fixed</h4>
-        <div class="flow">
-          <div class="chip-step">The same question<i>From a guest who has never heard of you</i></div><span class="arr" aria-hidden="true">&rarr;</span>
-          <div class="chip-step">It can quote your own page: parking, breakfast, cancellation</div><span class="arr" aria-hidden="true">&rarr;</span>
-          <div class="chip-step end">The guest has a reason to book on your website.</div>
-        </div></div>
+    <div class="flipper rv">
+      <div class="flip-sw" role="tablist" aria-label="Compare">
+        <button type="button" role="tab" aria-selected="true" data-st="today">Today, for many hotels</button>
+        <button type="button" role="tab" aria-selected="false" data-st="fixed">With the gaps fixed</button>
+      </div>
+      <div class="flip-viz" data-st="today">
+        <div class="fl fl-today">
+          <div class="node"><small>A guest asks AI</small><b>&ldquo;Which hotel near the cathedral has parking?&rdquo;</b></div>
+          <span class="arr" aria-hidden="true"></span>
+          <div class="node"><small>The assistant answers</small><b>It quotes a booking site, because your own page doesn't say</b></div>
+          <span class="arr" aria-hidden="true"></span>
+          <div class="node bad"><small>The guest books</small><b>On the booking site. You pay commission.</b></div>
+        </div>
+        <div class="fl fl-fixed">
+          <div class="node"><small>The same question</small><b>From a guest who has never heard of you</b></div>
+          <span class="arr" aria-hidden="true"></span>
+          <div class="node"><small>The assistant answers</small><b>It can quote your own page: parking, breakfast, cancellation</b></div>
+          <span class="arr" aria-hidden="true"></span>
+          <div class="node good"><small>The guest decides</small><b>With a reason to book on your website.</b></div>
+        </div>
+      </div>
+      <p class="fine">An illustration of the idea. We can't promise what any assistant will say or how many bookings it changes; we show you the gaps and what to do about them.</p>
     </div>
-    <p class="fine rv" style="max-width:52em">An illustration of the idea. We can't promise what any assistant will say or how many bookings it changes; we show you the gaps and what to do about them.</p>
 
     <div class="be-block rv">
-      <div class="sec-head" style="margin:48px 0 24px"><h2 style="font-size:1.7rem">What is a direct booking worth to you?</h2><p>Put in your own numbers. Every booking that moves from a booking site to your own website saves the commission.</p></div>
+      <h3>What is a direct booking worth to you?</h3>
+      <p class="be-lead">Put in your own numbers. Every booking that moves from a booking site to your own website saves the commission.</p>
       <div class="be" id="be">
         <div class="be-in">
           <div><label for="be-h">Number of hotels</label><input id="be-h" name="hotels" type="number" min="1" max="999" value="1" inputmode="numeric"></div>
@@ -166,34 +207,6 @@ body: home
         <p class="be-note">A break-even sum, not a forecast. We can't promise any extra direct bookings; what happens depends on your hotel, your market and what you change. Prices exclude VAT.</p>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- WHAT WE CHECK -->
-<section id="what">
-  <div class="wrap">
-    <div class="sec-head rv">
-      <p class="eyebrow">What we check</p>
-      <h2>Three places AI looks, checked for your hotel.</h2>
-    </div>
-    <div class="grid3">
-      <article class="card rv">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18M8 14h4"/></svg></div>
-        <h3>Your website</h3>
-        <p>Does it answer what guests ask: parking, breakfast, check-in, pets? We quote the exact words, and say where each missing answer belongs.</p>
-      </article>
-      <article class="card rv d1">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/><path d="M8.5 11h7M8.5 14h4"/></svg></div>
-        <h3>What AI says</h3>
-        <p>Real traveller questions put to an assistant with live web search: how often you're named, who is named instead, and which pages it cited.</p>
-      </article>
-      <article class="card rv d2">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
-        <h3>Where you're listed</h3>
-        <p>Booking and review sites, maps and press, checked across 30 points, and where they disagree with your own site.</p>
-      </article>
-    </div>
-    <p class="rv" style="margin-top:24px"><a class="more" href="/what-we-do.html">See everything the report covers &rarr;</a></p>
   </div>
 </section>
 
@@ -224,7 +237,7 @@ body: home
 </section>
 
 <!-- PRICING -->
-<section id="pricing" class="alt">
+<section id="pricing" class="hs">
   <div class="wrap">
     <div class="sec-head center rv" style="text-align:center">
       <p class="eyebrow">Pricing</p>
@@ -237,17 +250,17 @@ body: home
 </section>
 
 <!-- FAQ, METHODOLOGY AND LIMITS -->
-<section id="faq">
+<section id="faq" class="hs hs2">
   <div class="wrap">
     <div class="sec-head center rv" style="text-align:center"><p class="eyebrow">Questions</p><h2>Straight answers, including the limits</h2></div>
     <div class="faq rv">
       <details><summary>Will this get AI assistants to recommend my hotel?</summary><p>We can't promise that, and nobody honestly can. Presence Pro shows what an assistant said, which sources it relied on and what your own pages leave unanswered, so you can fix real gaps.</p></details>
       <details><summary>Which AI assistants do you test?</summary><p>Today the sampled answers come from one assistant with live web search, labelled as a sample of one assistant on one day. For ChatGPT, Gemini, Copilot and others the report gives you a checklist to run by hand. We'd rather say so than pretend to cover them.</p></details>
       <details><summary>Where does the data come from?</summary><p>Your public website, open sources such as OpenStreetMap and Wikidata, public search results, and the AI assistant's answers. We don't read Booking.com or Tripadvisor directly, as their terms prohibit it; you can upload your own review export for a full review analysis.</p></details>
-      <details><summary>What are the limits?</summary><p>AI answers vary, so we show a range and never a ranking. Anything we couldn't measure is marked "not assessed", never scored as zero. We can't prove why an assistant chose a hotel, or that one action caused a change. <a href="/methodology.html" style="color:var(--gold-d)">Read the methodology</a>.</p></details>
+      <details><summary>What are the limits?</summary><p>AI answers vary, so we show a range and never a ranking. Anything we couldn't measure is marked "not assessed", never scored as zero. We can't prove why an assistant chose a hotel, or that one action caused a change. <a href="/methodology.html" style="color:var(--gold)">Read the methodology</a>.</p></details>
       <details><summary>How do I get my reports?</summary><p>Subscribe and tell us your hotel's website. We prepare your report, email it, then repeat every month with the change since the last one. There's nothing to install.</p></details>
-      <details><summary>What happens to my data?</summary><p>Reports go only to you. Review text from an export is analysed for that run only and not saved. See the <a href="/privacy.html" style="color:var(--gold-d)">privacy notice</a>.</p></details>
-      <details><summary>What does it cost, and can I cancel?</summary><p>Single Hotel is {{ lowest_price }} a month per hotel (or {{ price_single_annual }} a year), Portfolio is from {{ price_portfolio_large }} per hotel a month, and Enterprise is by quotation. Prices exclude VAT. Cancel any time. See <a href="/pricing.html" style="color:var(--gold-d)">pricing</a>.</p></details>
+      <details><summary>What happens to my data?</summary><p>Reports go only to you. Review text from an export is analysed for that run only and not saved. See the <a href="/privacy.html" style="color:var(--gold)">privacy notice</a>.</p></details>
+      <details><summary>What does it cost, and can I cancel?</summary><p>Single Hotel is {{ lowest_price }} a month per hotel (or {{ price_single_annual }} a year), Portfolio is from {{ price_portfolio_large }} per hotel a month, and Enterprise is by quotation. Prices exclude VAT. Cancel any time. See <a href="/pricing.html" style="color:var(--gold)">pricing</a>.</p></details>
     </div>
   </div>
 </section>
