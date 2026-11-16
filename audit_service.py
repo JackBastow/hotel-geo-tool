@@ -33,6 +33,7 @@ class Config:
         self.gemini_reader = get("GEMINI_READER_API_KEY")
         self.youtube = get("YOUTUBE_API_KEY")
         self.pagespeed = get("PAGESPEED_API_KEY")
+        self.tripadvisor = get("TRIPADVISOR_API_KEY")          # optional: the hotel's TripAdvisor listing from TripAdvisor's own official API
         self.firecrawl = get("FIRECRAWL_API_KEY")              # optional second page reader when a hotel's site refuses ours
         self.google_places = get("GOOGLE_PLACES_API_KEY")      # optional: the hotel's Google place and the hotels around it
         self.anthropic = get("ANTHROPIC_API_KEY")
@@ -88,6 +89,7 @@ def run(params, cfg, progress=None):
     use_gemini_reader = cfg.gemini_reader if (cfg.gemini_reader and _within_quota("gemini_reader")) else None
     import depth as _depth
     depth_name = _depth.clean(params.get("depth") or cfg.ai_depth)
+    use_tripadvisor = cfg.tripadvisor if (cfg.tripadvisor and _within_quota("tripadvisor", 3)) else None
     use_firecrawl = cfg.firecrawl if (cfg.firecrawl and _within_quota("firecrawl", 12)) else None
     use_places = cfg.google_places if (cfg.google_places and _within_quota("google_places", 3)) else None
     use_anthropic = cfg.anthropic if (cfg.anthropic and _within_quota("claude", max(CLAUDE_MILLIDOLLARS_PER_AUDIT, _depth.limits(depth_name)["reserve_millidollars"]))) else None
@@ -110,7 +112,7 @@ def run(params, cfg, progress=None):
         params["website"], params.get("hotel", ""), params.get("city", ""), progress=progress,
         tavily_api_key=use_tavily, amadeus_api_key=use_amadeus, amadeus_api_secret=cfg.amadeus_secret if use_amadeus else None,
         gemini_reader_key=use_gemini_reader, youtube_api_key=cfg.youtube, wider=bool(params.get("wider", True)), pagespeed_api_key=cfg.pagespeed,
-        anthropic_api_key=use_anthropic, anthropic_model=cfg.anthropic_model, anthropic_repeats=cfg.repeats, custom_prompts=params.get("prompts") or None, benchmark=benchmark or None, ai_depth=depth_name, firecrawl_api_key=use_firecrawl, places_nearby_key=use_places,
+        anthropic_api_key=use_anthropic, anthropic_model=cfg.anthropic_model, anthropic_repeats=cfg.repeats, custom_prompts=params.get("prompts") or None, benchmark=benchmark or None, ai_depth=depth_name, firecrawl_api_key=use_firecrawl, places_nearby_key=use_places, tripadvisor_api_key=use_tripadvisor,
         market_hint={"tier": TIERS.get(params.get("tier")), "audiences": [a for a in params.get("audiences") or [] if a in valid_aud]})
     if params.get("review_rows"):
         fa_res = _with_review_export(fa_res, params["review_rows"], params.get("review_mapping") or {})
@@ -133,6 +135,8 @@ def run(params, cfg, progress=None):
         store.record_usage(max(1, round(spent * 1000)), service="claude")      # estimated spend, in thousandths of a dollar
     fc = (fa_res.get("guest_questions") or {}).get("firecrawl") or {}
     fc_credits = int(fc.get("credits") or 0) + int((fa_res.get("firecrawl_other") or {}).get("credits") or 0)
+    if fa_res.get("tripadvisor_calls"):
+        store.record_usage(int(fa_res["tripadvisor_calls"]), service="tripadvisor")
     if fc_credits:
         store.record_usage(fc_credits, service="firecrawl")
     if (fa_res.get("places_nearby") or {}).get("calls"):

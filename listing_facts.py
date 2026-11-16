@@ -241,13 +241,16 @@ def former_name_hits(passages, listings_pages, former, hotel):
     return out
 
 
-def build(lookup, hotel, guest, own_pages, former, location=None):
+def build(lookup, hotel, guest, own_pages, former, location=None, extra=None):
     """-> the report block: {"listings", "rows", "former_name", "summary"} or None when there were no quoted passages at all."""
     passages = (lookup or {}).get("passages") or []
-    if not passages:
+    if not passages and not extra:
         return None
     site = site_facts(guest, own_pages, hotel, location)
     listings = listing_facts(passages, hotel, site)
+    for plat, li in (extra or {}).items():      # a listing read from a platform's own official API: used in place of a quoted passage for the same platform
+        if li:
+            listings[plat] = li
     rows = compare(listings, site)
     hits = former_name_hits(passages, (lookup or {}).get("pages"), former, hotel)
     shown = {p: {k: v for k, v in l.items() if k != "quotes"} for p, l in listings.items()}

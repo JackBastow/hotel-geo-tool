@@ -42,6 +42,7 @@ SERVICE_CAPS = {
                         # tighten this once real usage is observed
     "claude": int(float(os.environ.get("CLAUDE_MONTHLY_CAP_USD") or 600) * 1000),   # ESTIMATED spend in thousandths of a US dollar; $600 a month unless CLAUDE_MONTHLY_CAP_USD says otherwise. The hard stop is the spend limit on the workspace in
                         # the Anthropic Console; this is a best-effort second guard (the counter lives on the container's disk).
+    "tripadvisor": int(os.environ.get("TRIPADVISOR_MONTHLY_CAP") or 4000),    # calls a month; two a hotel check; the free allowance is 5,000 (check the plan on the developer portal)
     "firecrawl": int(os.environ.get("FIRECRAWL_MONTHLY_CAP") or 900),          # credits a month (one per page); the free plan is 1,000
     "google_places": int(os.environ.get("GOOGLE_PLACES_MONTHLY_CAP") or 4000), # calls a month of the cheapest field set; Google's free allowance per SKU is a few thousand: check the pricing page
     "chat": int(os.environ.get("CHAT_MONTHLY_CAP") or 3000),     # replies a month from the marketing site's chat assistant (chat.py)

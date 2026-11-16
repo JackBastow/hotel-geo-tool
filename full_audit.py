@@ -610,7 +610,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
                    youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None,
-                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None, ai_depth="standard", firecrawl_api_key=None, places_nearby_key=None):
+                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None, ai_depth="standard", firecrawl_api_key=None, places_nearby_key=None, tripadvisor_api_key=None):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -1098,9 +1098,19 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         intel_result = {"error": f"{type(e).__name__}: {e}"}
 
     # What each travel site shows (from quoted passages in public search results) against the hotel's own site, and any listing still carrying a former name.
+    ta_result = None
     try:
         _former = ((intel_result or {}).get("identity") or {}).get("former_names") if isinstance(intel_result, dict) and "error" not in intel_result else []
-        listing_checks = listing_facts.build(listing_result, hotel, guest, own_pages, _former, {**(location or {}), "region": city})
+        import tripadvisor_check
+        ta_result = None
+        _extra = None
+        if tripadvisor_api_key and hotel:
+            ta_result = tripadvisor_check.lookup(hotel, city, (location or {}).get("lat"), (location or {}).get("lon"), api_key=tripadvisor_api_key,
+                                                 site=listing_facts.site_facts(guest, own_pages, hotel, {**(location or {}), "region": city}))
+            _extra = tripadvisor_check.as_listing(ta_result) or None
+        listing_checks = listing_facts.build(listing_result, hotel, guest, own_pages, _former, {**(location or {}), "region": city}, extra=_extra)
+        if listing_checks is not None and ta_result:
+            listing_checks["tripadvisor"] = ta_result
     except Exception:  # noqa: BLE001 - an extra; the audit stands without it
         listing_checks = None
 
@@ -1230,6 +1240,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "market_profile": market_profile,
         "question_plan": question_plan,
         "firecrawl_other": {"credits": (_fc_other.state["credits"] if _fc_other else 0), "pages": (_fc_other.state["used"] if _fc_other else [])},
+        "tripadvisor_calls": (ta_result or {}).get("calls", 0),
         "places_nearby": {"calls": places_nearby_info.get("calls", 0), "note": places_nearby_info.get("note", "")} if places_nearby_key else None,
         "benchmark": benchmark_info,
         "custom_prompts": [q["text"] for q in custom_qs],

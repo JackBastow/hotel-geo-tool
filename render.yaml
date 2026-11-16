@@ -32,6 +32,8 @@ services:
         sync: false
       - key: PAGESPEED_API_KEY
         sync: false
+      - key: TRIPADVISOR_API_KEY
+        sync: false            # optional: the hotel's TripAdvisor listing from TripAdvisor's own official API
       - key: FIRECRAWL_API_KEY
         sync: false            # optional: a second page reader for hotels whose site refuses ours
       - key: GOOGLE_PLACES_API_KEY
