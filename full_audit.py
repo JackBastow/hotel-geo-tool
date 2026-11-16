@@ -1106,7 +1106,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         _extra = None
         if tripadvisor_api_key and hotel:
             ta_result = tripadvisor_check.lookup(hotel, city, (location or {}).get("lat"), (location or {}).get("lon"), api_key=tripadvisor_api_key,
-                                                 site=listing_facts.site_facts(guest, own_pages, hotel, {**(location or {}), "region": city}))
+                                                 site=listing_facts.site_facts(guest, own_pages, hotel, {**(location or {}), "region": city}),
+                                                 site_states=__import__("review_pack").site_states_from(guest))
             _extra = tripadvisor_check.as_listing(ta_result) or None
         listing_checks = listing_facts.build(listing_result, hotel, guest, own_pages, _former, {**(location or {}), "region": city}, extra=_extra)
         if listing_checks is not None and ta_result:

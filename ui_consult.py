@@ -234,6 +234,26 @@ def overview(c, h=None):
 
 # ------------------------------------------------------------ how AI sees it
 
+def _tripadvisor_block(ta):
+    """TripAdvisor's own figures for the hotel and what its few most recent reviews praise and criticise, with the source named and a link back."""
+    li = (ta or {}).get("listing")
+    if not li:
+        return
+    st.markdown("**TripAdvisor** (from TripAdvisor's official data)")
+    bits = []
+    if li.get("rating") is not None:
+        bits.append(f"rated {li['rating']:g} of 5" + (f" from {li['reviews']:,} reviews" if li.get("reviews") else ""))
+    if li.get("ranking"):
+        bits.append(li["ranking"])
+    st.caption("; ".join(bits) + (f" · [Open the listing]({li['url']})" if li.get("url") else "") + " · Data from TripAdvisor.")
+    rc = li.get("recent")
+    if rc:
+        site_word = {"answered": "your site states it", "partial": "your site only partly states it", "not_found": "your site does not state it"}
+        pr = ", ".join(f"{t['topic']}" for t in rc.get("praised", [])) or "nothing clear"
+        cr = ", ".join(f"{t['topic']}" + (f" ({site_word[t['site']]})" if t.get("site") in site_word else "") for t in rc.get("criticised", [])) or "nothing clear"
+        st.caption(f"In the {rc['reviews']} most recent reviews, guests praised: {pr}. They criticised: {cr}. {rc['note']}")
+
+
 def listing_checks_card(lc):
     """What each travel site shows about the hotel against the hotel's own site, and listings still carrying a former name. Read from quoted passages only."""
     st.markdown("##### What the travel sites show, against your own site")
@@ -242,6 +262,7 @@ def listing_checks_card(lc):
         return
     st.caption("Read from short passages quoted in public search results, not from the platforms' own pages (their terms prohibit automated reading). A difference is worth "
                "checking: the listing may be right and your site out of date, or the other way round. A fact a listing does not show is simply not shown here.")
+    _tripadvisor_block(lc.get("tripadvisor"))
     sm = lc["summary"]
     c1, c2, c3 = st.columns(3)
     c1.metric("Listings quoted", sm["platforms_quoted"])

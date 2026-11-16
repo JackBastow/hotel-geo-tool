@@ -8,7 +8,7 @@ What it adds
 How it stays honest
   * the listing is only used when it is clearly THIS hotel: the name matches (same or close words) AND the town, postcode or telephone number agrees; otherwise the result says it could not be confirmed and nothing is compared;
   * a missing field is 'not shown', never a difference;
-  * one search and one details call an audit, counted against a monthly cap (store.SERVICE_CAPS['tripadvisor']) kept below the free allowance;
+  * one search, one details and one recent-reviews call an audit, counted against a monthly cap (store.SERVICE_CAPS['tripadvisor']) kept below the free allowance;
   * TripAdvisor's terms ask for attribution and a link back, so the result carries the source name and the listing's web address, and the report names TripAdvisor as the source. Check their current terms before relying on
     how long data may be kept.
 No key -> 'not configured'. The key is sent in the request's query string as TripAdvisor requires, so it is never put in a message, a log line or the saved report.
@@ -60,7 +60,7 @@ def _same_hotel(cand, hotel, city, site):
     return False, "the town, postcode and telephone number could not be matched"
 
 
-def lookup(hotel, city, lat=None, lon=None, api_key=None, site=None, get=requests.get):
+def lookup(hotel, city, lat=None, lon=None, api_key=None, site=None, get=requests.get, site_states=None):
     """-> {"source", "status": ok|not_configured|unavailable|not_found|unconfirmed, "reason", "listing": {...} or None, "calls"}. Never raises."""
     def out(status, reason="", listing=None, calls=0):
         return {"source": SOURCE, "status": status, "reason": reason, "listing": listing, "calls": calls}
@@ -95,7 +95,44 @@ def lookup(hotel, city, lat=None, lon=None, api_key=None, site=None, get=request
     listing = {"location_id": str(chosen.get("location_id")), "name": d.get("name") or chosen.get("name") or "", "url": d.get("web_url") or "", "phone": _digits(d.get("phone") or ""),
                "postcode": addr.get("postalcode") or "", "address": addr.get("address_string") or "", "rating": _num(d.get("rating")), "reviews": _int(d.get("num_reviews")), "ranking": rank,
                "attribution": "Data from TripAdvisor"}
+    rows, why = recent_reviews(listing["location_id"], key, get=get)
+    calls += 1
+    listing["recent"] = themes_from(rows, hotel, site_states) if rows else None
+    if not rows and why:
+        listing["recent_note"] = "TripAdvisor's API did not return recent reviews for this listing."
     return out("ok", "", listing, calls)
+
+
+def recent_reviews(location_id, key, get=requests.get, limit=5):
+    """The few most recent reviews TripAdvisor's API returns for the listing, as plain rows for review_pack. Reviewer names and profiles are never read. -> (rows, error)"""
+    import datetime as dt
+    try:
+        data = (_call(f"/location/{location_id}/reviews", {"language": "en", "limit": limit}, key, get=get) or {}).get("data") or []
+    except Exception as e:  # noqa: BLE001
+        return [], f"{str(e)[:40]}"
+    rows = []
+    for r in data[:limit]:
+        d = None
+        try:
+            d = dt.date.fromisoformat(str(r.get("published_date") or "")[:10])
+        except ValueError:
+            pass
+        rating = _num(r.get("rating"))
+        txt = " ".join(x for x in (str(r.get("title") or "").strip(), str(r.get("text") or "").strip()) if x)
+        if rating is not None or txt:
+            rows.append({"platform": PLATFORM, "date": d, "rating": rating, "text": txt, "positive": "", "negative": "", "reply": "", "reply_date": None})
+    return rows, ""
+
+
+def themes_from(rows, hotel="", site_states=None):
+    """What the few recent reviews praise and criticise, by topic, set against what the hotel's own site states. Counts and topics only: no review text, no names. None when there are none."""
+    import review_pack
+    a = review_pack.analyse(rows, hotel, site_states)
+    if not a:
+        return None
+    p = a["public"]
+    return {"reviews": p["reviews"], "avg_rating": p["avg_rating"], "last_date": str(p["last_date"]) if p.get("last_date") else None, "praised": p["praised"][:5], "criticised": p["criticised"][:5],
+            "note": f"Based on the {p['reviews']} most recent review(s) TripAdvisor's API returned, not on all of the hotel's reviews: a handful cannot show a pattern. Use it as a prompt to check, and use the hotel's own review export for the full picture."}
 
 
 def _num(v):
