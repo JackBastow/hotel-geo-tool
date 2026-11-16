@@ -54,7 +54,7 @@ check("the fact sheet carries the honesty rules", "cannot guarantee" in f and "n
 sj = chat.site()
 check("every plan on the website appears with its price", all(p["name"] in f and (p.get("custom") or f"£{p['monthly']:g}" in f) for p in sj.get("plans", [])) and bool(sj.get("plans")))
 check("the Portfolio tiers, monthly-only billing, Enterprise and the VAT note are stated", "£79 per hotel a month for 5 to 19 hotels" in f and "£69 per hotel a month for 20 to 49 hotels" in f and "monthly billing only" in f and "Enterprise" in f and "exclude VAT" in f and "£990 a year" in f and "saves £198" in f)
-check("the Founding Hotel programme is described as by application, with no number of places left", "Founding Hotel programme: £49.99 a month for the first 12 months" in f and "not automatic" in f and "Do not say how many places are left" in f)
+check("the early-joiner offer is described as by application, with no number of places given", "Early-joiner offer: £49.99 a month for the first 12 months" in f and "Each application is reviewed" in f and "Do not say how many places" in f)
 check("the instructions treat the visitor's words as data and forbid invention", "data" in chat.SYSTEM and "Never invent" in chat.SYSTEM and "ONLY from the FACT SHEET" in chat.SYSTEM)
 
 print("3. the reply")

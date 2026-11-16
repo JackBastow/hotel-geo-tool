@@ -175,7 +175,7 @@ COMPARE_ROWS = [
     ("Portfolio dashboard: every hotel's score, trends and AI visibility side by side", [False, True, True]),
     ("Ongoing analysis: which hotels need attention, and which are improving", [False, True, True]),
     ("Actions tracked hotel by hotel", [False, True, True]),
-    ("A dashboard for each hotel, showing only that hotel", [False, True, True]),
+    ("A dashboard for each hotel, showing only that hotel", [True, True, True]),
     ("Yearly billing", ["Yes, paid upfront", "Monthly only", "By quotation"]),
     ("Consolidated billing, custom reporting, cross-property benchmarking", [False, False, "Available to discuss"]),
     ("Support", ["Email", "Priority email", "To discuss"]),
@@ -235,7 +235,7 @@ def llms_plan_lines(site):
     lines += [f"- Portfolio, {tier_label(t)}: {money(t['price'])} per hotel a month (the tier price applies to every hotel on the account; monthly billing only)" for t in port["tiers"]]
     lines.append(f"- Enterprise, {ent['min_hotels']} or more hotels: custom quotation")
     f = site["founding"]
-    lines.append(f"- Founding Hotel programme: {money(f['price'])} a month for the first {f['months']} months, limited to {f['places']} selected hotels, by application")
+    lines.append(f"- Early-joiner offer: {money(f['price'])} a month for the first {f['months']} months (instead of {money(single['monthly'])}), by application")
     return "\n".join(lines)
 
 

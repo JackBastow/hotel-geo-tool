@@ -93,3 +93,17 @@ footer { background: #060919; border-top: 3px solid var(--gold); }
 .dark:not(.hero):not(.page-hero) { background-color: #0a0f2c; } .honest { background: #0c1238; }
 .founding-band { background: linear-gradient(160deg, #0f1650, #0a0f2c); }
 .form-card .btn.line { background: #f3efe6; color: #14213a; border-color: #d9cfb8; } .form-card .btn.line:hover { border-color: #8f6a25; }
+
+/* early-joiner bar across the top of every page (it sits inside the fixed header, so it moves with it) */
+:root { --promo: 38px; }
+body { padding-top: var(--promo); }
+.promo { display: flex; align-items: center; justify-content: center; gap: 14px; min-height: var(--promo); padding: 4px 16px; background: linear-gradient(90deg, #4527d6, #6d4bff 50%, #4527d6); color: #fff; text-decoration: none; font-size: .86rem; line-height: 1.25; text-align: center; }
+.promo b { font-weight: 700; }
+.promo u { text-decoration: none; font-weight: 700; background: rgba(255,255,255,.2); padding: 4px 12px; border-radius: 99px; white-space: nowrap; transition: background .25s; }
+.promo:hover u { background: rgba(255,255,255,.34); }
+.promo .ps { display: none; }
+.banner { top: calc(68px + var(--promo)); }
+@media (max-width: 760px) {
+  .promo .pl { display: none; } .promo .ps { display: inline; } .promo { font-size: .82rem; gap: 10px; }
+  .links { inset: calc(68px + var(--promo)) 0 auto 0; } .banner { top: calc(68px + var(--promo)); }
+}
