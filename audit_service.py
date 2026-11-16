@@ -33,7 +33,7 @@ class Config:
         self.gemini_reader = get("GEMINI_READER_API_KEY")
         self.youtube = get("YOUTUBE_API_KEY")
         self.pagespeed = get("PAGESPEED_API_KEY")
-        self.tripadvisor = get("TRIPADVISOR_API_KEY")          # optional: the hotel's TripAdvisor listing from TripAdvisor's own official API
+        self.tripadvisor = get("TRIPADVISOR_API_KEY") or get("TRIPADVISOR_KEY")          # optional: the hotel's TripAdvisor listing from TripAdvisor's own official API
         self.firecrawl = get("FIRECRAWL_API_KEY")              # optional second page reader when a hotel's site refuses ours
         self.google_places = get("GOOGLE_PLACES_API_KEY")      # optional: the hotel's Google place and the hotels around it
         self.anthropic = get("ANTHROPIC_API_KEY")

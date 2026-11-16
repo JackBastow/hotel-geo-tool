@@ -1,5 +1,5 @@
 """
-The hotel's TripAdvisor listing, read from TripAdvisor's OWN official Content API (never by reading its web pages), used only when TRIPADVISOR_API_KEY is set on the host (never in code, never typed into the site).
+The hotel's TripAdvisor listing, read from TripAdvisor's OWN official Content API (never by reading its web pages), used only when TRIPADVISOR_API_KEY (or TRIPADVISOR_KEY) is set on the host (never in code, never typed into the site).
 
 What it adds
   * the name, address, postcode and telephone number TripAdvisor shows, compared with the hotel's own website by the same rules as every other listing (listing_facts.compare);
@@ -27,7 +27,7 @@ PLATFORM = "TripAdvisor"
 
 
 def has_key(api_key=None):
-    return bool(api_key or os.environ.get("TRIPADVISOR_API_KEY"))
+    return bool(api_key or os.environ.get("TRIPADVISOR_API_KEY") or os.environ.get("TRIPADVISOR_KEY"))
 
 
 def _digits(s):
@@ -64,7 +64,7 @@ def lookup(hotel, city, lat=None, lon=None, api_key=None, site=None, get=request
     """-> {"source", "status": ok|not_configured|unavailable|not_found|unconfirmed, "reason", "listing": {...} or None, "calls"}. Never raises."""
     def out(status, reason="", listing=None, calls=0):
         return {"source": SOURCE, "status": status, "reason": reason, "listing": listing, "calls": calls}
-    key = api_key or os.environ.get("TRIPADVISOR_API_KEY")
+    key = api_key or os.environ.get("TRIPADVISOR_API_KEY") or os.environ.get("TRIPADVISOR_KEY")
     if not key:
         return out("not_configured", "No TripAdvisor key is configured, so this listing was not read from TripAdvisor.")
     calls = 0

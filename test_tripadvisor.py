@@ -60,6 +60,7 @@ check("no results is 'not found'", ta.lookup("H", "Z", api_key="K", get=lambda *
 bad = ta.lookup("H", "Z", api_key="K", get=lambda *a, **k: R(403, None))
 check("a refused key is 'unavailable', and the response text (which can echo the request) is not kept", bad["status"] == "unavailable" and "SECRET-ECHO" not in str(bad))
 check("no key: not configured, no call, no error", ta.lookup("H", "Z")["status"] == "not_configured")
+check("TRIPADVISOR_KEY works as the name too", audit_service.Config({"TRIPADVISOR_KEY": "tk"}).tripadvisor == "tk")
 check("the key is read from the environment only, and capped below the free allowance", audit_service.Config({"TRIPADVISOR_API_KEY": "tk"}).tripadvisor == "tk" and audit_service.Config({}).tripadvisor is None and store.SERVICE_CAPS["tripadvisor"] <= 5000)
 src = open("full_audit.py", encoding="utf8").read() + open("tripadvisor_check.py", encoding="utf8").read()
 check("no key is in the code, and the blueprint has an empty slot for it", "TRIPADVISOR_API_KEY" in open("render.yaml", encoding="utf8").read() and "KEY=" not in src.replace("api_key=", ""))
