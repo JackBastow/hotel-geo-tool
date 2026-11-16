@@ -107,3 +107,9 @@ body { padding-top: var(--promo); }
   .promo .pl { display: none; } .promo .ps { display: inline; } .promo { font-size: .82rem; gap: 10px; }
   .links { inset: calc(68px + var(--promo)) 0 auto 0; } .banner { top: calc(68px + var(--promo)); }
 }
+
+/* sample report: supporting findings */
+.sup-h { font-size: 1.15rem; margin: 34px 0 6px; color: #fff; }
+.sup { list-style: none; padding: 0; margin: 0; }
+.sup li { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); font-size: .94rem; color: var(--muted); } .sup li:first-child { border-top: 0; }
+.sup li b { color: var(--text); font-weight: 600; } .sup .pill { flex: none; margin-top: 2px; }
