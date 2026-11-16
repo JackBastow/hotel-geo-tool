@@ -50,6 +50,7 @@
         var el = en.target, txt = el.getAttribute("data-final"), m = /^(\D*)(\d+(?:\.\d+)?)(.*)$/.exec(txt);
         if (!m) return;
         var to = parseFloat(m[2]), dec = (m[2].split(".")[1] || "").length, t0 = null;
+        setTimeout(function () { el.textContent = txt; }, 1800);     // always land on the true figure, even if the tab was paused mid-count
         (function tick(t) {
           if (t0 === null) t0 = t;
           var k = Math.min(1, (t - t0) / 1400), e = 1 - Math.pow(1 - k, 3);
@@ -58,7 +59,7 @@
         })(performance.now());
       });
     }, { threshold: .6 });
-    $$(".big").forEach(function (el) {
+    $$(".big, .du-count").forEach(function (el) {
       var txt = el.textContent.trim();
       if (!/^\D*\d/.test(txt) || /[×x]$/.test(txt)) return;   // leave "2×" alone
       el.setAttribute("data-final", txt); el.textContent = txt.replace(/\d+(\.\d+)?/, "0"); count.observe(el);

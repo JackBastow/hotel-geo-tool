@@ -280,17 +280,17 @@
     var d = new FormData(form);
     if (d.get("company")) { say("ok", "Thanks, we'll be in touch."); return; }
     var email = String(d.get("email") || "").trim();
-    var need = ["name", "hotel", "city", "website"].every(function (k) { return String(d.get(k) || "").trim(); });
-    if (!need || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { say("err", "Please add your name, email, and your hotel's name, town or city and website."); return; }
+    var need = ["hotel", "website"].every(function (k) { return String(d.get(k) || "").trim(); });
+    if (!need || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { say("err", "Please add your hotel's name and website, and your email."); return; }
     var hotel = String(d.get("hotel")).trim();
     if (cfg.FORM_ENDPOINT && window.PPsend) {
       var btn = form.querySelector("button[type=submit]"); btn.disabled = true;
       window.PPsend(d, "Presence Pro snapshot request: " + hotel)
         .then(function () { form.reset(); say("ok", "Thanks. We'll email your snapshot to " + email + "."); })
-        .catch(function () { say("err", "Sorry, that didn't send. Please email " + cfg.EMAIL + " with your hotel's name, town and website."); })
+        .catch(function () { say("err", "Sorry, that didn't send. Please email " + cfg.EMAIL + " with your hotel's name and website."); })
         .then(function () { btn.disabled = false; });
     } else {
-      var body = "Name: " + d.get("name") + "\nEmail: " + email + "\nHotel: " + hotel + "\nTown or city: " + d.get("city") + "\nWebsite: " + d.get("website");
+      var body = "Name: " + (d.get("name") || "") + "\nEmail: " + email + "\nHotel: " + hotel + "\nTown or city: " + (d.get("city") || "") + "\nWebsite: " + d.get("website");
       window.location.href = "mailto:" + cfg.EMAIL + "?subject=" + encodeURIComponent("Presence Pro snapshot request: " + hotel) + "&body=" + encodeURIComponent(body);
       say("ok", "Your email app should open with your request ready to send.");
     }
@@ -309,15 +309,15 @@
     var d = new FormData(form);
     if (d.get("company")) { say("ok", "Thanks, we'll be in touch."); return; }
     var email = String(d.get("email") || "").trim();
-    var need = ["name", "hotel", "city", "website"].every(function (k) { return String(d.get(k) || "").trim(); });
-    if (!need || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { say("err", "Please add your name, email, and your hotel's name, town or city and website."); return; }
+    var need = ["hotel", "website"].every(function (k) { return String(d.get(k) || "").trim(); });
+    if (!need || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { say("err", "Please add your hotel's name and website, and your email."); return; }
     if (!d.get("agree")) { say("err", "Please tick the box to confirm you understand how the programme works."); return; }
     var hotel = String(d.get("hotel")).trim();
     if (cfg.FORM_ENDPOINT && window.PPsend) {
       var btn = form.querySelector("button[type=submit]"); btn.disabled = true;
       window.PPsend(d, "Presence Pro Founding Hotel application: " + hotel)
         .then(function () { form.reset(); say("ok", "Thanks, we have your application. We'll reply to " + email + " within a few working days, whether or not it's a yes."); })
-        .catch(function () { say("err", "Sorry, that didn't send. Please email " + cfg.EMAIL + " with your hotel's name, town and website."); })
+        .catch(function () { say("err", "Sorry, that didn't send. Please email " + cfg.EMAIL + " with your hotel's name and website."); })
         .then(function () { btn.disabled = false; });
     } else {
       var body = "Name: " + d.get("name") + "\nEmail: " + email + "\nRole: " + (d.get("role") || "") + "\nHotel: " + hotel + "\nTown or city: " + d.get("city") + "\nWebsite: " + d.get("website") + "\n\n" + (d.get("message") || "");
