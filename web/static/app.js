@@ -195,8 +195,11 @@ document.addEventListener("click", function (ev) {
     .then(function (j) {
       b.disabled = false;
       if (j && j.ok) {      /* update the buttons in place: no page reload, so it feels instant; the lists and counts regroup the next time the page is opened */
-        card.querySelectorAll(".act-set").forEach(function (x) { x.classList.toggle("on", x === b); });
-        card.setAttribute("data-kind", b.getAttribute("data-v") === "done" ? "completed" : b.getAttribute("data-v"));
+        /* the same action can be on the page twice (Start here and Recommendations): keep every copy in step */
+        root.querySelectorAll('.act[data-id="' + card.getAttribute("data-id") + '"]').forEach(function (c) {
+          c.querySelectorAll(".act-set").forEach(function (x) { x.classList.toggle("on", x.getAttribute("data-v") === b.getAttribute("data-v")); });
+          c.setAttribute("data-kind", b.getAttribute("data-v") === "done" ? "completed" : b.getAttribute("data-v"));
+        });
       } else { alert((j && j.error) || "That did not save. Please try again."); }
     })
     .catch(function () { b.disabled = false; alert("That did not save. Please check your connection and try again."); });

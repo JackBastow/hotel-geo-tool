@@ -223,6 +223,7 @@ u8 = app.test_client()
 u8.post("/portal/signin", data={"email": "gm@hotel-a.com", "password": "another-long-pass-9"})
 page = u8.get("/portal").get_data(as_text=True)
 check("the dashboard has tabs: Overview, AI visibility, Recommendations, History", all(x in page for x in ('data-name="overview"', 'data-name="ai"', 'data-name="actions"', 'data-name="history"')))
+check("the real dashboard route opens on Start here (first tab) with the three first actions and the other tabs after it", page.index('data-name="start"') < page.index('data-name="overview"') and "Do these first" in page and "Named by an AI assistant" in page)
 check("the AI visibility tab shows the citations section and says what it is a sample of", "Brand performance over time" in page or "No AI answers have been saved" in page)
 cur = {"u1": {"url": "u1", "cited": 10, "domain": "a.com"}, "u2": {"url": "u2", "cited": 4, "domain": "b.com"}, "u3": {"url": "u3", "cited": 7, "domain": "c.com"}, "u4": {"url": "u4", "cited": 3, "domain": "d.com"}}
 prev = {"u1": {"url": "u1", "cited": 10, "domain": "a.com"}, "u2": {"url": "u2", "cited": 8, "domain": "b.com"}, "u3": {"url": "u3", "cited": 5, "domain": "c.com"}, "u9": {"url": "u9", "cited": 6, "domain": "z.com"}}

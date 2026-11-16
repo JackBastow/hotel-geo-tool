@@ -22,6 +22,7 @@ import accounts
 import ai_dash
 import backend
 import portal_view
+import start_here
 import progress
 import prompt_sets
 import prompts_view
@@ -199,7 +200,7 @@ def register(app, cfg):
         pst = prompt_sets.state(d, hotel)
         rep = _latest(d, d.hotel_runs(hotel["hotel_key"]))
         since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
-        body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), ai=ai_dash.panel(d, hotel), prompts=prompts_view.panel(pst, hotel, "/portal/api/prompts/" + str(hotel["id"]), True, since, _suggestions(rep, pst)),
+        body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), start=start_here.safe(d, hotel, sm, acts, runs, True, pst), ai=ai_dash.panel(d, hotel), prompts=prompts_view.panel(pst, hotel, "/portal/api/prompts/" + str(hotel["id"]), True, since, _suggestions(rep, pst)),
                                      prompts_alert=bool(pst["draft"] and not pst["active"]), opps=_opps(rep), strategy=_strategy(rep),
                                      live=app.extensions["weekly"].hotel_state(hotel["id"]), live_url=f"/portal/api/status/{hotel['id']}")
         return shell(hotel["name"] + ": progress", body, user, hotels)
