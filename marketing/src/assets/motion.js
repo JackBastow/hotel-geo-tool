@@ -77,7 +77,7 @@
       if (y > 220 && y - lastY > 6) nav.classList.add("hide"); else if (y < lastY - 6 || y < 120) nav.classList.remove("hide");
     }
     lastY = y;
-    if (hero && y < 900) { hero.style.setProperty("--py", Math.min(y * .22, 56).toFixed(1) + "px"); hero.style.setProperty("--cy", (-y * .06).toFixed(1) + "px"); }
+    if (hero && y < 900) { root.style.setProperty("--py", Math.min(y * .22, 56).toFixed(1) + "px"); root.style.setProperty("--cy", (-y * .06).toFixed(1) + "px"); }
     var vh = window.innerHeight;
     photos.forEach(function (img) {
       var r = img.parentNode.getBoundingClientRect();

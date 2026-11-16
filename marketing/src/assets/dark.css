@@ -1,0 +1,95 @@
+/* Presence Pro: the dark theme for every page. Loaded after theme.css (which stays as the light version) and before home.css.
+   To go back to the light inner pages, delete the dark.css link in src/partials/layout.html. */
+:root {
+  --paper: #070b1d; --paper-2: #0a1031; --card: #10173d; --text: #e4e8f7; --muted: rgba(228,232,247,.68); --line: rgba(255,255,255,.12);
+  --gold: #d3ab63; --gold-d: #e0bd78; --signal: #8cc2a8; --signal-d: #7fd0a8;
+  --shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 20px 44px -24px rgba(0,0,0,.75);
+  --violet: #8f7bff; --violet-d: #6d4bff;
+}
+html { color-scheme: dark; }
+body { background: var(--paper); color: var(--text); }
+h1, h2, h3 { font-family: var(--hd, "Inter", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif); font-weight: 650; letter-spacing: -.028em; }
+::selection { background: rgba(143,123,255,.45); color: #fff; }
+
+/* navigation */
+.logo { color: #fff; } .logo b { color: var(--gold); }
+.links a { color: rgba(255,255,255,.82); } .links a:hover, .links a[aria-current] { color: #fff; }
+.links a.btn.gold, .links a.btn.gold:hover { color: #1a1405; }
+.menu-btn { color: #fff; border-color: rgba(255,255,255,.28); }
+.nav.stuck { background: rgba(12,18,48,.9); border-color: rgba(255,255,255,.1); box-shadow: 0 8px 28px -18px rgba(0,0,0,.6); }
+@media (max-width: 760px) { .links { background: rgba(10,15,40,.98); border-bottom-color: rgba(255,255,255,.12); } .links a { border-bottom-color: rgba(255,255,255,.1); } .nav.menu-open { background: #0a1031; } }
+
+/* buttons */
+.btn.dark { background: linear-gradient(135deg, var(--violet-d), #5a3ae0); color: #fff; box-shadow: 0 10px 24px -12px rgba(109,75,255,.9); } .btn.dark:hover { background: linear-gradient(135deg, #7a5bff, #6342ee); }
+.btn.line { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.2); color: #fff; } .btn.line:hover { border-color: var(--gold); }
+.btn.ghost, .hero .btn.ghost, .page-hero .btn.ghost { border-color: rgba(255,255,255,.38); color: #fff; } .btn.ghost:hover, .hero .btn.ghost:hover, .page-hero .btn.ghost:hover { background: rgba(255,255,255,.1); }
+
+/* page headers: night, with the street of hotels lit up along the bottom */
+.hero.dark, .page-hero.dark { color: #fff;
+  background: radial-gradient(900px 520px at 88% -6%, rgba(124,92,255,.42), transparent 62%), radial-gradient(640px 420px at 0% 100%, rgba(201,161,90,.14), transparent 60%), linear-gradient(180deg, #0b1130 0%, #121946 100%); }
+.hero.dark h1, .page-hero.dark h1 { color: #fff; }
+.hero.dark h1 em, .page-hero.dark h1 em { color: #cbb4ff; font-style: italic; }
+.hero.dark .sub, .page-hero.dark p.lede { color: rgba(255,255,255,.8); }
+.page-hero.dark .lede b { color: #fff; }
+.hero.dark .eyebrow, .page-hero.dark .eyebrow { color: var(--gold); }
+.hero.dark .assure, .page-hero.dark .meta { color: rgba(255,255,255,.6); }
+.hero::after, .page-hero::after { background: url("/street-night.svg") repeat-x center bottom / auto 250px; }
+@media (max-width: 760px) { .hero::after, .page-hero::after { background-size: auto 150px; } }
+.toggle { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.14); }
+.toggle button { color: rgba(255,255,255,.8); } .toggle button[aria-pressed=true] { background: linear-gradient(135deg, var(--violet-d), #5a3ae0); color: #fff; }
+.banner { background: #2a2240; color: #f1d9a0; border-bottom-color: rgba(201,161,90,.35); }
+
+/* surfaces */
+.card, .glance, .stat, .plan, .chain, .vs, .avail-col, .callout, .thread, .sr-act, .na, .tab, .lane, .window, .dash, .be, .form-card.dim { background: var(--card); border-color: var(--line); color: var(--text); }
+.card { border-top: 2px solid var(--gold); }
+.plan.feat { background: linear-gradient(160deg, rgba(124,92,255,.3), rgba(16,23,61,.95)); border-color: var(--violet); }
+.plan .price { color: #fff; } .plan .price .per, .plan .save, .plan .for { color: var(--muted); } .plan.feat .price .amt { color: var(--gold); } .plan.feat .for, .plan.feat .save { color: rgba(255,255,255,.72); }
+.plan li { color: rgba(255,255,255,.88); } .plan.feat .rules li { color: rgba(255,255,255,.78); }
+.tab b, .tab span { color: var(--text); } .tab span { color: var(--muted); } .tab[aria-selected=true] { background: rgba(255,255,255,.08); border-color: var(--violet); }
+.sec-head p, .card p, .lede { color: var(--muted); }
+.glance dd, .article p, .article li, .chain li span, .be-card p, .prose p, .prose li, .legal p, .legal li, .sr-act dd { color: rgba(228,232,247,.86); }
+.glance dt { color: var(--gold); } .chain li b { color: var(--gold); }
+.stat .big { color: var(--gold); } .stat p { color: var(--text); }
+.metric, .be-card, .win-bar, .say, .chip, .na, .sr-act blockquote, .chip-step { background: rgba(255,255,255,.06); color: var(--text); border-color: var(--line); }
+.chip { border-color: rgba(255,255,255,.22); } .win-bar { background: rgba(255,255,255,.07); }
+.say { border-left-color: var(--gold); } .say small { color: var(--gold); }
+.lane.good { background: rgba(140,194,168,.1); border-color: rgba(140,194,168,.55); } .lane.bad { background: rgba(255,122,102,.1); border-color: rgba(255,122,102,.55); }
+.lane.good h4 { color: #8cdcb8; } .lane.bad h4 { color: #ff9a85; }
+.chip-step.end { background: rgba(255,255,255,.1); }
+.track { background: rgba(255,255,255,.12); }
+.pill.ok { background: rgba(140,194,168,.2); color: #a7e3c8; } .pill.lk { background: rgba(217,164,65,.2); color: #f0c97a; } .pill.ck { background: rgba(255,255,255,.12); color: #d3d8f0; } .pill.hi { background: rgba(255,122,102,.2); color: #ff9a85; }
+.chain-tag, .chip-prov, .dash-top span, .legal .draft { background: rgba(201,161,90,.18); color: var(--gold); border-color: rgba(201,161,90,.35); }
+.ico { background: rgba(143,123,255,.2); color: #cbb4ff; }
+.fine, .legend, .note, .vs .fine { color: var(--muted); }
+
+/* tables */
+.table-wrap, table.compare, table.data { border-color: var(--line); }
+table.compare th, table.compare td, table.data th, table.data td { border-color: var(--line); color: var(--text); background: transparent; }
+table.compare thead th, table.data thead th { background: rgba(255,255,255,.06); color: #fff; }
+table.data tr.you td { background: rgba(143,123,255,.14); }
+table.compare tbody th { color: var(--text); } .yes { color: var(--signal-d); }
+
+/* forms: light cards stay light, with their own colours */
+.form-card { --text: #1f2a3d; --muted: #5b6579; --line: #e7dfcd; --gold-d: #8f6a25; --card: #fff; background: #fff; color: var(--text); border-color: transparent; }
+.form-card h2, .form-card h3 { color: #14213a; } .form-card p { color: #5b6579; }
+.be-in input, .calc input, .chat-form input { background: rgba(7,11,29,.75); color: #fff; border-color: rgba(255,255,255,.2); }
+.be-in label, .calc label, .be-in small, .be-note { color: rgba(255,255,255,.75); }
+.faq details { border-color: var(--line); } .faq summary { color: #fff; } .faq details p { color: var(--muted); }
+.side-list li { border-color: var(--line); } .side-list b { color: #fff; } .side-list span { color: var(--muted); }
+
+/* text pages */
+.prose-page, .legal { background: var(--paper); } .prose h1, .prose h2, .legal h2, .legal h3 { color: #fff; } .prose .meta { color: var(--muted); }
+.light { background: var(--paper); } .alt { background: var(--paper-2); }
+.sec-num { color: var(--gold); }
+a { color: inherit; }
+.prose a, .legal a, .article a { color: var(--gold); }
+.plans-foot, .stat-note { color: var(--muted); } .plans-foot a { color: var(--gold); }
+.kind { background: rgba(255,255,255,.07); color: #fff; }
+.photo-credit { color: var(--muted); }
+
+/* the dark bands and footer stay navy */
+.final { background: radial-gradient(700px 360px at 50% 0, rgba(124,92,255,.3), transparent 70%), #0a0f2c; border-top: 3px solid var(--gold); }
+footer { background: #060919; border-top: 3px solid var(--gold); }
+.dark:not(.hero):not(.page-hero) { background-color: #0a0f2c; } .honest { background: #0c1238; }
+.founding-band { background: linear-gradient(160deg, #0f1650, #0a0f2c); }
+.form-card .btn.line { background: #f3efe6; color: #14213a; border-color: #d9cfb8; } .form-card .btn.line:hover { border-color: #8f6a25; }
