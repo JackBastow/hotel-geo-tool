@@ -45,7 +45,7 @@ check("the score movement is stated with both numbers", "went up by 6" in html a
 check("a rival that is new in the answers is named", "New in the answers" in html and "New Rival" in html)
 check("an action finished since the last check is listed, one finished long ago is not", "Finished this week" in html.split("What changed")[1].split("Do these first")[0] and "Finished long ago" not in html)
 check("the three first actions are the most serious open ones, quick before slow", [t for t in ("Critical fix", "High quick fix", "High slow fix") if t in html.split("Do these first")[1]] == ["Critical fix", "High quick fix", "High slow fix"] and "Low priority thing" not in html.split("Do these first")[1] and "Medium thing" not in html.split("Do these first")[1])
-check("each shows its issue, evidence, fix and a Done button in one place, already open", html.count('class="rec-d" open') == 3 and "Do 2 on the rooms page" in html and "Rooms page text" in html and 'data-v="done"' in html)
+check("each shows what to do and a Done button at once, numbered, with the reasoning and evidence one click away", html.count('class="act-do"') == 3 and html.count('class="act-n"') == 3 and "Do 2 on the rooms page" in html and "Rooms page text" in html and 'data-v="done"' in html and 'class="rec-d" open' not in html)
 check("it says movement is not proof of cause", "not cause" in html)
 first = start_here.panel(DB(), hotel, {**sm, "runs": 1}, acts, runs[:1], True)
 check("the first check says it is the baseline and puts the actions first, with no change claimed", "This is the first check" in first and "What changed" not in first and first.index("Do these first") < first.index("first check"))

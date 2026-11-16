@@ -321,3 +321,122 @@ document.addEventListener("click", function (ev) {
   box.dispatchEvent(new Event("input", { bubbles: true }));
   d.scrollIntoView({ behavior: "smooth", block: "center" });
 });
+
+/* ---- polish: motion that explains. Nothing here changes what a page says; with reduced motion asked for, none of it runs. */
+(function () {
+  "use strict";
+  var calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var each = function (sel, fn, root) { Array.prototype.forEach.call((root || document).querySelectorAll(sel), fn); };
+
+  /* the top tabs: one highlight that slides to the tab you pick */
+  function ink(bar) {
+    var el = bar.querySelector(":scope > .tab-ink"), on = bar.querySelector(":scope > .tab.active");
+    if (!el || !on) { return; }
+    el.style.width = on.offsetWidth + "px";
+    el.style.transform = "translateX(" + on.offsetLeft + "px)";
+  }
+  function inks() { each(".tabs.top > .tab-bar", ink); }
+  document.addEventListener("DOMContentLoaded", function () {
+    each(".tabs.top > .tab-bar", function (bar) {
+      var el = document.createElement("span");
+      el.className = "tab-ink";
+      el.style.transition = "none";
+      bar.insertBefore(el, bar.firstChild);
+      bar.classList.add("has-ink");
+      ink(bar);
+      requestAnimationFrame(function () { requestAnimationFrame(function () { el.style.transition = ""; }); });
+    });
+    setTimeout(inks, 60);
+  });
+  document.addEventListener("click", function (ev) {
+    var t = ev.target.closest(".tabs.top > .tab-bar .tab, [data-goto]");
+    if (!t) { return; }
+    setTimeout(function () {
+      inks();
+      var on = document.querySelector(".tabs.top > .tab-bar .tab.active");
+      if (on && on.scrollIntoView) { on.scrollIntoView({ block: "nearest", inline: "center", behavior: calm ? "auto" : "smooth" }); }
+    }, 0);
+  });
+  window.addEventListener("resize", inks);
+  window.addEventListener("load", inks);
+
+  if (calm || !("IntersectionObserver" in window)) { return; }
+  document.documentElement.classList.add("js");
+
+  /* numbers count up to their value the first time they are seen */
+  function countUp(el) {
+    var node = el.firstChild;
+    if (!node || node.nodeType !== 3) { return; }
+    var txt = node.nodeValue, m = /^(\s*[+\-]?)(\d+(?:\.\d+)?)(\s*)$/.exec(txt);
+    if (!m) { return; }
+    var end = parseFloat(m[2]), dec = (m[2].split(".")[1] || "").length, t0 = null, dur = 900;
+    if (end === 0) { return; }
+    function step(ts) {
+      if (t0 === null) { t0 = ts; }
+      var p = Math.min(1, (ts - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      node.nodeValue = m[1] + (end * e).toFixed(dec) + m[3];
+      if (p < 1) { requestAnimationFrame(step); } else { node.nodeValue = txt; }
+    }
+    requestAnimationFrame(step);
+  }
+  /* the score ring and the trend lines draw themselves */
+  function drawRing(ring) {
+    var c = ring.querySelector("svg circle:nth-child(2)");
+    if (!c) { return; }
+    var full = c.getAttribute("stroke-dasharray") || "", parts = full.split(/\s+/);
+    if (parts.length !== 2) { return; }
+    c.style.strokeDasharray = "0 " + parts[1];
+    c.getBoundingClientRect();
+    c.style.transition = "stroke-dasharray 1.1s cubic-bezier(.2,.7,.2,1)";
+    requestAnimationFrame(function () { c.style.strokeDasharray = full; });
+  }
+  function drawLines(svg) {
+    each("polyline, path[fill='none']", function (ln) {
+      var len;
+      try { len = ln.getTotalLength(); } catch (e) { return; }
+      if (!len || ln.getAttribute("stroke-dasharray")) { return; }
+      ln.style.strokeDasharray = len;
+      ln.style.strokeDashoffset = len;
+      ln.getBoundingClientRect();
+      ln.style.transition = "stroke-dashoffset 1.2s cubic-bezier(.2,.7,.2,1)";
+      requestAnimationFrame(function () { ln.style.strokeDashoffset = 0; });
+      setTimeout(function () { ln.style.strokeDasharray = ""; ln.style.strokeDashoffset = ""; ln.style.transition = ""; }, 1400);
+    }, svg);
+  }
+
+  var REVEAL = ".hero, .ov-hero, .kpi, .panel, .prio, .insight, .feature, .act, .rec, .thread, .plan-col, .talk-callout, .pt-progress, .glance > *, .steps li, .card, .table-wrap, .details";
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (!en.isIntersecting) { return; }
+      var el = en.target;
+      io.unobserve(el);
+      el.classList.add("in");
+      setTimeout(function () { el.classList.add("settled"); }, 900);
+      each(".kpi-value, .hk-num b, .ch-centre b", countUp, el);
+      each(".hk-ring", drawRing, el);
+      each("svg.trend, svg.lines", drawLines, el);
+    });
+  }, { rootMargin: "0px 0px -6% 0px", threshold: 0.04 });
+
+  function arm(root) {
+    var seen = [];
+    each(REVEAL, function (el) {
+      if (el.classList.contains("rv")) { return; }
+      var p = el.parentNode, i = seen.indexOf(p), n;
+      if (i < 0) { seen.push(p, 0); i = seen.length - 2; }
+      n = seen[i + 1]++;
+      el.style.setProperty("--d", Math.min(n, 5) * 55 + "ms");
+      el.classList.add("rv");
+      io.observe(el);
+    }, root);
+  }
+  document.addEventListener("DOMContentLoaded", function () { arm(document); });
+  /* a safety net: nothing may ever stay hidden because an observer did not fire */
+  window.addEventListener("load", function () { setTimeout(function () { each(".rv:not(.in)", function (el) { if (el.offsetParent !== null && el.getBoundingClientRect().top < window.innerHeight) { el.classList.add("in", "settled"); } }); }, 1200); });
+
+  /* a small confirmation when an action is marked */
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest(".act-set");
+    if (b) { b.classList.remove("saved"); void b.offsetWidth; b.classList.add("saved"); }
+  });
+})();

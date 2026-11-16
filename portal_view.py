@@ -104,7 +104,7 @@ def _state_chips(a, latest_run_id, runs):
     return "".join(out)
 
 
-def action_card(a, sm, editable):
+def action_card(a, sm, editable, lead=None):
     rec = _rec(a)
     kind = progress.classify(a)
     team = TEAM.get(a["team"], a["team"])
@@ -127,9 +127,13 @@ def action_card(a, sm, editable):
     conf = rec.get("confidence_label")
     import advice
     track = rec.get("track") or advice.track_of({"id": rec.get("id", ""), "source": a.get("source") or rec.get("source", ""), "tag": rec.get("tag", "")})
-    return (f'<article class="act {PRI_TONE.get(a["priority"], "")}" data-id="{a["id"]}" data-kind="{kind}" data-track="{track}"><details class="rec-d"><summary><span class="rec-t">{esc(a["title"])}</span>'
-            f'<span class="rec-meta">{chip((a["priority"] or "").capitalize(), PRI_TONE.get(a["priority"], ""))}{chip(team)}{chip("Effort: " + a["effort"]) if a["effort"] else ""}{chip(conf) if conf else ""}{chip(advice.TRACKS.get(track, ""), "brand")}</span></summary>'
-            f'<div class="rec-body">{why}{do}</div></details><div class="act-row">{_state_chips(a, sm["latest_run_id"], sm["runs"])}{buttons}</div></article>')
+    # `lead` (a number) is the short form used on Start here: the number, the title and what to do are visible at once, and the reasoning opens on request
+    n_html = f'<span class="act-n">{lead}</span>' if lead else ""
+    do_html = (f'<div class="act-do"><b>What to do</b>{esc(rec.get("action", ""))}</div>' if lead and rec.get("action") else "")
+    more = '<span class="act-more">Why, and the evidence</span>' if lead else ""
+    return (f'<article class="act {PRI_TONE.get(a["priority"], "")}{" first" if lead else ""}" data-id="{a["id"]}" data-kind="{kind}" data-track="{track}"><details class="rec-d"><summary>{n_html}<span class="rec-t">{esc(a["title"])}</span>'
+            f'<span class="rec-meta">{chip((a["priority"] or "").capitalize(), PRI_TONE.get(a["priority"], ""))}{chip(team)}{chip("Effort: " + a["effort"]) if a["effort"] else ""}{chip(conf) if conf else ""}{chip(advice.TRACKS.get(track, ""), "brand")}</span>{more}</summary>'
+            f'<div class="rec-body">{why}{do}</div></details>{do_html}<div class="act-row">{_state_chips(a, sm["latest_run_id"], sm["runs"])}{buttons}</div></article>')
 
 
 def action_board(sm, actions, editable):

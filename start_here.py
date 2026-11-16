@@ -81,7 +81,8 @@ def panel(db, hotel, sm, actions, runs, editable=True, prompts_alert=False):
     tone = pv.GOOD if (sc_now or 0) >= 75 else pv.WARN if (sc_now or 0) >= 50 else pv.BAD
     ready = pv.kpi("Readiness score", "-" if sc_now is None else _fmt(sc_now), (_plain(_delta(sc_now, sc_prev)) if sc_prev is not None else "set up to be found and understood"), tone if sc_now is not None else pv.GREY, "/100")
     if top_rivals:
-        inst = pv.kpi("Recommended instead", top_rivals[0][0][:34], "; ".join(f"{n} ({p:g}%)" for n, p in top_rivals[:3]) + " · share of sampled answers naming them", pv.WARN)
+        rows = "".join(f"<li><b>{esc(n)}</b><span>{p:g}%</span></li>" for n, p in top_rivals[:3])
+        inst = (f'<div class="kpi" style="--kc:{pv.WARN}"><span class="kpi-label">Recommended instead</span><ul class="rank">{rows}</ul><span class="kpi-sub">share of sampled answers naming them</span></div>')
     else:
         inst = pv.kpi("Recommended instead", "-", "no rivals were named often enough to list", pv.GREY)
     tiles = f'<div class="kpis">{vis}{ready}{inst}</div>'
@@ -112,8 +113,8 @@ def panel(db, hotel, sm, actions, runs, editable=True, prompts_alert=False):
     # ---- the first things to do, open: issue, evidence, fix and Done in one place
     first = _top_actions(actions)
     if first:
-        cards = "".join(pv.action_card(a, sm, editable).replace('<details class="rec-d">', '<details class="rec-d" open>', 1) for a in first)
-        todo = f'<div class="sec-head"><h3>Do these first</h3></div><p class="caption">The most important things still open. Mark each one as you go; it is kept up to date in the Recommendations tab too.</p>{cards}'
+        cards = "".join(pv.action_card(a, sm, editable, lead=i) for i, a in enumerate(first, 1))
+        todo = f'<div class="sec-head"><h3>Do these first</h3></div><p class="caption">The most important things still open. Mark each one as you go.</p>{cards}'
     else:
         todo = '<div class="sec-head"><h3>Do these first</h3></div><div class="alert success">Nothing serious is open. Keep the weekly checks running and watch the AI visibility tab.</div>'
     callout = ""
