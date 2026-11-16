@@ -188,6 +188,22 @@ def _talk_callout(rep):
             f'Each has a link and suggested wording.</p></div><button type="button" class="btn primary" data-goto="talk">See the threads &rarr;</button></section>')
 
 
+def at_a_glance(rep):
+    """The three things a reader asks first, as one row at the top of the Overview: who the assistant named, who it recommended instead, and which sites its answers drew on."""
+    ins, sb, br = _ai(rep)
+    rows = br.get("rows") or []
+    me = next((r for r in rows if r.get("is_target")), None)
+    others = sorted([r for r in rows if not r.get("is_target") and (r.get("coverage_pct") or 0) > 0], key=lambda r: -(r["coverage_pct"] or 0))[:3]
+    doms = ((rep.get("ai_sample") or {}).get("summary") or {}).get("top_domains") or []
+    if not rows and not doms:
+        return ""
+    own = (f'<b>{me["coverage_pct"]:g}%</b> of the sampled answers named the hotel.' if me and me.get("coverage_pct") is not None else "The hotel was not named in the sampled answers.")
+    inst = ("<ul>" + "".join(f'<li>{esc(r["name"])} <span class="hk-muted">{r["coverage_pct"]:g}%</span></li>' for r in others) + "</ul>") if others else '<p class="hk-muted">No rival was named often enough to list.</p>'
+    src = ("<ul>" + "".join(f"<li>{esc(d)}</li>" for d in doms[:4]) + "</ul>") if doms else '<p class="hk-muted">No sources were recorded.</p>'
+    return ('<div class="glance"><section class="panel"><h4>Is the hotel named?</h4><p>' + own + ' One assistant, one day: a sample, not a ranking.</p></section>'
+            '<section class="panel"><h4>Recommended instead</h4>' + inst + '</section><section class="panel"><h4>Sites the answers drew on</h4>' + src + '</section></div>')
+
+
 def overview(rep, prev=None):
     cons = rep.get("consultant") or {}
     h = rep.get("headline") or {}
@@ -202,6 +218,8 @@ def overview(rep, prev=None):
                  f'<div class="p-track" style="margin:8px 0 4px"><div class="p-fill" style="width:{min(max(h.get("coverage_pct", 0), 0), 100):.0f}%"></div></div>'
                  f'<div class="caption">Measurement coverage: {h.get("coverage_pct", 0):.0f}% of the full model assessed</div><p class="ov-expl">{esc(h.get("explanation", ""))}</p>'
                  f'{"<div><span class=hk-label>Not measured</span> " + unassessed + "</div>" if unassessed else ""}</div></section>')
+
+    parts.append(at_a_glance(rep))
 
     # --- headline numbers
     parts.append('<div class="kpis">' + "".join(_kpi_html(k) for k in kpis(rep, prev)) + "</div>")
@@ -219,7 +237,8 @@ def overview(rep, prev=None):
     else:
         parts.append('<div class="alert success">Nothing in this audit met the bar for a required fix.</div>')
 
-    # --- charts
+    # --- charts, what stands out and the priority map are kept for those who want the detail, folded away so the first screen stays short
+    fold_at = len(parts)
     cat_rows = [{"label": c["label"], "value": c["score"] if c.get("assessed") else None} for c in sc.get("categories", [])]
     left = radar(cat_rows) + bars(cat_rows)
     qd = donut([{"label": "Answered", "value": counts["answered"], "colour": GOOD}, {"label": "Partly", "value": counts["partial"] + counts["needs_checking"], "colour": WARN},
@@ -239,6 +258,10 @@ def overview(rep, prev=None):
     if ordered:
         mx = matrix([{"n": num[r["id"]], "title": r["title"], "impact": r.get("impact"), "effort": r.get("effort"), "kind": r["kind"]} for r in ordered])
         parts.append(f'<div class="sec-head"><h3>Priority map</h3><button type="button" class="link" data-goto="action">Open the action plan &rarr;</button></div><section class="panel">{mx}</section>')
+    detail = parts[fold_at:]
+    del parts[fold_at:]
+    if detail:
+        parts.append('<details class="details"><summary>Charts and further detail (scores by area, what stands out, priority map)</summary><div class="details-body">' + "".join(detail) + "</div></details>")
     return "".join(parts)
 
 

@@ -63,6 +63,12 @@ check("safe() never raises on bad input", isinstance(start_here.safe(None, None,
 d = portal_view.dashboard(sm, acts, runs, editable=True, csrf="c", start=html)
 check("the dashboard puts Start here first and keeps every other tab", d.index('data-name="start"') < d.index('data-name="overview"') and all(f'data-name="{k}"' in d for k in ("ai", "strategy", "prompts", "actions", "history")))
 check("without it the dashboard is as before", 'data-name="start"' not in portal_view.dashboard(sm, acts, runs, editable=True, csrf="c"))
+import dashboard_view
+_rep = {"ai_insights": {"brand_ranking": {"rows": [{"name": "Us", "is_target": True, "coverage_pct": 10}, {"name": "Rival A", "is_target": False, "coverage_pct": 40}]}}, "ai_sample": {"summary": {"top_domains": ["booking.com"]}}, "consultant": {}, "scorecard": {}, "headline": {}}
+_g = dashboard_view.at_a_glance(_rep)
+check("the report overview opens with who is named, who is recommended instead and which sites the answers drew on", "10%" in _g and "Rival A" in _g and "booking.com" in _g)
+check("with no AI answers at all the row is left out rather than shown empty", dashboard_view.at_a_glance({"ai_insights": {}, "ai_sample": {}}) == "")
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

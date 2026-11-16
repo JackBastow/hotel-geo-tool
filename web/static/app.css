@@ -234,3 +234,8 @@ svg.trend { width: 100%; height: auto; max-height: 340px; }
 .chg { margin: 0; padding-left: 1.1em; }
 .chg li { margin: .35em 0; line-height: 1.45; }
 .linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--brand, #2a5bd7); text-decoration: underline; cursor: pointer; }
+
+/* report overview: the first-screen row */
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 12px 0; }
+.glance ul { margin: 0; padding-left: 1.1em; }
+.glance li { margin: .2em 0; }
