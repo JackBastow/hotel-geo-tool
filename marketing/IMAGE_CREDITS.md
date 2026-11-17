@@ -10,7 +10,7 @@ Photographs on presencepro.co.uk are free to use under the [Unsplash License](ht
 | `breakfast-buffet.jpg` | Jose Marroquin | https://unsplash.com/photos/a-buffet-spread-with-various-salads-and-fruits-vU7MuUlgsQQ |
 | `room-breakfast.jpg` | Alev Takil | https://unsplash.com/photos/breakfast-tray-with-pastries-and-juice-lw3Lqe2K7xc |
 | `hotel-entrance.jpg` | T (@tanyabarrow) | https://unsplash.com/photos/modern-building-entrance-with-reception-sign-1wosvTGoKzc (not used on the site now, file removed) |
-| `hotel-evening.jpg` | AI-generated illustration supplied by the owner (cropped from the "Riverside Hotel" banner); a fictional hotel, labelled "Illustration" on the site | owner |
+| `hotel-evening.jpg` | AI-generated illustration supplied by the owner (cropped from the "Riverside Hotel" banner); a fictional hotel; no longer used on the site | owner |
 
 Not used, on purpose: the full banner, because it shows an "AI visibility 32% to 87%, +55 pp" result that is not a real measurement. The site must not show invented results as if they were real.
 

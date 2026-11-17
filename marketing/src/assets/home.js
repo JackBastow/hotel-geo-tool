@@ -10,7 +10,7 @@
   var stage = $(".story-stage", story), steps = $$(".chap", story), panels = {}, dots = $$(".stage-dots li", story);
   $$(".pn", stage).forEach(function (p) { panels[p.getAttribute("data-p")] = p; });
   var SHOW = [["answer"], ["answer", "sources"], ["site"], ["actions"], ["dash"]];
-  var cur = -1;
+  var cur = -1, stacked = false;
 
   // ---- which scene is the reader on? The caption nearest the reading line decides. ----
   function focusY() {
@@ -30,6 +30,7 @@
   var ticking = false;
   function pick() {
     ticking = false;
+    if (stacked) return;
     var fy = focusY(), best = 0, bd = 1e9;
     steps.forEach(function (s, n) {
       var r = s.getBoundingClientRect(), d = Math.abs(r.top + r.height / 2 - fy);
@@ -40,6 +41,17 @@
   }
   function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(pick); } }
   window.addEventListener("scroll", onScroll, { passive: true }); window.addEventListener("resize", onScroll);
+
+  // ---- phones and small tablets: no pinned stage (it would cover the text). Each panel moves under its own caption instead. ----
+  function setStacked(on) {
+    if (on === stacked) return;
+    stacked = on; story.classList.toggle("stacked", on);
+    var order = ["answer", "sources", "site", "actions", "dash"];
+    if (on) { order.forEach(function (k, i) { steps[i].appendChild(panels[k]); panels[k].classList.add("on"); }); }
+    else { var inner = $(".stage-inner", stage); order.forEach(function (k) { inner.appendChild(panels[k]); }); cur = -1; pick(); }
+  }
+  function mode() { setStacked(window.innerWidth < 960); }
+  mode(); window.addEventListener("resize", mode);
 
   // ---- scene 0: a guest asks, the assistant answers, your hotel is missing ----
   var q = $(".chat-q", stage), qt = $(".t", q), full = q.getAttribute("data-text"), recs = $$(".rec", stage), played = false;
@@ -54,7 +66,7 @@
     }, 700);
   }
   // start when the stage is on screen: straight away on desktop (it is beside the headline), on first view on phones
-  function maybePlay() { if (!played && stage.getBoundingClientRect().top < window.innerHeight * 0.75) playDemo(); }
+  function maybePlay() { var el = stacked ? panels.answer : stage; if (!played && el.getBoundingClientRect().top < window.innerHeight * 0.8) playDemo(); }
   window.addEventListener("scroll", maybePlay, { passive: true }); window.addEventListener("resize", maybePlay);
   setTimeout(maybePlay, 500); maybePlay();
 
