@@ -1,0 +1,25 @@
+/* Presence Pro: pieces that every page needs whatever the colour scheme (the early-joiner bar, the sample report's supporting list). */
+
+/* early-joiner bar across the top of every page (it sits inside the fixed header, so it moves with it) */
+:root { --promo: 38px; }
+body { padding-top: var(--promo); }
+.promo { display: flex; align-items: center; justify-content: center; gap: 14px; min-height: var(--promo); padding: 4px 16px; background: linear-gradient(90deg, #b88a38, #e0bd78 50%, #b88a38); color: #1a1405; text-decoration: none; font-size: .86rem; line-height: 1.25; text-align: center; }
+.promo b { font-weight: 700; }
+.promo u { text-decoration: none; font-weight: 700; background: #1a1405; color: #f3e1b4; padding: 4px 12px; border-radius: 99px; white-space: nowrap; transition: background .25s; }
+.promo:hover u { background: #000; }
+.promo .ps { display: none; }
+.banner { top: calc(68px + var(--promo)); }
+@media (max-width: 760px) {
+  .promo .pl { display: none; } .promo .ps { display: inline; } .promo { font-size: .82rem; gap: 10px; }
+  .links { inset: calc(68px + var(--promo)) 0 auto 0; } .banner { top: calc(68px + var(--promo)); }
+}
+
+/* sample report: supporting findings */
+.sup-h { font-size: 1.15rem; margin: 34px 0 6px; color: var(--ink); }
+.sup { list-style: none; padding: 0; margin: 0; }
+.sup li { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); font-size: .94rem; color: var(--muted); } .sup li:first-child { border-top: 0; }
+.sup li b { color: var(--text); font-weight: 600; } .sup .pill { flex: none; margin-top: 2px; }
+
+/* readable links and numbers on ivory */
+.callout a, .rep-sec a { color: var(--gold-d); }
+.steps3 li b { color: #1a1405; }

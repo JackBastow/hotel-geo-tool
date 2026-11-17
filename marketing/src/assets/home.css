@@ -262,3 +262,38 @@ body.home .faq summary { color: #fff; } body.home .faq details p { color: rgba(2
 .pb-grid { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 14px; height: 310px; }
 .pb-grid .ph { height: 100%; }
 @media (max-width: 760px) { .photo-band { padding: 56px 0 10px; } .pb-grid { grid-template-columns: 1fr 1fr; height: auto; grid-auto-rows: 200px; } .pb-grid .pb-wide { grid-column: 1 / -1; order: -1; } }
+
+/* ---------- light below the hero: ivory pages, navy story ---------- */
+body.home { background: var(--paper); color: var(--text); }
+body.home .btn.ghost { border-color: rgba(20,33,58,.3); color: var(--ink); } body.home .btn.ghost:hover { background: rgba(20,33,58,.06); }
+body.home .story .btn.ghost, body.home .final .btn.ghost { border-color: rgba(255,255,255,.38); color: #fff; } body.home .story .btn.ghost:hover, body.home .final .btn.ghost:hover { background: rgba(255,255,255,.1); }
+body.home .eyebrow { color: var(--gold-d); } body.home .story .eyebrow, body.home .final .eyebrow, body.home .photo-band .eyebrow { color: var(--gold); }
+/* the header floats over the navy story: white until it settles */
+body.home .nav:not(.stuck) .logo { color: #fff; } body.home .nav:not(.stuck) .logo b { color: var(--gold); }
+body.home .nav:not(.stuck) .links a:not(.btn) { color: rgba(255,255,255,.86); } body.home .nav:not(.stuck) .links a:not(.btn):hover { color: #fff; }
+body.home .nav:not(.stuck) .menu-btn { color: #fff; border-color: rgba(255,255,255,.3); }
+@media (max-width: 760px) { body.home .links { background: rgba(10,15,40,.98); border-bottom-color: rgba(255,255,255,.12); } body.home .links a { border-bottom-color: rgba(255,255,255,.1); } body.home .nav.menu-open { background: #0a1031; } }
+.hs { background: var(--paper); } .hs2 { background: var(--paper-2); }
+body.home .sec-head h2 { color: var(--ink); } body.home .sec-head p { color: var(--muted); }
+body.home .stat { background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow); }
+body.home .stat .big { background: none; -webkit-text-fill-color: currentColor; color: var(--gold-d); }
+body.home .stat p { color: var(--text); } body.home .stat small { color: var(--muted); border-color: var(--line); } body.home .stat small a, body.home .stat-note { color: var(--gold-d); } body.home .stat-note { color: var(--muted); }
+.flip-sw { background: #fff; border-color: var(--line); } .flip-sw button { color: var(--ink); }
+.flip-sw button[aria-selected=true] { color: #1a1405; }
+.node { background: #fff; border-color: var(--line); color: var(--text); box-shadow: var(--shadow); } .node small { color: var(--muted); }
+.node.bad { border-color: rgba(201,107,87,.7); background: #fbeee9; box-shadow: none; } .node.good { border-color: rgba(63,122,95,.6); background: #e8f3ec; box-shadow: none; }
+.arr { background-image: repeating-linear-gradient(90deg, rgba(20,33,58,.45) 0 6px, transparent 6px 12px); } .arr::after { border-left-color: rgba(20,33,58,.6); }
+.flipper .fine { color: var(--muted); } .flip-h { color: var(--ink); }
+.be-block h3 { color: var(--ink); } .be-lead { color: var(--muted); }
+body.home .be { background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow); color: var(--text); }
+body.home .be-in label { color: var(--ink); } body.home .be-in input { background: #fff; color: var(--ink); border-color: #d9cfb8; }
+body.home .be-in small, body.home .be-note { color: var(--muted); }
+body.home .be-card { background: var(--paper-2); } body.home .be-card b { color: var(--ink); } body.home .be-card p { color: var(--text); } body.home .be-card small { color: var(--muted); }
+body.home .plan.mini { background: #fff; border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow); }
+body.home .plan.mini .for { color: var(--muted); } body.home .plan .price { color: var(--ink); } body.home .plan .price .per { color: var(--muted); } body.home .plan h3 { color: var(--ink); }
+body.home .plan.mini.feat { border-color: var(--gold); background: linear-gradient(160deg, #fbf1d9, #fff); }
+body.home .plan.feat .price { color: var(--gold-d); }
+body.home .plans-foot, body.home .plans-foot a { color: var(--muted); } body.home .plans-foot a { color: var(--gold-d); }
+body.home .faq details { background: #fff; border: 1px solid var(--line); }
+body.home .faq summary { color: var(--ink); } body.home .faq details p { color: var(--muted); }
+.hs a:not(.btn):not(.offer-card) { color: var(--gold-d); }
