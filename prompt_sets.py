@@ -24,12 +24,11 @@ ANGLE_CAP = 3                    # at most this many prompts of one angle in the
 # The tracked prompts come in kinds, and which kinds matter depends on the hotel (an airport hotel lives on 'places near it', a country house on 'who it is for' and 'what it offers').
 # (key, title, what it covers, how many of the recommended set it aims for)
 SECTIONS = [
-    ("place", "Where the hotel is", "The town or neighbourhood, the price level and the kind of stay the area is known for.", 4),
-    ("near", "Places near the hotel", "Airports, stations, venues, business parks and landmarks that guests travel to.", 5),
+    ("place", "Where the hotel is", "The town or neighbourhood, the price level and the kind of stay the area is known for.", 5),
+    ("near", "Places near the hotel", "Airports, stations, venues, business parks and landmarks that guests travel to.", 6),
     ("who", "Who it is for", "Kinds of traveller and occasion: business trips, meetings, families, couples, weddings, groups.", 5),
-    ("offer", "What it offers", "Facilities guests search for by name: spa, pool, restaurant, parking, dogs welcome.", 3),
-    ("style", "How people ask", "Real needs written the way people type them: a short search, or a chatty request to an assistant.", 3),
-    ("own", "Your own prompts", "Prompts you added that do not fit a kind above.", 0),
+    ("offer", "What it offers", "Facilities guests search for by name: spa, pool, restaurant, parking, dogs welcome.", 4),
+    ("own", "Other prompts", "Prompts that do not fit a kind above.", 0),
 ]
 SECTION_KEYS = [k for k, *_r in SECTIONS]
 _ANGLE_SECTION = {
@@ -37,7 +36,6 @@ _ANGLE_SECTION = {
     "Near a venue": "near", "Near a landmark": "near", "Near a place": "near", "Airport": "near", "Near transport": "near",
     "Business travel": "who", "Meetings and events": "who", "Families": "who", "Couples": "who", "Weddings": "who", "Groups": "who", "Long stays": "who", "Accessibility": "who",
     "Spa and wellness": "offer", "Dining": "offer", "Parking": "offer", "Facilities": "offer", "EV charging": "offer", "Pet-friendly": "offer",
-    "Short search": "style", "Conversational": "style",
 }
 _TEXT_SECTION = [
     ("near", r"\b(?:near|nearest|close to|closest|walking distance|minutes? from|airport|station|terminal|venue|stadium|arena|museum|park|circuit|racecourse|business park)\b"),
@@ -51,8 +49,6 @@ def section_of(p):
     sec = (p or {}).get("section")
     if sec in SECTION_KEYS:
         return sec
-    if (p or {}).get("style") in ("short search", "conversational"):
-        return "style"
     a = (p or {}).get("angle") or ""
     if a in _ANGLE_SECTION:
         return _ANGLE_SECTION[a]

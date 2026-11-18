@@ -48,7 +48,7 @@ check("12 prompts are recommended from a bigger pool", len(rec) == 12 and len({p
 from collections import Counter
 check("the set covers the market: many different angles, no angle takes more than three places (two, unless the pool is thin)", len({p["angle"] for p in rec}) >= 8 and max(Counter(p["angle"] for p in rec).values()) <= 3, Counter(p["angle"] for p in rec))
 check("at most two short-search / conversational variants", sum(1 for p in rec if p["style"]) <= 2)
-check("core prompts come before the secondary ones", all(p["text"] in [q["text"] for q in Q[:9]] for p in rec[:6]))
+check("core prompts are picked before the secondary ones (the set is then shown by kind)", sum(p["text"] in [q["text"] for q in Q[:9]] for p in rec) >= 8, [p["text"] for p in rec])
 check("a prompt that names the hotel is never recommended", not any("opera" in p["text"].lower() and "hotel opera" in p["text"].lower() for p in rec) and ps.recommend_set([{"text": "Is Hotel Opera good?", "kind": "niche"}], "Hotel Opera") == [])
 
 print("2. the rules for a prompt")
@@ -161,8 +161,9 @@ print("7. kinds of prompt, a bigger set, and the top-up")
 import ai_questions
 import depth as depth_mod
 check("the recommended set aims at 20 and a hotel may track up to 30, and every tracked prompt is asked", ps.RECOMMENDED == 20 and ps.MAX_PROMPTS == 30 == ai_questions.TRACKED_MAX)
-check("prompts sort into kinds: places near it, who it is for, what it offers, how people ask, where it is",
-      [ps.section_of(x) for x in ({"angle": "Airport"}, {"angle": "Weddings"}, {"angle": "Spa and wellness"}, {"style": "short search", "angle": "Short search"}, {"angle": "Neighbourhood"})] == ["near", "who", "offer", "style", "place"])
+check("prompts sort into kinds: places near it, who it is for, what it offers, where it is; a short search goes by its words",
+      [ps.section_of(x) for x in ({"angle": "Airport"}, {"angle": "Weddings"}, {"angle": "Spa and wellness"}, {"style": "short search", "angle": "Short search", "text": "best hotel near Palais Garnier"}, {"angle": "Neighbourhood"})] == ["near", "who", "offer", "near", "place"]
+      and "style" not in ps.SECTION_KEYS and dict((k, t) for k, t, *_r in ps.SECTIONS)["own"] == "Other prompts")
 check("a prompt the hotel wrote is sorted by its words, and 'barbecue' is not a bar",
       ps.section_of({"text": "Which hotels in Weybridge have a spa?", "source": "own"}) == "offer" and ps.section_of({"text": "Hotels near Brooklands Museum in Weybridge?", "source": "own"}) == "near"
       and ps.section_of({"text": "Best barbecue spots in Weybridge with rooms?", "source": "own"}) == "own")
@@ -174,7 +175,7 @@ html3 = prompts_view.panel({"active": None, "draft": {"prompts": full[:6], "vers
 check("the editor shows a heading for every kind, with an Add button each, and a Top up button when the set is short",
       all(t in html3 for t, *_r in [(x[1],) for x in ps.SECTIONS]) and html3.count('class="btn small padd-sec"') == len(ps.SECTIONS) and 'id="ptopup"' in html3)
 ro = prompts_view.panel({"active": {"prompts": full, "version": 1, "confirmed_at": "2026-11-01T00:00:00+00:00"}, "draft": None, "history": []}, hotel, "/x", True)
-check("the confirmed view shows only the kinds in use, and no Add buttons", "padd-sec" not in ro and "Your own prompts" not in ro)
+check("the confirmed view shows only the kinds in use, and no Add buttons", "padd-sec" not in ro and "Other prompts" not in ro and "How people ask" not in ro)
 hid3 = db.create_hotel("Hotel Opera Two", "hotel-opera.com/two", "Paris", "hotel-opera-two")
 h3 = db.get_hotel(hid3)
 rep3 = copy.deepcopy(rep)
