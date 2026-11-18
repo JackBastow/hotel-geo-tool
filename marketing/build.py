@@ -168,7 +168,7 @@ def plan_cards_home(site):
 
 COMPARE_ROWS = [
     ("Hotels covered", ["One or more", "5 to 49", "50 or more"]),
-    ("Monthly report with PDF and the evidence behind every finding", [True, True, True]),
+    ("Hotel dashboard with the evidence behind every finding, and reports you can pull as a PDF", [True, True, True]),
     ("Competitor intelligence and the pages the assistant cited", [True, True, True]),
     ("Change since last month", [True, True, True]),
     ("Your own questions tested, and your review export analysed", [True, True, True]),
@@ -177,7 +177,7 @@ COMPARE_ROWS = [
     ("Actions tracked hotel by hotel", [False, True, True]),
     ("A dashboard for each hotel, showing only that hotel", [True, True, True]),
     ("Yearly billing", ["Yes, paid upfront", "Monthly only", "By quotation"]),
-    ("Consolidated billing, custom reporting, cross-property benchmarking", [False, False, "Available to discuss"]),
+    ("Consolidated billing, custom analytics, cross-property benchmarking", [False, False, "Available to discuss"]),
     ("Support", ["Email", "Priority email", "To discuss"]),
 ]
 

@@ -16,7 +16,7 @@
 
 ## Pricing (GBP, all prices exclude VAT, which is added at checkout where it applies; subscription, cancel any time)
 {{ llms_plans }}
-Reports are prepared for subscribers by Presence Pro; there is no self-service tool. A free one-page snapshot can be requested at {{ url }}/snapshot.html.
+Subscribers get a dashboard for their hotel (and a portfolio dashboard across hotels on Portfolio) and can pull reports from it; there is no self-service audit tool. A free one-page report (the snapshot) can be requested at {{ url }}/snapshot.html.
 
 ## Pages
 - {{ url }}/what-we-do.html

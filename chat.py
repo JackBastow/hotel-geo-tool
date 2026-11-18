@@ -83,15 +83,15 @@ def facts():
     price_block = "\n".join(lines) if lines else "- Plans and prices are on the pricing page."
     return f"""PRESENCE PRO FACT SHEET
 
-What it is: a monthly report for hotels on how AI assistants and open data describe the hotel, which sources they rely on, and what to fix first. Website: presencepro.co.uk.
+What it is: a dashboard for hotels that tracks how AI assistants and open data describe the hotel, which sources they rely on, and what to fix first, with action tracking. Customers can pull reports from the dashboard whenever they need one. A hotel group on Portfolio gets access to every hotel, with analytics on how each one is doing, how many actions are done and which hotels need attention. The only thing called a report as the main deliverable is the free one-page snapshot. Website: presencepro.co.uk.
 
-What a report covers:
+What the dashboard covers:
 - Website readiness: whether the hotel's own pages answer the questions guests ask (parking, breakfast, check-in and out, pets, accessibility, family rooms, getting there, Wi-Fi, EV charging, cancellation), quoting the exact words and the page. Inconsistencies between pages (different check-in times, phone numbers). Location wording. Crawler access (robots.txt, llms.txt), and Google's PageSpeed scores.
 - What AI assistants say: real traveller-style questions put to an AI assistant with live web search, each asked more than once. Reports how often the hotel was named, its position, who was named instead, which pages the assistant cited, and what it says when asked about the hotel by name. Customers on higher plans can add their own questions to test.
 - Where the hotel is listed: booking and review sites, maps, open data (OpenStreetMap, Wikidata), press coverage, awards, checked across 30 points. Presence Pro identifies listings from public search results; it does not read Booking.com or Tripadvisor pages directly because their terms prohibit automated collection.
 - Reviews: the hotel can upload its own review export (CSV or Excel from Booking.com, Tripadvisor, Google or Expedia) for a full analysis of reply rate, unanswered critical reviews, how replies read, and what guests praise and criticise. Review text is analysed for that run only and not saved.
 - Open forum conversations: Reddit, Quora and similar threads where travellers ask where to stay, with honest suggested wording. Nothing is ever posted by Presence Pro.
-- Three options, kept distinct: Single hotel is a monthly report plus a dashboard for each hotel. Portfolio is for groups of 5 to 49 hotels and adds a portfolio dashboard with every hotel's score, trends and AI visibility side by side, ongoing analysis of which hotels need attention and which are improving, and actions tracked hotel by hotel. Enterprise (50 or more hotels) is a custom quotation. Presence Pro is primarily software and reports: it does not include unlimited consulting or hands-on implementation, and it does not quote prices for advisory work.
+- Three options, kept distinct: Single hotel is a dashboard for each hotel, with tracked actions and reports you can pull. Portfolio is for groups of 5 to 49 hotels and adds a portfolio dashboard with every hotel's score, trends and AI visibility side by side, ongoing analysis of which hotels need attention and which are improving, and actions tracked hotel by hotel. Enterprise (50 or more hotels) is a custom quotation. Presence Pro is primarily software and reports: it does not include unlimited consulting or hands-on implementation, and it does not quote prices for advisory work.
 - A plan: a readiness score shown together with how much of the model it rests on, the few actions most worth doing, each labelled Confirmed, Likely or Worth checking, and a monthly comparison with the previous report. Delivered as a management PDF (about 5 to 10 pages) and a technical and evidence appendix.
 
 Honesty rules (state these plainly when relevant):
@@ -100,7 +100,7 @@ Honesty rules (state these plainly when relevant):
 - Anything that could not be measured is shown as "not assessed", never scored as zero.
 - "Not found on the pages checked" is not the same as "missing".
 
-How it works: a customer subscribes and tells Presence Pro their hotel's website. Presence Pro prepares the report and emails it, then again every month. There is no self-service tool and no free full report; do not say the visitor can run a report themselves. A hotel can request a free one-page snapshot at presencepro.co.uk/snapshot.html, which Presence Pro prepares and emails (a one-page sample; not the full monthly report).
+How it works: a customer subscribes and tells Presence Pro their hotel's website. Presence Pro sets up their dashboard and logs them in; it updates every month and they can pull a report from it. There is no self-service tool and no free full report; do not say the visitor can run an audit themselves. A hotel can request a free one-page snapshot at presencepro.co.uk/snapshot.html, which Presence Pro prepares and emails as a one-page report (a sample; not the full dashboard).
 
 Paid plans (monthly subscription, cancel any time, takes effect at the end of the paid period; paid through Stripe, so Presence Pro never sees card details):
 {price_block}

@@ -43,15 +43,16 @@
       "monthly": 99,
       "annual": 990,
       "per_hotel": true,
-      "for": "A monthly report and a dashboard for your hotel, with competitor intelligence and a ranked plan.",
+      "for": "A dashboard for your hotel: visibility, competitors, tracked actions and progress over time.",
       "features": [
-        "A monthly report for each hotel: what AI says about it, who gets named instead, and what to fix first",
-        "Your hotel dashboard: visibility, competitors and actions in one place",
+        "Your hotel dashboard: what AI says about it, who gets named instead, and what to fix first",
+        "Action tracking: see what you have done and what is still open",
         "Competitor intelligence: which comparable hotels are named, and the pages the assistant cited",
         "Website and external-presence analysis, with the evidence behind each finding",
         "Prioritised recommendations, ranked by risk and effort",
-        "Change since your last report, so you can see what moved",
+        "Progress over time, so you can see what moved",
         "Your own questions tested, and your review export analysed",
+        "Pull a report from your dashboard whenever you need one",
         "Email support"
       ]
     },
@@ -76,12 +77,12 @@
           "price": 69
         }
       ],
-      "for": "For groups: everything in Single Hotel, plus a portfolio dashboard and ongoing analysis across all your hotels, priced per hotel.",
+      "for": "For groups: everything in Single Hotel, with access to every hotel and analytics to see how each one is doing, priced per hotel.",
       "features": [
         "Everything in Single Hotel, for every hotel",
-        "A portfolio dashboard: every hotel's score, trends and AI visibility side by side",
-        "See which hotels need attention, and which are improving",
-        "Actions tracked hotel by hotel",
+        "One login for every hotel, with each hotel's score, trends and AI visibility side by side",
+        "Analytics on how each hotel is doing: which need attention, and which are improving",
+        "Actions tracked hotel by hotel: how many are done, and how many are still open",
         "Priority email support"
       ]
     },
@@ -93,7 +94,7 @@
       "for": "For 50 or more hotels, with a tailored quotation.",
       "features": [
         "Everything in Portfolio",
-        "Options available for discussion: portfolio-wide reporting, centralised dashboards, cross-property benchmarking, consolidated billing, custom reporting, additional account support and tailored implementation arrangements"
+        "Options available for discussion: portfolio-wide analytics, centralised dashboards, cross-property benchmarking, consolidated billing, custom analytics, additional account support and tailored implementation arrangements"
       ]
     }
   ],
@@ -112,11 +113,11 @@
       "Competitor intelligence: who is named instead of you, and why",
       "Website and external-presence analysis",
       "Prioritised recommendations, ranked by risk and effort",
-      "Historical performance tracking, building up month by month from your first report",
+      "Historical performance tracking, building up month by month from your first check",
       "£49.99 a month for your first 12 months, instead of £99"
     ],
     "asks": [
-      "Occasional feedback on the reports and the platform",
+      "Occasional feedback on the dashboard and the platform",
       "Periodic product-feedback discussions",
       "Help us understand which recommendations you find most useful",
       "Permission to use your results, anonymised, to improve the platform",

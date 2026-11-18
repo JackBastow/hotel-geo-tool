@@ -1,6 +1,6 @@
 ---
 title: Presence Pro: see how AI describes your hotel
-description: Hotel-specific AI discovery intelligence. See which hotels AI recommends instead of yours, which pages it relied on, and what to do about it. Monthly reports and a portfolio dashboard. Evidence for every finding.
+description: Hotel-specific AI discovery intelligence. See which hotels AI recommends instead of yours, which pages it relied on, and what to do about it. A dashboard for your hotel, and a portfolio dashboard for groups. Evidence for every finding.
 body: home
 css: home.css
 js: home.js
@@ -9,8 +9,8 @@ js: home.js
 {"@context":"https://schema.org","@graph":[
 {"@type":"Organization","@id":"{{ url }}/#org","name":"Presence Pro","url":"{{ url }}","email":"{{ contact.email }}"},
 {"@type":"WebSite","name":"Presence Pro","url":"{{ url }}","publisher":{"@id":"{{ url }}/#org"}},
-{"@type":"SoftwareApplication","name":"Presence Pro","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"{{ url }}","description":"A monthly report on how AI assistants and open data describe a hotel, which sources they rely on, and what to fix first.","offers":{{ offers_json }}},
-{"@type":"Service","name":"AI visibility reports for hotels","serviceType":"AI search visibility reporting for hotels","description":"A monthly report on how AI assistants describe a hotel, who they name instead, which sources they rely on, and what to fix first. Single Hotel, Portfolio and Enterprise plans.","provider":{"@id":"{{ url }}/#org"},"areaServed":{"@type":"Country","name":"United Kingdom"},"audience":{"@type":"Audience","audienceType":"Hotels, hotel groups and hospitality agencies"}}
+{"@type":"SoftwareApplication","name":"Presence Pro","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"{{ url }}","description":"A dashboard that tracks how AI assistants and open data describe a hotel, which sources they rely on, and what to fix first.","offers":{{ offers_json }}},
+{"@type":"Service","name":"AI visibility dashboard for hotels","serviceType":"AI search visibility tracking for hotels","description":"A dashboard that tracks how AI assistants describe a hotel, who they name instead, which sources they rely on, and what to fix first. Single Hotel, Portfolio and Enterprise plans.","provider":{"@id":"{{ url }}/#org"},"areaServed":{"@type":"Country","name":"United Kingdom"},"audience":{"@type":"Audience","audienceType":"Hotels, hotel groups and hospitality agencies"}}
 ]}
 </script>
 <script type="application/ld+json">
@@ -221,7 +221,7 @@ js: home.js
         <div class="full"><button class="btn gold lg" type="submit" style="width:100%">Get my free snapshot &rarr;</button></div>
       </form>
       <div class="msg" id="snapMsg" role="status"></div>
-      <p class="note" style="color:var(--muted);font-size:.84rem;margin:14px 0 0">One page by email, plus one follow-up asking if it was useful. It's a sample of AI answers on the day, not the full report. <a href="/privacy.html" style="color:var(--gold-d)">Privacy</a>.</p>
+      <p class="note" style="color:var(--muted);font-size:.84rem;margin:14px 0 0">One page by email, plus one follow-up asking if it was useful. It's a one-page report: a sample of AI answers on the day, not the full dashboard. <a href="/privacy.html" style="color:var(--gold-d)">Privacy</a>.</p>
     </div>
   </div>
 </section>
@@ -231,7 +231,7 @@ js: home.js
   <div class="wrap">
     <div class="sec-head center rv" style="text-align:center">
       <p class="eyebrow">Pricing</p>
-      <h2>A monthly report, or a dashboard for the whole group.</h2>
+      <h2>A dashboard for your hotel, or for the whole group.</h2>
       <p>Single Hotel from {{ lowest_price }} a month, Portfolio from {{ price_portfolio_large }} a hotel a month. Prices exclude VAT. Cancel any time.</p>
     </div>
     <a class="offer-card rv" href="/founding.html">
@@ -250,7 +250,7 @@ js: home.js
     <div class="faq rv">
       <details><summary>Will this get AI assistants to recommend my hotel?</summary><p>We can't promise that, and nobody honestly can. Presence Pro shows what AI said, which sources it relied on and what your own pages leave unanswered, so you can fix real gaps.</p></details>
       <details><summary>Where does the data come from?</summary><p>Your public website, open sources such as OpenStreetMap and Wikidata, public search results, and AI search answers. We don't read Booking.com or Tripadvisor directly, as their terms prohibit it; you can upload your own review export for a full review analysis. <a href="/methodology.html" style="color:var(--gold)">Read the methodology</a>.</p></details>
-      <details><summary>How do I get my reports and dashboard?</summary><p>Subscribe and tell us your hotel's website. We prepare your report, email it, then repeat every month with the change since the last one. There's nothing to install.</p></details>
+      <details><summary>How do I get my dashboard?</summary><p>Subscribe and tell us your hotel's website. We set up your dashboard and log you in; it tracks your hotel's AI visibility, competitors and actions, and updates every month. You can pull a report from it whenever you need one. There's nothing to install.</p></details>
       <details><summary>What does it cost, and can I cancel?</summary><p>Single Hotel is {{ lowest_price }} a month per hotel (or {{ price_single_annual }} a year), Portfolio is from {{ price_portfolio_large }} per hotel a month, and Enterprise is by quotation. Prices exclude VAT. Cancel any time. See <a href="/pricing.html" style="color:var(--gold)">pricing</a>, or the <a href="/founding.html" style="color:var(--gold)">early-joiner offer</a>.</p></details>
     </div>
   </div>
@@ -261,7 +261,7 @@ js: home.js
   <div class="wrap final-grid">
     <div>
       <h2 class="rv">Find out what AI says about your hotel.</h2>
-      <p class="rv d1">A free one-page snapshot, by email. Or read a full sample report first.</p>
+      <p class="rv d1">A free one-page report on your hotel, by email. Or look at a sample report first.</p>
       <div class="cta-row rv d2"><a class="btn gold lg" href="#snapshot">Get Your Free AI Visibility Snapshot &rarr;</a><a class="btn ghost lg" href="/sample-report.html">View Sample Report</a></div>
     </div>
     <figure class="ph ph-evening rv d1"><img src="/img/breakfast-buffet.jpg" width="1400" height="934" loading="lazy" alt="A hotel breakfast buffet with salads and fruit"></figure>

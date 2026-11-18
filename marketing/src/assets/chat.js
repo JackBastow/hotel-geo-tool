@@ -68,7 +68,7 @@
   }
   function open() {
     panel.classList.add("open"); fab.style.display = "none";
-    if (!opened) { opened = true; add("bot", "Hello. I'm the Presence Pro assistant, an AI. I can explain what we do, how the reports work and what the plans include. What would you like to know?"); }
+    if (!opened) { opened = true; add("bot", "Hello. I'm the Presence Pro assistant, an AI. I can explain what we do, how the dashboard works and what the plans include. What would you like to know?"); }
     setTimeout(function () { input.focus(); }, 50);
   }
   function shut() { panel.classList.remove("open"); fab.style.display = ""; fab.focus(); }
