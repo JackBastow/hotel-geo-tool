@@ -29,6 +29,10 @@ check("the hotel portal is not caught by the gate (it has its own sign-in)", c.g
 check("/login does not loop", "/portal/signin" in c.get("/login").headers["Location"])
 c.post("/admin/login", data={"password": "adm"})
 check("a signed-in admin may use the audit form", c.get("/").status_code == 200)
+page = c.get("/").get_data(as_text=True)
+check("the form is in the admin look and has no link to a public page", "Public page" not in page and "wm-brand" in page and "Portfolio" in page)
+check("the admin pages link to it as Quick audit and have no Public page link", "Quick audit" in c.get("/admin/runs").get_data(as_text=True) and "Public page" not in c.get("/admin/runs").get_data(as_text=True))
+check("the sign-in page has no public page link", "Public page" not in client({"RENDER": "true", "ADMIN_PASSWORD": "adm"}).get("/admin/login").get_data(as_text=True))
 
 # live host WITH a site password set: the shared password no longer opens anything
 c = client({"RENDER": "true", "SITE_PASSWORD": "pw"})

@@ -21,7 +21,7 @@ import ui_theme
 from timeutil import uk_time
 from htmlst import st
 
-NAV = [("overview", "Overview"), ("portfolio", "Portfolio"), ("runs", "Runs"), ("hotels", "Hotels"), ("markets", "Markets"), ("usage", "Usage"), ("feedback", "Feedback"), ("export", "Export")]
+NAV = [("overview", "Overview"), ("portfolio", "Portfolio"), ("audit", "Quick audit"), ("runs", "Runs"), ("hotels", "Hotels"), ("markets", "Markets"), ("usage", "Usage"), ("feedback", "Feedback"), ("export", "Export")]
 PUB_COLS = ["id", "run_at", "hotel", "city", "headline_status", "headline_score", "coverage_pct", "ai_generic_named", "ai_generic_asked", "ai_niche_named", "ai_niche_asked",
             "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_rank_in_table", "ai_top_competitor", "reviews_replied", "reviews_examined", "pack_reviews", "pack_reply_rate", "pagespeed_perf",
             "recs_total", "ai_cost_usd"]
@@ -127,6 +127,12 @@ def register(app, cfg):
 
     def _page_body(fn):
         return htmlst.build(fn)
+
+    @app.get("/admin/audit")
+    def admin_quick_audit():
+        """A one-off audit of any hotel without adding it to the portfolio: the form lives on the home page, which on the live host only a signed-in admin can reach."""
+        g = guard()
+        return g or redirect("/")
 
     @app.get("/admin/runs")
     def admin_runs():

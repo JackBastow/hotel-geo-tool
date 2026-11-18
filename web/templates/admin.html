@@ -3,7 +3,7 @@
 {% block bodyclass %}wm{% endblock %}
 {% block brand %}<a class="brand wm-brand" href="/admin"><img src="{{ url_for('static', filename='westmont.png') }}" alt="Westmont Hospitality" width="30" height="67"><span>Admin</span></a>{% endblock %}
 {% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
-{% block nav %}<a href="/">Public page</a><form method="post" action="/admin/logout" style="display:inline"><button class="btn" type="submit" style="margin-left:18px">Sign out</button></form>{% endblock %}
+{% block nav %}<form method="post" action="/admin/logout" style="display:inline"><button class="btn" type="submit" style="margin-left:18px">Sign out</button></form>{% endblock %}
 {% block content %}
 <h1>{{ title }}</h1>
 <p class="caption">Everything the service has saved. Only people with the password can see this. Hotel data here comes from public sources; the full report for any run can be reopened or exported.</p>

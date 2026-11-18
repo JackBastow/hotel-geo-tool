@@ -3,7 +3,7 @@
 {% block bodyclass %}wm{% endblock %}
 {% block brand %}<a class="brand wm-brand" href="/admin"><img src="{{ url_for('static', filename='westmont.png') }}" alt="Westmont Hospitality" width="30" height="67"><span>Admin</span></a>{% endblock %}
 {% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
-{% block nav %}<a href="/">Public page</a>{% endblock %}
+{% block nav %}{% endblock %}
 {% block content %}
 <div class="wm-login"><img src="{{ url_for('static', filename='westmont.png') }}" alt="Westmont Hospitality" width="120" height="268"><h1>Admin</h1></div>
 {% if off %}
