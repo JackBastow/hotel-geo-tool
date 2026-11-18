@@ -39,7 +39,8 @@ def panel(state, hotel, url, editable=True, runs_since=0, suggestions=None):
     head = '<h3 class="grp" style="margin-top:6px">The prompts we ask AI about your hotel</h3>'
     wider = ('<p class="caption"><b>Why a check asks more questions than this.</b> These are the <i>tracked</i> prompts: the same every week, so the trend is fair. '
              'Each check also asks a wider set of exploratory questions (roughly 20 to 50, depending on how thorough the check is), to spot new places the hotel could be recommended. '
-             'Those change from check to check, appear on the AI visibility tab, and are not part of the trend.</p>')
+             'Those change from check to check. The prompt-by-prompt comparison with the previous check uses only the tracked prompts; '
+             'the overall "named in X% of answers" figure counts every answer, tracked and exploratory, so it can move a little just because the exploratory questions changed.</p>')
     guide = guide + wider
     if not active and not draft:
         return (head + guide + '<div class="alert info">Your recommended prompts appear here after the first check of the hotel, written from what your website says and the places around it. '
