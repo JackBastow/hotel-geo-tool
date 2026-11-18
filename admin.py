@@ -128,12 +128,6 @@ def register(app, cfg):
     def _page_body(fn):
         return htmlst.build(fn)
 
-    @app.get("/admin/audit")
-    def admin_quick_audit():
-        """A one-off audit of any hotel without adding it to the portfolio: the form lives on the home page, which on the live host only a signed-in admin can reach."""
-        g = guard()
-        return g or redirect("/")
-
     @app.get("/admin/runs")
     def admin_runs():
         g = guard()

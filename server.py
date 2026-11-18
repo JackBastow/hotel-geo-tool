@@ -198,6 +198,8 @@ def create_app(cfg=None, run_fn=None):
             return None          # (open only when running on a developer's own machine; on the live host a missing site password locks the audit tool instead of opening it)
         if request.path.startswith(("/portal", "/internal/", "/admin")) or session.get("admin_ok") is True:
             return None        # the hotel portal, the weekly-check routes and the admin pages each have their own sign-in; someone signed in to the admin pages may open any report
+        if request.path == "/" and session.get("uid"):
+            return None          # a signed-in hotel user who opens the bare address is sent on to their dashboard by index()
         m = re.match(r"^/(?:r|api/r)/([A-Za-z0-9_-]{20,64})(?:/|$)", request.path)
         if session.get("uid") and ((m and app.extensions["portal_can_see_token"](m.group(1))) or request.path == "/api/feedback"):
             return None                                                  # a signed-in hotel user may open their own hotel's reports
@@ -270,8 +272,22 @@ def create_app(cfg=None, run_fn=None):
     def index():
         if session.get("uid") and session.get("site_ok") is not True:        # a signed-in hotel user belongs on their dashboard, not the team's audit form
             return redirect("/portal")
+        if cfg.closed:          # on the live host the address itself is a front door, never the audit form: admins go to the admin pages, hotels to their dashboard
+            if session.get("admin_ok") is True:
+                return redirect("/admin/audit" + ("?" + request.query_string.decode("latin-1") if request.query_string else ""))
+            return redirect("/portal")
+        return audit_form()
+
+    def audit_form():
         pre = {k: (request.args.get(k) or "").strip()[:300] for k in ("website", "hotel", "city")}
         return render_template("index.html", audiences=[(k, lbl) for k, lbl, *_r in ai_niche.AUDIENCES], saves=bool(cfg.database_url), pre=pre)
+
+    @app.get("/admin/audit")
+    def admin_quick_audit():
+        """A one-off audit of any hotel, without adding it to the portfolio. Admin only."""
+        if session.get("admin_ok") is not True:
+            return redirect("/admin/login")
+        return audit_form()
 
     @app.get("/healthz")
     def healthz():

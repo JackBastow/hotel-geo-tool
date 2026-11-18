@@ -77,7 +77,7 @@ check("only the hash of the link is stored", all(link.split("/")[-1] not in str(
 print("2. the hotel user creates a login (no site password needed)")
 u = app.test_client()
 check("without signing in, the portal sends them to its own sign-in, not the site password page", u.get("/portal", follow_redirects=False).headers["Location"].endswith("/portal/signin"))
-check("the public audit form stays closed to them", "/login" in u.get("/", follow_redirects=False).headers["Location"])
+check("the public audit form stays closed to them", "/login" in u.get("/", follow_redirects=False).headers["Location"] or "/portal" in u.get("/", follow_redirects=False).headers["Location"])
 form = u.get(link).get_data(as_text=True)
 check("the invite page asks for a name and a password", "Choose a password" in form and "gm@hotel-a.com" in form)
 c2 = re.search(r'name="csrf" value="([^"]+)"', form).group(1)
