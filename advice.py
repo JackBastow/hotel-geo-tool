@@ -605,7 +605,7 @@ def _from_facility_depth(fd):
 
 
 TRACKS = {"visibility": "AI visibility opportunity", "content": "Website content", "accuracy": "Data accuracy"}
-_ACCURACY_SOURCES = {"consistency", "listings"}
+_ACCURACY_SOURCES = {"consistency", "listings", "ai_facts"}
 _VISIBILITY_SOURCES = {"ai", "ai_gap", "direct", "reddit", "forums", "sources", "differentiation"}
 
 
@@ -706,6 +706,35 @@ def _from_forums(fr):
     return [r]
 
 
+def _from_facts_check(fc):
+    """
+    One action per thing the assistant said about the hotel that its own website contradicts ('differs') or does not support ('check'), so each is tracked on its own and clears when the next check no longer
+    finds it. Quotes are the assistant's own words; the comparison is with the pages read, which the wording says.
+    """
+    out = []
+    for r in ((fc or {}).get("rows") or [])[:6]:
+        times = f" ({r['times']} answers)" if r.get("times", 1) > 1 else ""
+        if r["status"] == "differs":
+            title = f"AI tells travellers something wrong about the hotel: {r['label'].lower()}"
+            finding = f"The assistant said: \"{r['says']}\"{times}. {r['our_record']}"
+            action = ("Say it plainly near the top of the page about it on the hotel's site, in words an assistant can quote (for example 'Free on-site parking for 60 cars'), and check the same detail on the main "
+                      "booking and review listings, since assistants often repeat what those say.")
+            pri, conf = "high", INFER
+        else:
+            closed = r["topic"] == "status"
+            title = ("AI says the hotel is closed or being refurbished" if closed else f"AI says the hotel has {r['label'].lower()}: check it is true")
+            finding = f"The assistant said: \"{r['says']}\"{times}. {r['our_record']}"
+            action = ("Make the hotel's current status unmistakable on the home page and on Google, Booking.com and TripAdvisor; if an old news story about a closure is still online, add an update that says the hotel is open." if closed else
+                      "If the hotel has it, describe it on the website (what, where, when, any charge) so the claim rests on the hotel's own words. If it does not, correct it on every listing that says so, "
+                      "because guests who expect it and do not find it leave bad reviews.")
+            pri, conf = ("high" if closed else "medium"), EXPER
+        out.append(_rec(f"AF-{r['topic']}", "authority", title, finding,
+                        "Travellers believe what an assistant tells them about a hotel. This is one assistant on one day, so it is worth checking rather than proof.",
+                        [{"url": r.get("url") or "", "snippet": f"Assistant: \"{r['says']}\". {r['our_record']}"}], action, pri, "low", confidence=conf, team="marketing", source="ai_facts", tag="AF",
+                        short_title=title, summary=f"{r['label']}: what the assistant said vs the website"))
+    return out
+
+
 def _from_ai_insights(ins):
     """Two things the sample can support: what the assistant said that differs from the hotel's own record, and sources it leaned on where the hotel is not evidenced."""
     if not ins or ins.get("status") not in ("ok", "partial"):
@@ -723,6 +752,7 @@ def _from_ai_insights(ins):
             "State the real policy plainly in the first lines of the relevant page on the hotel's site, and check the same detail on the main booking and review "
             "listings the assistant used (see the source table), so every place a traveller or assistant might read agrees.",
             "medium", "low", confidence=INFER, team="web", source="ai", tag="AI3", summary="Assistant's statement differs from the hotel's record"))
+    out += _from_facts_check(ins.get("facts_check"))
     gaps = [s for s in (ins.get("sources") or []) if s["hotel_evidenced"] is False and s["kind"] in ("Booking and comparison site", "Review site")][:4]
     if gaps:
         out.append(_rec(

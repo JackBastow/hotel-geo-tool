@@ -1151,6 +1151,18 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         except Exception as e:  # noqa: BLE001 - an extra; the sample itself still shows
             ai_insight_result = {"source": ai_insights.SOURCE, "status": "unavailable", "reason": f"The analysis of the answers failed ({type(e).__name__}).", "cost_usd": 0.0}
 
+    # What the answers say about the hotel itself (no parking, has a pool, closed for refurbishment), checked against its own website
+    if isinstance(ai_insight_result, dict) and ai_insight_result.get("status") in ("ok", "partial"):
+        say("Checking what the assistant said about the hotel against its website...")
+        try:
+            import ai_facts
+            _stars = ((locals().get("prof") or {}).get("stars"))
+            fc = ai_facts.run(ai_result, hotel, city, own_pages, base, site_stars=float(_stars) if isinstance(_stars, (int, float)) else None, api_key=anthropic_api_key, model=anthropic_model)
+            ai_insight_result["facts_check"] = fc
+            ai_insight_result["cost_usd"] = round((ai_insight_result.get("cost_usd") or 0) + (fc.get("cost_usd") or 0), 5)
+        except Exception:  # noqa: BLE001 - an extra
+            pass
+
     # Who the assistant named instead of the hotel, which pages it cited, and what the evidence shows about the difference: the answers already collected, plus a few polite page reads.
     ai_gap_result = None
     if isinstance(ai_insight_result, dict) and ai_insight_result.get("extracted_answers"):
