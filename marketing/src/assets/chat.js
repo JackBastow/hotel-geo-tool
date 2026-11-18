@@ -18,7 +18,6 @@
   var QUICK = [
     { q: "What do you check?", a: "We check three things for your hotel: whether your own website answers the questions guests ask, what an AI assistant says when travellers ask where to stay (and who it names instead), and where your hotel is listed across booking sites, maps and the press. You get a plain-English plan of what to fix first. There's more on the What we do page: /what-we-do.html" },
     { q: "How much does it cost?", a: "Prices exclude VAT. " + plans + "." + founding + " Details: /pricing.html" },
-    { q: "Does it cover ChatGPT?", a: "Presence Pro samples live AI search answers, each question asked more than once, and labels them as a sample. For ChatGPT, Gemini and others the report also gives you a checklist to test by hand. Nobody can honestly promise that an assistant will recommend your hotel." },
     { q: "How do I pay or cancel?", a: "You pay by card through Stripe, so we never see your card details. It's a monthly subscription you can cancel any time; it ends at the close of the period you've paid for. For anything about billing, email " + (cfg.EMAIL || "us") + "." }
   ];
 

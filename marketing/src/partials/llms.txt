@@ -4,7 +4,7 @@
 
 ## What it does
 - Checks whether a hotel's own website answers the questions guests ask (parking, breakfast, check-in, pets, accessibility), quoting the exact words and page.
-- Asks an AI assistant with live web search real traveller questions, each more than once, and reports how often the hotel was named, who was named instead and which pages were cited. This is a labelled sample of one assistant on one day, never a market ranking.
+- Asks an AI assistant with live web search real traveller questions, each more than once, and reports how often the hotel was named, who was named instead and which pages were cited. This is a labelled sample, never a market ranking.
 - Checks where the hotel is listed (booking and review sites, maps, open data, press) across 30 points.
 - Analyses the hotel's own review export (a CSV or Excel file) for reply rate, unanswered critical reviews and what guests praise and criticise.
 - Produces a management PDF, a technical and evidence appendix, and a monthly comparison.
