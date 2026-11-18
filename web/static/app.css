@@ -366,3 +366,23 @@ html.js .rv.in.settled { transition: transform .2s var(--ease), box-shadow .22s,
 .act.first .rec-meta .hk-chip:not(:first-child) { display: none; }
 .kpis { align-items: stretch; } .kpi { justify-content: flex-start; }
 .table th { text-transform: none; letter-spacing: 0; font-size: .82rem; padding: 10px 12px; } .table td { padding: 10px 12px; }
+
+/* Westmont theme: the admin pages only. Charcoal and brass from the Westmont Hospitality logo; the hotel portal and the reports keep their own look. */
+body.wm { --brand: #9a7a56; --brand-2: #b4926a; --brand-dark: #6e5236; --soft: #f5eee5; --line: #e8e2d8; --line-strong: #d9d0c1; --bg: #faf8f4; --ink: #222220; --muted: #6f6a60; --ring: 0 0 0 4px rgba(154,122,86,.22);
+  background-image: none; }
+body.wm .site-head { background: #222220; border-bottom: 3px solid #9a7a56; backdrop-filter: none; -webkit-backdrop-filter: none; }
+body.wm .site-head .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 72px; }
+body.wm .wm-brand { display: flex; align-items: center; gap: 14px; color: #e9dcc8; font-family: Georgia, "Times New Roman", serif; font-size: 1.15rem; letter-spacing: .14em; text-transform: uppercase; }
+body.wm .wm-brand img { height: 56px; width: auto; display: block; margin: 6px 0; } body.wm .wm-brand:hover { text-decoration: none; }
+body.wm .site-head nav a { color: #d8c8ad; } body.wm .site-head nav a:hover { background: rgba(255,255,255,.08); color: #fff; }
+body.wm .site-head nav .btn { background: transparent; color: #e9dcc8; border-color: #9a7a56; box-shadow: none; } body.wm .site-head nav .btn:hover { background: #9a7a56; color: #fff; }
+body.wm h1, body.wm h2, body.wm h3 { font-family: Georgia, "Times New Roman", serif; font-weight: 600; color: #222220; letter-spacing: -.01em; }
+body.wm .btn.primary { background: linear-gradient(135deg, #9a7a56, #b4926a); box-shadow: 0 1px 2px rgba(34,34,32,.1), 0 6px 16px rgba(154,122,86,.3); color: #fff; }
+body.wm .btn.primary:hover { box-shadow: 0 2px 4px rgba(34,34,32,.1), 0 10px 24px rgba(154,122,86,.4); }
+body.wm .admin-nav a.on { background: #222220; border-color: #222220; color: #e9dcc8; }
+body.wm .admin-nav a:hover { border-color: #9a7a56; color: #6e5236; } body.wm .admin-nav a.on:hover { color: #fff; }
+body.wm a { color: #7d6140; } body.wm ::selection { background: rgba(154,122,86,.25); }
+body.wm table th { background: #f5eee5; color: #5b4a35; }
+body.wm .foot { color: #8a8478; }
+.wm-login { display: flex; align-items: center; gap: 22px; margin-bottom: 18px; } .wm-login h1 { margin: 0; } .wm-login img { height: 120px; width: auto; border-radius: 4px; }
+body.wm .wm-brand img { outline: 1px solid #9a7a56; outline-offset: 0; border-radius: 2px; }

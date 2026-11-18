@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Admin: {{ title }}{% endblock %}
+{% block bodyclass %}wm{% endblock %}
+{% block brand %}<a class="brand wm-brand" href="/admin"><img src="{{ url_for('static', filename='westmont.png') }}" alt="Westmont Hospitality" width="30" height="67"><span>Admin</span></a>{% endblock %}
 {% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {% block nav %}<a href="/">Public page</a><form method="post" action="/admin/logout" style="display:inline"><button class="btn" type="submit" style="margin-left:18px">Sign out</button></form>{% endblock %}
 {% block content %}

@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Admin{% endblock %}
+{% block bodyclass %}wm{% endblock %}
+{% block brand %}<a class="brand wm-brand" href="/admin"><img src="{{ url_for('static', filename='westmont.png') }}" alt="Westmont Hospitality" width="30" height="67"><span>Admin</span></a>{% endblock %}
 {% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {% block nav %}<a href="/">Public page</a>{% endblock %}
 {% block content %}
-<h1>Admin</h1>
+<div class="wm-login"><img src="{{ url_for('static', filename='westmont.png') }}" alt="Westmont Hospitality" width="120" height="268"><h1>Admin</h1></div>
 {% if off %}
 <div class="alert error">The admin page is switched off: no ADMIN_PASSWORD is set on the host.</div>
 {% else %}
