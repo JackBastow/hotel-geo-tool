@@ -18,7 +18,7 @@ PRI_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 PRI_TONE = {"critical": "bad", "high": "bad", "medium": "warn", "low": ""}
 TEAM = {"web": "Website", "reputation management": "Reputation", "distribution": "Distribution", "marketing": "Marketing", "operations": "Operations", "PR": "PR"}
 STATUS_LABEL = [("todo", "To do"), ("working", "Working on it"), ("done", "Done"), ("not_relevant", "Not relevant")]
-SECTIONS = [("working", "Working on it", True), ("todo", "To do", True), ("completed", "Completed", True), ("cleared", "No longer flagged by the checks (not marked done)", False), ("not_relevant", "Marked not relevant", False)]
+SECTIONS = [("working", "Working on it", True), ("todo", "To do", True), ("completed", "Marked done, waiting for a check to confirm", True), ("verified", "Verified: done and confirmed by a check", True), ("cleared", "No longer flagged by the checks (not marked done)", False), ("not_relevant", "Marked not relevant", False)]
 
 
 def chip(text, kind=""):
@@ -62,7 +62,7 @@ def progress_line(sm):
     word = "improved" if sm["delta"] > 0 else "changed" if sm["delta"] == 0 else "moved"
     return (f'<div class="pt-progress"><b>Since {esc(uk_date(sm["first_run_at"]))}:</b> the readiness score has {word} from <b>{sm["first_score"]:g}</b> to <b>{sm["latest_score"]:g}</b> '
             f'({sm["delta"]:+g}), and <b>{done} action{"s" if done != 1 else ""}</b> {"have" if done != 1 else "has"} been completed'
-            + (f' ({a["verified"]} checked and confirmed on the site)' if a["verified"] else "")
+            + (f' ({a["verified"]} verified: a later check confirmed {"they are" if a["verified"] != 1 else "it is"} gone)' if a["verified"] else "")
             + (f'. The latest check no longer flags <b>{a["cleared_site"]} more</b>, but nobody marked {"them" if a["cleared_site"] != 1 else "it"} done, so {"they are" if a["cleared_site"] != 1 else "it is"} not counted as completed' if a["cleared_site"] else "") + '.</div>')
 
 
@@ -76,7 +76,7 @@ def kpis(sm):
     tone = GOOD if (sc or 0) >= 75 else WARN if (sc or 0) >= 50 else BAD
     d = "" if sm["delta"] is None else f"{sm['delta']:+g} since {_short_date(sm['first_run_at'])}"
     out = [kpi("Readiness score", "-" if sc is None else f"{sc:g}", d or "the first check sets the baseline", tone if sc is not None else GREY, "/100"),
-           kpi("Actions completed", a["completed"], f"marked done, of {a['total']} recommended" + (f" · {a['cleared_site']} more no longer flagged by the checks" if a["cleared_site"] else ""), GOOD),
+           kpi("Actions completed", a["completed"], f"marked done, of {a['total']} recommended" + (f" · {a['verified']} verified by a check" if a["verified"] else "") + (f" · {a['cleared_site']} more no longer flagged by the checks" if a["cleared_site"] else ""), GOOD),
            kpi("Working on", a["working"], "marked as in progress", BRAND),
            kpi("Still to do", a["todo"] + a["still_flagged"], (f"includes {a['still_flagged']} marked done but still flagged" if a["still_flagged"] else "not started"), WARN if a["todo"] else GOOD)]
     c0, c1 = sm["cov_first"], sm["cov_latest"]
@@ -94,12 +94,32 @@ def _rec(a):
         return {}
 
 
+def _short(iso):
+    try:
+        return uk_date(iso) if iso else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _state_chips(a, latest_run_id, runs):
     out = []
+    done = a["status"] == "done"
     if a["state"] == "resolved":
-        out.append(chip("No longer found on the site (nobody marked this done)", "good") if a["resolution"] == "verified" else chip("Not flagged this time (answers vary: keep an eye on it)", "warn"))
-    elif a["status"] == "done" and a["reopened"]:
+        when = _short(a.get("resolved_at"))
+        if done and a["resolution"] == "verified":
+            out.append(chip(f"Verified: the check on {when} no longer found it" if when else "Verified by a check", "good"))
+        elif done and a["resolution"] == "verified_repeat":
+            out.append(chip("Verified: not in the answers two checks in a row", "good"))
+        elif done:
+            out.append(chip("Not flagged this time; one more check to confirm (answers vary)", "warn"))
+        elif a["resolution"] == "verified":
+            out.append(chip("No longer found on the site (nobody marked this done)", "good"))
+        else:
+            out.append(chip("Not flagged lately (answers vary: keep an eye on it)", "warn"))
+    elif done and a["reopened"]:
         out.append(chip("Marked done, but the latest check still flags it", "bad"))
+    elif done:
+        out.append(chip("Marked done: the next check will confirm it", "brand"))
     if runs > 1 and a["first_run_id"] == latest_run_id and a["state"] == "open":
         out.append(chip("New this week", "brand"))
     return "".join(out)
@@ -107,7 +127,7 @@ def _state_chips(a, latest_run_id, runs):
 
 def action_card(a, sm, editable, lead=None):
     rec = _rec(a)
-    kind = progress.classify(a)
+    kind = progress.board_group(a)
     team = TEAM.get(a["team"], a["team"])
     buttons = ""
     if editable:
@@ -142,7 +162,7 @@ def action_board(sm, actions, editable):
         return '<div class="alert info">No recommendations yet. They appear after the first check.</div>'
     groups = {k: [] for k, _t, _o in SECTIONS}
     for a in actions:
-        groups[progress.classify(a)].append(a)
+        groups[progress.board_group(a)].append(a)
     bar = ('<div class="filters-bar" role="group" aria-label="Filter by kind of action"><button type="button" class="fchip on" data-t="all">All kinds</button>'
            '<button type="button" class="fchip" data-t="visibility">AI visibility opportunities</button><button type="button" class="fchip" data-t="content">Website content</button>'
            '<button type="button" class="fchip" data-t="accuracy">Data accuracy</button></div>')

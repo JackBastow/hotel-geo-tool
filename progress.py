@@ -21,7 +21,8 @@ import re
 
 import portal_db
 
-NOISY_SOURCES = {"ai", "ai_gap", "direct", "reddit", "forums", "competitors"}      # sampled or open-web evidence: absence from one run is not proof of a fix
+VERIFIED = ("verified", "verified_repeat")      # resolutions that count as confirmed: gone from the hotel's own site, or gone from the sampled answers in two checks in a row
+NOISY_SOURCES = {"ai", "ai_facts", "ai_gap", "direct", "reddit", "forums", "competitors"}      # sampled or open-web evidence: absence from one run is not proof of a fix
 FUZZY = 0.78
 MIN_PAGES = 2
 
@@ -91,7 +92,22 @@ def sync(db, hotel, report, run_id):
         if a["state"] == "open":
             db.update_action(a["id"], state="resolved", resolved_at=when, resolution=("not_flagged" if a["source"] in NOISY_SOURCES else "verified"), last_run_id=run_id)
             out["fixed"] += 1
+        elif a["resolution"] == "not_flagged" and a["last_run_id"] != run_id:
+            # from sampled answers, which vary: one check without it was not proof, a second one in a row is
+            db.update_action(a["id"], resolution="verified_repeat", last_run_id=run_id)
+            out["confirmed"] = out.get("confirmed", 0) + 1
     return out
+
+
+def board_group(a):
+    """Where an action goes on the board: classify(), except that a completed action a later check has confirmed goes to 'verified'."""
+    k = classify(a)
+    return "verified" if k == "completed" and is_verified(a) else k
+
+
+def is_verified(a):
+    """Marked done by the hotel AND confirmed by a check: no longer found on its own site, or no longer in the sampled answers two checks in a row."""
+    return a["status"] == "done" and a["state"] == "resolved" and a["resolution"] in VERIFIED
 
 
 def set_status(db, hotel_id, action_id, status, who="", note=None):
@@ -134,9 +150,9 @@ def action_counts(actions):
         c[k] += 1
         if k != "not_relevant":
             c["total"] += 1
-        if k == "completed" and a["state"] == "resolved" and a["resolution"] == "verified":
+        if k == "completed" and a["state"] == "resolved" and a["resolution"] in VERIFIED:
             c["verified"] += 1                      # marked done by the hotel AND the next check no longer found it
-        if k == "cleared" and a["resolution"] == "verified":
+        if k == "cleared" and a["resolution"] in VERIFIED and a.get("source") not in NOISY_SOURCES:
             c["cleared_site"] += 1                  # no longer found on the hotel's own site, but nobody marked it done
         if a["status"] == "done" and a["state"] == "open" and a["reopened"]:
             c["still_flagged"] += 1
