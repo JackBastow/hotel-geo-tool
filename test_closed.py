@@ -38,6 +38,11 @@ check("the sign-in page has no public page link", "Public page" not in client({"
 
 check("an anonymous visitor cannot open the Quick audit page", client({"RENDER": "true", "ADMIN_PASSWORD": "adm"}).get("/admin/audit").status_code == 302)
 
+with c.session_transaction() as ss:
+    ss["admin_until"] = 1.0                       # pretend the admin sign-in is from yesterday
+check("an admin sign-in expires after a working day", c.get("/admin/audit").status_code == 302 and c.get("/admin/runs").status_code == 302)
+check("and the hotel users' 30-day sign-in is not shortened by an admin signing in", c.application.permanent_session_lifetime.days == 30)
+
 # live host WITH a site password set: the shared password no longer opens anything
 c = client({"RENDER": "true", "SITE_PASSWORD": "pw"})
 c.post("/login", data={"password": "pw"})

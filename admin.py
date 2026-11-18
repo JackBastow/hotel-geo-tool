@@ -21,6 +21,7 @@ import ui_theme
 from timeutil import uk_time
 from htmlst import st
 
+ADMIN_HOURS = 8
 NAV = [("overview", "Overview"), ("portfolio", "Portfolio"), ("audit", "Quick audit"), ("runs", "Runs"), ("hotels", "Hotels"), ("markets", "Markets"), ("usage", "Usage"), ("feedback", "Feedback"), ("export", "Export")]
 PUB_COLS = ["id", "run_at", "hotel", "city", "headline_status", "headline_score", "coverage_pct", "ai_generic_named", "ai_generic_asked", "ai_niche_named", "ai_niche_asked",
             "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_rank_in_table", "ai_top_competitor", "reviews_replied", "reviews_examined", "pack_reviews", "pack_reply_rate", "pagespeed_perf",
@@ -54,7 +55,7 @@ def register(app, cfg):
         return cfg.admin_password
 
     def authed():
-        return bool(password()) and session.get("admin_ok") is True
+        return bool(password()) and session.get("admin_ok") is True and (session.get("admin_until") or 0) > time.time()
 
     def csrf():
         if "csrf" not in session:
@@ -95,8 +96,8 @@ def register(app, cfg):
                 session.clear()
                 session.update(keep)
                 session["admin_ok"] = True
+                session["admin_until"] = time.time() + ADMIN_HOURS * 3600       # the admin sign-in lasts a working day; hotel users' sign-ins keep their own 30 days
                 session.permanent = True
-                app.permanent_session_lifetime = 8 * 3600
                 return redirect(url_for("admin_overview"))
             else:
                 _failed[ip].append(now)

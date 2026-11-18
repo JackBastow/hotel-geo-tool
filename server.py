@@ -194,6 +194,9 @@ def create_app(cfg=None, run_fn=None):
 
     @app.before_request
     def site_gate():
+        if session.get("admin_ok") is True and (session.get("admin_until") or 0) <= time.time():
+            session.pop("admin_ok", None)          # an admin sign-in older than a working day ends here, for every page
+            session.pop("admin_until", None)
         if not cfg.closed and (not cfg.site_password or session.get("site_ok") is True):
             return None          # (open only when running on a developer's own machine; on the live host a missing site password locks the audit tool instead of opening it)
         if request.path.startswith(("/portal", "/internal/", "/admin")) or session.get("admin_ok") is True:
@@ -227,7 +230,7 @@ def create_app(cfg=None, run_fn=None):
             if len(failed[ip]) >= 6:
                 error = "Too many wrong passwords. Please try again in ten minutes."
             elif hmac.compare_digest((request.form.get("password") or "").encode(), cfg.site_password.encode()):
-                keep = {k: True for k in ("admin_ok",) if session.get(k) is True}      # signing in to the site must not sign you out of the admin pages
+                keep = {k: session[k] for k in ("admin_ok", "admin_until") if session.get(k)}      # signing in to the site must not sign you out of the admin pages
                 session.clear()
                 session.update(keep)
                 session["site_ok"] = True
