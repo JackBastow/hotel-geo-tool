@@ -127,6 +127,8 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
             return bad
         name, site, city = (request.form.get(k, "").strip()[:120] for k in ("name", "website", "city"))
         site = site if site and "." in site and not any(c in site for c in " \r\n\t") else ""
+        if city and urlscope.is_country(city):
+            return shell("portfolio", "Portfolio", '<div class="alert warning">&ldquo;' + esc(city) + '&rdquo; is a country. Enter the <b>town or city</b> the hotel is in (for example Paris, or Roissy-en-France): the questions put to AI assistants are about hotels in a town.</div>')
         if not (name and site and city) or not netguard.url_ok(site if "//" in site else "https://" + site):
             return shell("portfolio", "Portfolio", '<div class="alert warning">Enter the hotel&rsquo;s name, a public website address and the town or city.</div>')
         key = _key_for(site)

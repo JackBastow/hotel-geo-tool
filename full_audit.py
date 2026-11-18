@@ -645,6 +645,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     web_ex = ThreadPoolExecutor(max_workers=1)
     web_future = web_ex.submit(web_signals.run, base, site.get("robots"), pagespeed_api_key, None)
 
+    if city and urlscope.is_country(city):
+        city = ""                       # a country is not a town: work the town out from the hotel's own pages instead of asking assistants about "hotels in France"
     hotel_given, city_given = bool(hotel), bool(city)
     name_respelled = False
     if hotel_given:

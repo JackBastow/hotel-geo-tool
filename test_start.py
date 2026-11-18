@@ -76,6 +76,9 @@ check("an action the hotel marked done is completed, whether or not the checks h
 _c = progress.action_counts([_a(state="resolved", resolution="verified"), _a(state="resolved", resolution="verified"), _a(status="done"), _a()])
 check("the counts keep the two apart: 1 completed, 2 no longer flagged", _c["completed"] == 1 and _c["cleared_site"] == 2 and _c["total"] == 4, _c)
 
+import urlscope
+check("a country given as the town is recognised, a real town (even one with 'France' in it) is not", urlscope.is_country("France") and urlscope.is_country("United Kingdom") and not urlscope.is_country("Roissy-en-France") and not urlscope.is_country("Paris"))
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

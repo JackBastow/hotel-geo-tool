@@ -230,3 +230,14 @@ def name_from_url(start_url, scope):
         full = brand + " " + " ".join(t.capitalize() for t in toks[1:])
         return {"name": full, "city_candidates": place_candidates(" ".join(toks[1:])) or [toks[-1]]}
     return {"name": " ".join(t.capitalize() for t in toks), "city_candidates": place_candidates(" ".join(toks)) or [toks[-1]]}
+
+
+_COUNTRY_NAMES = {"france", "germany", "spain", "italy", "portugal", "netherlands", "belgium", "switzerland", "austria", "ireland", "england", "scotland", "wales", "united kingdom", "uk", "great britain", "britain",
+                  "united states", "usa", "us", "america", "canada", "mexico", "brazil", "argentina", "chile", "peru", "colombia", "australia", "new zealand", "japan", "china", "india", "thailand", "vietnam", "indonesia",
+                  "malaysia", "singapore", "turkey", "greece", "croatia", "czech republic", "czechia", "poland", "hungary", "romania", "bulgaria", "denmark", "sweden", "norway", "finland", "iceland", "estonia", "latvia",
+                  "lithuania", "luxembourg", "malta", "cyprus", "morocco", "egypt", "south africa", "kenya", "tanzania", "uae", "united arab emirates", "qatar", "saudi arabia", "israel", "jordan"}
+
+
+def is_country(name):
+    """True when the 'town' someone gave is really a country ('France'): the questions put to AI assistants and the place checks need a town, so a country is never accepted in its place."""
+    return " ".join((name or "").lower().replace(",", " ").split()) in _COUNTRY_NAMES
