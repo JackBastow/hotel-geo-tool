@@ -33,7 +33,7 @@ class DB:
 hotel = {"id": 1, "name": "Our Hotel", "hotel_key": "h.example", "city": "Zurich", "website": "h.example", "weekly": 1}
 sm = {"hotel": hotel, "runs": 2, "first_run_at": "2026-11-02T08:00:00+00:00", "last_run_at": "2026-11-09T08:00:00+00:00", "first_score": 60.0, "latest_score": 66.0, "delta": 6.0,
       "points": [{"run_at": "2026-11-02T08:00:00+00:00", "score": 60.0, "id": 1}, {"run_at": "2026-11-09T08:00:00+00:00", "score": 66.0, "id": 2}], "cov_first": (2, 20), "cov_latest": (3, 20),
-      "actions": {"completed": 1, "verified": 0, "working": 0, "todo": 4, "cleared": 0, "not_relevant": 0, "still_flagged": 0, "total": 5}, "latest_run_id": 2, "completed_points": []}
+      "actions": {"completed": 1, "verified": 0, "cleared_site": 0, "working": 0, "todo": 4, "cleared": 0, "not_relevant": 0, "still_flagged": 0, "total": 5}, "latest_run_id": 2, "completed_points": []}
 acts = [act(1, "Low priority thing", "low"), act(2, "Critical fix", "critical", "high"), act(3, "High quick fix", "high", "low"), act(4, "High slow fix", "high", "high"), act(5, "Medium thing", "medium"),
         act(6, "Finished this week", "high", status="done", done_at="2026-11-10T09:00:00+00:00"), act(7, "Finished long ago", "high", status="done", done_at="2026-10-01T09:00:00+00:00")]
 runs = [{"id": 2, "run_at": "2026-11-09T08:00:00+00:00", "headline_score": 66.0, "recs_total": 5, "access_token": "tok"}, {"id": 1, "run_at": "2026-11-02T08:00:00+00:00", "headline_score": 60.0, "recs_total": 4, "access_token": "t0"}]
@@ -68,6 +68,13 @@ _rep = {"ai_insights": {"brand_ranking": {"rows": [{"name": "Us", "is_target": T
 _g = dashboard_view.at_a_glance(_rep)
 check("the report overview opens with who is named, who is recommended instead and which sites the answers drew on", "10%" in _g and "Rival A" in _g and "booking.com" in _g)
 check("with no AI answers at all the row is left out rather than shown empty", dashboard_view.at_a_glance({"ai_insights": {}, "ai_sample": {}}) == "")
+
+import progress
+_a = lambda **k: {"status": "todo", "state": "open", "resolution": "", "reopened": 0, "done_at": "", "resolved_at": "", **k}
+check("an action the checks merely stopped flagging is NOT completed: nobody marked it done", progress.classify(_a(state="resolved", resolution="verified")) == "cleared")
+check("an action the hotel marked done is completed, whether or not the checks have confirmed it", progress.classify(_a(status="done")) == "completed" and progress.classify(_a(status="done", state="resolved", resolution="verified")) == "completed")
+_c = progress.action_counts([_a(state="resolved", resolution="verified"), _a(state="resolved", resolution="verified"), _a(status="done"), _a()])
+check("the counts keep the two apart: 1 completed, 2 no longer flagged", _c["completed"] == 1 and _c["cleared_site"] == 2 and _c["total"] == 4, _c)
 
 print()
 print("FAILURES:", fails if fails else "none")

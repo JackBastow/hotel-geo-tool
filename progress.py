@@ -11,7 +11,7 @@ The action list
   An audit that read too little of the site to judge changes nothing (it never marks things fixed because the crawler failed).
 
 The numbers
-  Readiness score first audit -> latest, actions completed (marked done and not still flagged, or checked and fixed), in progress, still to do, and the AI coverage first -> latest with its likely range.
+  Readiness score first audit -> latest, actions completed (marked done by the hotel and not still flagged; a recommendation the checks merely stop flagging is shown separately, never counted as the hotel's work), in progress, still to do, and the AI coverage first -> latest with its likely range.
   These show PROGRESS. They do not prove that the actions caused the score to move, and the screens say so.
 """
 
@@ -112,12 +112,14 @@ def set_status(db, hotel_id, action_id, status, who="", note=None):
 
 
 def classify(a):
-    """Where an action sits for display: 'completed', 'working', 'todo', 'cleared' (not flagged this time, but only sampled evidence), 'not_relevant'."""
+    """Where an action sits for display: 'completed' (the hotel marked it done), 'working', 'todo', 'cleared' (no longer flagged by the latest check, but nobody marked it done), 'not_relevant'."""
     fixed = a["state"] == "resolved"
     if a["status"] == "not_relevant":
         return "not_relevant"
     if fixed:
-        return "completed" if (a["resolution"] == "verified" or a["status"] == "done") else "cleared"       # sampled evidence that is merely absent this time is not counted as a fix
+        # Only what the hotel marked done is "completed". A recommendation the latest check simply no longer flags is "cleared": it may have been fixed by someone, the page may have changed, or the check may have
+        # read different pages, and nobody here said they did it, so it is shown separately and never counted as the hotel's work.
+        return "completed" if a["status"] == "done" else "cleared"
     if a["status"] == "done" and not a["reopened"]:
         return "completed"
     if a["status"] == "working":
@@ -126,14 +128,16 @@ def classify(a):
 
 
 def action_counts(actions):
-    c = {"completed": 0, "verified": 0, "working": 0, "todo": 0, "cleared": 0, "not_relevant": 0, "still_flagged": 0, "total": 0}
+    c = {"completed": 0, "verified": 0, "working": 0, "todo": 0, "cleared": 0, "cleared_site": 0, "not_relevant": 0, "still_flagged": 0, "total": 0}
     for a in actions:
         k = classify(a)
         c[k] += 1
         if k != "not_relevant":
             c["total"] += 1
         if k == "completed" and a["state"] == "resolved" and a["resolution"] == "verified":
-            c["verified"] += 1
+            c["verified"] += 1                      # marked done by the hotel AND the next check no longer found it
+        if k == "cleared" and a["resolution"] == "verified":
+            c["cleared_site"] += 1                  # no longer found on the hotel's own site, but nobody marked it done
         if a["status"] == "done" and a["state"] == "open" and a["reopened"]:
             c["still_flagged"] += 1
     return c
@@ -149,7 +153,7 @@ def completion_date(a):
     """When an action counts as completed: the check that found it fixed, or the day the hotel marked it done (and it is not flagged again). None when it is not completed."""
     if classify(a) != "completed":
         return None
-    return (a["resolved_at"] if a["state"] == "resolved" else a["done_at"]) or a["done_at"] or a["resolved_at"] or None
+    return a["done_at"] or a["resolved_at"] or None
 
 
 def completed_series(actions, dates):
@@ -183,7 +187,7 @@ def portfolio_summary(db, data=None):
     data = data or portfolio_data(db)
     rows = [hotel_summary(db, h, data["hist"].get(h["hotel_key"], []), data["actions"].get(h["id"], [])) for h in data["hotels"]]
     with_change = [r for r in rows if r["delta"] is not None]
-    tot = {"hotels": len(rows), "completed": sum(r["actions"]["completed"] for r in rows), "verified": sum(r["actions"]["verified"] for r in rows), "working": sum(r["actions"]["working"] for r in rows),
+    tot = {"hotels": len(rows), "completed": sum(r["actions"]["completed"] for r in rows), "verified": sum(r["actions"]["verified"] for r in rows), "cleared_site": sum(r["actions"]["cleared_site"] for r in rows), "working": sum(r["actions"]["working"] for r in rows),
            "todo": sum(r["actions"]["todo"] for r in rows), "improved": sum(1 for r in with_change if r["delta"] > 0), "measured": len(with_change),
            "avg_first": round(sum(r["first_score"] for r in with_change) / len(with_change), 1) if with_change else None,
            "avg_latest": round(sum(r["latest_score"] for r in with_change) / len(with_change), 1) if with_change else None}

@@ -176,7 +176,7 @@ check("the right password signs in", u.post("/portal/signin", data={"email": "gm
 
 print("6. the operator sees the portfolio and each hotel as the hotel sees it")
 page = admin.get("/admin/portfolio").get_data(as_text=True)
-check("the portfolio roll-up and one row per hotel", "Hotel A" in page and "Hotel B" in page and "actions completed" in page)
+check("the portfolio roll-up and one row per hotel", "Hotel A" in page and "Hotel B" in page and "marked done by hotels" in page)
 page = admin.get(f"/admin/hotel/{ha['id']}").get_data(as_text=True)
 check("a hotel page shows exactly the hotel's view, read-only, plus the controls", "Recommendations (" in page and 'data-v="working"' not in page and "Run a check now" in page and "gm@hotel-a.com" in page)
 page = admin.post(f"/admin/hotel/{ha['id']}/reset/{db.user_by_email('gm@hotel-a.com')['id']}", data={"csrf": csrf}).get_data(as_text=True)

@@ -46,7 +46,7 @@ def figures(db, runs_all=None, now=None):
     recent = sum(1 for r in rows for p in data["hist"].get(r["hotel"]["hotel_key"], []) if _parse(p["run_at"]) and (now - _parse(p["run_at"])).days < 30)
     moved = [r["delta"] for r in rows if r["delta"] is not None]
     latest = [r["latest_score"] for r in rows if r["latest_score"] is not None]
-    tiles = {"hotels": len(rows), "checks": checks, "recent": recent, "completed": tot["completed"], "verified": tot["verified"], "working": tot["working"], "todo": tot["todo"],
+    tiles = {"hotels": len(rows), "checks": checks, "recent": recent, "completed": tot["completed"], "verified": tot["verified"], "cleared_site": tot["cleared_site"], "working": tot["working"], "todo": tot["todo"],
              "avg_now": round(sum(latest) / len(latest), 1) if latest else None, "avg_move": round(sum(moved) / len(moved), 1) if moved else None,
              "up": sum(1 for d in moved if d > 0), "down": sum(1 for d in moved if d < 0), "flat": sum(1 for d in moved if d == 0), "measured": len(moved)}
     weeks = {}
@@ -104,7 +104,7 @@ def page(db, runs_all, cost_this_month=None):
     tiles = ('<div class="kpis">'
              + portal_view.kpi("Hotels", t["hotels"], f"{t['up']} improving, {t['flat']} flat, {t['down']} slipping" if t["measured"] else "more checks are needed to show movement", BRAND)
              + portal_view.kpi("Checks run", t["checks"], f"{t['recent']} in the last 30 days", BRAND)
-             + portal_view.kpi("Actions completed", t["completed"], f"{t['verified']} confirmed on the sites · {t['working']} in progress", GOOD)
+             + portal_view.kpi("Actions completed", t["completed"], f"marked done · {t['cleared_site']} more no longer flagged by the checks · {t['working']} in progress", GOOD)
              + portal_view.kpi("Average score now", "-" if t["avg_now"] is None else f"{t['avg_now']:g}", move or "across all hotels", GOOD if (t["avg_now"] or 0) >= 70 else WARN, "/100")
              + (portal_view.kpi("AI cost this month", f"${cost_this_month:.2f}", "estimated; the Usage tab has the detail", BRAND) if cost_this_month is not None else "") + "</div>")
     # by hotel
@@ -119,11 +119,11 @@ def page(db, runs_all, cost_this_month=None):
     table = ('<div class="table-wrap"><table class="table"><thead><tr><th>Hotel</th><th>Checks</th><th>Score: first &rarr; latest</th><th>Movement</th><th>Actions done</th><th>In progress</th><th>To do</th>'
              '<th>AI visibility: first &rarr; latest</th><th>Movement</th></tr></thead><tbody>' + body + "</tbody></table></div>")
     # charts
-    actions_rows = [{"label": r["hotel"]["name"], "value": r["actions"]["completed"], "colour": GOOD, "note": f"{r['actions']['verified']} confirmed on the site"} for r in sorted(rows, key=lambda r: -r["actions"]["completed"])[:5] if r["actions"]["completed"]]
+    actions_rows = [{"label": r["hotel"]["name"], "value": r["actions"]["completed"], "colour": GOOD, "note": f"{r['actions']['cleared_site']} more no longer flagged by the checks"} for r in sorted(rows, key=lambda r: -r["actions"]["completed"])[:5] if r["actions"]["completed"]]
     growth_rows, _ = _top(rows, "growth", minimum=0.5, label_note=lambda r: f"{r['cov0']}% to {r['cov1']}%", colour=BRAND, suffix=" pts")
     gain_rows, _ = _top(rows, "delta", minimum=0.5, label_note=lambda r: f"{r['first_score']:g} to {r['latest_score']:g}", colour=GOOD, suffix=" pts")
     drop_rows, _ = _top(rows, "delta", descending=False, label_note=lambda r: f"{r['first_score']:g} to {r['latest_score']:g}", colour=BAD, suffix=" pts")
-    charts = ('<div class="ov-grid even">' + _panel("Most actions completed (top 5)", actions_rows, empty="No action has been completed yet.")
+    charts = ('<div class="ov-grid even">' + _panel("Most actions completed (top 5)", actions_rows, empty="No hotel has marked an action done yet.")
               + _panel("Biggest growth in AI visibility (top 5)", growth_rows, " pts", "No hotel's AI visibility has grown yet, or only one check each so far.", note="Points of coverage gained: how much more often the hotel is named in the AI answers than at its first check.") + "</div>"
               '<div class="ov-grid even">' + _panel("Biggest readiness score gains (top 5)", gain_rows, " pts", "No hotel's score has risen yet.")
               + _panel("Biggest score drops: who to call", drop_rows, " pts", "No hotel's score has fallen.") + "</div>")

@@ -62,7 +62,7 @@ print("1. the figures")
 check("hotels and checks are counted: 4 hotels, 5 checks of them (the unregistered audit is reported separately)", f["tiles"]["hotels"] == 4 and f["tiles"]["checks"] == 5 and f["other_audits"] == 1, f["tiles"])
 check("score movement per hotel: Alpha +20, Bravo -10, Charlie and Delta not measured", rows["Alpha"]["delta"] == 20 and rows["Bravo"]["delta"] == -10 and rows["Charlie"]["delta"] is None)
 check("AI visibility growth is in points of coverage: Alpha 10% to 40% = +30, Bravo 30% to 20% = -10", rows["Alpha"]["growth"] == 30 and rows["Bravo"]["growth"] == -10 and rows["Charlie"]["growth"] is None, (rows["Alpha"]["cov0"], rows["Alpha"]["cov1"], rows["Alpha"]["growth"]))
-check("actions completed are counted per hotel (Alpha's checks fixed some)", rows["Alpha"]["actions"]["completed"] >= 1 and rows["Bravo"]["actions"]["completed"] == 0)
+check("actions the checks no longer flag are counted per hotel but NOT as completed unless the hotel marked them done", rows["Alpha"]["actions"]["cleared_site"] >= 1 and rows["Alpha"]["actions"]["completed"] == 0 and rows["Bravo"]["actions"]["completed"] == 0, rows["Alpha"]["actions"])
 check("the average movement and the improving / slipping counts", f["tiles"]["up"] == 1 and f["tiles"]["down"] == 1 and f["tiles"]["avg_move"] == 5.0, f["tiles"])
 att = {r["hotel"]["name"]: why for r, why in f["attention"]}
 check("hotels needing attention: Delta never checked, Charlie not checked for 14+ days, Bravo's score is down 10", att.get("Delta") == "Never checked" and "20 days" in att.get("Charlie", "") and "down 10" in att.get("Bravo", ""), att)

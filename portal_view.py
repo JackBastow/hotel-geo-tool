@@ -18,7 +18,7 @@ PRI_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 PRI_TONE = {"critical": "bad", "high": "bad", "medium": "warn", "low": ""}
 TEAM = {"web": "Website", "reputation management": "Reputation", "distribution": "Distribution", "marketing": "Marketing", "operations": "Operations", "PR": "PR"}
 STATUS_LABEL = [("todo", "To do"), ("working", "Working on it"), ("done", "Done"), ("not_relevant", "Not relevant")]
-SECTIONS = [("working", "Working on it", True), ("todo", "To do", True), ("completed", "Completed", True), ("cleared", "Not flagged this time", False), ("not_relevant", "Marked not relevant", False)]
+SECTIONS = [("working", "Working on it", True), ("todo", "To do", True), ("completed", "Completed", True), ("cleared", "No longer flagged by the checks (not marked done)", False), ("not_relevant", "Marked not relevant", False)]
 
 
 def chip(text, kind=""):
@@ -62,7 +62,8 @@ def progress_line(sm):
     word = "improved" if sm["delta"] > 0 else "changed" if sm["delta"] == 0 else "moved"
     return (f'<div class="pt-progress"><b>Since {esc(uk_date(sm["first_run_at"]))}:</b> the readiness score has {word} from <b>{sm["first_score"]:g}</b> to <b>{sm["latest_score"]:g}</b> '
             f'({sm["delta"]:+g}), and <b>{done} action{"s" if done != 1 else ""}</b> {"have" if done != 1 else "has"} been completed'
-            + (f' ({a["verified"]} checked and confirmed on the site)' if a["verified"] else "") + '.</div>')
+            + (f' ({a["verified"]} checked and confirmed on the site)' if a["verified"] else "")
+            + (f'. The latest check no longer flags <b>{a["cleared_site"]} more</b>, but nobody marked {"them" if a["cleared_site"] != 1 else "it"} done, so {"they are" if a["cleared_site"] != 1 else "it is"} not counted as completed' if a["cleared_site"] else "") + '.</div>')
 
 
 def kpi(label, value, sub, colour=GREY, unit=""):
@@ -75,7 +76,7 @@ def kpis(sm):
     tone = GOOD if (sc or 0) >= 75 else WARN if (sc or 0) >= 50 else BAD
     d = "" if sm["delta"] is None else f"{sm['delta']:+g} since {_short_date(sm['first_run_at'])}"
     out = [kpi("Readiness score", "-" if sc is None else f"{sc:g}", d or "the first check sets the baseline", tone if sc is not None else GREY, "/100"),
-           kpi("Actions completed", a["completed"], f"of {a['total']} recommended" + (f" · {a['verified']} confirmed on the site" if a["verified"] else ""), GOOD),
+           kpi("Actions completed", a["completed"], f"marked done, of {a['total']} recommended" + (f" · {a['cleared_site']} more no longer flagged by the checks" if a["cleared_site"] else ""), GOOD),
            kpi("Working on", a["working"], "marked as in progress", BRAND),
            kpi("Still to do", a["todo"] + a["still_flagged"], (f"includes {a['still_flagged']} marked done but still flagged" if a["still_flagged"] else "not started"), WARN if a["todo"] else GOOD)]
     c0, c1 = sm["cov_first"], sm["cov_latest"]
@@ -96,7 +97,7 @@ def _rec(a):
 def _state_chips(a, latest_run_id, runs):
     out = []
     if a["state"] == "resolved":
-        out.append(chip("Checked: no longer found on the site", "good") if a["resolution"] == "verified" else chip("Not flagged this time (answers vary: keep an eye on it)", "warn"))
+        out.append(chip("No longer found on the site (nobody marked this done)", "good") if a["resolution"] == "verified" else chip("Not flagged this time (answers vary: keep an eye on it)", "warn"))
     elif a["status"] == "done" and a["reopened"]:
         out.append(chip("Marked done, but the latest check still flags it", "bad"))
     if runs > 1 and a["first_run_id"] == latest_run_id and a["state"] == "open":

@@ -69,7 +69,7 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         data = progress.portfolio_data(s)
         rows, tot = progress.portfolio_summary(s, data)
         if tot["measured"]:
-            line = (f'<div class="pt-progress"><b>{tot["hotels"]} hotels.</b> {tot["completed"]} actions completed ({tot["verified"]} checked and confirmed on the sites), {tot["working"]} in progress. '
+            line = (f'<div class="pt-progress"><b>{tot["hotels"]} hotels.</b> {tot["completed"]} actions marked done by hotels ({tot["verified"]} also confirmed by the checks), {tot["cleared_site"]} more no longer flagged by the checks but never marked done, {tot["working"]} in progress. '
                     f'Of the {tot["measured"]} hotels with more than one check, <b>{tot["improved"]}</b> have a higher readiness score; the average has moved from <b>{tot["avg_first"]:g}</b> to <b>{tot["avg_latest"]:g}</b>.</div>')
         else:
             line = f'<div class="pt-progress"><b>{tot["hotels"]} hotel{"s" if tot["hotels"] != 1 else ""}.</b> Progress across the portfolio shows here once hotels have been checked more than once.</div>'
