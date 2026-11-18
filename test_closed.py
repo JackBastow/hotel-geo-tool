@@ -21,20 +21,19 @@ def client(env):
 # live host, no site password: closed
 c = client({"RENDER": "true", "ADMIN_PASSWORD": "adm"})
 r = c.get("/")
-check("the audit form redirects an anonymous visitor to the admin sign-in", r.status_code == 302 and "/admin/login" in r.headers["Location"])
+check("the audit form redirects an anonymous visitor to the hotel sign-in", r.status_code == 302 and "/portal/signin" in r.headers["Location"])
 check("an anonymous audit request is refused", c.post("/api/audit", json={"website": "brooklandshotelsurrey.com"}).status_code == 401)
 check("an anonymous report link is refused", c.get("/r/" + "A" * 30).status_code == 302)
 check("the health check stays open", c.get("/healthz").status_code == 200)
 check("the hotel portal is not caught by the gate (it has its own sign-in)", c.get("/portal/signin").status_code != 302)
-check("/login does not loop", "/admin/login" in c.get("/login").headers["Location"])
+check("/login does not loop", "/portal/signin" in c.get("/login").headers["Location"])
 c.post("/admin/login", data={"password": "adm"})
 check("a signed-in admin may use the audit form", c.get("/").status_code == 200)
 
-# live host with a site password: unchanged
+# live host WITH a site password set: the shared password no longer opens anything
 c = client({"RENDER": "true", "SITE_PASSWORD": "pw"})
-check("with a site password the form still asks for it", c.get("/").status_code == 302 and "/login" in c.get("/").headers["Location"])
 c.post("/login", data={"password": "pw"})
-check("and works after it", c.get("/").status_code == 200)
+check("a shared site password no longer opens the audit tool", c.get("/").status_code == 302 and c.post("/api/audit", json={"website": "brooklandshotelsurrey.com"}).status_code == 401)
 
 # a developer's machine: open as before
 check("on a developer's machine nothing changes", client({}).get("/").status_code == 200)
