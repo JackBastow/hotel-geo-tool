@@ -331,11 +331,17 @@ document.addEventListener("click", function (ev) {
   if (!list) { return; }
   var max = +box.getAttribute("data-max");
   if (list.querySelectorAll(".prow").length >= max) { alert("You can have at most " + max + " prompts."); return; }
-  var d = document.createElement("div"); d.className = "prow"; d.setAttribute("data-source", "suggested"); d.setAttribute("data-id", ""); d.setAttribute("data-angle", "Suggested"); d.setAttribute("data-style", "");
+  var sec = b.getAttribute("data-sec") || "";
+  var d = document.createElement("div"); d.className = "prow"; d.setAttribute("data-source", "suggested"); d.setAttribute("data-id", ""); d.setAttribute("data-angle", "Suggested"); d.setAttribute("data-style", ""); d.setAttribute("data-section", sec);
   d.innerHTML = '<div class="prow-n"></div><div class="prow-main"><textarea rows="2" maxlength="220"></textarea><div class="prow-meta"><span class="hk-chip brand">Suggested</span></div><div class="prow-why"></div><div class="prow-err" hidden></div></div><button type="button" class="btn small pdel">Remove</button>';
   d.querySelector("textarea").value = b.getAttribute("data-text");
   d.querySelector(".prow-why").textContent = b.getAttribute("data-why") || "";
-  list.appendChild(d);
+  var head = sec ? list.querySelector('.psec[data-sec="' + sec + '"]') : null;   /* at the end of its own section, like 'Add a prompt here' */
+  if (head) {
+    var after = head, nx = head.nextElementSibling;
+    while (nx && nx.classList.contains("prow")) { after = nx; nx = nx.nextElementSibling; }
+    after.parentNode.insertBefore(d, after.nextSibling);
+  } else { list.appendChild(d); }
   b.disabled = true; b.textContent = "Added";
   box.dispatchEvent(new Event("input", { bubbles: true }));
   d.scrollIntoView({ behavior: "smooth", block: "center" });

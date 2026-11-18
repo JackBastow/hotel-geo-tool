@@ -93,6 +93,8 @@ tab = ai_dash.panel(db, hotel)
 check("the AI visibility tab shows the fact-check and the gap map", "What AI says about the hotel" in tab and "parking is not available on site" in tab and "Where the hotel is missing out" in tab)
 pv = prompts_view.panel({"active": None, "draft": {"prompts": [{"id": "p1", "text": Q_TRACKED, "angle": "Price level", "source": "recommended"}], "version": 0}, "history": []}, hotel, "/x", True, 0, [], sug)
 check("the Prompts tab offers them with an Add button", "Exploratory questions worth tracking" in pv and pv.count("psugadd") >= len(sug))
+check("each Add button says which section the prompt goes in (a spa question under 'What it offers', not 'Other prompts')",
+      'data-sec="offer" data-text="' + Q_SPA in pv and 'data-sec="who" data-text="' + Q_MEET in pv and 'psugadd" data-sec="own"' not in pv, pv[pv.find("psugadd"):][:300])
 
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

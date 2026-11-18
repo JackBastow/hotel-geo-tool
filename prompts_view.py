@@ -10,6 +10,12 @@ from timeutil import uk_date
 esc = html.escape
 
 
+def _sec(s):
+    """The Prompts tab section a suggested prompt belongs in (its own, else read from its words; never 'Other prompts')."""
+    sec = s.get("section") or ps.section_of({"text": s.get("text") or "", "angle": s.get("angle") or ""})
+    return "place" if sec == "own" else sec
+
+
 def _row(p, editable, i):
     chip = {"recommended": "Recommended", "own": "Yours"}.get(p.get("source"), "Recommended")
     tag = f'<span class="hk-chip {"brand" if p.get("source") == "own" else ""}">{esc(p.get("angle") or chip)}</span>'
@@ -43,7 +49,7 @@ def _suggestions(sug):
     if not sug:
         return ""
     rows = "".join(f'<div class="psug-row"><div><div class="psug-text">{esc(s["text"])}</div><div class="prow-why">Rests on: {esc("; ".join(s["rests_on"]))}. {esc(s["why"])}</div></div>'
-                   f'<button type="button" class="btn small psugadd" data-text="{esc(s["text"], quote=True)}" data-why="{esc("Rests on: " + "; ".join(s["rests_on"]), quote=True)}">Add</button></div>' for s in sug)
+                   f'<button type="button" class="btn small psugadd" data-sec="{esc(_sec(s))}" data-text="{esc(s["text"], quote=True)}" data-why="{esc("Rests on: " + "; ".join(s["rests_on"]), quote=True)}">Add</button></div>' for s in sug)
     return ('<section class="panel psug"><h4>More specific prompts we could test</h4><p class="caption">Built from facts your own pages state (a place you are close to, a facility, a kind of traveller). Narrow searches show where the hotel '
             f'deserves to compete. Add the ones you want; nothing changes until you confirm.</p>{rows}</section>')
 
@@ -52,7 +58,7 @@ def _from_results(sug):
     if not sug:
         return ""
     rows = "".join(f'<div class="psug-row"><div><div class="psug-text">{esc(s["text"])}</div><div class="prow-why">{esc(s["why"])}</div></div>'
-                   f'<button type="button" class="btn small psugadd" data-text="{esc(s["text"], quote=True)}" data-why="{esc(s["why"], quote=True)}">Add</button></div>' for s in sug)
+                   f'<button type="button" class="btn small psugadd" data-sec="{esc(_sec(s))}" data-text="{esc(s["text"], quote=True)}" data-why="{esc(s["why"], quote=True)}">Add</button></div>' for s in sug)
     return ('<section class="panel psug"><h4>Exploratory questions worth tracking</h4><p class="caption">Questions from the wider set that came up in two or more recent checks and either named the hotel, '
             f'or kept naming the same rival instead. Tracking them shows whether that holds, or whether the work closes the gap. Add the ones you want; nothing changes until you confirm.</p>{rows}</section>')
 
