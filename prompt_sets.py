@@ -207,4 +207,4 @@ def handle(db, hotel, who, payload, anchors=()):
     else:
         sid = db.insert_prompt_set(hotel["id"], "draft", prompts, who)
         db.update_prompt_set(sid, status="confirmed", version=version, confirmed_by=who)
-    return True, {"message": f"Confirmed as version {version}. Every check from now on asks exactly these prompts."}
+    return True, {"message": f"Confirmed as version {version}. Every check from now on asks these prompts word for word and measures the trend on them."}

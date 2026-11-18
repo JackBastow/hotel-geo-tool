@@ -37,16 +37,22 @@ def panel(state, hotel, url, editable=True, runs_since=0, suggestions=None):
     warn = f'<div class="alert warning prompt-warn"><b>Before you confirm.</b> {esc(ps.WARNING)}</div>'
     guide = f'<p class="lede">{esc(ps.GUIDE)}</p>'
     head = '<h3 class="grp" style="margin-top:6px">The prompts we ask AI about your hotel</h3>'
+    wider = ('<p class="caption"><b>Why a check asks more questions than this.</b> These are the <i>tracked</i> prompts: the same every week, so the trend is fair. '
+             'Each check also asks a wider set of exploratory questions (roughly 20 to 50, depending on how thorough the check is), to spot new places the hotel could be recommended. '
+             'Those change from check to check, appear on the AI visibility tab, and are not part of the trend.</p>')
+    guide = guide + wider
     if not active and not draft:
         return (head + guide + '<div class="alert info">Your recommended prompts appear here after the first check of the hotel, written from what your website says and the places around it. '
                 'You will be asked to review and confirm them.</div>')
     status = ""
     if active:
         status = (f'<div class="alert success"><b>Confirmed: version {active["version"]}</b>, on {esc(uk_date(active["confirmed_at"]))}' + (f' by {esc(active["confirmed_by"])}' if active.get("confirmed_by") else "")
-                  + f'. {runs_since} check{"s" if runs_since != 1 else ""} {"has" if runs_since == 1 else "have"} used it so far. Every check asks exactly these {len(active["prompts"])} prompts.</div>')
+                  + f'. {runs_since} check{"s" if runs_since != 1 else ""} {"has" if runs_since == 1 else "have"} used it so far. Every check asks these {len(active["prompts"])} prompts word for word, and they are what the trend is measured on.</div>')
     elif draft:
         status = ('<div class="alert warning"><b>Not confirmed yet.</b> Until you confirm, the checks use prompts chosen automatically, which may change from check to check. '
-                  'Review the recommended set below, change anything you like, then confirm.</div>')
+                  'Review the recommended set below, change anything you like, then confirm.'
+                  + (f' The recommended set has {len(draft["prompts"])} prompt{"s" if len(draft["prompts"]) != 1 else ""}; a confirmed set needs at least {ps.MIN_PROMPTS} ({ps.RECOMMENDED} is best), so add {ps.MIN_PROMPTS - len(draft["prompts"])} or more of your own first.' if len(draft["prompts"]) < ps.MIN_PROMPTS else "")
+                  + '</div>')
     attrs = f'data-url="{esc(url)}" data-min="{ps.MIN_PROMPTS}" data-max="{ps.MAX_PROMPTS}" data-rec="{ps.RECOMMENDED}" data-confirmed="{1 if active else 0}"'
     if draft and editable:
         rows = "".join(_row(p, True, i) for i, p in enumerate(draft["prompts"], 1))
