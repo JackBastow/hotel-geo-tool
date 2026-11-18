@@ -231,5 +231,13 @@ def panel(db, hotel):
     own = key.split("/")[0]
     chips = ('<div class="hk-chips"><span class="hk-chip brand">Engine: Claude with live web search</span><span class="hk-chip">' + f'{len(runs)} weekly check{"s" if len(runs) != 1 else ""}</span>'
              '<span class="hk-chip">Sampled answers: small moves are noise</span></div>')
+    extra = ""
+    try:                                   # the fact-check and the gap map come from the latest check's saved answers; a problem leaves them out, never the tab
+        import exploration
+        latest = next(iter(exploration.recent(db, hotel, 1)), None)
+        if latest:
+            extra = exploration.facts_html(latest[1]) + exploration.gap_map_html(exploration.gap_map(latest[1], hotel["name"], hotel.get("city") or "", own), uk_date(latest[0]))
+    except Exception:  # noqa: BLE001
+        extra = ""
     return (f'<p class="lede">How AI assistants talk about this hotel and the hotels around it. A sample of answers each week from one assistant. '
-            f'Coverage is how often the hotel was named; position is its average place in the hotels listed.</p>{chips}{brand}{citation_section(cur, prev, own)}')
+            f'Coverage is how often the hotel was named; position is its average place in the hotels listed.</p>{chips}{brand}{extra}{citation_section(cur, prev, own)}')

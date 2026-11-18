@@ -13,6 +13,7 @@ from flask import abort, redirect, request, session
 import accounts
 import ai_dash
 import backend
+import exploration
 import netguard
 import portal_view
 import start_here
@@ -168,7 +169,7 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
                  + f'<form class="filters" method="post" action="/admin/hotel/{hid}/invite"><input type="hidden" name="csrf" value="{c}"><label class="field"><span>Invite someone (their email)</span><input type="email" name="email" required></label>'
                  '<button class="btn" type="submit">Make an invite link</button></form><p class="caption">There is no email service: you get a link to send them yourself. It works once and expires in 7 days.</p>'
                  + (f'<h6>Links still open</h6><ul>{invites}</ul>' if invites else "") + "</section>")
-        view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=csrf(), start=start_here.safe(s, h, sm, acts, runs, False, pst), ai=ai_dash.panel(s, h), prompts=prompts_view.panel(pst, h, f"/admin/hotel/{hid}/prompts", True, since, (_safe(query_matrix.suggest, rep, have) or []) if rep else []),
+        view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=csrf(), start=start_here.safe(s, h, sm, acts, runs, False, pst), ai=ai_dash.panel(s, h), prompts=prompts_view.panel(pst, h, f"/admin/hotel/{hid}/prompts", True, since, (_safe(query_matrix.suggest, rep, have) or []) if rep else [], (_safe(exploration.suggest, s, h, have) or []) if pst["draft"] else []),
                                      prompts_alert=bool(pst["draft"] and not pst["active"]), opps=(_safe(opportunities.build, rep) or []) if rep else [], strategy=(_safe(strategy_view.panel, rep) or "") if rep else "",
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"/admin/hotel/{hid}/status")
         return shell("portfolio", h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)

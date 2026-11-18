@@ -391,3 +391,12 @@ body.wm .wm-brand img { outline: 1px solid #9a7a56; outline-offset: 0; border-ra
 .psec { margin: 18px 0 6px; padding-top: 12px; border-top: 1px solid var(--line); } .psec:first-child { border-top: 0; margin-top: 4px; padding-top: 0; }
 .psec-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; } .psec-h h5 { margin: 0; font-size: 1rem; }
 .psec-b { margin: 2px 0 8px; } .psec-empty { margin: 0 0 6px; font-size: .9rem; }
+
+/* AI visibility tab: the gap map by kind of question */
+.gap-map .gm-row { padding: 12px 0; border-top: 1px solid var(--line); } .gap-map .gm-row:first-of-type { border-top: 0; }
+.gm-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; } .gm-h h5 { margin: 0; font-size: 1rem; }
+.gm-pct { font-weight: 650; font-size: .9rem; } .gm-pct.good { color: #067647; } .gm-pct.warn { color: #b54708; } .gm-pct.bad { color: #b42318; }
+.gm-meter { height: 6px; border-radius: 99px; background: var(--line); margin: 8px 0 6px; overflow: hidden; } .gm-meter span { display: block; height: 100%; border-radius: 99px; background: var(--brand); }
+.gm-brief { margin: 6px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--soft); font-size: .93rem; }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: .78rem; font-weight: 650; white-space: nowrap; }
+.pill.bad { background: #fee4e2; color: #b42318; } .pill.warn { background: #fef0c7; color: #b54708; } .pill.good { background: #dcfae6; color: #067647; }

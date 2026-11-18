@@ -48,7 +48,16 @@ def _suggestions(sug):
             f'deserves to compete. Add the ones you want; nothing changes until you confirm.</p>{rows}</section>')
 
 
-def panel(state, hotel, url, editable=True, runs_since=0, suggestions=None):
+def _from_results(sug):
+    if not sug:
+        return ""
+    rows = "".join(f'<div class="psug-row"><div><div class="psug-text">{esc(s["text"])}</div><div class="prow-why">{esc(s["why"])}</div></div>'
+                   f'<button type="button" class="btn small psugadd" data-text="{esc(s["text"], quote=True)}" data-why="{esc(s["why"], quote=True)}">Add</button></div>' for s in sug)
+    return ('<section class="panel psug"><h4>Exploratory questions worth tracking</h4><p class="caption">Questions from the wider set that came up in two or more recent checks and either named the hotel, '
+            f'or kept naming the same rival instead. Tracking them shows whether that holds, or whether the work closes the gap. Add the ones you want; nothing changes until you confirm.</p>{rows}</section>')
+
+
+def panel(state, hotel, url, editable=True, runs_since=0, suggestions=None, from_results=None):
     """The whole tab as HTML. `state` is prompt_sets.state(); `url` is where changes are sent; `runs_since` is how many checks used the confirmed set."""
     active, draft = state["active"], state["draft"]
     warn = f'<div class="alert warning prompt-warn"><b>Before you confirm.</b> {esc(ps.WARNING)}</div>'
@@ -79,7 +88,7 @@ def panel(state, hotel, url, editable=True, runs_since=0, suggestions=None):
         change_note = (f'<div class="alert warning"><b>You are changing a confirmed set.</b> Version {active["version"]} stays in use until you confirm this new set. Results after the change start a new baseline.</div>' if changing else "")
         agree2 = ('<label class="agree"><input type="checkbox" id="agree-change"> I understand that changing the prompts makes results from before and after the change harder to compare.</label>' if changing else "")
         return (head + guide + status + change_note + warn
-                + _suggestions(suggestions) + f'<section class="panel prompts" {attrs}><h4>{title}</h4><div class="pcount"></div><div id="prow-list">{rows}</div>'
+                + _from_results(from_results) + _suggestions(suggestions) + f'<section class="panel prompts" {attrs}><h4>{title}</h4><div class="pcount"></div><div id="prow-list">{rows}</div>'
                   '<div class="pbar"><button type="button" class="btn" id="padd">Add a prompt of your own</button>'
                   + (f' <button type="button" class="btn" id="ptopup">Top up to {ps.RECOMMENDED} with recommended prompts</button>' if len(draft["prompts"]) < ps.RECOMMENDED else "") + '</div>'
                   '<div class="pconfirm"><label class="agree"><input type="checkbox" id="agree"> I am happy with these prompts and I will keep them for a while.</label>' + agree2
