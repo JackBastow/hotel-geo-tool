@@ -940,7 +940,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             try:
                 _host0 = urllib.parse.urlparse(base).netloc.lower()
                 niche_ex = ThreadPoolExecutor(max_workers=1)
-                niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model, budget_usd=_depth_mod.limits(ai_depth)["budget_niche"], workers=_depth_mod.limits(ai_depth)["workers"], country=search_country,
+                niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model, budget_usd=_depth_mod.niche_budget(ai_depth, sum(1 for q in nqs if q.get("priority") == "core")), workers=_depth_mod.limits(ai_depth)["workers"], country=search_country,
                                                own_domain=_host0[4:] if _host0.startswith("www.") else _host0, **({} if anthropic_repeats is None else {"repeats": max(1, min(5, int(anthropic_repeats)))}))
             except Exception:  # noqa: BLE001
                 niche_future = None

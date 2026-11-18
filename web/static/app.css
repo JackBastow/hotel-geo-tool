@@ -386,3 +386,8 @@ body.wm table th { background: #f5eee5; color: #5b4a35; }
 body.wm .foot { color: #8a8478; }
 .wm-login { display: flex; align-items: center; gap: 22px; margin-bottom: 18px; } .wm-login h1 { margin: 0; } .wm-login img { height: 120px; width: auto; border-radius: 4px; }
 body.wm .wm-brand img { outline: 1px solid #9a7a56; outline-offset: 0; border-radius: 2px; }
+
+/* the Prompts tab, grouped by kind of prompt */
+.psec { margin: 18px 0 6px; padding-top: 12px; border-top: 1px solid var(--line); } .psec:first-child { border-top: 0; margin-top: 4px; padding-top: 0; }
+.psec-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; } .psec-h h5 { margin: 0; font-size: 1rem; }
+.psec-b { margin: 2px 0 8px; } .psec-empty { margin: 0 0 6px; font-size: .9rem; }

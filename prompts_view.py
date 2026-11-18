@@ -16,10 +16,27 @@ def _row(p, editable, i):
     style = f'<span class="hk-chip">{esc(p["style"].capitalize())}</span>' if p.get("style") else ""
     why = f'<div class="prow-why">{esc(p.get("why") or "")}</div>' if p.get("why") else ""
     if editable:
-        return (f'<div class="prow" data-id="{esc(p.get("id") or "")}" data-source="{esc(p.get("source") or "recommended")}" data-angle="{esc(p.get("angle") or "")}" data-style="{esc(p.get("style") or "")}">'
+        return (f'<div class="prow" data-section="{esc(p.get("section") or "")}" data-id="{esc(p.get("id") or "")}" data-source="{esc(p.get("source") or "recommended")}" data-angle="{esc(p.get("angle") or "")}" data-style="{esc(p.get("style") or "")}">'
                 f'<div class="prow-n">{i}</div><div class="prow-main"><textarea rows="2" maxlength="220" aria-label="Prompt {i}">{esc(p["text"])}</textarea>'
                 f'<div class="prow-meta">{tag}{style}</div>{why}<div class="prow-err" hidden></div></div><button type="button" class="btn small pdel">Remove</button></div>')
     return (f'<div class="prow ro"><div class="prow-n">{i}</div><div class="prow-main"><div class="prow-text">{esc(p["text"])}</div><div class="prow-meta">{tag}{style}</div>{why}</div></div>')
+
+
+def _grouped(prompts, editable):
+    """The rows under a heading per kind of prompt. Editing shows every kind (so one can be added where it is missing); reading shows only the kinds in use."""
+    out, i = [], 0
+    for key, title, blurb, items in ps.by_section(prompts):
+        if not items and not editable:
+            continue
+        rows = ""
+        for p in items:
+            i += 1
+            rows += _row(dict(p, section=key), editable, i)
+        add = (f'<button type="button" class="btn small padd-sec" data-sec="{key}">Add a prompt here</button>' if editable else "")
+        empty = ('<p class="hk-muted psec-empty">None yet.' + (" Add one if this matters for the hotel." if key != "own" else "") + "</p>" if editable and not items else "")
+        out.append(f'<div class="psec" data-sec="{key}"><div class="psec-h"><h5>{esc(title)} <span class="hk-muted">({len(items)})</span></h5>{add}</div>'
+                   f'<p class="caption psec-b">{esc(blurb)}</p>{empty}</div>{rows}')
+    return "".join(out)
 
 
 def _suggestions(sug):
@@ -52,22 +69,23 @@ def panel(state, hotel, url, editable=True, runs_since=0, suggestions=None):
     elif draft:
         status = ('<div class="alert warning"><b>Not confirmed yet.</b> Until you confirm, the checks use prompts chosen automatically, which may change from check to check. '
                   'Review the recommended set below, change anything you like, then confirm.'
-                  + (f' The recommended set has {len(draft["prompts"])} prompt{"s" if len(draft["prompts"]) != 1 else ""}; a confirmed set needs at least {ps.MIN_PROMPTS} ({ps.RECOMMENDED} is best), so add {ps.MIN_PROMPTS - len(draft["prompts"])} or more of your own first.' if len(draft["prompts"]) < ps.MIN_PROMPTS else "")
+                  + (f' The recommended set has {len(draft["prompts"])} prompt{"s" if len(draft["prompts"]) != 1 else ""}; a confirmed set needs at least {ps.MIN_PROMPTS} ({ps.RECOMMENDED} is best), so add {ps.MIN_PROMPTS - len(draft["prompts"])} or more first (the Top up button below adds recommended ones).' if len(draft["prompts"]) < ps.MIN_PROMPTS else "")
                   + '</div>')
     attrs = f'data-url="{esc(url)}" data-min="{ps.MIN_PROMPTS}" data-max="{ps.MAX_PROMPTS}" data-rec="{ps.RECOMMENDED}" data-confirmed="{1 if active else 0}"'
     if draft and editable:
-        rows = "".join(_row(p, True, i) for i, p in enumerate(draft["prompts"], 1))
+        rows = _grouped(draft["prompts"], True)
         changing = bool(active)
         title = "Change your prompts" if changing else "Review the recommended prompts"
         change_note = (f'<div class="alert warning"><b>You are changing a confirmed set.</b> Version {active["version"]} stays in use until you confirm this new set. Results after the change start a new baseline.</div>' if changing else "")
         agree2 = ('<label class="agree"><input type="checkbox" id="agree-change"> I understand that changing the prompts makes results from before and after the change harder to compare.</label>' if changing else "")
         return (head + guide + status + change_note + warn
                 + _suggestions(suggestions) + f'<section class="panel prompts" {attrs}><h4>{title}</h4><div class="pcount"></div><div id="prow-list">{rows}</div>'
-                  '<div class="pbar"><button type="button" class="btn" id="padd">Add a prompt of your own</button></div>'
+                  '<div class="pbar"><button type="button" class="btn" id="padd">Add a prompt of your own</button>'
+                  + (f' <button type="button" class="btn" id="ptopup">Top up to {ps.RECOMMENDED} with recommended prompts</button>' if len(draft["prompts"]) < ps.RECOMMENDED else "") + '</div>'
                   '<div class="pconfirm"><label class="agree"><input type="checkbox" id="agree"> I am happy with these prompts and I will keep them for a while.</label>' + agree2
                   + '<div class="pbtns"><button type="button" class="btn primary" id="pconfirm" disabled>Confirm these prompts</button> <button type="button" class="btn" id="psave">Save as a draft</button>'
                   + (' <button type="button" class="btn" id="pdiscard">Discard my changes</button>' if changing else "") + '</div><div class="pmsg" role="status"></div></div></section>')
-    rows = "".join(_row(p, False, i) for i, p in enumerate(active["prompts"], 1))
+    rows = _grouped(active["prompts"], False)
     btn = (f'<section class="panel prompts" {attrs}><h4>Prompts in use (version {active["version"]})</h4><div id="prow-list">{rows}</div>'
            + ('<div class="pbar"><button type="button" class="btn" id="pchange">Change these prompts</button> <span class="hk-muted">You will see the warning again before you confirm.</span></div><div class="pmsg" role="status"></div>' if editable else "")
            + "</section>")

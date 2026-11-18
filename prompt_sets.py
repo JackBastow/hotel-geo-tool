@@ -18,8 +18,57 @@ import ai_niche
 import ai_questions
 import evidence
 
-RECOMMENDED, MIN_PROMPTS, MAX_PROMPTS = 12, 8, 20
-ANGLE_CAP = 2                    # at most this many prompts of one angle in the recommended set, so it covers the hotel's market and not one theme
+RECOMMENDED, MIN_PROMPTS, MAX_PROMPTS = 20, 8, 30
+ANGLE_CAP = 3                    # at most this many prompts of one angle in the recommended set, so it covers the hotel's market and not one theme
+
+# The tracked prompts come in kinds, and which kinds matter depends on the hotel (an airport hotel lives on 'places near it', a country house on 'who it is for' and 'what it offers').
+# (key, title, what it covers, how many of the recommended set it aims for)
+SECTIONS = [
+    ("place", "Where the hotel is", "The town or neighbourhood, the price level and the kind of stay the area is known for.", 4),
+    ("near", "Places near the hotel", "Airports, stations, venues, business parks and landmarks that guests travel to.", 5),
+    ("who", "Who it is for", "Kinds of traveller and occasion: business trips, meetings, families, couples, weddings, groups.", 5),
+    ("offer", "What it offers", "Facilities guests search for by name: spa, pool, restaurant, parking, dogs welcome.", 3),
+    ("style", "How people ask", "Real needs written the way people type them: a short search, or a chatty request to an assistant.", 3),
+    ("own", "Your own prompts", "Prompts you added that do not fit a kind above.", 0),
+]
+SECTION_KEYS = [k for k, *_r in SECTIONS]
+_ANGLE_SECTION = {
+    "Neighbourhood": "place", "Price level": "place", "City breaks": "place", "Luxury": "place", "Value for money": "place", "Character and heritage": "place", "Traveller intent": "place",
+    "Near a venue": "near", "Near a landmark": "near", "Near a place": "near", "Airport": "near", "Near transport": "near",
+    "Business travel": "who", "Meetings and events": "who", "Families": "who", "Couples": "who", "Weddings": "who", "Groups": "who", "Long stays": "who", "Accessibility": "who",
+    "Spa and wellness": "offer", "Dining": "offer", "Parking": "offer", "Facilities": "offer", "EV charging": "offer", "Pet-friendly": "offer",
+    "Short search": "style", "Conversational": "style",
+}
+_TEXT_SECTION = [
+    ("near", r"\b(?:near|nearest|close to|closest|walking distance|minutes? from|airport|station|terminal|venue|stadium|arena|museum|park|circuit|racecourse|business park)\b"),
+    ("who", r"\b(?:business|meetings?|conferences?|workshops?|famil\w*|kids|child\w*|couples?|romantic|wedding\w*|honeymoon|groups?|teams?|solo|anniversar\w*|accessib\w*|wheelchair)\b"),
+    ("offer", r"\b(?:spas?|pools?|swim\w*|gym|restaurants?|dining|breakfast|bars?|parking|ev charg\w*|dogs?|pets?|terraces?|gardens?|views?)\b"),
+]
+
+
+def section_of(p):
+    """Which kind of prompt this is (a key of SECTIONS). A section someone chose is kept; otherwise it is worked out from the prompt's angle, its style, then its words."""
+    sec = (p or {}).get("section")
+    if sec in SECTION_KEYS:
+        return sec
+    if (p or {}).get("style") in ("short search", "conversational"):
+        return "style"
+    a = (p or {}).get("angle") or ""
+    if a in _ANGLE_SECTION:
+        return _ANGLE_SECTION[a]
+    t = (p or {}).get("text") or ""
+    for key, rx in _TEXT_SECTION:
+        if re.search(rx, t, re.I):
+            return key
+    return "own" if (p or {}).get("source") == "own" else "place"
+
+
+def by_section(prompts):
+    """-> [(key, title, blurb, [prompts in that section])] in the SECTIONS order, every section listed (empty ones too)."""
+    groups = {k: [] for k in SECTION_KEYS}
+    for p in prompts or []:
+        groups[section_of(p)].append(p)
+    return [(k, t, b, groups[k]) for k, t, b, _n in SECTIONS]
 
 WARNING = ("Choose prompts you are happy to keep for a while. Each week we ask the same prompts and count how often your hotel is named, which is how we show whether it is coming up more often. "
            "If you change the prompts later, results from before and after the change cannot be compared directly, so it becomes much harder to tell whether the hotel is really improving.")
@@ -27,37 +76,45 @@ GUIDE = (f"We recommend {RECOMMENDED} prompts (anything from {MIN_PROMPTS} to {M
          "Good prompts sound like a real traveller, mention the town or a place near the hotel, and never name your hotel.")
 
 
-def recommend_set(pool, hotel="", n=RECOMMENDED):
+def recommend_set(pool, hotel="", n=RECOMMENDED, exclude=()):
     """
-    Pick n prompts from the audit's question pool that together cover the hotel's market. Not the first n: core prompts first, at most ANGLE_CAP of one angle, at most two style variants, no near-duplicates.
-    pool: [{text, angle, why, priority, style, kind}] -> [{id, text, angle, why, style, source: 'recommended'}].
+    Pick n prompts from the audit's question pool that together cover the hotel's market. Not the first n: core prompts first, each SECTION up to its share, at most ANGLE_CAP of one angle, at most three
+    style variants, no near-duplicates; then, when the hotel has few prompts of some kind, the rest from whatever is left. `exclude`: texts already in the set (a top-up never repeats them).
+    pool: [{text, angle, why, priority, style, kind}] -> [{id, text, angle, why, style, section, source: 'recommended'}], in SECTIONS order.
     """
     cands = [q for q in pool or [] if q.get("kind", "niche") == "niche" and q.get("text")]
     cands.sort(key=lambda q: (q.get("priority") != "core", q.get("style") in ("short search", "conversational")))
-    chosen, per_angle, styled = [], {}, 0
-    for q in cands:
+    quota = {k: q for k, _t, _b, q in SECTIONS}
+    scale = n / max(1, sum(quota.values()))
+    quota = {k: max(1, round(v * scale)) if v else 0 for k, v in quota.items()}
+    chosen, per_angle, per_sec = [], {}, {}
+    taken = list(exclude or [])
+
+    def ok(q):
+        if any(q["text"] == t or ai_questions._similar(q["text"], t, 0.6) for t in taken):
+            return False
+        return not (hotel and not ai_niche._safe(q["text"] if q["text"].endswith("?") else q["text"] + "?", hotel))
+
+    def take(q, sec):
+        chosen.append({"text": q["text"], "angle": q.get("angle") or "Other", "why": q.get("why") or "", "style": q.get("style") or "", "section": sec, "source": "recommended"})
+        taken.append(q["text"])
+        per_angle[q.get("angle") or "Other"] = per_angle.get(q.get("angle") or "Other", 0) + 1
+        per_sec[sec] = per_sec.get(sec, 0) + 1
+
+    for q in cands:                                              # first pass: each kind up to its share
         if len(chosen) >= n:
             break
-        a = q.get("angle") or "Other"
-        if per_angle.get(a, 0) >= ANGLE_CAP:
+        sec = section_of(q)
+        if per_sec.get(sec, 0) >= quota.get(sec, 0) or per_angle.get(q.get("angle") or "Other", 0) >= ANGLE_CAP or not ok(q):
             continue
-        if q.get("style") in ("short search", "conversational"):
-            if styled >= 2:
-                continue
-        if any(ai_questions._similar(q["text"], c["text"], 0.6) for c in chosen):
-            continue
-        if hotel and not ai_niche._safe(q["text"] if q["text"].endswith("?") else q["text"] + "?", hotel):
-            continue
-        chosen.append({"text": q["text"], "angle": a, "why": q.get("why") or "", "style": q.get("style") or "", "source": "recommended"})
-        per_angle[a] = per_angle.get(a, 0) + 1
-        styled += 1 if q.get("style") in ("short search", "conversational") else 0
-    for q in cands:                                              # still short (a hotel with few angles): fill from what is left, whatever the angle
+        take(q, sec)
+    for q in cands:                                              # still short (a hotel with few kinds): fill from what is left, whatever the kind
         if len(chosen) >= n:
             break
-        if hotel and not ai_niche._safe(q["text"] if q["text"].endswith("?") else q["text"] + "?", hotel):
-            continue
-        if not any(q["text"] == c["text"] for c in chosen) and not any(ai_questions._similar(q["text"], c["text"], 0.6) for c in chosen):
-            chosen.append({"text": q["text"], "angle": q.get("angle") or "Other", "why": q.get("why") or "", "style": q.get("style") or "", "source": "recommended"})
+        if ok(q):
+            take(q, section_of(q))
+    order = {k: i for i, k in enumerate(SECTION_KEYS)}
+    chosen.sort(key=lambda c: order[c["section"]])
     return [{"id": f"p{i}", **c} for i, c in enumerate(chosen, 1)]
 
 
@@ -90,7 +147,7 @@ def check_set(prompts, hotel, city, anchors=()):
         if err:
             errors.append({"i": i, "msg": err})
         out.append({"id": (p or {}).get("id") or f"p{i + 1}", "text": t, "angle": (p or {}).get("angle") or "Your own", "why": (p or {}).get("why") or "Written by you.",
-                    "style": (p or {}).get("style") or "", "source": (p or {}).get("source") or "own"})
+                    "style": (p or {}).get("style") or "", "source": (p or {}).get("source") or "own", "section": section_of(p)})
     if len(out) > MAX_PROMPTS:
         errors.append({"i": None, "msg": f"Use at most {MAX_PROMPTS} prompts."})
     return out, errors
@@ -112,6 +169,19 @@ def pool_from_report(report):
     if qs:
         return qs
     return [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why"), "priority": "core", "kind": "niche"} for b in ((report or {}).get("benchmark") or {}).get("prompts") or [] if b.get("text")]
+
+
+def latest_pool(db, hotel):
+    """The question pool of the hotel's newest saved check that has one (scraps of page text left out), else its frozen benchmark prompts. [] when there is nothing."""
+    import placenames
+    try:
+        for r in db.hotel_runs(hotel["hotel_key"]):
+            pool = [q for q in pool_from_report(db.get_report(r["id"])) if not placenames.has_scrap(q.get("text"))]
+            if pool:
+                return pool
+        return [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why"), "priority": "core", "kind": "niche"} for b in db.get_benchmark(hotel["hotel_key"]) if b.get("text") and not placenames.has_scrap(b["text"])]
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def ensure_draft(db, hotel, report):
@@ -171,6 +241,23 @@ def handle(db, hotel, who, payload, anchors=()):
         if st["draft"] and st["active"]:
             db.delete_prompt_set(st["draft"]["id"])
         return True, {"message": "The changes were discarded."}
+    if action == "top_up":
+        if not st["draft"] and st["active"]:
+            return False, {"error": "Click 'Change these prompts' first; the confirmed set is never changed directly."}
+        given = [p for p in ((payload or {}).get("prompts") or []) if (p or {}).get("text", "").strip()]
+        want = max(0, RECOMMENDED - len(given))
+        if not want:
+            return False, {"error": f"The set already has {len(given)} prompts, the recommended number or more."}
+        extra = recommend_set(latest_pool(db, hotel), hotel["name"], n=want, exclude=[p["text"] for p in given])
+        if not extra:
+            return False, {"error": "The latest check has no more prompts to recommend that are not already here. Add your own, or try again after the next check."}
+        merged = given + [dict(e, id=f"r{len(given) + i}") for i, e in enumerate(extra, 1)]
+        prompts, _errors = check_set(merged, hotel["name"], hotel["city"], list(anchors or []) + anchors_from(st["draft"], st["active"], {"prompts": merged}))
+        if st["draft"]:
+            db.update_prompt_set(st["draft"]["id"], prompts=prompts)
+        else:
+            db.insert_prompt_set(hotel["id"], "draft", prompts, who)
+        return True, {"message": f"Added {len(extra)} recommended prompt{'s' if len(extra) != 1 else ''}. Nothing changes until you confirm."}
     if action not in ("save", "confirm"):
         return False, {"error": "Unknown action."}
     given = (payload or {}).get("prompts") or []

@@ -254,7 +254,7 @@ document.addEventListener("click", function (ev) {
       .then(function (r) { return r.json(); }).then(cb).catch(function () { say("That did not save. Please check your connection and try again.", false); });
   }
   function rows() { return Array.prototype.slice.call(list ? list.querySelectorAll(".prow") : []); }
-  function collect() { return rows().map(function (r) { return { id: r.getAttribute("data-id") || "", text: r.querySelector("textarea").value, source: r.getAttribute("data-source") || "own", angle: r.getAttribute("data-angle") || "", style: r.getAttribute("data-style") || "" }; }); }
+  function collect() { return rows().map(function (r) { return { id: r.getAttribute("data-id") || "", text: r.querySelector("textarea").value, source: r.getAttribute("data-source") || "own", angle: r.getAttribute("data-angle") || "", style: r.getAttribute("data-style") || "", section: r.getAttribute("data-section") || "" }; }); }
   function refresh() {
     if (!count) { return; }
     var n = rows().length;
@@ -263,6 +263,13 @@ document.addEventListener("click", function (ev) {
     count.className = "pcount" + (n < min || n > max ? " bad" : "");
     var a = box.querySelector("#agree"), a2 = box.querySelector("#agree-change"), b = box.querySelector("#pconfirm");
     if (b) { b.disabled = !(a && a.checked) || (a2 && !a2.checked) || n < min || n > max; }
+    Array.prototype.forEach.call(box.querySelectorAll(".psec"), function (h) {           /* each kind's heading counts the prompts under it */
+      var c = 0, x = h.nextElementSibling;
+      while (x && !x.classList.contains("psec")) { if (x.classList.contains("prow")) { c++; } x = x.nextElementSibling; }
+      var sp = h.querySelector("h5 .hk-muted"), e = h.querySelector(".psec-empty");
+      if (sp) { sp.textContent = "(" + c + ")"; }
+      if (e) { e.hidden = c > 0; }
+    });
   }
   function showErrors(errors) {
     rows().forEach(function (r) { r.classList.remove("err"); var e = r.querySelector(".prow-err"); if (e) { e.hidden = true; } });
@@ -271,9 +278,21 @@ document.addEventListener("click", function (ev) {
   box.addEventListener("click", function (ev) {
     var t = ev.target;
     if (t.classList.contains("pdel")) { t.closest(".prow").remove(); refresh(); return; }
+    if (t.classList.contains("padd-sec")) {
+      if (rows().length >= max) { say("You can have at most " + max + " prompts.", false); return; }
+      var sec = t.getAttribute("data-sec"), head = t.closest(".psec"), after = head, nx = head.nextElementSibling;
+      while (nx && nx.classList.contains("prow")) { after = nx; nx = nx.nextElementSibling; }
+      var e = document.createElement("div"); e.className = "prow"; e.setAttribute("data-source", "own"); e.setAttribute("data-id", ""); e.setAttribute("data-section", sec);
+      e.innerHTML = '<div class="prow-n"></div><div class="prow-main"><textarea rows="2" maxlength="220" placeholder="Write it the way a guest would ask, and mention the town or a place near the hotel."></textarea><div class="prow-err" hidden></div></div><button type="button" class="btn small pdel">Remove</button>';
+      after.parentNode.insertBefore(e, after.nextSibling); e.querySelector("textarea").focus(); refresh(); return;
+    }
+    if (t.id === "ptopup") {
+      t.disabled = true; say("Finding recommended prompts...", true);
+      post({ action: "top_up", prompts: collect() }, function (j) { if (j.ok) { window.location.reload(); } else { t.disabled = false; say(j.error || "Nothing was added.", false); } }); return;
+    }
     if (t.id === "padd") {
       if (rows().length >= max) { say("You can have at most " + max + " prompts.", false); return; }
-      var d = document.createElement("div"); d.className = "prow"; d.setAttribute("data-source", "own"); d.setAttribute("data-id", "");
+      var d = document.createElement("div"); d.className = "prow"; d.setAttribute("data-source", "own"); d.setAttribute("data-id", ""); d.setAttribute("data-section", "own");
       d.innerHTML = '<div class="prow-n"></div><div class="prow-main"><textarea rows="2" maxlength="220" placeholder="For example: Which hotels near the airport have a shuttle and an early breakfast?"></textarea><div class="prow-err" hidden></div></div><button type="button" class="btn small pdel">Remove</button>';
       list.appendChild(d); d.querySelector("textarea").focus(); refresh(); return;
     }

@@ -23,3 +23,10 @@ def limits(name):
 
 def clean(name):
     return name if name in DEPTHS else DEFAULT
+
+
+def niche_budget(name, n_core):
+    """The AI budget for the market questions of one check. A hotel that tracks more prompts than the depth's usual core gets a proportionally larger budget, so its tracked prompts (asked first) are always all
+    asked and the exploratory questions still get their share; a set within the usual size changes nothing."""
+    lim = limits(name)
+    return round(lim["budget_niche"] * max(1.0, (n_core or 0) / max(1, lim["core"])), 2)

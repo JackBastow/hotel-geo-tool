@@ -43,7 +43,7 @@ Q = [{"id": f"q{i}", "kind": "niche", "angle": a, "text": t, "why": "w", "priori
          ("Conversational", "We are travelling at short notice. Which hotels near the Opera have availability?", "conversational"),
          ("Spa and wellness", "Which hotels in Paris have a spa for a relaxing break?", "")], 1)]
 print("1. the recommended set")
-rec = ps.recommend_set(Q, "Hotel Opera")
+rec = ps.recommend_set(Q, "Hotel Opera", n=12)
 check("12 prompts are recommended from a bigger pool", len(rec) == 12 and len({p["text"] for p in rec}) == 12, len(rec))
 from collections import Counter
 check("the set covers the market: many different angles, no angle takes more than three places (two, unless the pool is thin)", len({p["angle"] for p in rec}) >= 8 and max(Counter(p["angle"] for p in rec).values()) <= 3, Counter(p["angle"] for p in rec))
@@ -75,14 +75,14 @@ rep["consultant"]["coverage"] = {"pages_read": 8}
 rep["question_plan"] = {"questions": Q, "facts": [], "anchors": []}
 app.extensions["reports"].save(rep)
 st = ps.state(db, hotel)
-check("after the first check the hotel has a recommended DRAFT, not yet confirmed", st["draft"] and not st["active"] and len(st["draft"]["prompts"]) == 12)
+check("after the first check the hotel has a recommended DRAFT, not yet confirmed", st["draft"] and not st["active"] and len(st["draft"]["prompts"]) == len(ps.recommend_set(Q, "Hotel Opera")) >= 12)
 check("until it is confirmed, the audit uses no hotel-chosen prompts", db.confirmed_prompts_for_key("hotel-opera.com") == [])
 who = "gm@hotel-opera.com"
 prompts = st["draft"]["prompts"]
 ok, res = ps.handle(db, hotel, who, {"action": "confirm", "prompts": prompts, "agree": False})
 check("confirming without ticking the box is refused", not ok and "Tick the box" in res["error"])
 ok, res = ps.handle(db, hotel, who, {"action": "confirm", "prompts": prompts[:5], "agree": True})
-check("fewer than 8 prompts cannot be confirmed", not ok and "between 8 and 20" in res["error"])
+check("fewer than 8 prompts cannot be confirmed", not ok and f"between 8 and {ps.MAX_PROMPTS}" in res["error"])
 bad = prompts[:11] + [{"text": "Is Hotel Opera any good? Tell me about it in Paris please."}]
 ok, res = ps.handle(db, hotel, who, {"action": "confirm", "prompts": bad, "agree": True})
 check("a prompt that breaks a rule blocks confirmation and is marked by its position", not ok and res["errors"][0]["i"] == 11)
@@ -90,11 +90,11 @@ ok, res = ps.handle(db, hotel, who, {"action": "save", "prompts": prompts[:10]})
 check("a draft can be saved at any time and is not used", ok and len(ps.state(db, hotel)["draft"]["prompts"]) == 10 and db.confirmed_prompts_for_key("hotel-opera.com") == [])
 ok, res = ps.handle(db, hotel, who, {"action": "confirm", "prompts": prompts, "agree": True})
 a = ps.state(db, hotel)["active"]
-check("confirming with the box ticked makes version 1, with who and when", ok and a["version"] == 1 and a["confirmed_by"] == who and a["confirmed_at"] and len(a["prompts"]) == 12, res)
+check("confirming with the box ticked makes version 1, with who and when", ok and a["version"] == 1 and a["confirmed_by"] == who and a["confirmed_at"] and len(a["prompts"]) == len(prompts), res)
 cp = db.confirmed_prompts_for_key("hotel-opera.com")
 check("from now on the audit asks exactly these prompts, word for word", [p["text"] for p in cp] == [p["text"] for p in prompts])
 ok, res = ps.handle(db, hotel, who, {"action": "start_change"})
-check("changing starts a copy; the confirmed set stays in use", ok and ps.state(db, hotel)["draft"]["base_version"] == 1 and len(db.confirmed_prompts_for_key("hotel-opera.com")) == 12)
+check("changing starts a copy; the confirmed set stays in use", ok and ps.state(db, hotel)["draft"]["base_version"] == 1 and len(db.confirmed_prompts_for_key("hotel-opera.com")) == len(prompts))
 new = [dict(p) for p in prompts]
 new[0]["text"] = "Which upscale hotels in Paris are best for a quiet business trip with good Wi-Fi?"
 ok, res = ps.handle(db, hotel, who, {"action": "confirm", "prompts": new, "agree": True})
@@ -109,7 +109,7 @@ check("discarding a change leaves the confirmed set as it was", ok and ps.state(
 print("4. the tab")
 import prompts_view
 html_ = prompts_view.panel({"active": None, "draft": {"prompts": prompts, "version": 0}, "history": []}, hotel, "/x", True)
-check("before confirming the tab explains, warns about changing later, and has the confirm button disabled until ticked", all(w in html_ for w in ("Not confirmed yet", "harder to tell whether the hotel is really improving", "Confirm these prompts", "I am happy with these prompts")) and "We recommend 12 prompts" in html_)
+check("before confirming the tab explains, warns about changing later, and has the confirm button disabled until ticked", all(w in html_ for w in ("Not confirmed yet", "harder to tell whether the hotel is really improving", "Confirm these prompts", "I am happy with these prompts")) and f"We recommend {ps.RECOMMENDED} prompts" in html_)
 html2 = prompts_view.panel(ps.state(db, hotel), hotel, "/x", True, 3)
 check("once confirmed it shows the version, who and when, how many checks used it, and a Change button with the warning again", "Confirmed: version 2" in html2 and "3 checks have used it" in html2 and "Change these prompts" in html2)
 
@@ -140,7 +140,7 @@ db.save_benchmark("reset-me.com", [{"text": "Which hotels near Eiffel Tower have
 db.insert_prompt_set(ha, "draft", [{"id": "p1", "text": "old", "angle": "x", "why": "", "source": "recommended"}], "recommended")
 rr = adm.post(f"/admin/hotel/{ha}/reset-prompts", data={"csrf": atok})
 check("the operator can reset a hotel's frozen prompts and its unconfirmed draft, so the next check writes fresh ones", rr.status_code == 200 and db.get_benchmark("reset-me.com") == [] and not [p for p in db.prompt_sets(ha) if p["status"] == "draft"], rr.status_code)
-check("a hotel's CONFIRMED set is never touched by a reset", len(db.confirmed_prompts_for_key("hotel-opera.com")) == 12 and adm.post(f"/admin/hotel/{hid}/reset-prompts", data={"csrf": atok}).status_code == 200 and len(db.confirmed_prompts_for_key("hotel-opera.com")) == 12)
+check("a hotel's CONFIRMED set is never touched by a reset", len(db.confirmed_prompts_for_key("hotel-opera.com")) == len(prompts) and adm.post(f"/admin/hotel/{hid}/reset-prompts", data={"csrf": atok}).status_code == 200 and len(db.confirmed_prompts_for_key("hotel-opera.com")) == len(prompts))
 check("a reset needs the page's token", adm.post(f"/admin/hotel/{ha}/reset-prompts", data={}).status_code == 400)
 
 print("7. a hotel registered after its audits were saved still gets its recommended prompts")
@@ -156,6 +156,41 @@ pg = adm.get(f"/admin/hotel/{hl}").get_data(as_text=True)
 d2 = ps.state(db, db.get_hotel(hl))["draft"]
 check("opening the hotel builds the recommended draft from its saved audit, and the tab shows it to review (not the 'appears after the first check' message)", d2 and len(d2["prompts"]) >= 8 and "Review the recommended prompts" in pg and "appear here after the first check" not in pg, (d2 and len(d2["prompts"])))
 check("a prompt built on a scrap of page text is left out of it", not any("Parking Lot" in p["text"] for p in d2["prompts"]))
+
+print("7. kinds of prompt, a bigger set, and the top-up")
+import ai_questions
+import depth as depth_mod
+check("the recommended set aims at 20 and a hotel may track up to 30, and every tracked prompt is asked", ps.RECOMMENDED == 20 and ps.MAX_PROMPTS == 30 == ai_questions.TRACKED_MAX)
+check("prompts sort into kinds: places near it, who it is for, what it offers, how people ask, where it is",
+      [ps.section_of(x) for x in ({"angle": "Airport"}, {"angle": "Weddings"}, {"angle": "Spa and wellness"}, {"style": "short search", "angle": "Short search"}, {"angle": "Neighbourhood"})] == ["near", "who", "offer", "style", "place"])
+check("a prompt the hotel wrote is sorted by its words, and 'barbecue' is not a bar",
+      ps.section_of({"text": "Which hotels in Weybridge have a spa?", "source": "own"}) == "offer" and ps.section_of({"text": "Hotels near Brooklands Museum in Weybridge?", "source": "own"}) == "near"
+      and ps.section_of({"text": "Best barbecue spots in Weybridge with rooms?", "source": "own"}) == "own")
+check("a kind someone chose is kept", ps.section_of({"angle": "Airport", "section": "who"}) == "who")
+full = ps.recommend_set(Q, "Hotel Opera")
+secs = [p["section"] for p in full]
+check("the recommended set is ordered by kind and covers several kinds", secs == sorted(secs, key=ps.SECTION_KEYS.index) and len(set(secs)) >= 4, secs)
+html3 = prompts_view.panel({"active": None, "draft": {"prompts": full[:6], "version": 0}, "history": []}, hotel, "/x", True)
+check("the editor shows a heading for every kind, with an Add button each, and a Top up button when the set is short",
+      all(t in html3 for t, *_r in [(x[1],) for x in ps.SECTIONS]) and html3.count('class="btn small padd-sec"') == len(ps.SECTIONS) and 'id="ptopup"' in html3)
+ro = prompts_view.panel({"active": {"prompts": full, "version": 1, "confirmed_at": "2026-11-01T00:00:00+00:00"}, "draft": None, "history": []}, hotel, "/x", True)
+check("the confirmed view shows only the kinds in use, and no Add buttons", "padd-sec" not in ro and "Your own prompts" not in ro)
+hid3 = db.create_hotel("Hotel Opera Two", "hotel-opera.com/two", "Paris", "hotel-opera-two")
+h3 = db.get_hotel(hid3)
+rep3 = copy.deepcopy(rep)
+rep3["meta"].update(base="https://www.hotel-opera.com/two/", website="hotel-opera.com/two")
+rid = db.save_run(rep3)
+db._exec("UPDATE runs SET hotel_key = ? WHERE id = ?", ("hotel-opera-two", rid))
+small = full[:5]
+db.insert_prompt_set(hid3, "draft", small, "recommended")
+ok, res = ps.handle(db, h3, "gm", {"action": "top_up", "prompts": small})
+d3 = ps.state(db, h3)["draft"]["prompts"]
+check("Top up adds recommended prompts from the latest check, keeps the ones already there, and repeats none", ok and len(d3) > 5 and [p["text"] for p in d3[:5]] == [p["text"] for p in small]
+      and len({p["text"] for p in d3}) == len(d3), res)
+ok2, res2 = ps.handle(db, h3, "gm", {"action": "top_up", "prompts": d3})
+check("when nothing more is left it says so and changes nothing", not ok2 and "no more prompts" in res2["error"] and len(ps.state(db, h3)["draft"]["prompts"]) == len(d3), res2)
+check("a check with 30 tracked prompts gets a budget big enough to ask them all; a normal set is unchanged",
+      depth_mod.niche_budget("standard", 30) > depth_mod.niche_budget("standard", 14) == depth_mod.limits("standard")["budget_niche"])
 
 print()
 print("FAILURES:", fails if fails else "none")

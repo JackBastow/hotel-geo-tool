@@ -35,6 +35,7 @@ FEATURE_ASKS = {
     "weddings": ("Weddings", "can host a wedding with rooms for the guests", {"resort", "luxury", "boutique", "spa_hotel"}),
 }
 MAX_FEATURE_QUESTIONS = 6
+TRACKED_MAX = 30               # a hotel may track up to this many prompts (prompt_sets.MAX_PROMPTS); every one is asked in every check
 CORE_ANGLES = {"Price level", "Neighbourhood", "Near a venue", "Near a landmark", "Meetings and events", "Business travel", "Airport", "City breaks", "Traveller intent", "Near a place"}
 LUXURY_WORDS = re.compile(r"\b(?:luxury|palace|5[- ]star|five[- ]star|splurge|lavish|ultra)\b", re.I)
 BUDGET_WORDS = re.compile(r"\b(?:cheap|budget|bargain|hostel)\b", re.I)
@@ -274,7 +275,7 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
     bench_out = []
     if benchmark:
         frozen = [{"id": f"niche_bench{i}", "kind": "niche", "angle": b.get("angle") or "Benchmark", "text": b["text"], "priority": "core", "source": "benchmark",
-                   "why": ((b.get("why") or "").rstrip(".") + ". " if b.get("why") else "") + "A benchmark prompt kept from this hotel's first audit and asked again word for word, so the results can be compared over time."} for i, b in enumerate(benchmark[:max(lim["core"], 20)], 1) if b.get("text")]
+                   "why": ((b.get("why") or "").rstrip(".") + ". " if b.get("why") else "") + "A benchmark prompt kept from this hotel's first audit and asked again word for word, so the results can be compared over time."} for i, b in enumerate(benchmark[:max(lim["core"], TRACKED_MAX)], 1) if b.get("text")]
         fresh = [q for q in core + sec if not any(_similar(q["text"], f["text"], 0.8) for f in frozen)]
         for q in fresh:
             q["priority"], q["source"] = "secondary", q.get("source") or "new"
