@@ -46,6 +46,7 @@ class Config:
         self.admin_password = get("ADMIN_PASSWORD")
         self.site_password = get("SITE_PASSWORD")          # when set, every page except /healthz asks for it first
         self.secret_key = get("SECRET_KEY")
+        self.closed = bool(get("RENDER") or get("REQUIRE_SIGNIN"))      # on the live host the site is never open: with no site password only a signed-in admin may use the audit tool
         import depth as _depth
         self.ai_depth = _depth.clean(get("AI_DEPTH") or "deep")                 # manual and demo audits: the thorough test
         self.weekly_ai_depth = _depth.clean(get("WEEKLY_AI_DEPTH") or "standard")      # the weekly checks: the lighter test, so a portfolio of hotels stays affordable and quick

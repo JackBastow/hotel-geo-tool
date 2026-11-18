@@ -194,8 +194,8 @@ def create_app(cfg=None, run_fn=None):
 
     @app.before_request
     def site_gate():
-        if not cfg.site_password or session.get("site_ok") is True:
-            return None
+        if (not cfg.site_password and not cfg.closed) or session.get("site_ok") is True:
+            return None          # (open only when running on a developer's own machine; on the live host a missing site password locks the audit tool instead of opening it)
         if request.path.startswith(("/portal", "/internal/", "/admin")) or session.get("admin_ok") is True:
             return None        # the hotel portal, the weekly-check routes and the admin pages each have their own sign-in; someone signed in to the admin pages may open any report
         m = re.match(r"^/(?:r|api/r)/([A-Za-z0-9_-]{20,64})(?:/|$)", request.path)
@@ -205,12 +205,14 @@ def create_app(cfg=None, run_fn=None):
             return None
         if request.path.startswith("/api/"):
             return jsonify(ok=False, error="Please sign in first."), 401
+        if not cfg.site_password:
+            return redirect("/admin/login")
         return redirect("/login?next=" + urllib.parse.quote(request.full_path.rstrip("?") if request.method == "GET" else "/", safe="/"))
 
     @app.route("/login", methods=["GET", "POST"])
     def site_login():
         if not cfg.site_password:
-            return redirect("/")
+            return redirect("/admin/login" if cfg.closed else "/")
         nxt = request.values.get("next") or "/"
         nxt = nxt if (nxt.startswith("/") and not nxt.startswith("//") and "\\" not in nxt and not nxt.startswith("/login")) else "/"
         error = ""
