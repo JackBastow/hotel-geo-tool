@@ -13,6 +13,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 KEEP_FINISHED_S = 3600
+KEEPALIVE_S = 240
 MAX_MESSAGES = 60
 
 
@@ -43,6 +44,27 @@ class Manager:
         self.private = {}                # report token -> (time, data): the hotel's own review text from an upload at the start. Memory only, never stored, gone after an hour.
         self.by_visitor = collections.defaultdict(collections.deque)
         self.lock = threading.Lock()
+        self.awake = False               # a thread visiting our own address while audits run
+
+    def _keepalive(self):
+        """While any audit is queued or running, visit our own public address every few minutes, so the free host (which sleeps after ~15 minutes without a visit) does not stop an audit
+        half way when nobody has the page open. Render sets RENDER_EXTERNAL_URL; without it (local use) nothing is done."""
+        import os
+        base = (os.environ.get("RENDER_EXTERNAL_URL") or "").rstrip("/")
+        try:
+            while base:
+                time.sleep(KEEPALIVE_S)
+                with self.lock:
+                    if not any(j.status in ("queued", "running") for j in self.jobs.values()):
+                        return
+                try:
+                    import requests
+                    requests.get(base + "/healthz", timeout=15)
+                except Exception:  # noqa: BLE001 - a missed visit is harmless
+                    pass
+        finally:
+            with self.lock:
+                self.awake = False
 
     def _purge(self):
         now = time.time()
@@ -68,6 +90,11 @@ class Manager:
             job = Job(params)
             self.jobs[job.id] = job
         self.pool.submit(self._work, job)
+        with self.lock:
+            start = not self.awake
+            self.awake = True
+        if start:
+            threading.Thread(target=self._keepalive, name="audit-keepalive", daemon=True).start()
         return job, ""
 
     def _work(self, job):

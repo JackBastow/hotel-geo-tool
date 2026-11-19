@@ -103,25 +103,44 @@
           form.style.display = "none";
           prog.classList.add("on");
           prog.scrollIntoView({ behavior: "smooth", block: "center" });
+          remember(res.j.job);
           poll(res.j.job);
         })
         .catch(function () { fail("Could not reach the service. Check your connection and try again."); });
     });
+    /* the running audit is remembered in this browser, so reloading or coming back to the page picks its progress up again (the audit itself always carries on on the server) */
+    var KEY = "runningAudit";
+    var remember = function (job) { try { localStorage.setItem(KEY, JSON.stringify({ job: job, at: Date.now() })); } catch (e) { /* storage off: progress shows only while the page stays open */ } };
+    var forget = function () { try { localStorage.removeItem(KEY); } catch (e) { /* nothing to do */ } };
     var poll = function (job) {
       var started = Date.now();
       var tick = function () {
         fetch("/api/job/" + job).then(function (r) { return r.json(); }).then(function (j) {
-          if (!j.ok) { fail(j.error || "That audit is no longer available."); return; }
+          if (!j.ok) { forget(); fail(j.error || "That audit is no longer available."); return; }
+          if (j.status === "done" || j.status === "error") { forget(); }
           var log = $("#run-log"), now = $("#run-now"), q = $("#run-queue");
           if (j.messages && j.messages.length) { now.textContent = j.messages[j.messages.length - 1]; log.textContent = j.messages.slice(-12).join("\n"); }
           if (j.status === "queued" && j.position) { q.hidden = false; q.textContent = "Waiting for a free place: " + j.position + (j.position === 1 ? " audit is" : " audits are") + " ahead of yours."; } else { q.hidden = true; }
           if (j.status === "done") { window.location.href = "/r/" + j.token; return; }
           if (j.status === "error") { fail("The audit failed: " + j.error); return; }
           setTimeout(tick, 2500);
-        }).catch(function () { if (Date.now() - started < 15 * 60 * 1000) { setTimeout(tick, 4000); } else { fail("Lost contact with the audit. Please try again."); } });
+        }).catch(function () { if (Date.now() - started < 15 * 60 * 1000) { setTimeout(tick, 4000); } else { forget(); fail("Lost contact with the audit. Please try again."); } });
       };
       tick();
     };
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { saved = null; }
+    if (saved && saved.job && Date.now() - saved.at < 60 * 60 * 1000 && !/[?&]website=/.test(location.search)) {        /* an audit started from this browser in the last hour: show its progress again */
+      form.style.display = "none";
+      prog.classList.add("on");
+      $("#run-now").textContent = "Picking up the audit you started...";
+      var other = document.createElement("p");
+      other.className = "caption";
+      other.innerHTML = 'This is the audit you started earlier; it carries on even if you leave this page. <a href="#" id="new-audit">Start a different audit instead</a> (this one still finishes and appears under Runs).';
+      prog.appendChild(other);
+      $("#new-audit").addEventListener("click", function (ev) { ev.preventDefault(); forget(); window.location.reload(); });
+      poll(saved.job);
+    } else if (saved) { forget(); }
   }
 
   /* ---- uploads on the report: the review export and the earlier report */
