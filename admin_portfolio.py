@@ -58,7 +58,7 @@ class Scope:
         self.list_urls = list_urls              # group -> the address of its list page
         self.list_base = list_base              # where the add / run-all / run-due forms post
         self.hotel_base = hotel_base            # /<hotel_base>/<id> is a hotel's page
-        self.can_move = can_move                # may move hotels between groups
+        self.can_move = can_move                # the main (Westmont) admin: its titles and wording
 
     def title(self, grp):
         return GROUP[grp][0] if self.can_move else "Hotels"
@@ -66,8 +66,12 @@ class Scope:
 
 def register(app, cfg, guard, shell, store_or_msg, csrf):
     sc = Scope("main", guard, shell, store_or_msg, csrf, lambda: session.get("admin_ok") is True,
-               ("portfolio", "individual"), {g: GROUP[g][1] for g in GROUP}, "/admin/portfolio", "/admin/hotel", True)
+               ("portfolio",), {"portfolio": "/admin/portfolio", "individual": "/hotels-admin"}, "/admin/portfolio", "/admin/hotel", True)
     register_scope(app, sc)
+
+    @app.get("/admin/individual")
+    def admin_individual_moved():
+        return redirect("/hotels-admin")            # individual hotels have their own admin now
 
 
 def register_scope(app, sc):
@@ -104,10 +108,6 @@ def register_scope(app, sc):
         @bp.get("/admin/portfolio")
         def admin_portfolio():
             return list_page("portfolio")
-
-        @bp.get("/admin/individual")
-        def admin_individual():
-            return list_page("individual")
     else:
         @bp.get(sc.list_urls["individual"])
         def hotels_list():
@@ -124,12 +124,7 @@ def register_scope(app, sc):
             return sc.shell(grp, title, f'<div class="alert warning">{esc(msg)}</div>')
         data = progress.portfolio_data(s, grp)
         rows, tot = progress.portfolio_summary(s, data)
-        if main and grp == "individual":
-            intro = ('<div class="alert info"><b>Individual hotels</b> are set up exactly like the portfolio&rsquo;s (their own logins, invite links, weekly checks, actions and prompts), '
-                     'but they are <b>not</b> part of the Westmont portfolio: they never appear on the Portfolio or Overview pages or in its totals, and each hotel only ever sees itself. '
-                     'They can also be managed from their own admin page, <a href="/hotels-admin">/hotels-admin</a>, which has its own password and sees nothing else.</div>')
-        else:
-            intro = ""
+        intro = ""
         across = "the portfolio" if grp == "portfolio" else "these hotels"
         if tot["measured"]:
             line = (f'<div class="pt-progress"><b>{tot["hotels"]} hotel{"s" if tot["hotels"] != 1 else ""}.</b> {tot["completed"]} actions marked done by hotels ({tot["verified"]} also confirmed by the checks), {tot["cleared_site"]} more no longer flagged by the checks but never marked done, {tot["working"]} in progress. '
@@ -187,8 +182,8 @@ def register_scope(app, sc):
         elif msg == "busy":
             notice = '<div class="alert warning">Those checks are already running or waiting.</div>'
         elif msg == "taken":
-            notice = ('<div class="alert warning"><b>That website is already registered</b> with this service, so it was not added here. '
-                      'Ask the person who runs the service to move it to the individual hotels if it belongs here.</div>')
+            notice = ('<div class="alert warning"><b>That website is already registered as an individual hotel</b>, so it was not added to the portfolio. It is managed in the Hotels admin (/hotels-admin).</div>' if main else
+                      '<div class="alert warning"><b>That website is already registered</b> with this service, so it was not added here.</div>')
         marker = '<div data-pf-active="1"></div>' if any_active else ""
         return sc.shell(grp, title, intro + notice + marker + line + '<p class="caption">Progress, not proof: the score moving after actions were completed does not show the actions caused it. Times are UK time.</p>' + charts + runs + table + add)
 
@@ -234,16 +229,8 @@ def register_scope(app, sc):
         invites = "".join(f'<li>{esc(i["email"])} ({esc(i["kind"])}), link valid until {esc(uk_time(i["expires"]))}</li>' for i in s.open_invites(hid))
         grp = portal_db.group_of(h)
         if request.args.get("msg") == "exists" and not notice:
-            notice = (f'<div class="alert warning">That website is already registered, as this hotel (in <b>{esc(GROUP[grp][0])}</b>). Nothing new was added.</div>' if main
-                      else '<div class="alert warning">That website is already registered, as this hotel. Nothing new was added.</div>')
-        if main:
-            other = "individual" if grp == "portfolio" else "portfolio"
-            ask = esc(f"Move this hotel to {GROUP[other][0]}? Its logins, checks and history stay as they are.", quote=True)
-            where = (f'<p>In: <b><a href="{sc.list_urls[grp]}">{esc(GROUP[grp][0])}</a></b> '
-                     f'<form method="post" action="{HB}/{hid}/group" style="display:inline" data-confirm="{ask}"><input type="hidden" name="csrf" value="{c}"><input type="hidden" name="grp" value="{other}">'
-                     f'<button class="btn small" type="submit">Move to {esc(GROUP[other][0])}</button></form></p>')
-        else:
-            where = f'<p><a href="{sc.list_urls[grp]}">&larr; All hotels</a></p>'
+            notice = '<div class="alert warning">That website is already registered, as this hotel. Nothing new was added.</div>'
+        where = f'<p><a href="{sc.list_urls[grp]}">&larr; All hotels</a></p>'
         panel = (f'<section class="panel"><h4>Manage this hotel</h4>{notice}{where}'
                  f'<p><form method="post" action="{HB}/{hid}/run" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn primary" type="submit">Run a check now</button></form> '
                  f'<form method="post" action="{HB}/{hid}/reset-prompts" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Reset its automatic prompts</button></form> '
@@ -379,16 +366,6 @@ def register_scope(app, sc):
         h = own(s, hid)
         s.set_hotel(hid, weekly=0 if h["weekly"] else 1)
         return redirect(f"{HB}/{hid}")
-
-    if main:
-        @bp.post(HB + "/<int:hid>/group")
-        def hotel_group(hid):
-            bad, s = checked_post()
-            if bad:
-                return bad
-            own(s, hid)
-            s.set_hotel(hid, grp=grp_arg())
-            return redirect(f"{HB}/{hid}")
 
     @bp.post(HB + "/<int:hid>/run")
     def hotel_run_now(hid):
