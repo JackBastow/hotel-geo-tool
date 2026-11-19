@@ -71,7 +71,7 @@ def figures(db, runs_all=None, now=None):
             attention.append((r, f"Score down {abs(r['delta']):g} points"))
     other = 0
     if runs_all is not None:
-        mine = {r["hotel"]["hotel_key"] for r in rows}
+        mine = {h["hotel_key"] for h in db.list_hotels()}               # the individual hotels are registered too, just not in the portfolio
         other = sum(1 for x in runs_all if x["hotel_key"] not in mine)
     return {"rows": rows, "tiles": tiles, "weeks": week_pts, "bands": bands, "attention": attention, "other_audits": other}
 

@@ -465,3 +465,9 @@ document.addEventListener("click", function (ev) {
     if (b) { b.classList.remove("saved"); void b.offsetWidth; b.classList.add("saved"); }
   });
 })();
+
+/* a form that asks before it does something hard to undo (admin: moving a hotel between the portfolio and the individual hotels) */
+document.addEventListener("submit", function (ev) {
+  var f = ev.target, q = f && f.getAttribute && f.getAttribute("data-confirm");
+  if (q && !window.confirm(q)) { ev.preventDefault(); }
+});

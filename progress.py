@@ -193,9 +193,9 @@ def hotel_summary(db, hotel, hist=None, actions=None):
             "latest_run_id": hist[-1]["id"] if hist else None, "completed_points": completed_series(actions, [r["run_at"] for r in scored])}
 
 
-def portfolio_data(db):
-    """Everything the portfolio page needs, fetched in three queries however many hotels there are: {"hotels", "hist", "actions"}."""
-    hotels = db.list_hotels(only_active=True)
+def portfolio_data(db, grp="portfolio"):
+    """Everything the portfolio page needs, fetched in three queries however many hotels there are: {"hotels", "hist", "actions"}. grp: the Westmont portfolio (default) or the individual hotels."""
+    hotels = db.list_hotels(only_active=True, grp=grp)
     return {"hotels": hotels, "hist": db.runs_light([h["hotel_key"] for h in hotels]), "actions": db.actions_for_hotels([h["id"] for h in hotels])}
 
 

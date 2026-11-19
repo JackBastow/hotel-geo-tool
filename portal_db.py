@@ -8,9 +8,15 @@ hotel's history.
 
 import datetime as dt
 
-HOTEL_COLS = ("name", "website", "city", "tier", "audiences", "weekly", "active", "last_attempt", "last_error")
+HOTEL_COLS = ("name", "website", "city", "tier", "audiences", "weekly", "active", "last_attempt", "last_error", "grp")
+GROUPS = ("portfolio", "individual")      # the Westmont portfolio, or a hotel set up on its own (not in the portfolio's figures)
 ACTION_COLS = ("akey", "title", "source", "category", "priority", "effort", "team", "kind", "status", "state", "first_run_id", "last_run_id", "first_seen", "last_seen", "updated", "done_at",
                "resolved_at", "resolution", "reopened", "note", "rec_json", "done_by")
+
+
+def group_of(hotel):
+    """'portfolio' or 'individual'."""
+    return "individual" if (hotel or {}).get("grp") == "individual" else "portfolio"
 
 
 def now_iso():
@@ -30,6 +36,7 @@ class PortalMixin:
         self._run(conn, f"CREATE TABLE IF NOT EXISTS hotel_prompts (id {pk}, hotel_id INTEGER, version INTEGER, status TEXT, prompts_json TEXT, created TEXT, created_by TEXT, confirmed_at TEXT, confirmed_by TEXT, base_version INTEGER)")
         for sql in ("CREATE INDEX IF NOT EXISTS hp_hotel ON hotel_prompts (hotel_id)", "CREATE INDEX IF NOT EXISTS actions_hotel ON actions (hotel_id)", "CREATE INDEX IF NOT EXISTS hu_hotel ON hotel_users (hotel_id)", "CREATE INDEX IF NOT EXISTS inv_hash ON invites (token_hash)"):
             self._run(conn, sql)
+        self._ensure_columns(conn, "hotels", {"grp": "TEXT"})          # older databases: every hotel already there is in the portfolio
 
     def _exec(self, sql, params=()):
         conn = self._connect()
@@ -40,11 +47,12 @@ class PortalMixin:
             conn.close()
 
     # hotels ------------------------------------------------------------------
-    def create_hotel(self, name, website, city, hotel_key, tier=None, audiences="", weekly=1):
+    def create_hotel(self, name, website, city, hotel_key, tier=None, audiences="", weekly=1, grp="portfolio"):
         conn = self._connect()
         try:
             hid = self._insert(conn, "hotels", {"name": name, "website": website, "city": city, "hotel_key": hotel_key, "tier": tier or "", "audiences": audiences or "", "weekly": int(bool(weekly)),
-                                                "active": 1, "created": now_iso(), "last_attempt": "", "last_error": ""})
+                                                "active": 1, "created": now_iso(), "last_attempt": "", "last_error": "",
+                                                "grp": grp if grp in GROUPS else "portfolio"})
             conn.commit()
             return hid
         finally:
@@ -58,8 +66,10 @@ class PortalMixin:
         r = self._rows("SELECT * FROM hotels WHERE hotel_key = ?", (key,))
         return r[0] if r else None
 
-    def list_hotels(self, only_active=False):
-        return self._rows("SELECT * FROM hotels" + (" WHERE active = 1" if only_active else "") + " ORDER BY name")
+    def list_hotels(self, only_active=False, grp=None):
+        """Every hotel (grp=None), or only the portfolio's or only the individual hotels'. A hotel with no group recorded is in the portfolio."""
+        rows = self._rows("SELECT * FROM hotels" + (" WHERE active = 1" if only_active else "") + " ORDER BY name")
+        return rows if grp is None else [h for h in rows if group_of(h) == grp]
 
     def set_hotel(self, hotel_id, **fields):
         use = {k: v for k, v in fields.items() if k in HOTEL_COLS}
