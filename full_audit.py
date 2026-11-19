@@ -610,7 +610,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
                    youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None,
-                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None, ai_depth="standard", firecrawl_api_key=None, places_nearby_key=None, tripadvisor_api_key=None):
+                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None, ai_depth="standard", firecrawl_api_key=None, places_nearby_key=None, tripadvisor_api_key=None, profile=None):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -677,6 +677,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     # same-named hotel in another town can't be reported as a match.
     say("Working out the hotel's location...")
     location = infer_location(site, base, pages_html=pages_html)
+    if profile and isinstance(profile.get("lat"), (int, float)) and isinstance(profile.get("lon"), (int, float)):
+        location = {**(location or {}), "lat": profile["lat"], "lon": profile["lon"]}          # the place the hotel confirmed on the map: nearby places and listings are found from there
     if city_given:
         location["city"] = city
         location["source"] = "provided by you"
@@ -918,7 +920,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 _qclient = ai_sample._make_client(anthropic_api_key, timeout=60.0)
             except Exception:  # noqa: BLE001
                 _qclient = None
-            built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]), features=_feats0, benchmark=benchmark, depth=ai_depth, pages=own_pages)
+            built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]), features=_feats0, benchmark=benchmark, depth=ai_depth, pages=own_pages, profile=profile)
             nqs = built["questions"]
             benchmark_info = {"prompts": built["benchmark_prompts"] or [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why")} for b in (benchmark or [])], "reused": built["benchmark_reused"]}
             question_plan = {"facts": built["facts"], "rejected": built["rejected"], "anchors": _anch["anchors"][:6], "coords_source": _anch["coords_source"], "cost_usd": built["cost_usd"],
@@ -1217,6 +1219,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "meta": {
             "hotel": hotel,
             "city": city,
+            "profile": (__import__("hotel_profile").for_report(profile) if profile else None),        # the profile the hotel confirmed, as this check used it
             "website": website,
             "base": base,
             "run_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),

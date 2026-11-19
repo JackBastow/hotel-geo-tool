@@ -60,8 +60,8 @@ class Weekly:
                 if h["id"] in force_ids:
                     out.append(h)
                 continue
-            if not h["weekly"]:
-                continue
+            if not h["weekly"] or h.get("setup") == "pending":
+                continue                       # a new hotel is not checked until its profile and prompts are confirmed (confirming the prompts starts its first check)
             hist = db.hotel_runs(h["hotel_key"])
             last = _parse(hist[0]["run_at"]) if hist else None
             tried = _parse(h["last_attempt"]) if h["last_attempt"] else None
@@ -122,8 +122,9 @@ class Weekly:
 
     def params_for(self, h, manual=False):
         depth = getattr(self.cfg, "ai_depth", "deep") if manual else getattr(self.cfg, "weekly_ai_depth", "standard")
+        import hotel_profile
         return {"website": h["website"], "hotel": h["name"], "city": h["city"], "wider": True, "tier": h["tier"] or None,
-                "audiences": [a for a in (h["audiences"] or "").split(",") if a], "depth": depth}
+                "audiences": [a for a in (h["audiences"] or "").split(",") if a], "depth": depth, "profile": hotel_profile.confirmed(h)}
 
     def check_one(self, hotel_id):
         """Run one hotel's audit now and save it. -> {"hotel", "ok", "token" or "error"}. Never raises."""

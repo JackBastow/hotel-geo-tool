@@ -84,6 +84,7 @@ check("a form without its token is refused", c.post(f"/hotels-admin/hotel/{solo_
 
 print("3. adding hotels")
 r = c.post("/hotels-admin/add", data={"csrf": csrf, "name": "New Inn", "website": "new-inn.example", "city": "Ripon", "grp": "portfolio"})
+db.set_hotel(db.hotel_by_key("new-inn.example")["id"], setup="")  # behaves as a hotel set up before profiles (test_setup_flow.py covers the new set-up)
 ni = db.hotel_by_key("new-inn.example")
 check("a hotel added here is always individual, whatever the form says", ni and ni["grp"] == "individual" and r.headers["Location"].endswith(f"/hotels-admin/hotel/{ni['id']}"))
 r = c.post("/hotels-admin/add", data={"csrf": csrf, "name": "Copy", "website": "westmont-one.example", "city": "Leeds"})

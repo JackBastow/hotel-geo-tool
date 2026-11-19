@@ -17,6 +17,7 @@ import accounts
 import ai_dash
 import backend
 import exploration
+import hotel_profile
 import netguard
 import portal_db
 import portal_view
@@ -97,6 +98,11 @@ def register_scope(app, sc):
             return sc.shell(sc.groups[0], sc.title(sc.groups[0]), f'<div class="alert warning">{esc(msg)}</div>'), None
         return None, s
 
+    def setup_cell(s, h):
+        key, label = hotel_profile.status(s, h)
+        colour = {"not_invited": "#b42318", "invited": "#b54708", "profile": "#3730a3", "prompts": "#3730a3", "checked": "#067647"}.get(key, "inherit")
+        return f'<span style="color:{colour}">{esc(label)}</span>'
+
     def delta_cell(d):
         return "-" if d is None else f'<b style="color:{"#067647" if d > 0 else "#b42318" if d < 0 else "inherit"}">{d:+g}</b>'
 
@@ -155,10 +161,10 @@ def register_scope(app, sc):
             f'<tr><td><a href="{HB}/{r["hotel"]["id"]}">{esc(r["hotel"]["name"])}</a><br><span class="hk-muted">{esc(r["hotel"]["city"] or "")}</span></td><td>{esc(uk_date(r["last_run_at"])) or "not yet"}</td><td>{r["runs"]}</td>'
             f'<td>{"-" if r["first_score"] is None else format(r["first_score"], "g")}</td><td>{"-" if r["latest_score"] is None else format(r["latest_score"], "g")}</td><td>{delta_cell(r["delta"])}</td>'
             f'<td>{r["actions"]["completed"]}</td><td>{r["actions"]["working"]}</td><td>{r["actions"]["todo"] + r["actions"]["still_flagged"]}</td><td>{"weekly" if r["hotel"]["weekly"] else "off"}</td>'
-            f'<td>{status_cell(r["hotel"]["id"])}</td><td>{esc(uk_time(r["hotel"]["last_attempt"])) or "-"}</td><td>{esc(r["hotel"]["last_error"] or "")}</td></tr>' for r in rows)
+            f'<td>{status_cell(r["hotel"]["id"])}</td><td>{setup_cell(s, r["hotel"])}</td><td>{esc(uk_time(r["hotel"]["last_attempt"])) or "-"}</td><td>{esc(r["hotel"]["last_error"] or "")}</td></tr>' for r in rows)
         empty = "No individual hotels yet: add one below." if grp == "individual" else "No hotels registered yet."
         table = ('<div class="table-wrap"><table class="table"><thead><tr><th>Hotel</th><th>Last check</th><th>Checks</th><th>First score</th><th>Latest score</th><th>Change</th><th>Actions done</th>'
-                 '<th>Working on</th><th>To do</th><th>Weekly</th><th>Right now</th><th>Last attempt (UK time)</th><th>Last problem</th></tr></thead><tbody>' + (body or f'<tr><td colspan="13">{empty}</td></tr>') + "</tbody></table></div>")
+                 '<th>Working on</th><th>To do</th><th>Weekly</th><th>Right now</th><th>Set-up</th><th>Last attempt (UK time)</th><th>Last problem</th></tr></thead><tbody>' + (body or f'<tr><td colspan="14">{empty}</td></tr>') + "</tbody></table></div>")
         c_ = sc.csrf()
         hid_ = f'<input type="hidden" name="csrf" value="{c_}"><input type="hidden" name="grp" value="{grp}">'
         every = "individual hotel" if (grp == "individual" and main) else "hotel"
@@ -169,8 +175,9 @@ def register_scope(app, sc):
         add = (f'<h5>{add_t}</h5><form class="filters" method="post" action="{LB}/add">{hid_}'
                '<label class="field"><span>Hotel name</span><input name="name" required></label><label class="field"><span>Website address</span><input name="website" placeholder="hotel-site.com/the-hotel" required></label>'
                '<label class="field"><span>Town or city</span><input name="city" required></label><button class="btn primary" type="submit">Add hotel</button></form>'
-               '<p class="caption">Adding a hotel does not run a check by itself: use &ldquo;Run a check now&rdquo; on its page, or the next weekly check picks it up. Audits already saved for the same website count as its history. '
-               'Then open the hotel and use &ldquo;Make an invite link&rdquo; to give someone a login.</p>')
+               '<p class="caption">Then open the hotel and use &ldquo;Make an invite link&rdquo;. When they first sign in they set up the hotel&rsquo;s profile, check the prompts written from it, '
+               'and confirming the prompts starts the first check; weekly checks follow. Nothing is checked before that (you can still use &ldquo;Run a check now&rdquo;, or fill in the profile yourself). '
+               'Audits already saved for the same website count as its history.</p>')
         msg = request.args.get("msg", "")
         notice = ""
         if msg.startswith("started:"):
@@ -205,7 +212,11 @@ def register_scope(app, sc):
             if portal_db.group_of(have) not in sc.groups:
                 return redirect(sc.list_urls[grp] + "?msg=taken")              # a hotel this scope may not see: say so without opening (or naming) it
             return redirect(f"{HB}/{have['id']}?msg=exists")          # already registered (in whichever group): its page says which, and can move it
-        return redirect(f"{HB}/{s.create_hotel(name, site, city, key, grp=grp)}")
+        hid = s.create_hotel(name, site, city, key, grp=grp, setup="pending")
+        W = app.extensions["weekly"]
+        if getattr(W.cfg, "database_url", None):
+            hotel_profile.start_draft(W.cfg.database_url, hid, W.cfg)         # read its website for a draft profile while the invite is sent
+        return redirect(f"{HB}/{hid}")
 
     def hotel_page(s, hid, notice=""):
         h = own(s, hid)
@@ -231,7 +242,16 @@ def register_scope(app, sc):
         if request.args.get("msg") == "exists" and not notice:
             notice = '<div class="alert warning">That website is already registered, as this hotel. Nothing new was added.</div>'
         where = f'<p><a href="{sc.list_urls[grp]}">&larr; All hotels</a></p>'
-        panel = (f'<section class="panel"><h4>Manage this hotel</h4>{notice}{where}'
+        prof = hotel_profile.load(h)
+        skey, slabel = hotel_profile.status(s, h)
+        mp = hotel_profile.map_link(prof)
+        profile_box = (f'<p><b>Set-up:</b> {esc(slabel)}. <b>Profile:</b> {esc(hotel_profile.last_change(prof)) if prof else ("being drafted from the website" if hotel_profile.drafting(hid) else "none yet")}'
+                       + (f' &middot; <a href="{esc(mp, quote=True)}" target="_blank" rel="noopener">map</a>' if mp else "")
+                       + f' &middot; <a class="btn small" href="{HB}/{hid}/profile">{"Open the profile" if prof else "Fill in the profile"}</a></p>'
+                       + (f'<p class="caption">{esc(", ".join(dict(hotel_profile.KINDS).get(k, k) for k in prof["kinds"]))}{" &middot; " if prof["kinds"] else ""}town {esc(prof["town"] or "-")}, region {esc(prof["region"] or "-")}, area {esc(prof["area"] or "-")}'
+                          + (f' &middot; competitors: {esc(", ".join(prof["competitors"]))}' if prof["competitors"] else "") + '</p>' if prof else "")
+                       + ('<p class="caption">Not checked weekly until its prompts are confirmed (by the hotel or by you on the Prompts tab below).</p>' if h.get("setup") == "pending" else ""))
+        panel = (f'<section class="panel"><h4>Manage this hotel</h4>{notice}{where}{profile_box}'
                  f'<p><form method="post" action="{HB}/{hid}/run" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn primary" type="submit">Run a check now</button></form> '
                  f'<form method="post" action="{HB}/{hid}/reset-prompts" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Reset its automatic prompts</button></form> '
                  f'<form method="post" action="{HB}/{hid}/weekly" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Weekly checks are {"ON: switch off" if h["weekly"] else "OFF: switch on"}</button></form></p>'
@@ -268,8 +288,40 @@ def register_scope(app, sc):
             abort(404)
         h = own(s, hid)
         st = prompt_sets.state(s, h)
-        ok, res = prompt_sets.handle(s, h, "the operator", request.get_json(silent=True) or {}, prompt_sets.anchors_from(st["draft"], st["active"]))
+        payload = request.get_json(silent=True) or {}
+        ok, res = prompt_sets.handle(s, h, "the operator", payload, prompt_sets.anchors_from(st["draft"], st["active"]) + [{"name": x} for x in hotel_profile.places(hotel_profile.confirmed(h))])
+        if ok and payload.get("action") == "confirm" and "first_check" in app.extensions:
+            res = {**res, **app.extensions["first_check"](s, h)}
         return {"ok": ok, **res}, (200 if ok else 400)
+
+    @bp.route(HB + "/<int:hid>/profile", methods=["GET", "POST"])
+    def hotel_profile_page(hid):
+        g = sc.guard()
+        if g:
+            return g
+        s, msg = sc.store_or_msg()
+        if s is None:
+            return sc.shell(sc.groups[0], sc.title(sc.groups[0]), f'<div class="alert warning">{esc(msg)}</div>')
+        h = own(s, hid)
+        old = hotel_profile.load(h)
+        W = app.extensions["weekly"]
+        if not old and getattr(W.cfg, "database_url", None):
+            hotel_profile.start_draft(W.cfg.database_url, hid, W.cfg)
+        error = ""
+        if request.method == "POST":
+            if not hmac.compare_digest(request.form.get("csrf", ""), session.get("csrf", "x")):
+                abort(400)
+            prof, error = hotel_profile.from_form(request.form, old, "the operator")
+            if not error:
+                hotel_profile.apply(s, h, prof)
+                n = hotel_profile.write_prompts(s, s.get_hotel(hid), prof, W.cfg)
+                return redirect(f"{HB}/{hid}" + ("#prompts" if n else ""))
+            old = prof
+        head = (f'<p><a href="{HB}/{hid}">&larr; Back to the hotel</a></p><p class="caption">The hotel normally fills this in when it first signs in. Saving here confirms it on the hotel&rsquo;s behalf and writes a '
+                'recommended set of prompts from it (the hotel&rsquo;s confirmed prompts are not replaced until someone confirms the new set).</p>')
+        err = f'<div class="alert warning">{esc(error)}</div>' if error else ""
+        return sc.shell(portal_db.group_of(h), h["name"] + ": profile", head + err + hotel_profile.form_html(old or {**hotel_profile.empty(), "town": h.get("city") or ""}, f"{HB}/{hid}/profile", sc.csrf(),
+                                                                                                     drafting_now=hotel_profile.drafting(hid) and not old, who="operator"))
 
     @bp.get(HB + "/<int:hid>/status")
     def hotel_status(hid):
@@ -301,7 +353,7 @@ def register_scope(app, sc):
             return bad
         W = app.extensions["weekly"]
         grp = grp_arg()
-        hs = [h for h in s.list_hotels(only_active=True, grp=grp) if not W.active(h["id"])]
+        hs = [h for h in s.list_hotels(only_active=True, grp=grp) if not W.active(h["id"]) and h.get("setup") != "pending"]
         W.start(force_ids={h["id"] for h in hs})
         return redirect(sc.list_urls[grp] + "?msg=" + ("started:" + "|".join(h["name"] for h in hs) if hs else "busy"))
 

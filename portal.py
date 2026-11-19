@@ -21,6 +21,7 @@ from flask import abort, jsonify, redirect, render_template, request, session
 import accounts
 import ai_dash
 import backend
+import hotel_profile
 import portal_view
 import start_here
 import progress
@@ -149,7 +150,7 @@ def register(app, cfg):
             d.use_invite(inv["id"])
             try:        # the first time anyone sets up a login for a hotel that has never been checked, start its first check, so the dashboard is full when they land on it
                 hh = d.get_hotel(inv["hotel_id"]) if inv["hotel_id"] else None
-                if hh and hh["active"] and not d.hotel_runs(hh["hotel_key"]):
+                if hh and hh["active"] and hh.get("setup") != "pending" and not d.hotel_runs(hh["hotel_key"]):
                     app.extensions["weekly"].start(force_ids={hh["id"]})
             except Exception:  # noqa: BLE001 - never block the sign-up
                 pass
@@ -199,8 +200,19 @@ def register(app, cfg):
         except Exception:  # noqa: BLE001
             return []
 
+    def profile_banner(hotel):
+        """A hotel set up before profiles: ask it to review the profile drafted for it (its checks carry on meanwhile)."""
+        if hotel.get("setup") in ("pending", "done") or hotel_profile.confirmed(hotel):
+            return ""
+        return (f'<section class="talk-callout"><div><h3>Check your hotel profile</h3><p>Tell us exactly what kind of place you are, why guests come and where they search for you. '
+                f'We use it to ask AI assistants the right questions and compare you with the right competitors.</p></div><a class="btn primary" href="/portal/hotel/{hotel["id"]}/profile">Check the profile &rarr;</a></section>')
+
     def dashboard_page(hotel, user, hotels):
         d = db()
+        if hotel.get("setup") == "pending" and not hotel_profile.confirmed(hotel):
+            return redirect(f"/portal/hotel/{hotel['id']}/profile")          # a new hotel starts by setting up its profile
+        if not hotel_profile.load(hotel) and cfg.database_url:
+            hotel_profile.start_draft(cfg.database_url, hotel["id"], cfg)     # a hotel set up before profiles: draft one to review
         acts = progress.actions_for(d, hotel)
         runs = d.hotel_runs(hotel["hotel_key"])                       # newest first; the same rows give the summary (oldest first) and the history table
         sm = progress.hotel_summary(d, hotel, list(reversed(runs)), acts)
@@ -211,7 +223,9 @@ def register(app, cfg):
         body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), start=start_here.safe(d, hotel, sm, acts, runs, True, pst), ai=ai_dash.panel(d, hotel), prompts=prompts_view.panel(pst, hotel, "/portal/api/prompts/" + str(hotel["id"]), True, since, _suggestions(rep, pst), _from_results(d, hotel, pst)),
                                      prompts_alert=bool(pst["draft"] and not pst["active"]), opps=_opps(rep), strategy=_strategy(rep),
                                      live=app.extensions["weekly"].hotel_state(hotel["id"]), live_url=f"/portal/api/status/{hotel['id']}")
-        return shell(hotel["name"] + ": progress", body, user, hotels)
+        if hotel.get("setup") == "done" and not runs and not app.extensions["weekly"].active(hotel["id"]):
+            body = '<div class="alert info"><b>Your first check is on its way.</b> It starts as soon as there is room and takes about 15 minutes; this page fills in when it is done.</div>' + body
+        return shell(hotel["name"] + ": progress", profile_banner(hotel) + body, user, hotels)
 
     @app.get("/portal")
     def portal_home():
@@ -247,8 +261,55 @@ def register(app, cfg):
         d = db()
         hotel = next(h for h in hotels if h["id"] == hotel_id)
         st = prompt_sets.state(d, hotel)
-        ok, res = prompt_sets.handle(d, hotel, user["email"], request.get_json(silent=True) or {}, prompt_sets.anchors_from(st["draft"], st["active"]))
+        payload = request.get_json(silent=True) or {}
+        ok, res = prompt_sets.handle(d, hotel, user["email"], payload, prompt_sets.anchors_from(st["draft"], st["active"]) + [{"name": x} for x in hotel_profile.places(hotel_profile.confirmed(hotel))])
+        if ok and payload.get("action") == "confirm":
+            res = {**res, **first_check(d, hotel)}
         return jsonify(ok=ok, **res), (200 if ok else 400)
+
+    def first_check(d, hotel):
+        """Confirming the prompts of a new hotel finishes its set-up and starts its first check."""
+        h = d.get_hotel(hotel["id"])
+        if h and h.get("setup") == "pending":
+            d.set_hotel(h["id"], setup="done")
+            try:
+                app.extensions["weekly"].start(force_ids={h["id"]})
+            except Exception:  # noqa: BLE001
+                pass
+            return {"message": "Prompts confirmed. Your first check has started: it takes about 15 minutes, and this page fills in when it is done."}
+        return {}
+
+    app.extensions["first_check"] = first_check
+
+    @app.route("/portal/hotel/<int:hotel_id>/profile", methods=["GET", "POST"])
+    def portal_profile(hotel_id):
+        user, hotels = current()
+        if not user:
+            return redirect("/portal/signin")
+        h = next((x for x in hotels if x["id"] == hotel_id), None)
+        if h is None:
+            abort(404)
+        d = db()
+        old = hotel_profile.load(h)
+        if not old and not hotel_profile.drafting(h["id"]):
+            hotel_profile.start_draft(cfg.database_url, h["id"], cfg)
+        error = ""
+        if request.method == "POST":
+            if not csrf_ok(request.form.get("csrf")):
+                abort(400)
+            prof, error = hotel_profile.from_form(request.form, old, user["email"])
+            if not error:
+                hotel_profile.apply(d, h, prof)
+                n = hotel_profile.write_prompts(d, d.get_hotel(h["id"]), prof, cfg)
+                return redirect(f"/portal/hotel/{h['id']}?profile=saved#prompts" if n else f"/portal/hotel/{h['id']}?profile=saved")
+            old = prof
+        new = h.get("setup") == "pending"
+        intro = ('<h1>Set up your hotel</h1><p class="lede">Before we measure anything, tell us exactly which hotel you are and how your guests find you. '
+                 'Then we write the prompts to ask AI assistants about places like yours; you check them, and confirming them starts your first check.</p>' if new else
+                 f'<h1>Your hotel profile</h1><p class="lede">What kind of place you are and how guests find you. Everything we measure is built on it. ({portal_view.esc(hotel_profile.last_change(old))})</p>')
+        steps = ('<p class="caption"><b>Step 1 of 3: your profile</b> &rarr; 2: check the prompts &rarr; 3: your first check runs.</p>' if new else "")
+        err = f'<div class="alert warning">{portal_view.esc(error)}</div>' if error else ""
+        return shell(h["name"] + ": profile", intro + steps + err + hotel_profile.form_html(old or {**hotel_profile.empty(), "town": h.get("city") or ""}, f"/portal/hotel/{h['id']}/profile", csrf(), drafting_now=hotel_profile.drafting(h["id"]) and not old), user, hotels)
 
     @app.get("/portal/api/status/<int:hotel_id>")
     def portal_status(hotel_id):

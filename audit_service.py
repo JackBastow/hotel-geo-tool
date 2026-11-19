@@ -115,7 +115,7 @@ def run(params, cfg, progress=None):
         tavily_api_key=use_tavily, amadeus_api_key=use_amadeus, amadeus_api_secret=cfg.amadeus_secret if use_amadeus else None,
         gemini_reader_key=use_gemini_reader, youtube_api_key=cfg.youtube, wider=bool(params.get("wider", True)), pagespeed_api_key=cfg.pagespeed,
         anthropic_api_key=use_anthropic, anthropic_model=cfg.anthropic_model, anthropic_repeats=cfg.repeats, custom_prompts=params.get("prompts") or None, benchmark=benchmark or None, ai_depth=depth_name, firecrawl_api_key=use_firecrawl, places_nearby_key=use_places, tripadvisor_api_key=use_tripadvisor,
-        market_hint={"tier": TIERS.get(params.get("tier")), "audiences": [a for a in params.get("audiences") or [] if a in valid_aud]})
+        market_hint={"tier": TIERS.get(params.get("tier")), "audiences": [a for a in params.get("audiences") or [] if a in valid_aud]}, profile=params.get("profile"))
     if params.get("review_rows"):
         fa_res = _with_review_export(fa_res, params["review_rows"], params.get("review_mapping") or {})
     # usage against the shared monthly allowances

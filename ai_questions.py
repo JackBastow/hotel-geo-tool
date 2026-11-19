@@ -184,7 +184,7 @@ def validate(proposed, facts, hotel, city, anchor_names, tier_key, existing=()):
         elif any(_similar(text, e) for e in list(existing) + [k["text"] for k in kept]):
             why = "repeats another question"
         else:
-            cited_text = " ".join(ids[i]["text"] for i in cited).lower() + " " + " ".join(f["text"] for f in facts if f["kind"] in ("class", "feature", "audience", "airport") or f["kind"].startswith("site_")).lower()
+            cited_text = " ".join(ids[i]["text"] for i in cited).lower() + " " + " ".join(f["text"] for f in facts if f["kind"] in ("class", "feature", "audience", "airport") or f["kind"].startswith(("site_", "owner_"))).lower()
             for needs, licence in LICENCE.items():
                 if re.search(needs, text, re.I) and not re.search(licence, cited_text, re.I):
                     why = f"brings in something the facts do not support ({re.search(needs, text, re.I).group(0)})"
@@ -343,7 +343,7 @@ def style_variants(prof, hotel, city, anchor_list, core, n):
     return [q for q in out if ai_niche._safe(q["text"] if q["text"].endswith("?") else q["text"] + "?", hotel)][:n]
 
 
-def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repeats=2, features=None, benchmark=None, depth="standard", pages=None):
+def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repeats=2, features=None, benchmark=None, depth="standard", pages=None, profile=None):
     """
     -> {"questions": [...], "facts": [...], "rejected": [...], "cost_usd": float}. Core questions are asked base_repeats + 1 times (at most 4), secondary ones base_repeats times; every question carries
     its priority, its repeat count and why it was asked. Never empty when ai_niche can write at least one question.
@@ -354,6 +354,9 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
     import depth as _depth
     lim = _depth.limits(depth)
     facts = fact_list(prof, anchor_list or [], features)
+    if profile:                                                  # what the hotel confirmed about itself: the proposals may rest on it, and mention its places
+        import hotel_profile
+        facts += [{"id": f"f{len(facts) + i + 1}", **f} for i, f in enumerate(hotel_profile.facts_for_audit(profile))]
     tmpl = ai_niche.questions(prof, hotel, city, n=12) if prof else []
     for q in tmpl:
         q["priority"] = "core" if q["angle"] in CORE_ANGLES else "secondary"
@@ -366,6 +369,9 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
     pool = anch + feat + tmpl
     cost, rejected = 0.0, []
     places = [a["name"] for a in an_best(anchor_list, 3)]
+    if profile:
+        import hotel_profile
+        places += hotel_profile.places(profile)[1:]
     if client is not None and pages and len(facts) < THIN_FACTS:          # few facts (often a site in another language): read what the hotel's own pages say
         more, c0 = site_facts(client, model or ai_sample.MODEL_DEFAULT, pages, hotel, city, start=len(facts) + 1)
         facts, cost = facts + more, cost + c0
