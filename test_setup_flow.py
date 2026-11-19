@@ -190,5 +190,18 @@ check("which writes a new recommended set but leaves the hotel's set-up and chec
 check("and the banner goes once the profile is confirmed", "Check your hotel profile" not in o.get("/portal").get_data(as_text=True))
 check("nobody else's hotel profile can be opened", o.get(f"/portal/hotel/{h['id']}/profile").status_code == 404 and adm.get(f"/hotels-admin/hotel/{old_id}/profile").status_code == 404)
 
+print("7. every hotel can open its profile from Settings")
+for client_, hid_, who_ in ((u, h["id"], "individual"), (o, old_id, "portfolio")):
+    dash_ = client_.get(f"/portal/hotel/{hid_}").get_data(as_text=True)
+    check(f"a {who_} hotel's dashboard has a Settings link in the top bar", 'href="/portal/settings"' in dash_)
+    check(f"Settings goes to its own settings", client_.get("/portal/settings").headers.get("Location", "").endswith(f"/portal/hotel/{hid_}/settings"))
+    sp = client_.get(f"/portal/hotel/{hid_}/settings").get_data(as_text=True)
+    check(f"which shows its profile and an Edit button ({who_})", "Hotel profile" in sp and f'href="/portal/hotel/{hid_}/profile"' in sp and "Edit the profile" in sp and "Confirmed" in sp)
+check("the individual hotel's settings show what it confirmed", "Blekinge" in u.get(f"/portal/hotel/{h['id']}/settings").get_data(as_text=True)
+      and "Hooks Herrgård" in u.get(f"/portal/hotel/{h['id']}/settings").get_data(as_text=True))
+check("the edit page links back to settings", f'href="/portal/hotel/{h["id"]}/settings"' in u.get(f"/portal/hotel/{h['id']}/profile").get_data(as_text=True))
+check("another hotel's settings cannot be opened", u.get(f"/portal/hotel/{old_id}/settings").status_code == 404 and o.get(f"/portal/hotel/{h['id']}/settings").status_code == 404)
+check("settings needs a sign-in", app.test_client().get("/portal/settings").status_code == 302)
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

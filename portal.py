@@ -281,6 +281,44 @@ def register(app, cfg):
 
     app.extensions["first_check"] = first_check
 
+    @app.get("/portal/settings")
+    def portal_settings_home():
+        user, hotels = current()
+        if not user:
+            return redirect("/portal/signin")
+        if len(hotels) == 1:
+            return redirect(f"/portal/hotel/{hotels[0]['id']}/settings")
+        cards = "".join(f'<a class="panel" style="display:block;margin:10px 0" href="/portal/hotel/{h["id"]}/settings"><b>{portal_view.esc(h["name"])}</b></a>' for h in hotels)
+        return shell("Settings", "<h1>Settings</h1><p class=\"lede\">Choose a hotel.</p>" + (cards or '<div class="alert info">No hotel is linked to this login yet.</div>'), user, hotels)
+
+    @app.get("/portal/hotel/<int:hotel_id>/settings")
+    def portal_settings(hotel_id):
+        user, hotels = current()
+        if not user:
+            return redirect("/portal/signin")
+        h = next((x for x in hotels if x["id"] == hotel_id), None)
+        if h is None:
+            abort(404)
+        esc = portal_view.esc
+        p = hotel_profile.load(h)
+        rows = []
+        if p:
+            kinds = ", ".join(dict(hotel_profile.KINDS).get(k, k) for k in p["kinds"])
+            auds = ", ".join(dict(hotel_profile.audiences()).get(k, k) for k in p["audiences"])
+            for label, val in (("Address", p["address"]), ("Town", p["town"]), ("Region", p["region"]), ("Wider area", p["area"]), ("Places guests come for", ", ".join(p["attractions"])),
+                               ("Kind of stay", kinds), ("Why guests choose you", "; ".join(p["reasons"])), ("Guests", auds), ("Where they come from", p["origins"]),
+                               ("Languages", ", ".join(p["languages"])), ("Price level", dict(hotel_profile.PRICES).get(p["price"], "")), ("Competitors", ", ".join(p["competitors"]))):
+                rows.append(f'<tr><th style="text-align:left;width:220px">{esc(label)}</th><td>{esc(val) or "<span class=hk-muted>not given</span>"}</td></tr>')
+        status = ("Confirmed: " + esc(hotel_profile.last_change(p))) if p and p.get("status") == "confirmed" else ("A draft from your website, not confirmed yet." if p else "Not filled in yet.")
+        body = (f'<p><a href="/portal/hotel/{h["id"]}">&larr; Back to the dashboard</a></p><h1>Settings</h1>'
+                f'<section class="panel"><h4>Hotel profile</h4><p class="caption">What kind of place you are and how guests find you. Every check is built on it: the questions we ask AI assistants, '
+                f'the places they mention and the competitors we compare you with. {status}</p>'
+                + (f'<div class="table-wrap"><table class="table">{"".join(rows)}</table></div>' if rows else "")
+                + f'<p><a class="btn primary" href="/portal/hotel/{h["id"]}/profile">Edit the profile</a></p>'
+                '<p class="caption">Saving a changed profile writes a new recommended set of prompts for you to check. Your current prompts stay in use until you confirm the new set.</p></section>'
+                f'<section class="panel"><h4>Your login</h4><p>{esc(user["email"])}</p><p class="caption">To change your password, sign out and ask the person who invited you for a password-reset link.</p></section>')
+        return shell(h["name"] + ": settings", body, user, hotels)
+
     @app.route("/portal/hotel/<int:hotel_id>/profile", methods=["GET", "POST"])
     def portal_profile(hotel_id):
         user, hotels = current()
@@ -306,7 +344,7 @@ def register(app, cfg):
         new = h.get("setup") == "pending"
         intro = ('<h1>Set up your hotel</h1><p class="lede">Before we measure anything, tell us exactly which hotel you are and how your guests find you. '
                  'Then we write the prompts to ask AI assistants about places like yours; you check them, and confirming them starts your first check.</p>' if new else
-                 f'<h1>Your hotel profile</h1><p class="lede">What kind of place you are and how guests find you. Everything we measure is built on it. ({portal_view.esc(hotel_profile.last_change(old))})</p>')
+                 f'<p><a href="/portal/hotel/{h["id"]}/settings">&larr; Back to settings</a></p><h1>Your hotel profile</h1><p class="lede">What kind of place you are and how guests find you. Everything we measure is built on it. ({portal_view.esc(hotel_profile.last_change(old))})</p>')
         steps = ('<p class="caption"><b>Step 1 of 3: your profile</b> &rarr; 2: check the prompts &rarr; 3: your first check runs.</p>' if new else "")
         err = f'<div class="alert warning">{portal_view.esc(error)}</div>' if error else ""
         return shell(h["name"] + ": profile", intro + steps + err + hotel_profile.form_html(old or {**hotel_profile.empty(), "town": h.get("city") or ""}, f"/portal/hotel/{h['id']}/profile", csrf(), drafting_now=hotel_profile.drafting(h["id"]) and not old), user, hotels)
