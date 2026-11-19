@@ -918,7 +918,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 _qclient = ai_sample._make_client(anthropic_api_key, timeout=60.0)
             except Exception:  # noqa: BLE001
                 _qclient = None
-            built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]), features=_feats0, benchmark=benchmark, depth=ai_depth)
+            built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]), features=_feats0, benchmark=benchmark, depth=ai_depth, pages=own_pages)
             nqs = built["questions"]
             benchmark_info = {"prompts": built["benchmark_prompts"] or [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why")} for b in (benchmark or [])], "reused": built["benchmark_reused"]}
             question_plan = {"facts": built["facts"], "rejected": built["rejected"], "anchors": _anch["anchors"][:6], "coords_source": _anch["coords_source"], "cost_usd": built["cost_usd"],

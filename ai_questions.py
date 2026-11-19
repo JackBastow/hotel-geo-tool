@@ -8,6 +8,10 @@ The questions put to the AI assistant for one hotel: a short ladder built from f
              must rest on a fact it cites, must mention the town or an anchor, must not contradict the price level and must not bring in a facility or audience the facts do not support.
   priority   'core' prompts (the hotel's own market) are asked more often than 'secondary' ones, so the answers that matter are the steadiest; the two town-wide questions stay as a labelled benchmark.
 
+  site facts when the verified facts are thin (often a site in another language), one more cheap call reads the hotel's own pages and lists what they state, in English; a fact is kept only when its quote is
+             really on the pages.
+  baseline   plain questions about the town that suit any hotel there, added when there are still fewer than MIN_POOL questions, so a hotel always gets a recommended set to review.
+
 Nothing here asks the hotel for anything. If there is no anchor or no Claude key the templates in ai_niche still produce the questions, so the audit never ends up with none.
 """
 
@@ -180,7 +184,7 @@ def validate(proposed, facts, hotel, city, anchor_names, tier_key, existing=()):
         elif any(_similar(text, e) for e in list(existing) + [k["text"] for k in kept]):
             why = "repeats another question"
         else:
-            cited_text = " ".join(ids[i]["text"] for i in cited).lower() + " " + " ".join(f["text"] for f in facts if f["kind"] in ("class", "feature", "audience", "airport")).lower()
+            cited_text = " ".join(ids[i]["text"] for i in cited).lower() + " " + " ".join(f["text"] for f in facts if f["kind"] in ("class", "feature", "audience", "airport") or f["kind"].startswith("site_")).lower()
             for needs, licence in LICENCE.items():
                 if re.search(needs, text, re.I) and not re.search(licence, cited_text, re.I):
                     why = f"brings in something the facts do not support ({re.search(needs, text, re.I).group(0)})"
@@ -207,6 +211,107 @@ def propose(client, model, facts, city, n=MAX_PROPOSALS + 2):
     data = review_replies.parse_json(text)
     props = data.get("prompts") if isinstance(data, dict) else None
     return ([p for p in props if isinstance(p, dict)] if isinstance(props, list) else []), ai_sample.cost_usd(model, tin, tout, 0)
+
+
+# ------------------------------------------------------- facts from the hotel's own pages, in any language
+
+SITE_SYSTEM = ("You read a hotel's own web pages, in any language, and list in English what they state about it. Only what the pages say, nothing you know or guess. Reply with JSON only.")
+SITE_PROMPT = ("""Pages from the hotel's own website (the hotel is in or near {city}):
+{pages}
+
+List up to 12 facts a traveller choosing where to stay would care about: the kind of place and its setting, who it suits (couples, families, business trips, meetings, weddings, groups...),
+what it offers (restaurant, spa, pool, activities...), and the towns, regions or attractions the pages say it is in or near. For each, copy a short quote from the pages, word for word in the
+page's own language, that states it.
+Reply: {{"facts": [{{"text": "offers guided wildlife safaris", "kind": "offer | audience | setting | place", "place": "only for kind place: the place's name", "quote": "..."}}]}}""")
+THIN_FACTS = 6              # with fewer verified facts than this (often a site in another language), the hotel's own pages are read for more
+SITE_KINDS = {"offer": "site_offer", "audience": "site_audience", "setting": "site_setting", "place": "site_place"}
+
+
+def _page_blob(pages, limit=9000):
+    """The text of the hotel's own pages, home page first, cut to `limit` characters."""
+    out, n = [], 0
+    for p in pages or []:
+        t = " ".join(str((p or {}).get("text") or "").split())
+        if not t:
+            continue
+        t = t[:2500]
+        out.append(f"[{(p or {}).get('url') or ''}] {t}")
+        n += len(t)
+        if n >= limit:
+            break
+    return "\n".join(out)[:limit]
+
+
+def site_facts(client, model, pages, hotel, city, start=1):
+    """
+    One Claude call (no tools): what the hotel's own pages state about it, in English, whatever language the site is in. A fact is kept only when its quote really is on the pages (compared without accents,
+    case or spacing), so nothing is taken from the model's own knowledge. -> (facts [{id, kind, text, place?}], usd). ([], 0) when there is no client, no text or the reply is unusable.
+    """
+    blob = _page_blob(pages)
+    if client is None or not blob:
+        return [], 0.0
+    import review_replies
+    extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
+    try:
+        resp = client.messages.create(model=model, max_tokens=1200, system=SITE_SYSTEM, messages=[{"role": "user", "content": SITE_PROMPT.format(city=(city or "").split(",")[0], pages=blob)}], **extra)
+        text, _d, _s, tin, tout = ai_sample.parse_response(resp)
+    except Exception:  # noqa: BLE001 - the facts already held stand without it
+        return [], 0.0
+    data = review_replies.parse_json(text)
+    rows = data.get("facts") if isinstance(data, dict) else None
+    hay = " ".join(evidence.fold(blob).split())
+    out = []
+    for r in rows if isinstance(rows, list) else []:
+        if not isinstance(r, dict):
+            continue
+        quote = " ".join(evidence.fold(str(r.get("quote") or "")).split())
+        fact = re.sub(r"\s+", " ", str(r.get("text") or "")).strip()[:140]
+        kind = SITE_KINDS.get(str(r.get("kind") or "").strip().lower())
+        if not (kind and fact and len(quote) >= 6 and quote in hay):
+            continue                                                   # a quote that is not on the pages: dropped
+        if not ai_niche._safe(fact + "?", hotel):
+            continue
+        row = {"id": f"f{start + len(out)}", "kind": kind, "text": fact + " (stated on its own pages)"}
+        if kind == "site_place":
+            place = re.sub(r"\s+", " ", str(r.get("place") or "")).strip()[:60]
+            if not place or evidence.fold(place) not in hay or not ai_niche._safe(f"hotels near {place}?", hotel):
+                continue
+            row["place"] = place
+        out.append(row)
+        if len(out) >= 12:
+            break
+    return out, ai_sample.cost_usd(model, tin, tout, 0)
+
+
+# ------------------------------------------------- baseline questions, so a hotel is never left without prompts
+
+BASELINE = [
+    ("City breaks", "Which hotels in {p} are best for a weekend away?"),
+    ("Value for money", "Which hotels in {p} are good value for money?"),
+    ("Traveller intent", "Where should I stay in {p} for a relaxing short break?"),
+    ("Traveller intent", "What are the best places to stay in and around {p}?"),
+    ("Character and heritage", "Which hotels in {p} offer a stay with real character?"),
+    ("Traveller intent", "Which hotels in {p} do guests rate most highly?"),
+    ("Traveller intent", "I'm visiting {p} for the first time. Where should I stay?"),
+    ("Price level", "What is a good hotel in {p} that is worth paying a little more for?"),
+]
+MIN_POOL = 10               # fewer niche questions than this and the baseline ones are added
+
+
+def baseline(hotel, city, have=()):
+    """Plain traveller questions about the hotel's town that rest on no particular fact (so they suit any hotel there): the floor under the question set when the facts are thin. Never names the hotel."""
+    place = (city or "").split(",")[0].split("/")[0].strip()
+    if not place:
+        return []
+    out, taken = [], list(have or [])
+    for i, (angle, t) in enumerate(BASELINE, 1):
+        text = t.format(p=place)
+        if not ai_niche._safe(text, hotel) or any(_similar(text, h, 0.7) for h in taken):
+            continue
+        taken.append(text)
+        out.append({"id": f"niche_base{i}", "kind": "niche", "angle": angle, "text": text, "priority": "secondary", "source": "baseline",
+                    "why": f"A general question about staying in {place}: the hotel's own pages gave too few facts for more specific ones."})
+    return out
 
 
 # --------------------------------------------------------------------- build
@@ -238,7 +343,7 @@ def style_variants(prof, hotel, city, anchor_list, core, n):
     return [q for q in out if ai_niche._safe(q["text"] if q["text"].endswith("?") else q["text"] + "?", hotel)][:n]
 
 
-def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repeats=2, features=None, benchmark=None, depth="standard"):
+def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repeats=2, features=None, benchmark=None, depth="standard", pages=None):
     """
     -> {"questions": [...], "facts": [...], "rejected": [...], "cost_usd": float}. Core questions are asked base_repeats + 1 times (at most 4), secondary ones base_repeats times; every question carries
     its priority, its repeat count and why it was asked. Never empty when ai_niche can write at least one question.
@@ -260,10 +365,18 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
     feat = feature_questions(prof, hotel, city, anchor_list or [])
     pool = anch + feat + tmpl
     cost, rejected = 0.0, []
+    places = [a["name"] for a in an_best(anchor_list, 3)]
+    if client is not None and pages and len(facts) < THIN_FACTS:          # few facts (often a site in another language): read what the hotel's own pages say
+        more, c0 = site_facts(client, model or ai_sample.MODEL_DEFAULT, pages, hotel, city, start=len(facts) + 1)
+        facts, cost = facts + more, cost + c0
+        places += [f["place"] for f in more if f.get("place")][:4]
     if client is not None and facts:
-        props, cost = propose(client, model or ai_sample.MODEL_DEFAULT, facts, city, n=lim["proposals"] + 2)
-        kept, rejected = validate(props, facts, hotel, city, [a["name"] for a in an_best(anchor_list, 3)], ((prof or {}).get("tier") or {}).get("key"), [q["text"] for q in pool])
+        props, c1 = propose(client, model or ai_sample.MODEL_DEFAULT, facts, city, n=lim["proposals"] + 2)
+        cost += c1
+        kept, rejected = validate(props, facts, hotel, city, places, ((prof or {}).get("tier") or {}).get("key"), [q["text"] for q in pool])
         pool += kept[:lim["proposals"]]
+    if len(pool) < MIN_POOL:
+        pool += baseline(hotel, city, [q["text"] for q in pool])
     out, seen = [], set()
     for q in pool:
         if q["text"] in seen:
@@ -271,7 +384,7 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
         seen.add(q["text"])
         out.append(q)
     core = [q for q in out if q["priority"] == "core"][:lim["core"]]
-    sec = [q for q in out if q["priority"] != "core"][:lim["secondary"]]
+    sec = ([q for q in out if q["priority"] != "core" and q.get("source") != "baseline"] + [q for q in out if q.get("source") == "baseline"])[:lim["secondary"]]      # the town questions only fill spare places
     bench_out = []
     if benchmark:
         frozen = [{"id": f"niche_bench{i}", "kind": "niche", "angle": b.get("angle") or "Benchmark", "text": b["text"], "priority": "core", "source": "benchmark",

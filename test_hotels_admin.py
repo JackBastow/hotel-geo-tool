@@ -99,6 +99,20 @@ print("4. reports")
 check("it can open an individual hotel's report", c.get(f"/r/{runs['Solo Hotel']}").status_code == 200)
 check("but not a portfolio hotel's", c.get(f"/r/{runs['Westmont One']}").status_code == 302)
 
+print("4b. correcting a hotel's town")
+import prompt_sets
+solo = db.get_hotel(solo_id)
+old_town = (db.get_report(db.hotel_runs("solo-hotel.example")[0]["id"])["meta"].get("city") or "")
+c.get(f"/hotels-admin/hotel/{solo_id}")                       # the page builds a recommended set from the saved check
+check("the hotel page shows its name and town, editable", 'name="city" value="York"' in c.get(f"/hotels-admin/hotel/{solo_id}").get_data(as_text=True))
+check("(a set was built from the check)", prompt_sets.state(db, solo)["draft"] is not None)
+page = c.post(f"/hotels-admin/hotel/{solo_id}/details", data={"csrf": csrf, "name": "Solo Hotel & Spa", "city": "Karlshamn"}).get_data(as_text=True)
+solo = db.get_hotel(solo_id)
+check("the name and town are saved", solo["name"] == "Solo Hotel & Spa" and solo["city"] == "Karlshamn" and "The town is now <b>Karlshamn</b>" in page)
+check("the old town's recommended prompts are dropped, and not rebuilt from the check about the old town", prompt_sets.state(db, solo)["draft"] is None, (old_town, prompt_sets.state(db, solo)["draft"]))
+check("a country is refused", "is a country" in c.post(f"/hotels-admin/hotel/{solo_id}/details", data={"csrf": csrf, "name": "Solo Hotel & Spa", "city": "Sweden"}).get_data(as_text=True) and db.get_hotel(solo_id)["city"] == "Karlshamn")
+check("and a portfolio hotel cannot be renamed from here", c.post(f"/hotels-admin/hotel/{pf_id}/details", data={"csrf": csrf, "name": "X", "city": "Y"}).status_code == 404 and db.get_hotel(pf_id)["name"] == "Westmont One")
+
 print("5. the main admin is the portfolio only, and the two sign-ins are separate")
 a = app.test_client()
 a.post("/admin/login", data={"password": "adm-pass-1"})

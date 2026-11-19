@@ -180,14 +180,26 @@ def latest_pool(db, hotel):
         return []
 
 
+def _with_floor(pool, hotel):
+    """The pool, with the baseline town questions added when it is too small for a set (a hotel whose pages gave few facts must still get prompts to review)."""
+    pool = list(pool or [])
+    if len([q for q in pool if q.get("kind", "niche") == "niche"]) < MIN_PROMPTS:
+        pool += ai_questions.baseline(hotel.get("name"), hotel.get("city"), [q.get("text") for q in pool])
+    return pool
+
+
 def ensure_draft(db, hotel, report):
     """After a check: a hotel with no prompt set yet gets a RECOMMENDED draft to review and confirm. Returns the draft id or None."""
     if db.prompt_sets(hotel["id"]):
         return None
-    chosen = recommend_set(pool_from_report(report), hotel["name"])
+    chosen = recommend_set(_with_floor(pool_from_report(report), hotel), hotel["name"])
     if len(chosen) < 3:
         return None
     return db.insert_prompt_set(hotel["id"], "draft", chosen, "recommended")
+
+
+def _town(city):
+    return evidence.fold((city or "").split(",")[0].split("/")[0]).strip()
 
 
 def ensure_from_history(db, hotel):
@@ -199,10 +211,14 @@ def ensure_from_history(db, hotel):
         if db.prompt_sets(hotel["id"]):
             return None
         import placenames
+        here = _town(hotel.get("city"))
         for r in db.hotel_runs(hotel["hotel_key"]):
             rep = db.get_report(r["id"])
-            pool = [q for q in pool_from_report(rep) if not placenames.has_scrap(q.get("text"))]
-            chosen = recommend_set(pool, hotel["name"])
+            there = _town(((rep or {}).get("meta") or {}).get("city"))
+            if here and there and here != there:
+                continue                                                   # a check about another town (the hotel's town was corrected since): its questions are not this hotel's market
+            pool =[q for q in pool_from_report(rep) if not placenames.has_scrap(q.get("text"))]
+            chosen = recommend_set(_with_floor(pool, hotel), hotel["name"])
             if len(chosen) >= 3:
                 return db.insert_prompt_set(hotel["id"], "draft", chosen, "recommended")
         pool = [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why"), "priority": "core", "kind": "niche"} for b in db.get_benchmark(hotel["hotel_key"]) if b.get("text") and not placenames.has_scrap(b["text"])]

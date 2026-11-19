@@ -236,6 +236,12 @@ def register_scope(app, sc):
                  f'<form method="post" action="{HB}/{hid}/reset-prompts" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Reset its automatic prompts</button></form> '
                  f'<form method="post" action="{HB}/{hid}/weekly" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Weekly checks are {"ON: switch off" if h["weekly"] else "OFF: switch on"}</button></form></p>'
                  + (f'<p class="caption">Last problem: {esc(h["last_error"])}</p>' if h["last_error"] else "")
+                 + f'<form class="filters" method="post" action="{HB}/{hid}/details"><input type="hidden" name="csrf" value="{c}">'
+                 f'<label class="field"><span>Hotel name</span><input name="name" value="{esc(h["name"] or "", quote=True)}" required></label>'
+                 f'<label class="field"><span>Town or city</span><input name="city" value="{esc(h["city"] or "", quote=True)}" required></label>'
+                 '<button class="btn" type="submit">Save name and town</button></form>'
+                 '<p class="caption">The town is what every question to the AI assistant is about, so it must be the real town travellers search for (a hotel on an estate outside a town: use that town). '
+                 'Changing it makes fresh recommended prompts at the next check; a set the hotel has confirmed is left alone.</p>'
                  + f'<h5>People who can sign in ({len(users)})</h5>' + (f'<div class="table-wrap"><table class="table"><thead><tr><th>Email</th><th>Name</th><th>Last sign-in (UK time)</th><th></th><th></th></tr></thead><tbody>{ut}</tbody></table></div>' if users else '<p class="caption">Nobody has a login yet.</p>')
                  + f'<form class="filters" method="post" action="{HB}/{hid}/invite"><input type="hidden" name="csrf" value="{c}"><label class="field"><span>Invite someone (their email)</span><input type="email" name="email" required></label>'
                  '<button class="btn" type="submit">Make an invite link</button></form><p class="caption">There is no email service: you get a link to send them yourself. It works once and expires in 7 days.</p>'
@@ -357,6 +363,29 @@ def register_scope(app, sc):
         has_confirmed = bool(s.confirmed_prompts_for_key(h["hotel_key"]))
         return hotel_page(s, hid, '<div class="alert success"><b>Prompts reset.</b> The next check writes a fresh recommended set from the current question engine, and the hotel is asked to confirm it.'
                                   + (' The hotel has a <i>confirmed</i> set, which is left as it is: the hotel can change it on its Prompts tab.' if has_confirmed else '') + '</div>')
+
+    @bp.post(HB + "/<int:hid>/details")
+    def hotel_details(hid):
+        bad, s = checked_post()
+        if bad:
+            return bad
+        h = own(s, hid)
+        name, city = (" ".join(request.form.get(k, "").split())[:120] for k in ("name", "city"))
+        if not (name and city):
+            return hotel_page(s, hid, '<div class="alert warning">Enter the hotel&rsquo;s name and its town or city.</div>')
+        if urlscope.is_country(city):
+            return hotel_page(s, hid, '<div class="alert warning">&ldquo;' + esc(city) + '&rdquo; is a country. Enter the <b>town or city</b> the hotel is in.</div>')
+        moved = city != (h["city"] or "")
+        s.set_hotel(hid, name=name, city=city)
+        msg = '<div class="alert success"><b>Saved.</b>'
+        if moved:                                                           # the old town's questions are no use: the next check writes fresh ones for the new town
+            s.clear_benchmark(h["hotel_key"])
+            for p in s.prompt_sets(hid):
+                if p["status"] == "draft":
+                    s.delete_prompt_set(p["id"])
+            msg += (f' The town is now <b>{esc(city)}</b>. Run a check so the questions are about {esc(city)}; it writes a fresh recommended set of prompts.'
+                    + (' The hotel&rsquo;s <i>confirmed</i> prompts still name the old town: change them on the Prompts tab.' if s.confirmed_prompts_for_key(h["hotel_key"]) else ''))
+        return hotel_page(s, hid, msg + '</div>')
 
     @bp.post(HB + "/<int:hid>/weekly")
     def hotel_weekly_toggle(hid):
