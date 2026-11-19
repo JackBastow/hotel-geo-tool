@@ -12,6 +12,7 @@ All the audit logic is the same Python as before; this file is only the web laye
 """
 
 import collections
+import html
 import hashlib
 import json
 import os
@@ -235,7 +236,7 @@ def create_app(cfg=None, run_fn=None):
             if len(failed[ip]) >= 6:
                 error = "Too many wrong passwords. Please try again in ten minutes."
             elif hmac.compare_digest((request.form.get("password") or "").encode(), cfg.site_password.encode()):
-                keep = {k: session[k] for k in ("admin_ok", "admin_until", "ind_ok", "ind_until") if session.get(k)}      # signing in to the site must not sign you out of the admin pages
+                keep = {k: session[k] for k in ("admin_ok", "admin_until", "ind_ok", "ind_until", "csrf") if session.get(k)}      # signing in to the site must not sign you out of the admin pages
                 session.clear()
                 session.update(keep)
                 session["site_ok"] = True
@@ -270,6 +271,17 @@ def create_app(cfg=None, run_fn=None):
             resp.headers["Access-Control-Max-Age"] = "600"
             resp.headers["Vary"] = "Origin"
         return resp
+
+    @app.errorhandler(400)
+    def bad_request(_e):
+        """Almost always a form sent from a page that was opened before a sign-in elsewhere in the same browser: say so plainly, instead of a bare 'Bad Request'."""
+        if request.path.startswith("/api/") or request.is_json:
+            return jsonify(ok=False, error="Please reload the page and try again."), 400
+        back = request.referrer if (request.referrer or "").startswith(request.host_url) else "/"
+        return (f'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Please try again</title>'
+                f'<link rel="stylesheet" href="/static/app.css"><main><div class="wrap" style="padding:40px 16px"><h1>That page was out of date</h1>'
+                f'<p class="lede">Nothing was changed. This happens when a page was opened before signing in or out somewhere else in the same browser.</p>'
+                f'<p><a class="btn primary" href="{html.escape(back, quote=True)}">Go back to the page</a> and try again: it opens fresh.</p></div></main>'), 400
 
     @app.errorhandler(413)
     def too_big(_e):

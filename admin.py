@@ -92,7 +92,7 @@ def register(app, cfg):
             if len(_failed[ip]) >= 5:
                 error = "Too many wrong passwords. Try again in ten minutes."
             elif hmac.compare_digest((request.form.get("password") or "").encode(), str(password()).encode()):
-                keep = {k: session[k] for k in ("site_ok", "ind_ok", "ind_until") if session.get(k)}      # signing in to the admin pages must not sign you out of the site: with a site password set that sent you straight back to its sign-in
+                keep = {k: session[k] for k in ("site_ok", "ind_ok", "ind_until", "csrf") if session.get(k)}      # signing in to the admin pages must not sign you out of the site: with a site password set that sent you straight back to its sign-in
                 session.clear()
                 session.update(keep)
                 session["admin_ok"] = True
@@ -107,8 +107,7 @@ def register(app, cfg):
 
     @app.post("/admin/logout")
     def admin_logout():
-        session.pop("admin_ok", None)                 # leaves the site sign-in alone
-        session.pop("csrf", None)
+        session.pop("admin_ok", None)                 # leaves the site sign-in alone, and the form token other open pages (the hotels admin, a hotel login) still use
         return redirect(url_for("admin_login"))
 
     @app.get("/admin")

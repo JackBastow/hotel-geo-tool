@@ -147,5 +147,19 @@ check("but its sign-in does not open the separate admin", a.get("/hotels-admin")
 c.post("/hotels-admin/logout")
 check("signing out of the separate admin closes it", c.get("/hotels-admin").status_code == 302 and c.get(f"/r/{runs['Solo Hotel']}").status_code == 302)
 
+print("6. signing in elsewhere in the same browser does not break pages already open")
+b = app.test_client()
+b.post("/hotels-admin/login", data={"password": "ind-pass-1"})
+tok_open = re.search(r'name="csrf" value="([^"]+)"', b.get(f"/hotels-admin/hotel/{solo_id}").get_data(as_text=True)).group(1)      # the hotel page, open in one tab
+b.post("/admin/login", data={"password": "adm-pass-1"})                                                                              # the main admin, signed in to in another tab
+b.post("/admin/logout")
+started.clear()
+r = b.post(f"/hotels-admin/hotel/{solo_id}/run", data={"csrf": tok_open})
+check("a button on the page opened before still works", r.status_code == 302 and started and started[-1] == {solo_id}, (r.status_code, started))
+r = b.post(f"/hotels-admin/hotel/{solo_id}/run", data={"csrf": "not-the-token"})
+txt = r.get_data(as_text=True)
+check("a truly out-of-date form says so plainly, and changes nothing", r.status_code == 400 and "That page was out of date" in txt and "Nothing was changed" in txt and "Bad Request" not in txt)
+check("an out-of-date request from a script gets a short JSON reply", b.post(f"/hotels-admin/hotel/{solo_id}/prompts", json={}, headers={"X-CSRF": "x"}).get_json() == {"ok": False, "error": "Please reload the page and try again."})
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)
