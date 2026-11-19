@@ -381,6 +381,11 @@ KIND_PHRASE = {"destination": "a weekend away that is an experience in itself", 
                "town": "a short break", "budget": "a cheap but decent stay", "apartments": "a longer stay with a kitchen"}
 
 
+_COMMON = {"a", "an", "the", "our", "its", "their", "great", "good", "award-winning", "wildlife", "fine", "coastal", "conferences", "weddings", "guided", "architect-designed", "after-dark",
+           "quiet", "peaceful", "beautiful", "stunning", "luxury", "family", "dog-friendly", "free", "private", "outdoor", "indoor", "fresh", "local", "spa", "golf", "hiking", "walking", "cycling",
+           "fishing", "food", "meetings", "events", "views", "sea", "lake", "forest", "nature", "rooms", "suites", "dining", "restaurant", "parties", "safaris", "safari"}
+
+
 def template_prompts(profile, hotel):
     """Prompts from the profile without any AI: each reason, guest type and kind of stay, asked at the town, region and wider-area level, and about the places guests come for."""
     p = profile or {}
@@ -392,7 +397,9 @@ def template_prompts(profile, hotel):
         out.append({"text": text, "angle": angle, "why": why, "priority": "core", "kind": "niche", "source": "profile"})
     for i, r in enumerate(p.get("reasons") or []):
         where = lv[i % len(lv)] if lv else town
-        add(f"Which places to stay in {where} are known for {r[:1].lower() + r[1:]}?", "Traveller intent", f"Why guests choose the hotel (its profile): {r}.")
+        first = r.split()[0] if r.split() else ""
+        r_ = r[:1].lower() + r[1:] if first[:1].isupper() and first[1:].islower() and first.lower() in _COMMON else r      # 'Wildlife safaris' -> 'wildlife safaris', but "Scandinavia's" stays
+        add(f"Which places to stay in {where} are known for {r_}?", "Traveller intent", f"Why guests choose the hotel (its profile): {r}.")
     for i, k in enumerate(p.get("audiences") or []):
         where = lv[(i + 1) % len(lv)] if lv else town
         add(f"Which hotels in {where} are best for {AUD_PHRASE.get(k, k)}?", {"business": "Business travel", "meetings": "Meetings and events", "family": "Families", "couples": "Couples", "weddings": "Weddings",
