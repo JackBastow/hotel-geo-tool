@@ -242,6 +242,12 @@ def register_scope(app, sc):
                  '<button class="btn" type="submit">Save name and town</button></form>'
                  '<p class="caption">The town is what every question to the AI assistant is about, so it must be the real town travellers search for (a hotel on an estate outside a town: use that town). '
                  'Changing it makes fresh recommended prompts at the next check; a set the hotel has confirmed is left alone.</p>'
+                 + (('<details class="details"><summary>Delete a check</summary><div class="details-body"><p class="caption">For a check that should never have counted (for example one run with the wrong town). '
+                     'It is removed for good, with the recommendations it alone raised; the hotel&rsquo;s other checks, and anything the hotel has marked done or is working on, stay.</p><ul>'
+                     + "".join(f'<li>{esc(uk_time(r["run_at"]))}, town {esc(r.get("city") or "-")}, score {"-" if r.get("headline_score") is None else format(r["headline_score"], "g")} '
+                               f'<form method="post" action="{HB}/{hid}/delete-run/{r["id"]}" style="display:inline" data-confirm="{esc("Delete the check of " + uk_time(r["run_at"]) + " for good?", quote=True)}">'
+                               f'<input type="hidden" name="csrf" value="{c}"><button class="btn small" type="submit">Delete this check</button></form></li>' for r in runs[:20])
+                     + '</ul></div></details>') if runs else "")
                  + f'<h5>People who can sign in ({len(users)})</h5>' + (f'<div class="table-wrap"><table class="table"><thead><tr><th>Email</th><th>Name</th><th>Last sign-in (UK time)</th><th></th><th></th></tr></thead><tbody>{ut}</tbody></table></div>' if users else '<p class="caption">Nobody has a login yet.</p>')
                  + f'<form class="filters" method="post" action="{HB}/{hid}/invite"><input type="hidden" name="csrf" value="{c}"><label class="field"><span>Invite someone (their email)</span><input type="email" name="email" required></label>'
                  '<button class="btn" type="submit">Make an invite link</button></form><p class="caption">There is no email service: you get a link to send them yourself. It works once and expires in 7 days.</p>'
@@ -386,6 +392,29 @@ def register_scope(app, sc):
             msg += (f' The town is now <b>{esc(city)}</b>. Run a check so the questions are about {esc(city)}; it writes a fresh recommended set of prompts.'
                     + (' The hotel&rsquo;s <i>confirmed</i> prompts still name the old town: change them on the Prompts tab.' if s.confirmed_prompts_for_key(h["hotel_key"]) else ''))
         return hotel_page(s, hid, msg + '</div>')
+
+    @bp.post(HB + "/<int:hid>/delete-run/<int:rid>")
+    def hotel_delete_run(hid, rid):
+        bad, s = checked_post()
+        if bad:
+            return bad
+        h = own(s, hid)
+        if rid not in {r["id"] for r in s.hotel_runs(h["hotel_key"])}:
+            abort(404)                                                     # only a check of this hotel
+        if app.extensions["weekly"].active(hid):
+            return hotel_page(s, hid, '<div class="alert warning">A check is running for this hotel. Delete once it has finished.</div>')
+        s.delete_run(rid)
+        for a in s.list_actions(hid):                                      # what only that check raised, and the hotel has not acted on
+            if a["first_run_id"] == rid and a["last_run_id"] == rid and a["status"] not in ("done", "working") and not (a["note"] or "").strip():
+                s.delete_action(a["id"])
+        for p in s.prompt_sets(hid):
+            if p["status"] == "draft":
+                s.delete_prompt_set(p["id"])                               # rebuilt from the checks that remain
+        left = s.hotel_runs(h["hotel_key"])
+        if not left:
+            s.clear_benchmark(h["hotel_key"])
+        return hotel_page(s, hid, '<div class="alert success"><b>Check deleted.</b> ' + (f'{len(left)} check{"s" if len(left) != 1 else ""} left for this hotel.' if left else
+                                  'This hotel has no checks now: run one to fill its dashboard.') + '</div>')
 
     @bp.post(HB + "/<int:hid>/weekly")
     def hotel_weekly_toggle(hid):

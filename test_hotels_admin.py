@@ -113,6 +113,31 @@ check("the old town's recommended prompts are dropped, and not rebuilt from the 
 check("a country is refused", "is a country" in c.post(f"/hotels-admin/hotel/{solo_id}/details", data={"csrf": csrf, "name": "Solo Hotel & Spa", "city": "Sweden"}).get_data(as_text=True) and db.get_hotel(solo_id)["city"] == "Karlshamn")
 check("and a portfolio hotel cannot be renamed from here", c.post(f"/hotels-admin/hotel/{pf_id}/details", data={"csrf": csrf, "name": "X", "city": "Y"}).status_code == 404 and db.get_hotel(pf_id)["name"] == "Westmont One")
 
+print("4c. deleting a check that should never have counted")
+reports.save(report("solo-hotel.example", "Solo Hotel", "2026-11-19T16:30:00+00:00"))
+hr = db.hotel_runs("solo-hotel.example")
+old_id, new_id = hr[-1]["id"], hr[0]["id"]
+acts = db.list_actions(solo_id)
+check("(the checks raised actions)", len(acts) > 2, len(acts))
+mine = acts[0]
+db.update_action(mine["id"], status="working")
+hp = c.get(f"/hotels-admin/hotel/{solo_id}").get_data(as_text=True)
+check("the hotel page lists its checks with a delete button", f"/hotels-admin/hotel/{solo_id}/delete-run/{old_id}" in hp and "Delete a check" in hp)
+check("a check of another hotel cannot be deleted from here", c.post(f"/hotels-admin/hotel/{solo_id}/delete-run/{db.hotel_runs('westmont-one.example')[0]['id']}", data={"csrf": csrf}).status_code == 404
+      and db.hotel_runs("westmont-one.example"))
+check("nor from a portfolio hotel's address", c.post(f"/hotels-admin/hotel/{pf_id}/delete-run/{old_id}", data={"csrf": csrf}).status_code == 404)
+W.active = lambda h_: h_ == solo_id
+check("not while a check is running for the hotel", "A check is running" in c.post(f"/hotels-admin/hotel/{solo_id}/delete-run/{old_id}", data={"csrf": csrf}).get_data(as_text=True) and len(db.hotel_runs("solo-hotel.example")) == 2)
+W.active = lambda h_: False
+page = c.post(f"/hotels-admin/hotel/{solo_id}/delete-run/{old_id}", data={"csrf": csrf}).get_data(as_text=True)
+left = db.hotel_runs("solo-hotel.example")
+check("the old check is gone and the new one stays", [r["id"] for r in left] == [new_id] and "Check deleted" in page and "1 check left" in page)
+after = db.list_actions(solo_id)
+check("what the hotel is working on stays", any(a["id"] == mine["id"] for a in after))
+check("the hotel still has its actions from the check that remains", len(after) > 1, len(after))
+check("a form without its token is refused", c.post(f"/hotels-admin/hotel/{solo_id}/delete-run/{new_id}", data={}).status_code == 400 and db.hotel_runs("solo-hotel.example"))
+runs["Solo Hotel"] = left[0]["access_token"]
+
 print("5. the main admin is the portfolio only, and the two sign-ins are separate")
 a = app.test_client()
 a.post("/admin/login", data={"password": "adm-pass-1"})

@@ -96,7 +96,7 @@ check("and the Overview does not call its audits 'not registered'", "Solo Hotel"
 print("3. the individual hotel works like any other: page, invite, login")
 check("the main admin cannot open it", admin.get(f"/admin/hotel/{solo['id']}").status_code == 404)
 hp = ind.get(f"/hotels-admin/hotel/{solo['id']}").get_data(as_text=True)
-check("its page has no move between groups", "Move to" not in hp and "data-confirm=" not in hp)
+check("its page has no move between groups", "Move to" not in hp and "/group\"" not in hp)
 page = ind.post(f"/hotels-admin/hotel/{solo['id']}/invite", data={"csrf": ic, "email": "owner@solo-hotel.example"}).get_data(as_text=True)
 link = re.search(r"/portal/invite/[A-Za-z0-9_-]+", page).group(0)
 u = app.test_client()
