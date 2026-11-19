@@ -199,13 +199,18 @@ def create_app(cfg=None, run_fn=None):
             session.pop("admin_until", None)
         if not cfg.closed and (not cfg.site_password or session.get("site_ok") is True):
             return None          # (open only when running on a developer's own machine; on the live host a missing site password locks the audit tool instead of opening it)
-        if request.path.startswith(("/portal", "/internal/", "/admin")) or session.get("admin_ok") is True:
+        if session.get("ind_ok") is True and (session.get("ind_until") or 0) <= time.time():
+            session.pop("ind_ok", None)
+            session.pop("ind_until", None)
+        if request.path.startswith(("/portal", "/internal/", "/admin", "/hotels-admin")) or session.get("admin_ok") is True:
             return None        # the hotel portal, the weekly-check routes and the admin pages each have their own sign-in; someone signed in to the admin pages may open any report
         if request.path == "/" and session.get("uid"):
             return None          # a signed-in hotel user who opens the bare address is sent on to their dashboard by index()
         m = re.match(r"^/(?:r|api/r)/([A-Za-z0-9_-]{20,64})(?:/|$)", request.path)
         if session.get("uid") and ((m and app.extensions["portal_can_see_token"](m.group(1))) or request.path == "/api/feedback"):
-            return None                                                  # a signed-in hotel user may open their own hotel's reports
+            return None
+        if m and session.get("ind_ok") is True and app.extensions.get("hotels_admin_can_see_token", lambda t: False)(m.group(1)):
+            return None                                                  # the individual-hotels admin may open the reports of individual hotels only                                                  # a signed-in hotel user may open their own hotel's reports
         if request.path in ("/healthz", "/login", "/api/chat", "/api/checkout") or request.path.startswith("/static/"):      # the marketing site's chat only answers questions about the product, so a site password does not need to close it
             return None
         if request.path.startswith("/api/"):
@@ -230,7 +235,7 @@ def create_app(cfg=None, run_fn=None):
             if len(failed[ip]) >= 6:
                 error = "Too many wrong passwords. Please try again in ten minutes."
             elif hmac.compare_digest((request.form.get("password") or "").encode(), cfg.site_password.encode()):
-                keep = {k: session[k] for k in ("admin_ok", "admin_until") if session.get(k)}      # signing in to the site must not sign you out of the admin pages
+                keep = {k: session[k] for k in ("admin_ok", "admin_until", "ind_ok", "ind_until") if session.get(k)}      # signing in to the site must not sign you out of the admin pages
                 session.clear()
                 session.update(keep)
                 session["site_ok"] = True
@@ -254,7 +259,7 @@ def create_app(cfg=None, run_fn=None):
         resp.headers["X-Frame-Options"] = "DENY"
         resp.headers["Content-Security-Policy"] = ("default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
                                                    "connect-src 'self'; frame-src 'self' about:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
-        if request.path.startswith(("/r/", "/api/", "/admin")):
+        if request.path.startswith(("/r/", "/api/", "/admin", "/hotels-admin")):
             resp.headers["Cache-Control"] = "no-store"
             resp.headers["X-Robots-Tag"] = "noindex, nofollow"
         origin = (request.headers.get("Origin") or "").rstrip("/")
@@ -516,4 +521,6 @@ def create_app(cfg=None, run_fn=None):
         admin.register(app, cfg)
     except ImportError:
         pass
+    import admin_individual
+    admin_individual.register(app, cfg)          # the separate individual-hotels admin (/hotels-admin), only when INDIVIDUAL_ADMIN_PASSWORD is set
     return app

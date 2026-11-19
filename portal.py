@@ -95,7 +95,7 @@ def register(app, cfg):
                 FAILS["e:" + email].append(time.time())
                 time.sleep(1.0)
                 return form("Sign in", "Sign in", "Your hotel's progress dashboard.", fields, "Sign in", "That email and password do not match.", 200)
-            keep = {k: session[k] for k in ("admin_ok", "admin_until", "site_ok") if session.get(k)}
+            keep = {k: session[k] for k in ("admin_ok", "admin_until", "site_ok", "ind_ok", "ind_until") if session.get(k)}
             session.clear()
             session.update(keep)
             session["uid"] = u["id"]
@@ -153,7 +153,7 @@ def register(app, cfg):
                     app.extensions["weekly"].start(force_ids={hh["id"]})
             except Exception:  # noqa: BLE001 - never block the sign-up
                 pass
-            keep = {k: session[k] for k in ("admin_ok", "admin_until", "site_ok") if session.get(k)}
+            keep = {k: session[k] for k in ("admin_ok", "admin_until", "site_ok", "ind_ok", "ind_until") if session.get(k)}
             session.clear()
             session.update(keep)
             session["uid"] = uid

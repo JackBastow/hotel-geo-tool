@@ -44,6 +44,7 @@ class Config:
             self.repeats = None
         self.database_url = get("DATABASE_URL")
         self.admin_password = get("ADMIN_PASSWORD")
+        self.individual_admin_password = get("INDIVIDUAL_ADMIN_PASSWORD")      # the separate individual-hotels admin at /hotels-admin; unset = those pages do not exist
         self.site_password = get("SITE_PASSWORD")          # when set, every page except /healthz asks for it first
         self.secret_key = get("SECRET_KEY")
         self.closed = bool(get("RENDER") or get("REQUIRE_SIGNIN"))      # on the live host the site is never open: with no site password only a signed-in admin may use the audit tool

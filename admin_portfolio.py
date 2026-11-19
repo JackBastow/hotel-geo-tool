@@ -2,13 +2,16 @@
 The operator's portfolio pages (inside /admin): every registered hotel with its progress, a page per hotel showing exactly what the hotel sees plus the controls (invite a user, reset a password, switch
 weekly checks, run a check now), and the roll-up across the portfolio.
 
+The same pages also serve the separate individual-hotels admin (/hotels-admin, admin_individual.py): its own address and password, and it can only ever see and manage the individual hotels.
+Each set of pages is a "scope": which groups of hotels it may touch, its addresses, and its own sign-in.
+
 Hotel users never see any of this: they only have /portal.
 """
 
 import hmac
 import html
 
-from flask import abort, redirect, request, session
+from flask import Blueprint, abort, redirect, request, session
 
 import accounts
 import ai_dash
@@ -46,56 +49,99 @@ def _safe(fn, *a):
         return None
 
 
+class Scope:
+    """One set of hotel-management pages: the main admin (every group) or the individual-hotels admin (that group only)."""
+
+    def __init__(self, name, guard, shell, store_or_msg, csrf, authed, groups, list_urls, list_base, hotel_base, can_move):
+        self.name, self.guard, self.shell, self.store_or_msg, self.csrf, self.authed = name, guard, shell, store_or_msg, csrf, authed
+        self.groups = groups                    # the groups this scope may see and manage; the first is the default
+        self.list_urls = list_urls              # group -> the address of its list page
+        self.list_base = list_base              # where the add / run-all / run-due forms post
+        self.hotel_base = hotel_base            # /<hotel_base>/<id> is a hotel's page
+        self.can_move = can_move                # may move hotels between groups
+
+    def title(self, grp):
+        return GROUP[grp][0] if self.can_move else "Hotels"
+
+
 def register(app, cfg, guard, shell, store_or_msg, csrf):
+    sc = Scope("main", guard, shell, store_or_msg, csrf, lambda: session.get("admin_ok") is True,
+               ("portfolio", "individual"), {g: GROUP[g][1] for g in GROUP}, "/admin/portfolio", "/admin/hotel", True)
+    register_scope(app, sc)
+
+
+def register_scope(app, sc):
+    bp = Blueprint("pf_" + sc.name, __name__)
+    LB, HB = sc.list_base, sc.hotel_base
+    main = sc.can_move
+
+    def own(s, hid):
+        """The hotel, if this scope may see it; otherwise 'not found' (the individual-hotels admin never learns a portfolio hotel exists)."""
+        h = s.get_hotel(hid)
+        if not h or portal_db.group_of(h) not in sc.groups:
+            abort(404)
+        return h
+
     def checked_post():
-        g = guard()
+        g = sc.guard()
         if g:
             return g, None
         if not hmac.compare_digest(request.form.get("csrf", ""), session.get("csrf", "x")):
             abort(400)
-        s, msg = store_or_msg()
+        s, msg = sc.store_or_msg()
         if s is None:
-            return shell("portfolio", "Portfolio", f'<div class="alert warning">{esc(msg)}</div>'), None
+            return sc.shell(sc.groups[0], sc.title(sc.groups[0]), f'<div class="alert warning">{esc(msg)}</div>'), None
         return None, s
 
     def delta_cell(d):
         return "-" if d is None else f'<b style="color:{"#067647" if d > 0 else "#b42318" if d < 0 else "inherit"}">{d:+g}</b>'
 
     def grp_arg():
-        g_ = request.values.get("grp", "portfolio")
-        return g_ if g_ in GROUP else "portfolio"
+        g_ = request.values.get("grp", sc.groups[0])
+        return g_ if g_ in sc.groups else sc.groups[0]
 
-    @app.get("/admin/portfolio")
-    def admin_portfolio():
-        return list_page("portfolio")
+    if main:
+        @bp.get("/admin/portfolio")
+        def admin_portfolio():
+            return list_page("portfolio")
 
-    @app.get("/admin/individual")
-    def admin_individual():
-        return list_page("individual")
+        @bp.get("/admin/individual")
+        def admin_individual():
+            return list_page("individual")
+    else:
+        @bp.get(sc.list_urls["individual"])
+        def hotels_list():
+            return list_page("individual")
 
     def list_page(grp):
         """The Westmont portfolio, or the individual hotels: the same page and controls, each with only its own hotels and its own totals."""
-        title, _base = GROUP[grp]
-        g = guard()
+        title = sc.title(grp)
+        g = sc.guard()
         if g:
             return g
-        s, msg = store_or_msg()
+        s, msg = sc.store_or_msg()
         if s is None:
-            return shell(grp, title, f'<div class="alert warning">{esc(msg)}</div>')
+            return sc.shell(grp, title, f'<div class="alert warning">{esc(msg)}</div>')
         data = progress.portfolio_data(s, grp)
         rows, tot = progress.portfolio_summary(s, data)
-        intro = ('<div class="alert info"><b>Individual hotels</b> are set up exactly like the portfolio&rsquo;s (their own logins, invite links, weekly checks, actions and prompts), '
-                 'but they are <b>not</b> part of the Westmont portfolio: they never appear on the Portfolio or Overview pages or in its totals, and each hotel only ever sees itself.</div>' if grp == "individual" else "")
+        if main and grp == "individual":
+            intro = ('<div class="alert info"><b>Individual hotels</b> are set up exactly like the portfolio&rsquo;s (their own logins, invite links, weekly checks, actions and prompts), '
+                     'but they are <b>not</b> part of the Westmont portfolio: they never appear on the Portfolio or Overview pages or in its totals, and each hotel only ever sees itself. '
+                     'They can also be managed from their own admin page, <a href="/hotels-admin">/hotels-admin</a>, which has its own password and sees nothing else.</div>')
+        else:
+            intro = ""
+        across = "the portfolio" if grp == "portfolio" else "these hotels"
         if tot["measured"]:
-            line = (f'<div class="pt-progress"><b>{tot["hotels"]} hotels.</b> {tot["completed"]} actions marked done by hotels ({tot["verified"]} also confirmed by the checks), {tot["cleared_site"]} more no longer flagged by the checks but never marked done, {tot["working"]} in progress. '
+            line = (f'<div class="pt-progress"><b>{tot["hotels"]} hotel{"s" if tot["hotels"] != 1 else ""}.</b> {tot["completed"]} actions marked done by hotels ({tot["verified"]} also confirmed by the checks), {tot["cleared_site"]} more no longer flagged by the checks but never marked done, {tot["working"]} in progress. '
                     f'Of the {tot["measured"]} hotels with more than one check, <b>{tot["improved"]}</b> have a higher readiness score; the average has moved from <b>{tot["avg_first"]:g}</b> to <b>{tot["avg_latest"]:g}</b>.</div>')
         else:
-            line = f'<div class="pt-progress"><b>{tot["hotels"]} hotel{"s" if tot["hotels"] != 1 else ""}.</b> Progress across the portfolio shows here once hotels have been checked more than once.</div>'
+            line = f'<div class="pt-progress"><b>{tot["hotels"]} hotel{"s" if tot["hotels"] != 1 else ""}.</b> Progress across {across} shows here once hotels have been checked more than once.</div>'
         avg, comp = progress.portfolio_series(s, data)
         charts = ""
+        all_ = "individual hotels" if (grp == "individual" and main) else "hotels"
         if avg:
-            charts = ('<div class="ov-grid even"><section class="panel"><h4>Average readiness score, all ' + ("individual hotels" if grp == "individual" else "hotels") + '</h4>' + portal_view.trend_svg(avg) + '</section>'
-                      '<section class="panel"><h4>Actions completed, all ' + ("individual hotels" if grp == "individual" else "hotels") + '</h4>' + portal_view.trend_svg(comp, maximum=max(4, max(p["score"] for p in comp)), name="Actions completed") + '</section></div>')
+            charts = ('<div class="ov-grid even"><section class="panel"><h4>Average readiness score, all ' + all_ + '</h4>' + portal_view.trend_svg(avg) + '</section>'
+                      '<section class="panel"><h4>Actions completed, all ' + all_ + '</h4>' + portal_view.trend_svg(comp, maximum=max(4, max(p["score"] for p in comp)), name="Actions completed") + '</section></div>')
         W = app.extensions["weekly"]
         states = {r["hotel"]["id"]: W.hotel_state(r["hotel"]["id"]) for r in rows}
         any_active = any(st["state"] in ("queued", "running") for st in states.values())
@@ -111,20 +157,21 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
                 return '<b style="color:#b42318">Did not finish</b>'
             return ""
         body = "".join(
-            f'<tr><td><a href="/admin/hotel/{r["hotel"]["id"]}">{esc(r["hotel"]["name"])}</a><br><span class="hk-muted">{esc(r["hotel"]["city"] or "")}</span></td><td>{esc(uk_date(r["last_run_at"])) or "not yet"}</td><td>{r["runs"]}</td>'
+            f'<tr><td><a href="{HB}/{r["hotel"]["id"]}">{esc(r["hotel"]["name"])}</a><br><span class="hk-muted">{esc(r["hotel"]["city"] or "")}</span></td><td>{esc(uk_date(r["last_run_at"])) or "not yet"}</td><td>{r["runs"]}</td>'
             f'<td>{"-" if r["first_score"] is None else format(r["first_score"], "g")}</td><td>{"-" if r["latest_score"] is None else format(r["latest_score"], "g")}</td><td>{delta_cell(r["delta"])}</td>'
             f'<td>{r["actions"]["completed"]}</td><td>{r["actions"]["working"]}</td><td>{r["actions"]["todo"] + r["actions"]["still_flagged"]}</td><td>{"weekly" if r["hotel"]["weekly"] else "off"}</td>'
             f'<td>{status_cell(r["hotel"]["id"])}</td><td>{esc(uk_time(r["hotel"]["last_attempt"])) or "-"}</td><td>{esc(r["hotel"]["last_error"] or "")}</td></tr>' for r in rows)
+        empty = "No individual hotels yet: add one below." if grp == "individual" else "No hotels registered yet."
         table = ('<div class="table-wrap"><table class="table"><thead><tr><th>Hotel</th><th>Last check</th><th>Checks</th><th>First score</th><th>Latest score</th><th>Change</th><th>Actions done</th>'
-                 '<th>Working on</th><th>To do</th><th>Weekly</th><th>Right now</th><th>Last attempt (UK time)</th><th>Last problem</th></tr></thead><tbody>' + (body or '<tr><td colspan="13">' + ("No individual hotels yet: add one below." if grp == "individual" else "No hotels registered yet.") + '</td></tr>') + "</tbody></table></div>")
-        c_ = csrf()
+                 '<th>Working on</th><th>To do</th><th>Weekly</th><th>Right now</th><th>Last attempt (UK time)</th><th>Last problem</th></tr></thead><tbody>' + (body or f'<tr><td colspan="13">{empty}</td></tr>') + "</tbody></table></div>")
+        c_ = sc.csrf()
         hid_ = f'<input type="hidden" name="csrf" value="{c_}"><input type="hidden" name="grp" value="{grp}">'
-        every = "individual hotel" if grp == "individual" else "hotel"
-        runs = (f'<p><form method="post" action="/admin/portfolio/run-all" style="display:inline">{hid_}<button class="btn primary" type="submit">Run a check on every {every} now</button></form> '
-                f'<form method="post" action="/admin/portfolio/run-due" style="display:inline">{hid_}<button class="btn" type="submit">Run only the checks that are due</button></form></p>'
+        every = "individual hotel" if (grp == "individual" and main) else "hotel"
+        runs = (f'<p><form method="post" action="{LB}/run-all" style="display:inline">{hid_}<button class="btn primary" type="submit">Run a check on every {every} now</button></form> '
+                f'<form method="post" action="{LB}/run-due" style="display:inline">{hid_}<button class="btn" type="submit">Run only the checks that are due</button></form></p>'
                 '<p class="caption">Each hotel is checked one after another; open a hotel to watch its check live. The weekly job does the same every Monday.</p>')
-        add_t = "Add an individual hotel" if grp == "individual" else "Add a hotel to the portfolio"
-        add = (f'<h5>{add_t}</h5><form class="filters" method="post" action="/admin/portfolio/add">{hid_}'
+        add_t = ("Add an individual hotel" if grp == "individual" else "Add a hotel to the portfolio") if main else "Add a hotel"
+        add = (f'<h5>{add_t}</h5><form class="filters" method="post" action="{LB}/add">{hid_}'
                '<label class="field"><span>Hotel name</span><input name="name" required></label><label class="field"><span>Website address</span><input name="website" placeholder="hotel-site.com/the-hotel" required></label>'
                '<label class="field"><span>Town or city</span><input name="city" required></label><button class="btn primary" type="submit">Add hotel</button></form>'
                '<p class="caption">Adding a hotel does not run a check by itself: use &ldquo;Run a check now&rdquo; on its page, or the next weekly check picks it up. Audits already saved for the same website count as its history. '
@@ -139,11 +186,14 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
                       'Use &ldquo;Run a check on every hotel now&rdquo; to check them all regardless.</div>')
         elif msg == "busy":
             notice = '<div class="alert warning">Those checks are already running or waiting.</div>'
+        elif msg == "taken":
+            notice = ('<div class="alert warning"><b>That website is already registered</b> with this service, so it was not added here. '
+                      'Ask the person who runs the service to move it to the individual hotels if it belongs here.</div>')
         marker = '<div data-pf-active="1"></div>' if any_active else ""
-        return shell(grp, title, intro + notice + marker + line + '<p class="caption">Progress, not proof: the score moving after actions were completed does not show the actions caused it. Times are UK time.</p>' + charts + runs + table + add)
+        return sc.shell(grp, title, intro + notice + marker + line + '<p class="caption">Progress, not proof: the score moving after actions were completed does not show the actions caused it. Times are UK time.</p>' + charts + runs + table + add)
 
-    @app.post("/admin/portfolio/add")
-    def admin_portfolio_add():
+    @bp.post(LB + "/add")
+    def hotel_add():
         bad, s = checked_post()
         if bad:
             return bad
@@ -151,19 +201,19 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         site = site if site and "." in site and not any(c in site for c in " \r\n\t") else ""
         grp = grp_arg()
         if city and urlscope.is_country(city):
-            return shell(grp, GROUP[grp][0], '<div class="alert warning">&ldquo;' + esc(city) + '&rdquo; is a country. Enter the <b>town or city</b> the hotel is in (for example Paris, or Roissy-en-France): the questions put to AI assistants are about hotels in a town.</div>')
+            return sc.shell(grp, sc.title(grp), '<div class="alert warning">&ldquo;' + esc(city) + '&rdquo; is a country. Enter the <b>town or city</b> the hotel is in (for example Paris, or Roissy-en-France): the questions put to AI assistants are about hotels in a town.</div>')
         if not (name and site and city) or not netguard.url_ok(site if "//" in site else "https://" + site):
-            return shell(grp, GROUP[grp][0], '<div class="alert warning">Enter the hotel&rsquo;s name, a public website address and the town or city.</div>')
+            return sc.shell(grp, sc.title(grp), '<div class="alert warning">Enter the hotel&rsquo;s name, a public website address and the town or city.</div>')
         key = _key_for(site)
         have = s.hotel_by_key(key)
         if have:
-            return redirect(f"/admin/hotel/{have['id']}?msg=exists")          # already registered (in whichever group): its page says which, and can move it
-        return redirect(f"/admin/hotel/{s.create_hotel(name, site, city, key, grp=grp)}")
+            if portal_db.group_of(have) not in sc.groups:
+                return redirect(sc.list_urls[grp] + "?msg=taken")              # a hotel this scope may not see: say so without opening (or naming) it
+            return redirect(f"{HB}/{have['id']}?msg=exists")          # already registered (in whichever group): its page says which, and can move it
+        return redirect(f"{HB}/{s.create_hotel(name, site, city, key, grp=grp)}")
 
     def hotel_page(s, hid, notice=""):
-        h = s.get_hotel(hid)
-        if not h:
-            abort(404)
+        h = own(s, hid)
         acts = progress.actions_for(s, h)
         runs = s.hotel_runs(h["hotel_key"])
         sm = progress.hotel_summary(s, h, list(reversed(runs)), acts)
@@ -176,56 +226,65 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         have = [p["text"] for st_ in (pst["draft"], pst["active"]) if st_ for p in st_["prompts"]]
         since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
         users = s.users_for_hotel(hid)
+        c = sc.csrf()
         ut = "".join(f'<tr><td>{esc(u["email"])}</td><td>{esc(u["name"] or "")}</td><td>{esc(uk_time(u["last_login"])) or "never"}</td><td>{"active" if u["active"] else "switched off"}</td><td>'
-                     f'<form method="post" action="/admin/hotel/{hid}/reset/{u["id"]}" style="display:inline"><input type="hidden" name="csrf" value="{csrf()}"><button class="btn" type="submit">Make a password-reset link</button></form> '
-                     f'<form method="post" action="/admin/hotel/{hid}/user/{u["id"]}/{"off" if u["active"] else "on"}" style="display:inline"><input type="hidden" name="csrf" value="{csrf()}"><button class="btn" type="submit">{"Switch off" if u["active"] else "Switch on"}</button></form></td></tr>'
+                     f'<form method="post" action="{HB}/{hid}/reset/{u["id"]}" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Make a password-reset link</button></form> '
+                     f'<form method="post" action="{HB}/{hid}/user/{u["id"]}/{"off" if u["active"] else "on"}" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">{"Switch off" if u["active"] else "Switch on"}</button></form></td></tr>'
                      for u in users)
         invites = "".join(f'<li>{esc(i["email"])} ({esc(i["kind"])}), link valid until {esc(uk_time(i["expires"]))}</li>' for i in s.open_invites(hid))
-        c = csrf()
         grp = portal_db.group_of(h)
-        other = "individual" if grp == "portfolio" else "portfolio"
         if request.args.get("msg") == "exists" and not notice:
-            notice = f'<div class="alert warning">That website is already registered, as this hotel (in <b>{esc(GROUP[grp][0])}</b>). Nothing new was added.</div>'
-        ask = esc(f"Move this hotel to {GROUP[other][0]}? Its logins, checks and history stay as they are.", quote=True)
-        where = (f'<p>In: <b><a href="{GROUP[grp][1]}">{esc(GROUP[grp][0])}</a></b> '
-                 f'<form method="post" action="/admin/hotel/{hid}/group" style="display:inline" data-confirm="{ask}"><input type="hidden" name="csrf" value="{c}"><input type="hidden" name="grp" value="{other}">'
-                 f'<button class="btn small" type="submit">Move to {esc(GROUP[other][0])}</button></form></p>')
+            notice = (f'<div class="alert warning">That website is already registered, as this hotel (in <b>{esc(GROUP[grp][0])}</b>). Nothing new was added.</div>' if main
+                      else '<div class="alert warning">That website is already registered, as this hotel. Nothing new was added.</div>')
+        if main:
+            other = "individual" if grp == "portfolio" else "portfolio"
+            ask = esc(f"Move this hotel to {GROUP[other][0]}? Its logins, checks and history stay as they are.", quote=True)
+            where = (f'<p>In: <b><a href="{sc.list_urls[grp]}">{esc(GROUP[grp][0])}</a></b> '
+                     f'<form method="post" action="{HB}/{hid}/group" style="display:inline" data-confirm="{ask}"><input type="hidden" name="csrf" value="{c}"><input type="hidden" name="grp" value="{other}">'
+                     f'<button class="btn small" type="submit">Move to {esc(GROUP[other][0])}</button></form></p>')
+        else:
+            where = f'<p><a href="{sc.list_urls[grp]}">&larr; All hotels</a></p>'
         panel = (f'<section class="panel"><h4>Manage this hotel</h4>{notice}{where}'
-                 f'<p><form method="post" action="/admin/hotel/{hid}/run" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn primary" type="submit">Run a check now</button></form> '
-                 f'<form method="post" action="/admin/hotel/{hid}/reset-prompts" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Reset its automatic prompts</button></form> '
-                 f'<form method="post" action="/admin/hotel/{hid}/weekly" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Weekly checks are {"ON: switch off" if h["weekly"] else "OFF: switch on"}</button></form></p>'
+                 f'<p><form method="post" action="{HB}/{hid}/run" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn primary" type="submit">Run a check now</button></form> '
+                 f'<form method="post" action="{HB}/{hid}/reset-prompts" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Reset its automatic prompts</button></form> '
+                 f'<form method="post" action="{HB}/{hid}/weekly" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Weekly checks are {"ON: switch off" if h["weekly"] else "OFF: switch on"}</button></form></p>'
                  + (f'<p class="caption">Last problem: {esc(h["last_error"])}</p>' if h["last_error"] else "")
                  + f'<h5>People who can sign in ({len(users)})</h5>' + (f'<div class="table-wrap"><table class="table"><thead><tr><th>Email</th><th>Name</th><th>Last sign-in (UK time)</th><th></th><th></th></tr></thead><tbody>{ut}</tbody></table></div>' if users else '<p class="caption">Nobody has a login yet.</p>')
-                 + f'<form class="filters" method="post" action="/admin/hotel/{hid}/invite"><input type="hidden" name="csrf" value="{c}"><label class="field"><span>Invite someone (their email)</span><input type="email" name="email" required></label>'
+                 + f'<form class="filters" method="post" action="{HB}/{hid}/invite"><input type="hidden" name="csrf" value="{c}"><label class="field"><span>Invite someone (their email)</span><input type="email" name="email" required></label>'
                  '<button class="btn" type="submit">Make an invite link</button></form><p class="caption">There is no email service: you get a link to send them yourself. It works once and expires in 7 days.</p>'
                  + (f'<h6>Links still open</h6><ul>{invites}</ul>' if invites else "") + "</section>")
-        view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=csrf(), start=start_here.safe(s, h, sm, acts, runs, False, pst), ai=ai_dash.panel(s, h), prompts=prompts_view.panel(pst, h, f"/admin/hotel/{hid}/prompts", True, since, (_safe(query_matrix.suggest, rep, have) or []) if rep else [], (_safe(exploration.suggest, s, h, have) or []) if pst["draft"] else []),
+        view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=c, start=start_here.safe(s, h, sm, acts, runs, False, pst), ai=ai_dash.panel(s, h), prompts=prompts_view.panel(pst, h, f"{HB}/{hid}/prompts", True, since, (_safe(query_matrix.suggest, rep, have) or []) if rep else [], (_safe(exploration.suggest, s, h, have) or []) if pst["draft"] else []),
                                      prompts_alert=bool(pst["draft"] and not pst["active"]), opps=(_safe(opportunities.build, rep) or []) if rep else [], strategy=(_safe(strategy_view.panel, rep) or "") if rep else "",
-                                     live=app.extensions["weekly"].hotel_state(hid), live_url=f"/admin/hotel/{hid}/status")
-        return shell(grp, h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
+                                     live=app.extensions["weekly"].hotel_state(hid), live_url=f"{HB}/{hid}/status")
+        return sc.shell(grp, h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
 
-    @app.post("/admin/hotel/<int:hid>/prompts")
-    def admin_hotel_prompts(hid):
-        if not session.get("admin_ok"):
+    @bp.post(HB + "/<int:hid>/prompts")
+    def hotel_prompts(hid):
+        if not sc.authed():
             return {"ok": False, "error": "Please sign in again."}, 401
         if not hmac.compare_digest(request.headers.get("X-CSRF", ""), session.get("csrf", "x")):
             return {"ok": False, "error": "Please reload the page and try again."}, 400
-        s, msg = store_or_msg()
-        h = s.get_hotel(hid) if s else None
-        if not h:
+        s, msg = sc.store_or_msg()
+        if not s:
             abort(404)
+        h = own(s, hid)
         st = prompt_sets.state(s, h)
         ok, res = prompt_sets.handle(s, h, "the operator", request.get_json(silent=True) or {}, prompt_sets.anchors_from(st["draft"], st["active"]))
         return {"ok": ok, **res}, (200 if ok else 400)
 
-    @app.get("/admin/hotel/<int:hid>/status")
-    def admin_hotel_status(hid):
-        if not session.get("admin_ok"):
+    @bp.get(HB + "/<int:hid>/status")
+    def hotel_status(hid):
+        if not sc.authed():
             return {"ok": False}, 401
+        if not main:
+            s, _m = sc.store_or_msg()
+            if not s:
+                abort(404)
+            own(s, hid)
         return {"ok": True, **app.extensions["weekly"].hotel_state(hid)}
 
-    @app.post("/admin/portfolio/run-due")
-    def admin_run_due():
+    @bp.post(LB + "/run-due")
+    def run_due():
         bad, s = checked_post()
         if bad:
             return bad
@@ -234,10 +293,10 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         hs = [h for h in W.due(s) if not W.active(h["id"]) and portal_db.group_of(h) == grp]
         if hs:
             W.start(force_ids={h["id"] for h in hs})
-        return redirect(GROUP[grp][1] + "?msg=" + ("started:" + "|".join(h["name"] for h in hs) if hs else "none-due"))
+        return redirect(sc.list_urls[grp] + "?msg=" + ("started:" + "|".join(h["name"] for h in hs) if hs else "none-due"))
 
-    @app.post("/admin/portfolio/run-all")
-    def admin_run_all():
+    @bp.post(LB + "/run-all")
+    def run_all():
         bad, s = checked_post()
         if bad:
             return bad
@@ -245,16 +304,16 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         grp = grp_arg()
         hs = [h for h in s.list_hotels(only_active=True, grp=grp) if not W.active(h["id"])]
         W.start(force_ids={h["id"] for h in hs})
-        return redirect(GROUP[grp][1] + "?msg=" + ("started:" + "|".join(h["name"] for h in hs) if hs else "busy"))
+        return redirect(sc.list_urls[grp] + "?msg=" + ("started:" + "|".join(h["name"] for h in hs) if hs else "busy"))
 
-    @app.get("/admin/hotel/<int:hid>")
-    def admin_hotel_page(hid):
-        g = guard()
+    @bp.get(HB + "/<int:hid>")
+    def hotel_view(hid):
+        g = sc.guard()
         if g:
             return g
-        s, msg = store_or_msg()
+        s, msg = sc.store_or_msg()
         if s is None:
-            return shell("portfolio", "Portfolio", f'<div class="alert warning">{esc(msg)}</div>')
+            return sc.shell(sc.groups[0], sc.title(sc.groups[0]), f'<div class="alert warning">{esc(msg)}</div>')
         return hotel_page(s, hid)
 
     def link_notice(token, email, what):
@@ -262,23 +321,25 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         return (f'<div class="alert success"><b>{what} for {esc(email)}.</b> Send them this link. It is shown only now, works once, and expires in {accounts.INVITE_DAYS} days.'
                 f'<br><code style="word-break:break-all">{esc(url)}</code></div>')
 
-    @app.post("/admin/hotel/<int:hid>/invite")
-    def admin_invite(hid):
+    @bp.post(HB + "/<int:hid>/invite")
+    def hotel_invite(hid):
         bad, s = checked_post()
         if bad:
             return bad
+        own(s, hid)
         email = accounts.clean_email(request.form.get("email"))
-        if not email or not s.get_hotel(hid):
+        if not email:
             return hotel_page(s, hid, '<div class="alert warning">Enter a valid email address.</div>')
         tok, h = accounts.new_token()
         s.create_invite(h, email, hid, None, "invite", accounts.INVITE_DAYS)
         return hotel_page(s, hid, link_notice(tok, email, "Invite link made"))
 
-    @app.post("/admin/hotel/<int:hid>/reset/<int:uid>")
-    def admin_reset(hid, uid):
+    @bp.post(HB + "/<int:hid>/reset/<int:uid>")
+    def hotel_reset(hid, uid):
         bad, s = checked_post()
         if bad:
             return bad
+        own(s, hid)
         u = s.user_by_id(uid)
         if not u or uid not in {x["id"] for x in s.users_for_hotel(hid)}:
             abort(404)
@@ -286,23 +347,22 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         s.create_invite(h, u["email"], hid, uid, "reset", accounts.INVITE_DAYS)
         return hotel_page(s, hid, link_notice(tok, u["email"], "Password-reset link made"))
 
-    @app.post("/admin/hotel/<int:hid>/user/<int:uid>/<state>")
-    def admin_user_state(hid, uid, state):
+    @bp.post(HB + "/<int:hid>/user/<int:uid>/<state>")
+    def hotel_user_state(hid, uid, state):
         bad, s = checked_post()
         if bad:
             return bad
+        own(s, hid)
         if uid in {x["id"] for x in s.users_for_hotel(hid)} and state in ("on", "off"):
             s.set_user_active(uid, state == "on")
-        return redirect(f"/admin/hotel/{hid}")
+        return redirect(f"{HB}/{hid}")
 
-    @app.post("/admin/hotel/<int:hid>/reset-prompts")
-    def admin_reset_prompts(hid):
+    @bp.post(HB + "/<int:hid>/reset-prompts")
+    def hotel_reset_prompts(hid):
         bad, s = checked_post()
         if bad:
             return bad
-        h = s.get_hotel(hid)
-        if not h:
-            abort(404)
+        h = own(s, hid)
         s.clear_benchmark(h["hotel_key"])                                   # the prompts frozen at the first audit
         for p in s.prompt_sets(hid):
             if p["status"] == "draft":
@@ -311,33 +371,32 @@ def register(app, cfg, guard, shell, store_or_msg, csrf):
         return hotel_page(s, hid, '<div class="alert success"><b>Prompts reset.</b> The next check writes a fresh recommended set from the current question engine, and the hotel is asked to confirm it.'
                                   + (' The hotel has a <i>confirmed</i> set, which is left as it is: the hotel can change it on its Prompts tab.' if has_confirmed else '') + '</div>')
 
-    @app.post("/admin/hotel/<int:hid>/weekly")
-    def admin_weekly_toggle(hid):
+    @bp.post(HB + "/<int:hid>/weekly")
+    def hotel_weekly_toggle(hid):
         bad, s = checked_post()
         if bad:
             return bad
-        h = s.get_hotel(hid)
-        if not h:
-            abort(404)
+        h = own(s, hid)
         s.set_hotel(hid, weekly=0 if h["weekly"] else 1)
-        return redirect(f"/admin/hotel/{hid}")
+        return redirect(f"{HB}/{hid}")
 
-    @app.post("/admin/hotel/<int:hid>/group")
-    def admin_hotel_group(hid):
+    if main:
+        @bp.post(HB + "/<int:hid>/group")
+        def hotel_group(hid):
+            bad, s = checked_post()
+            if bad:
+                return bad
+            own(s, hid)
+            s.set_hotel(hid, grp=grp_arg())
+            return redirect(f"{HB}/{hid}")
+
+    @bp.post(HB + "/<int:hid>/run")
+    def hotel_run_now(hid):
         bad, s = checked_post()
         if bad:
             return bad
-        if not s.get_hotel(hid):
-            abort(404)
-        s.set_hotel(hid, grp=grp_arg())
-        return redirect(f"/admin/hotel/{hid}")
+        own(s, hid)
+        app.extensions["weekly"].start(force_ids={hid})
+        return redirect(f"{HB}/{hid}")            # the page shows the check running, live
 
-    @app.post("/admin/hotel/<int:hid>/run")
-    def admin_run_now(hid):
-        bad, s = checked_post()
-        if bad:
-            return bad
-        if not s.get_hotel(hid):
-            abort(404)
-        started, n = app.extensions["weekly"].start(force_ids={hid})
-        return redirect(f"/admin/hotel/{hid}")            # the page shows the check running, live
+    app.register_blueprint(bp)

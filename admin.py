@@ -92,7 +92,7 @@ def register(app, cfg):
             if len(_failed[ip]) >= 5:
                 error = "Too many wrong passwords. Try again in ten minutes."
             elif hmac.compare_digest((request.form.get("password") or "").encode(), str(password()).encode()):
-                keep = {k: True for k in ("site_ok",) if session.get(k) is True}      # signing in to the admin pages must not sign you out of the site: with a site password set that sent you straight back to its sign-in
+                keep = {k: session[k] for k in ("site_ok", "ind_ok", "ind_until") if session.get(k)}      # signing in to the admin pages must not sign you out of the site: with a site password set that sent you straight back to its sign-in
                 session.clear()
                 session.update(keep)
                 session["admin_ok"] = True

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Hotels admin: {{ title }}{% endblock %}
+{% block brand %}<a class="brand" href="{{ base }}"><span class="mark">H</span>Hotels admin</a>{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block nav %}<a href="{{ base }}">Hotels</a><form method="post" action="{{ base }}/logout" style="display:inline"><button class="btn" type="submit" style="margin-left:18px">Sign out</button></form>{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+{{ content|safe }}
+{% endblock %}
