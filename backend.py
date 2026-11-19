@@ -141,6 +141,17 @@ class _Lease:
             pass
 
 
+import collections as _collections
+REPORT_CACHE = 12         # saved reports kept in memory (their JSON text, a few MB in all); one web process, so it is never out of date (update_run and delete_run drop theirs)
+_REPORTS = _collections.OrderedDict()
+_REPORTS_LOCK = threading.Lock()
+
+
+def _forget_report(url, run_id):
+    with _REPORTS_LOCK:
+        _REPORTS.pop((url, run_id), None)
+
+
 IDLE_PING_S = 20          # a connection idle longer than this is tested with one cheap query before it is used again (the host closes idle ones)
 
 
@@ -269,6 +280,7 @@ class Store(portal_db.PortalMixin):
 
     def update_run(self, run_id, rep):
         """Rewrite a saved run after it changed (an uploaded review pack): the summary columns, the full report and the market rows. The run id and date stay."""
+        _forget_report(self.url, run_id)
         row = summarise(rep)
         row.pop("run_at", None)
         row["report_json"] = json.dumps(rep, default=str)
@@ -290,6 +302,7 @@ class Store(portal_db.PortalMixin):
             conn.close()
 
     def delete_run(self, run_id):
+        _forget_report(self.url, run_id)
         conn = self._connect()
         try:
             for t, col in (("ai_competitors", "run_id"), ("ai_sources", "run_id"), ("ai_pages", "run_id"), ("runs", "id")):
@@ -419,8 +432,23 @@ class Store(portal_db.PortalMixin):
             conn.close()
 
     def get_report(self, run_id):
-        rows = self._rows("SELECT report_json FROM runs WHERE id = ?", (run_id,))
-        return json.loads(rows[0]["report_json"]) if rows else None
+        """The saved report (a fresh dict each time: callers may change it). A saved report never changes except through update_run, so its text is kept in memory for the next page: a hotel page
+        reads the same few reports several times, and each is hundreds of kilobytes from a database across the network."""
+        key = (self.url, run_id)
+        with _REPORTS_LOCK:
+            text = _REPORTS.get(key)
+            if text is not None:
+                _REPORTS.move_to_end(key)
+        if text is None:
+            rows = self._rows("SELECT report_json FROM runs WHERE id = ?", (run_id,))
+            if not rows:
+                return None
+            text = rows[0]["report_json"]
+            with _REPORTS_LOCK:
+                _REPORTS[key] = text
+                while len(_REPORTS) > REPORT_CACHE:
+                    _REPORTS.popitem(last=False)
+        return json.loads(text)
 
     def history(self, key):
         cols = "id, " + ", ".join(RUN_COLS)
