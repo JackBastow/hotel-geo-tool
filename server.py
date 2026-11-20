@@ -480,8 +480,29 @@ def create_app(cfg=None, run_fn=None):
             chips.append(("Location " + str(loc["source"])) if str(loc["source"]).startswith(("provided", "inferred")) else ("Location from " + str(loc["source"])))
         if (rep.get("guest_questions") or {}).get("read_via"):
             chips.append("Read through a fallback reader")
+        back_url, back_label = back_to(token)
         return render_template("report.html", rep=rep, meta=meta, chips=chips, body=body, token=token, saved=bool(cfg.database_url), portal_user=bool(session.get("uid")) and session.get("site_ok") is not True,
-                               title=(meta.get("hotel") or meta.get("website") or "Report"))
+                               title=(meta.get("hotel") or meta.get("website") or "Report"), back_url=back_url, back_label=back_label)
+
+    def back_to(token):
+        """Where 'Back to the dashboard' goes from a report: the hotel's dashboard for its own user, the hotel's admin page for the admin that manages it; (None, '') when the report is not a
+        registered hotel's (a quick audit)."""
+        try:
+            db = backend.open_store(cfg.database_url) if cfg.database_url else None
+            key = db.hotel_key_for_token(token) if db else None
+            h = db.hotel_by_key(key) if key else None
+        except Exception:  # noqa: BLE001
+            h = None
+        if not h:
+            return None, ""
+        import portal_db
+        if session.get("uid") and app.extensions["portal_can_see_token"](token):
+            return f"/portal/hotel/{h['id']}", "Back to the dashboard"
+        if portal_db.group_of(h) == "individual" and session.get("ind_ok") is True:
+            return f"/hotels-admin/hotel/{h['id']}", "Back to the hotel's dashboard"
+        if portal_db.group_of(h) == "portfolio" and session.get("admin_ok") is True:
+            return f"/admin/hotel/{h['id']}", "Back to the hotel's dashboard"
+        return None, ""
 
     @app.get("/r/<token>/<part>.pdf")
     def report_pdf_route(token, part):

@@ -8,6 +8,7 @@ Wording rule: this shows PROGRESS (what was done, what changed). It never claims
 import datetime as dt
 import urllib.parse
 import json
+import re
 
 import progress
 import trend
@@ -68,6 +69,11 @@ def progress_line(sm):
 
 def kpi(label, value, sub, colour=GREY, unit=""):
     return f'<div class="kpi" style="--kc:{colour}"><span class="kpi-label">{esc(label)}</span><span class="kpi-value">{esc(value)}<small>{esc(unit)}</small></span><span class="kpi-sub">{esc(sub)}</span></div>'
+
+
+def kpis_raw(tiles):
+    """[(label, value, sub, colour)] -> a row of figure tiles."""
+    return '<div class="kpis">' + "".join(kpi(l, v, sub, c) for l, v, sub, c in tiles) + "</div>"
 
 
 def kpis(sm):
@@ -183,7 +189,7 @@ def history_table(runs):
     if not runs:
         return ""
     rows = "".join(f'<tr><td>{esc(uk_time(r["run_at"]))}</td><td>{"-" if r["headline_score"] is None else format(r["headline_score"], "g")}</td>'
-                   f'<td>{esc(str(r["recs_total"]) if r["recs_total"] is not None else "-")}</td><td>' + (f'<a href="/r/{r["access_token"]}">Open the full report</a>' if r.get("access_token") else "") + '</td></tr>' for r in runs[:30])
+                   f'<td>{esc(str(r["recs_total"]) if r["recs_total"] is not None else "-")}</td><td>' + (f'<a href="/r/{r["access_token"]}">Detailed analysis</a>' if r.get("access_token") else "") + '</td></tr>' for r in runs[:30])
     return ('<div class="table-wrap"><table class="table"><thead><tr><th>Checked (UK time)</th><th>Readiness</th><th>Recommendations</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>")
 
 
@@ -208,7 +214,11 @@ def opportunities_panel(ops):
     return f'<div class="sec-head"><h3>Your biggest AI discovery opportunities</h3></div><div class="prios">{cards}</div>'
 
 
-def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_url="", prompts="", prompts_alert=False, opps=None, strategy="", start=""):
+def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_url="", prompts="", prompts_alert=False, opps=None, strategy="", start="", analysis="", competitors="", talk="", settings_url=""):
+    """
+    The hotel's dashboard. With settings_url (the hotel's own view) its prompts and history live on its Settings page and the dashboard links there; without it (the operator's view of the hotel)
+    they stay as tabs, so the operator can edit the prompts in place.
+    """
     h = sm["hotel"]
     nxt = ""
     if h.get("weekly") and sm["last_run_at"]:
@@ -221,7 +231,7 @@ def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_
     btns = ""
     if latest and latest.get("access_token"):
         t = latest["access_token"]
-        btns = (f'<a class="btn primary" href="/r/{t}">Open the latest full report</a> <a class="btn" href="/r/{t}/management.pdf">Management report (PDF)</a>')
+        btns = (f'<a class="btn primary" href="/r/{t}">Detailed analysis</a> <a class="btn" href="/r/{t}/management.pdf">Management report (PDF)</a>')
     hero = (f'<section class="hero"><div><h1>{esc(h["name"])}</h1><div class="sub">{esc(" · ".join(x for x in (h.get("city"), h.get("website")) if x))}</div>'
             f'<div class="hk-chips">{chip("Last checked " + uk_time(sm["last_run_at"]), "brand") if sm["last_run_at"] else ""}{nxt}</div></div><div>{btns}</div></section>')
     board = action_board(sm, actions, editable)
@@ -233,10 +243,17 @@ def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_
     recs = (('<p class="lede">Mark each action as you go. After every weekly check the list updates: fixed items are ticked off, and new ones are added.</p>' if editable else "") + f'<div id="act-list">{board}</div>')
     history = f'<p class="caption">Every check of this hotel, newest first.</p>{history_table(runs)}'
     open_n = sm["actions"]["todo"] + sm["actions"]["working"] + sm["actions"]["still_flagged"]
+    go_prompts = (f'<a class="btn primary" href="{esc(settings_url)}#prompts">Review the prompts &rarr;</a>' if settings_url else '<button type="button" class="btn primary" data-goto="prompts">Review the prompts &rarr;</button>')
     if prompts_alert:
         overview = ('<section class="talk-callout"><div><h3>Confirm the prompts we ask AI about your hotel</h3><p>We have chosen a recommended set from your website and the places around you. Review it and confirm it, '
-                    'so every check asks the same prompts and your progress can be tracked.</p></div><button type="button" class="btn primary" data-goto="prompts">Review the prompts &rarr;</button></section>') + overview
-    tabs = [("overview", "Overview", overview), ("ai", "AI visibility", ai or '<div class="alert info">AI visibility appears after the first check.</div>'), ("strategy", "Strategy", strategy or '<div class="alert info">The strategy view appears after the first check.</div>'), ("prompts", "Prompts", prompts or '<div class="alert info">Prompts appear after the first check.</div>'), ("actions", f"Recommendations ({open_n})", recs), ("history", "History", history)]
+                    f'so every check asks the same prompts and your progress can be tracked.</p></div>{go_prompts}</section>') + overview
+    if settings_url and start:
+        start = re.sub(r'<button type="button" class="btn primary" data-goto="prompts">(.*?)</button>', lambda m_: f'<a class="btn primary" href="{esc(settings_url)}#prompts">{m_.group(1)}</a>', start)
+    later = '<div class="alert info">This appears after the first check.</div>'
+    tabs = [("overview", "Overview", overview), ("ai", "AI visibility", ai or later), ("analysis", "Prompt analysis", analysis or later), ("competitors", "Competitors", competitors or later),
+            ("talk", "Join the conversation", talk or later), ("strategy", "Strategy", strategy or later), ("actions", f"Recommendations ({open_n})", recs)]
+    if not settings_url:                                                   # the operator's view keeps the hotel's prompts and history as tabs
+        tabs += [("prompts", "Prompts", prompts or '<div class="alert info">Prompts appear after the first check.</div>'), ("history", "History", history)]
     if start:
         tabs.insert(0, ("start", "Start here", start))
     nav = "".join(f'<button type="button" class="tab{" active" if i == 0 else ""}" data-tab="tab-{k}" data-name="{k}">{esc(lbl)}</button>' for i, (k, lbl, _b) in enumerate(tabs))

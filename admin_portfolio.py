@@ -274,6 +274,7 @@ def register_scope(app, sc):
                  + (f'<h6>Links still open</h6><ul>{invites}</ul>' if invites else "") + "</section>")
         view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=c, start=start_here.safe(s, h, sm, acts, runs, False, pst), ai=ai_dash.panel(s, h), prompts=prompts_view.panel(pst, h, f"{HB}/{hid}/prompts", True, since, (_safe(query_matrix.suggest, rep, have) or []) if rep else [], (_safe(exploration.suggest, s, h, have) or []) if pst["draft"] else []),
                                      prompts_alert=bool(pst["draft"] and not pst["active"]), opps=(_safe(opportunities.build, rep) or []) if rep else [], strategy=(_safe(strategy_view.panel, rep) or "") if rep else "",
+                                     **(app.extensions["extra_tabs"](rep, h) if "extra_tabs" in app.extensions else {}),
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"{HB}/{hid}/status")
         return sc.shell(grp, h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
 

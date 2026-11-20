@@ -411,6 +411,7 @@ def hotel_theme_states(own_pages, base, hotel):
             continue
         lv = max([{"strong": 2, "some": 1}.get(feat.get(k), 0) for k in ev.get("features", ())] + [{"strong": 2, "some": 1}.get(ints.get(k), 0) for k in ev.get("intents", ())] + [0])
         hits = site.find(re.compile(ev["rx"], re.I)) if ev.get("rx") else []
+        hits = [h for h in hits if not (textutil.looks_like_nav(h.get("snippet", "")) or textutil.looks_like_list(h.get("snippet", "")))]      # a menu or footer ('Waikiki Hotels Mexico City Hotels Best Rate Guarantee') states nothing
         state = "strong" if lv == 2 or len(hits) >= 2 else "mentioned" if lv == 1 or hits else "not_found"
         top = hits[0] if hits else None
         out[theme] = {"state": state, "url": top["page"]["url"] if top else "", "snippet": top["snippet"][:200] if top else ""}

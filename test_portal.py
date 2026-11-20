@@ -171,7 +171,7 @@ b_action = db.list_actions(hb_id)[0]
 check("nor change its actions", u.post("/portal/api/action", json={"id": b_action["id"], "status": "done"}, headers={"X-CSRF": token}).status_code == 404 and db.get_action(b_action["id"])["status"] == "todo")
 check("their own hotel's report opens without the site password", u.get(f"/r/{tok1}").status_code == 200)
 check("the other hotel's report does not", u.get(f"/r/{tokb}", follow_redirects=False).status_code == 302)
-check("and the report page shows a link back to the dashboard, not 'run another audit'", "Back to my dashboard" in u.get(f"/r/{tok1}").get_data(as_text=True) and "Run another audit" not in u.get(f"/r/{tok1}").get_data(as_text=True))
+check("and the report page shows a link back to the dashboard, not 'run another audit'", ("Back to the dashboard" in u.get(f"/r/{tok1}").get_data(as_text=True) or "Back to my dashboard" in u.get(f"/r/{tok1}").get_data(as_text=True)) and "Run another audit" not in u.get(f"/r/{tok1}").get_data(as_text=True))
 check("the admin pages are closed to a hotel user", u.get("/admin/portfolio", follow_redirects=False).status_code in (302, 401, 403))
 check("signing out ends the session", u.post("/portal/signout").status_code == 302 and u.get("/portal", follow_redirects=False).headers["Location"].endswith("/portal/signin"))
 check("a wrong password is refused", "do not match" in u.post("/portal/signin", data={"email": "gm@hotel-a.com", "password": "wrong-password-x"}).get_data(as_text=True))
@@ -225,7 +225,8 @@ admin.post(f"/admin/hotel/{ha['id']}/user/{db.user_by_email('gm@hotel-a.com')['i
 u8 = app.test_client()
 u8.post("/portal/signin", data={"email": "gm@hotel-a.com", "password": "another-long-pass-9"})
 page = u8.get("/portal").get_data(as_text=True)
-check("the dashboard has tabs: Overview, AI visibility, Recommendations, History", all(x in page for x in ('data-name="overview"', 'data-name="ai"', 'data-name="actions"', 'data-name="history"')))
+check("the dashboard has tabs: Overview, AI visibility, Prompt analysis, Competitors, Recommendations; the history is in Settings", all(x in page for x in ('data-name="overview"', 'data-name="ai"', 'data-name="analysis"', 'data-name="competitors"', 'data-name="actions"'))
+      and 'data-name="history"' in u8.get(f"/portal/hotel/{ha['id']}/settings").get_data(as_text=True))
 check("the real dashboard route opens on Start here (first tab) with the three first actions and the other tabs after it", page.index('data-name="start"') < page.index('data-name="overview"') and "Do these first" in page and "Named by an AI assistant" in page)
 check("the AI visibility tab shows the citations section and says what it is a sample of", "Brand performance over time" in page or "No AI answers have been saved" in page)
 cur = {"u1": {"url": "u1", "cited": 10, "domain": "a.com"}, "u2": {"url": "u2", "cited": 4, "domain": "b.com"}, "u3": {"url": "u3", "cited": 7, "domain": "c.com"}, "u4": {"url": "u4", "cited": 3, "domain": "d.com"}}

@@ -54,7 +54,8 @@ def build(rep, limit=3):
                     comp.append({"theme": c["theme"], "label": c["label"], "state": (c.get("hotel") or {}).get("state")})
         kinds = sum(1 for x in (a["reasons"], src, site) if x)
         state_word = {"strong": "states it clearly", "mentioned": "mentions it only in passing", "not_found": "does not mention it"}
-        text = f"{a['name']} was named in {a['answers']} answers across these searches" + (f", most often for {' and '.join(themes)}" if themes else "") + "."
+        import ai_insights as _ains
+        text = f"{a['name']} was named in {a['answers']} answers across these searches" + (f", most often for {' and '.join(_ains.THEMES.get(t, t.replace('_', ' ')) for t in themes)}" if themes else "") + "."      # plain words, never the internal theme keys
         if a["reasons"]:
             text += f" The assistant's reason: {a['reasons'][0]}."
         if comp:

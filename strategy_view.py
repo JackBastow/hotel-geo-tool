@@ -24,8 +24,6 @@ def panel(rep):
     c = rep.get("consultant") or {}
     ops = opportunities.build(rep)
     d = c.get("differentiation") or differentiation.build(rep)
-    rivals = c.get("rival_analysis") or rival_analysis.build(rep)
-    srcs = c.get("source_actions") or source_actions.build(rep)
     out = []
     # 1 opportunities
     out.append('<h3 class="grp" style="margin-top:6px">Your biggest AI discovery opportunities</h3>')
@@ -51,7 +49,15 @@ def panel(rep):
         out.append('<h4>Where this could matter</h4><ul class="wl">' + "".join(
             f'<li><span><b>{esc(o["theme_label"].capitalize())}</b>: {esc(o["finding"])} {esc(o["ai_result"])} <i>{esc(o["action"])}</i></span> {_chip(o["confidence"])}</li>' for o in d["opportunities"][:4]) + "</ul>")
     out.append(f'<p class="caption">{esc(d.get("limits", ""))}</p>')
-    # 3 rivals
+    out.append('<p class="caption">Why rivals are recommended and where to get listed are on the <button type="button" class="link" data-goto="competitors">Competitors</button> tab.</p>')
+    return "".join(out)
+
+
+def rivals_html(rep):
+    """Why rivals are recommended instead (the Competitors tab)."""
+    c = (rep or {}).get("consultant") or {}
+    rivals = c.get("rival_analysis") or rival_analysis.build(rep)
+    out = []
     out.append('<h3 class="grp">Why rivals are recommended instead</h3>')
     if rivals:
         out.append('<div class="threads">' + "".join(
@@ -61,7 +67,14 @@ def panel(rep):
         out.append('<p class="caption">Supported means at least two kinds of evidence agree (what the assistant said, what it cited, what the rival\'s site shows). A hypothesis is something to investigate. None of it describes how the model decides.</p>')
     else:
         out.append('<p class="caption">No comparable rival stood out in this sample.</p>')
-    # 4 where to get listed
+    return "".join(out)
+
+
+def sources_html(rep):
+    """Where to get listed: the sites AI relies on (the Competitors tab)."""
+    c = (rep or {}).get("consultant") or {}
+    srcs = c.get("source_actions") or source_actions.build(rep)
+    out = []
     out.append('<h3 class="grp">Where to get listed: the sites AI relies on</h3>')
     if srcs:
         rows = "".join(f'<tr><td><b>{esc(s["domain"])}</b><br><span class="hk-muted">{esc(s["type_label"])}, used {s["cited"]} time(s)</span></td><td>{"Yes" if s["hotel_appears"] else "No"}</td><td>{esc(", ".join(s["rivals"]) or "-")}</td>'

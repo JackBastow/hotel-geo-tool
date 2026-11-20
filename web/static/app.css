@@ -400,3 +400,9 @@ body.wm .wm-brand img { outline: 1px solid #9a7a56; outline-offset: 0; border-ra
 .gm-brief { margin: 6px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--soft); font-size: .93rem; }
 .pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: .78rem; font-weight: 650; white-space: nowrap; }
 .pill.bad { background: #fee4e2; color: #b42318; } .pill.warn { background: #fef0c7; color: #b54708; } .pill.good { background: #dcfae6; color: #067647; }
+
+/* the detailed analysis label, and the prompt analysis table */
+.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); font-weight: 700; margin-bottom: 4px; }
+table.pa td { vertical-align: top; }
+table.pa .pa-ev { margin-top: 6px; }
+table.pa .pa-ev summary { font-size: 13px; }

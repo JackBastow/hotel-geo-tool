@@ -207,6 +207,21 @@ def register(app, cfg):
         return (f'<section class="talk-callout"><div><h3>Check your hotel profile</h3><p>Tell us exactly what kind of place you are, why guests come and where they search for you. '
                 f'We use it to ask AI assistants the right questions and compare you with the right competitors.</p></div><a class="btn primary" href="/portal/hotel/{hotel["id"]}/profile">Check the profile &rarr;</a></section>')
 
+    def extra_tabs(rep, hotel):
+        """The Prompt analysis, Competitors and Join the conversation tabs, from the latest check. A problem in one leaves that tab saying so, never the page."""
+        import competitors_view
+        import dashboard_view
+        import prompt_analysis
+        out = {}
+        for k, fn in (("analysis", lambda: prompt_analysis.panel(rep)), ("competitors", lambda: competitors_view.panel(rep, hotel)), ("talk", lambda: dashboard_view.talk_tab(rep) if rep else "")):
+            try:
+                out[k] = fn()
+            except Exception:  # noqa: BLE001
+                out[k] = '<div class="alert warning">This part could not be shown for the latest check.</div>'
+        return out
+
+    app.extensions["extra_tabs"] = extra_tabs
+
     def dashboard_page(hotel, user, hotels):
         d = db()
         if hotel.get("setup") == "pending" and not hotel_profile.confirmed(hotel):
@@ -220,9 +235,9 @@ def register(app, cfg):
         pst = prompt_sets.state(d, hotel)
         rep = _latest(d, d.hotel_runs(hotel["hotel_key"]))
         since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
-        body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), start=start_here.safe(d, hotel, sm, acts, runs, True, pst), ai=ai_dash.panel(d, hotel), prompts=prompts_view.panel(pst, hotel, "/portal/api/prompts/" + str(hotel["id"]), True, since, _suggestions(rep, pst), _from_results(d, hotel, pst)),
-                                     prompts_alert=bool(pst["draft"] and not pst["active"]), opps=_opps(rep), strategy=_strategy(rep),
-                                     live=app.extensions["weekly"].hotel_state(hotel["id"]), live_url=f"/portal/api/status/{hotel['id']}")
+        body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), start=start_here.safe(d, hotel, sm, acts, runs, True, pst), ai=ai_dash.panel(d, hotel),
+                                     prompts_alert=bool(pst["draft"] and not pst["active"]), opps=_opps(rep), strategy=_strategy(rep), **extra_tabs(rep, hotel),
+                                     live=app.extensions["weekly"].hotel_state(hotel["id"]), live_url=f"/portal/api/status/{hotel['id']}", settings_url=f"/portal/hotel/{hotel['id']}/settings")
         if hotel.get("setup") == "done" and not runs and not app.extensions["weekly"].active(hotel["id"]):
             body = '<div class="alert info"><b>Your first check is on its way.</b> It starts as soon as there is room and takes about 15 minutes; this page fills in when it is done.</div>' + body
         return shell(hotel["name"] + ": progress", profile_banner(hotel) + body, user, hotels)
@@ -310,13 +325,25 @@ def register(app, cfg):
                                ("Languages", ", ".join(p["languages"])), ("Price level", dict(hotel_profile.PRICES).get(p["price"], "")), ("Competitors", ", ".join(p["competitors"]))):
                 rows.append(f'<tr><th style="text-align:left;width:220px">{esc(label)}</th><td>{esc(val) or "<span class=hk-muted>not given</span>"}</td></tr>')
         status = ("Confirmed: " + esc(hotel_profile.last_change(p))) if p and p.get("status") == "confirmed" else ("A draft from your website, not confirmed yet." if p else "Not filled in yet.")
-        body = (f'<p><a href="/portal/hotel/{h["id"]}">&larr; Back to the dashboard</a></p><h1>Settings</h1>'
-                f'<section class="panel"><h4>Hotel profile</h4><p class="caption">What kind of place you are and how guests find you. Every check is built on it: the questions we ask AI assistants, '
-                f'the places they mention and the competitors we compare you with. {status}</p>'
-                + (f'<div class="table-wrap"><table class="table">{"".join(rows)}</table></div>' if rows else "")
-                + f'<p><a class="btn primary" href="/portal/hotel/{h["id"]}/profile">Edit the profile</a></p>'
-                '<p class="caption">Saving a changed profile writes a new recommended set of prompts for you to check. Your current prompts stay in use until you confirm the new set.</p></section>'
-                f'<section class="panel"><h4>Your login</h4><p>{esc(user["email"])}</p><p class="caption">To change your password, sign out and ask the person who invited you for a password-reset link.</p></section>')
+        profile = (f'<section class="panel"><h4>Hotel profile</h4><p class="caption">What kind of place you are and how guests find you. Every check is built on it: the questions we ask AI assistants, '
+                   f'the places they mention and the competitors we compare you with. {status}</p>'
+                   + (f'<div class="table-wrap"><table class="table">{"".join(rows)}</table></div>' if rows else "")
+                   + f'<p><a class="btn primary" href="/portal/hotel/{h["id"]}/profile">Edit the profile</a></p>'
+                   '<p class="caption">Saving a changed profile writes a new recommended set of prompts for you to check. Your current prompts stay in use until you confirm the new set.</p></section>')
+        d = db()
+        prompt_sets.ensure_from_history(d, h)
+        pst = prompt_sets.state(d, h)
+        runs = d.hotel_runs(h["hotel_key"])
+        rep = _latest(d, runs)
+        since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
+        prompts = prompts_view.panel(pst, h, "/portal/api/prompts/" + str(h["id"]), True, since, _suggestions(rep, pst), _from_results(d, h, pst))
+        history = f'<p class="caption">Every check of this hotel, newest first.</p>{portal_view.history_table(runs) or "<p class=caption>No checks yet.</p>"}'
+        login = f'<section class="panel"><h4>Your login</h4><p>{esc(user["email"])}</p><p class="caption">To change your password, sign out and ask the person who invited you for a password-reset link.</p></section>'
+        tabs = [("profile", "Hotel profile", profile), ("prompts", "Prompts" + (" (to confirm)" if pst["draft"] and not pst["active"] else ""), prompts), ("history", "History", history), ("login", "Your login", login)]
+        nav = "".join(f'<button type="button" class="tab{" active" if i == 0 else ""}" data-tab="tab-{k}" data-name="{k}">{esc(lbl)}</button>' for i, (k, lbl, _b) in enumerate(tabs))
+        panels = "".join(f'<div class="tab-panel{" active" if i == 0 else ""}" id="tab-{k}">{b}</div>' for i, (k, _l, b) in enumerate(tabs))
+        body = (f'<div class="pt" data-csrf="{esc(csrf())}"><p><a href="/portal/hotel/{h["id"]}">&larr; Back to the dashboard</a></p><h1>Settings</h1>'
+                f'<div class="tabs top"><div class="tab-bar" role="tablist">{nav}</div>{panels}</div></div>')
         return shell(h["name"] + ": settings", body, user, hotels)
 
     @app.route("/portal/hotel/<int:hotel_id>/profile", methods=["GET", "POST"])
@@ -339,7 +366,7 @@ def register(app, cfg):
             if not error:
                 hotel_profile.apply(d, h, prof)
                 n = hotel_profile.write_prompts(d, d.get_hotel(h["id"]), prof, cfg)
-                return redirect(f"/portal/hotel/{h['id']}?profile=saved#prompts" if n else f"/portal/hotel/{h['id']}?profile=saved")
+                return redirect(f"/portal/hotel/{h['id']}/settings#prompts" if n else f"/portal/hotel/{h['id']}?profile=saved")
             old = prof
         new = h.get("setup") == "pending"
         intro = ('<h1>Set up your hotel</h1><p class="lede">Before we measure anything, tell us exactly which hotel you are and how your guests find you. '

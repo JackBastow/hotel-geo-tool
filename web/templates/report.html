@@ -1,15 +1,17 @@
 {% extends "base.html" %}
-{% block title %}{{ title }}: AI discoverability audit{% endblock %}
+{% block title %}{{ title }}: detailed analysis{% endblock %}
 {% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
-{% block nav %}{% if portal_user %}<a href="/portal">My dashboard</a>{% else %}<a href="/">New audit</a>{% endif %}{% endblock %}
+{% block nav %}{% if back_url %}<a href="{{ back_url }}">Dashboard</a>{% elif portal_user %}<a href="/portal">My dashboard</a>{% else %}<a href="/">New audit</a>{% endif %}{% endblock %}
 {% block content %}
+{% if back_url %}<p><a class="btn" href="{{ back_url }}">&larr; {{ back_label }}</a></p>{% endif %}
 <section class="hero">
   <div>
+    <div class="eyebrow">Detailed analysis</div>
     <h1>{{ meta.hotel or meta.website }}</h1>
     <div class="sub">{{ [meta.city, meta.website]|select|join(' · ') }}</div>
     <div class="hk-chips">{% for c in chips %}<span class="hk-chip{{ ' brand' if loop.first else '' }}">{{ c }}</span>{% endfor %}</div>
   </div>
-  <div>{% if portal_user %}<a class="btn" href="/portal">Back to my dashboard</a>{% else %}<a class="btn" href="/">Run another audit</a>{% endif %}</div>
+  <div>{% if back_url %}<a class="btn primary" href="{{ back_url }}">{{ back_label }}</a>{% elif portal_user %}<a class="btn" href="/portal">Back to my dashboard</a>{% else %}<a class="btn" href="/">Run another audit</a>{% endif %}</div>
 </section>
 <div class="downloads">
   <a class="btn primary" href="/r/{{ token }}/management.pdf">Download management report (PDF)</a>

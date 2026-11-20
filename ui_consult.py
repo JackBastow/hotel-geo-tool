@@ -1240,7 +1240,10 @@ def ai_gap_card(gap):
         if crit:
             st.markdown("**Why they were recommended** *(the reasons the assistant gave, beside what the hotel's own pages show)*")
             word = {"strong": "states it clearly", "mentioned": "mentions it only in passing", "not_found": "does not mention it", "not_assessed": "not assessed"}
-            df([{"Reason the assistant gave": c["label"], "Named for it": ", ".join(c["rivals"][:3]), "The hotel's own pages": word.get(c["hotel"]["state"], "-") + (": " + c["hotel"]["snippet"][:110] if c["hotel"].get("snippet") else "")} for c in crit])
+            import prompt_analysis
+            df([{"Reason the assistant gave": c["label"], "Named for it": ", ".join(c["rivals"][:3]),
+                 "The hotel's own pages": (word.get(c["hotel"]["state"], "-") + ": " + c["hotel"]["snippet"][:110]) if prompt_analysis._real(c["hotel"].get("snippet"))
+                 else ("does not state it (only a menu or footer mentions it)" if c["hotel"].get("snippet") else word.get(c["hotel"]["state"], "-"))} for c in crit])
         obs = [o for o in (gap.get("observations") or {}).get(q) or [] if o["kind"] != "assistant"]      # the assistant's own reasons are already in the table above
         if obs:
             st.markdown("**Observed differences** *(not proven causes)*")
