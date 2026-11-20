@@ -28,8 +28,10 @@ import requests
 
 import evidence
 
+# The contact in the User-Agent is public (it appears in the logs of OpenStreetMap, Wikidata and the sites we read), so it is the
+# business address, never a personal one. Override with AUDIT_CONTACT if needed.
 UA = ("HotelDiscoverabilityAudit/1.0 (independent hotel visibility audit; "
-      "contact: j.bastownorris@westmontuk.com)")
+      "contact: " + os.environ.get("AUDIT_CONTACT", "hello@presencepro.co.uk") + ")")
 
 
 def _envelope(source, access, status="ok", reason="", items=None, **extra):
