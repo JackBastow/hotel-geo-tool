@@ -136,11 +136,6 @@ footer .logo, footer.foot .logo { color: #fff; } footer .logo b { color: var(--g
 
 /* ---------------- homepage: dark hero with a product dashboard (navy and violet) ---------------- */
 :root { --violet: #e0bd78; --violet-d: #b98a35; }
-body.home .logo { color: #fff; } body.home .logo b { color: var(--gold); }
-body.home .links a { color: rgba(255,255,255,.82); } body.home .links a:hover, body.home .links a[aria-current] { color: #fff; }
-body.home .links a.btn.gold, body.home .links a.btn.gold:hover { color: #1a1405; }
-body.home .menu-btn { color: #fff; border-color: rgba(255,255,255,.28); }
-body.home .nav.stuck { background: rgba(12,18,48,.88); border-color: rgba(255,255,255,.1); box-shadow: 0 8px 28px -18px rgba(0,0,0,.6); }
 .btn.lg { padding: 1.05rem 1.6rem; font-size: 1.02rem; }
 .hero.dark.hero-dark { color: #fff; padding: 128px 0 76px;
   background: radial-gradient(900px 560px at 88% 0%, rgba(201,161,90,.42), transparent 62%), radial-gradient(700px 480px at 0% 100%, rgba(201,161,90,.16), transparent 60%), linear-gradient(180deg, #0b1130 0%, #141b48 100%); }

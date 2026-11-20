@@ -269,10 +269,6 @@ body.home .btn.ghost { border-color: rgba(20,33,58,.3); color: var(--ink); } bod
 body.home .story .btn.ghost, body.home .final .btn.ghost { border-color: rgba(255,255,255,.38); color: #fff; } body.home .story .btn.ghost:hover, body.home .final .btn.ghost:hover { background: rgba(255,255,255,.1); }
 body.home .eyebrow { color: var(--gold-d); } body.home .story .eyebrow, body.home .final .eyebrow, body.home .photo-band .eyebrow { color: var(--gold); }
 /* the header floats over the navy story: white until it settles */
-body.home .nav:not(.stuck) .logo { color: #fff; } body.home .nav:not(.stuck) .logo b { color: var(--gold); }
-body.home .nav:not(.stuck) .links a:not(.btn) { color: rgba(255,255,255,.86); } body.home .nav:not(.stuck) .links a:not(.btn):hover { color: #fff; }
-body.home .nav:not(.stuck) .menu-btn { color: #fff; border-color: rgba(255,255,255,.3); }
-@media (max-width: 760px) { body.home .links { background: rgba(10,15,40,.98); border-bottom-color: rgba(255,255,255,.12); } body.home .links a { border-bottom-color: rgba(255,255,255,.1); } body.home .nav.menu-open { background: #0a1031; } }
 .hs { background: var(--paper); } .hs2 { background: var(--paper-2); }
 body.home .sec-head h2 { color: var(--ink); } body.home .sec-head p { color: var(--muted); }
 body.home .stat { background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow); }
@@ -297,3 +293,56 @@ body.home .plans-foot, body.home .plans-foot a { color: var(--muted); } body.hom
 body.home .faq details { background: #fff; border: 1px solid var(--line); }
 body.home .faq summary { color: var(--ink); } body.home .faq details p { color: var(--muted); }
 .hs a:not(.btn):not(.offer-card) { color: var(--gold-d); }
+
+/* ---------- the story on ivory: same colours as the rest of the site, with a navy product window ---------- */
+.story { background: linear-gradient(180deg, #f6ecd5 0%, #faf5e8 55%, #fbf8f1 100%); padding-bottom: 236px; }
+.story::before { background: radial-gradient(560px 400px at var(--mx, 72%) var(--my, 22%), rgba(201,161,90,.22), transparent 70%); }
+.aurora { display: none; }
+.hero-photo img { opacity: .62; object-position: 50% 45%; -webkit-mask-image: linear-gradient(180deg, #000 20%, transparent 96%); mask-image: linear-gradient(180deg, #000 20%, transparent 96%); }
+.hero-photo::after { background: linear-gradient(90deg, #f6ecd5 4%, rgba(246,236,213,.86) 36%, rgba(246,236,213,.25) 78%); }
+.story-street { position: absolute; left: 0; right: 0; bottom: 0; height: 236px; z-index: 1; pointer-events: none; background: url("/street.svg") repeat-x center bottom / auto 236px; }
+
+/* captions: navy and brass on ivory */
+.chap h1 { color: var(--ink); }
+.chap h1 .wd { background: none; -webkit-text-fill-color: currentColor; }
+.chap h1 em .wd, .chap h1 em:not(:has(.wd)) { background: none; -webkit-text-fill-color: currentColor; color: var(--gold-d); }
+.chap .sub { color: #43506a; } .chap h2 { color: var(--ink); } .chap > p { color: #43506a; }
+body.home .story .eyebrow, body.home .story .kick { color: var(--gold-d); }
+.kick b { color: #1a1405; }
+.process li { color: var(--ink); } .process li b { background: rgba(201,161,90,.22); border-color: var(--gold-d); color: var(--ink); }
+.chap.s0 .process li + li::before { background: rgba(20,33,58,.35); }
+.hero-note { color: var(--muted); } .hero-note a { color: var(--gold-d); }
+.scroll-cue { color: var(--muted); } .scroll-cue span { border-color: rgba(20,33,58,.4); } .scroll-cue span::after { background: var(--ink); }
+body.home .story .btn.ghost { border-color: rgba(20,33,58,.3); color: var(--ink); } body.home .story .btn.ghost:hover { background: rgba(20,33,58,.06); }
+.story-grid > .chap { opacity: .42; }
+
+/* GEO, and who it is for */
+.geo-def { margin: 4px 0 20px; padding: 12px 16px; border-left: 3px solid var(--gold); background: rgba(255,255,255,.62); border-radius: 0 10px 10px 0; font-size: .95rem; line-height: 1.5; max-width: 31em; color: var(--ink); }
+.geo-def b { color: var(--gold-d); letter-spacing: .04em; }
+.chap .hotel-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0 0 22px; }
+.hotel-chips li { display: inline-flex; align-items: center; gap: 7px; font: 600 .78rem/1 var(--sans); letter-spacing: .02em; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 99px; padding: 8px 12px; box-shadow: 0 6px 14px -10px rgba(20,33,58,.4); }
+.hotel-chips svg { width: 14px; height: 14px; color: var(--gold-d); flex: none; }
+
+/* the product window shows a hotel behind the data */
+.stage-inner { background: linear-gradient(160deg, rgba(20,30,66,.88), rgba(10,15,40,.94)), url("/img/hotel-lobby.jpg") center / cover; }
+.stage-tag { background: #fff; color: var(--ink); border-color: var(--gold); box-shadow: 0 8px 18px -10px rgba(20,33,58,.5); }
+
+/* the photo band below the story is ivory too */
+.photo-band { background: var(--paper); padding: 40px 0 10px; }
+.pb-h { color: var(--ink); }
+.pb-grid .ph { box-shadow: var(--shadow); }
+
+/* phones: the captions are dark on ivory; the stacked demo cards stay navy */
+@media (max-width: 959px) { .story-grid > .chap { opacity: 1; } .story { padding-bottom: 170px; } .story-street { height: 170px; background-size: auto 170px; } }
+
+/* tighter first screen so the buttons stay in view */
+.chap h1 { font-size: clamp(2.3rem, 4.2vw, 3.5rem); }
+.chap .sub { margin: 16px 0 14px; font-size: 1.06rem; }
+.geo-def { margin: 0 0 18px; padding: 10px 14px; font-size: .9rem; }
+.chap.s0 .cta-row { margin-top: 4px; }
+.chap .hotel-chips { margin: 18px 0 0; }
+.chap.s0 .process { margin: 18px 0 8px; }
+.story-grid > .chap.s0 { min-height: auto; padding: 20px 0 60px; }
+.eyebrow { white-space: nowrap; }
+
+@media (max-width: 959px) { .stacked .story-grid > .chap.s0 { padding: 104px 0 6px; } .stacked .story-grid > .chap { padding-top: 34px; } .stacked .story-grid > .chap.s0 { padding-top: 104px; } }
