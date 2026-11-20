@@ -127,6 +127,22 @@ ast = a.get(f"/admin/hotel/{hid}/settings").get_data(as_text=True)
 check("there", all(f'data-name="{n}"' in ast for n in ("profile", "prompts", "history")) and f'data-url="/admin/hotel/{hid}/prompts"' in ast and 'class="pt" data-csrf="' in ast)
 check("and nobody else can open it", app.test_client().get(f"/admin/hotel/{hid}/settings").status_code == 302 and u.get(f"/admin/hotel/{hid}/settings").status_code == 302)
 
+print("3b. ticking steps, and the research button")
+aid = db.insert_action(hid, {"title": "Get listed with Visit Example", "source": "strategy", "akey": "strategy|x|get listed", "status": "todo", "state": "open", "priority": "high", "team": "marketing",
+                             "rec_json": json.dumps({"steps": [{"title": "Open it"}, {"title": "Send the email"}], "kind_label": "Tourism board"}), "reopened": 0, "resolution": "", "note": "", "first_run_id": 0, "last_run_id": 0})
+dash = u.get(f"/portal/hotel/{hid}").get_data(as_text=True)
+cu = re.search(r'data-csrf="([^"]+)"', dash).group(1)
+r = u.post("/portal/api/action-step", json={"id": aid, "step": 1, "done": True}, headers={"X-CSRF": cu})
+check("a step can be ticked, and is remembered", r.get_json()["ok"] and db.get_action(aid)["steps_done"] == "1" and "1 of 2 steps" in u.get(f"/portal/hotel/{hid}").get_data(as_text=True))
+u.post("/portal/api/action-step", json={"id": aid, "step": 1, "done": False}, headers={"X-CSRF": cu})
+check("and unticked", db.get_action(aid)["steps_done"] == "")
+check("not without the page's token, nor on another hotel's action", u.post("/portal/api/action-step", json={"id": aid, "step": 0, "done": True}).status_code == 400
+      and app.test_client().post("/portal/api/action-step", json={"id": aid, "step": 0, "done": True}).status_code == 401)
+check("the Strategy section has the research line (its button shows only when the host can search: no Claude key here)", "research-box" in dash and f'action="/portal/hotel/{hid}/research"' not in dash)
+check("the button needs the page's token", u.post(f"/portal/hotel/{hid}/research", data={}).status_code == 400 and u.post(f"/portal/hotel/{hid}/research", data={"csrf": cu}).status_code == 302)
+adm2 = a.get(f"/admin/hotel/{hid}").get_data(as_text=True)
+check("the operator sees the same, with the step boxes read-only", "research-box" in adm2 and 'data-step="0" disabled' in adm2)
+
 print("4. the detailed analysis")
 r = u.get(f"/r/{token}").get_data(as_text=True)
 check("it is called Detailed analysis and has a way back to the hotel's dashboard", "Detailed analysis" in r and f'href="/portal/hotel/{hid}"' in r and "Back to the dashboard" in r)

@@ -407,3 +407,35 @@ table.pa td { vertical-align: top; }
 table.pa .pa-ev { margin-top: 6px; }
 table.pa .pa-ev summary { font-size: 13px; }
 .steps-mini { margin: 0; padding-left: 20px; } .steps-mini li { margin: 2px 0 6px; }
+
+/* actions: the Fixes / Strategy switch */
+.act-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; border: 0 !important; background: none !important; padding: 0 !important; margin: 4px 0 18px; }
+.act-switch .tab { display: flex; gap: 14px; align-items: center; text-align: left; padding: 14px 18px; border: 2px solid var(--line); border-radius: 14px; background: #fff; box-shadow: var(--shadow); cursor: pointer; }
+.act-switch .tab.active { border-color: var(--brand); background: #f5f4ff; }
+.act-switch .as-n { font-size: 1.6rem; font-weight: 800; color: var(--brand); min-width: 2ch; text-align: center; }
+.act-switch .as-t b { display: block; font-size: 1.05rem; } .act-switch .as-t small { color: var(--muted); font-size: .84rem; }
+@media (max-width: 720px) { .act-switch { grid-template-columns: 1fr; } }
+/* actions: a card that drops down into steps */
+.act2 { padding: 0 !important; }
+.a2 > summary { list-style: none; cursor: pointer; display: flex; gap: 16px; align-items: center; padding: 14px 18px; } .a2 > summary::-webkit-details-marker { display: none; }
+.a2-main { flex: 1; min-width: 0; }
+.a2-kicker { font-size: .74rem; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 3px; }
+.a2-title { font-size: 1.05rem; font-weight: 700; color: var(--ink, #1a1d29); }
+.a2-sub { color: var(--muted); font-size: .9rem; margin-top: 3px; }
+.a2-side { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+.a2-prog { font-size: .8rem; font-weight: 700; color: var(--brand); background: #f1f0ff; border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+.a2-chev { width: 9px; height: 9px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .22s; }
+.a2[open] .a2-chev { transform: rotate(45deg); }
+.a2-body { padding: 0 18px 10px; }
+.a2-steps { list-style: none; margin: 4px 0 8px; padding: 0; counter-reset: s; }
+.a2-step { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.a2-check { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.a2-check input { width: 18px; height: 18px; accent-color: var(--brand); }
+.a2-num { font-size: .72rem; color: var(--muted); font-weight: 700; }
+.a2-step-b { flex: 1; min-width: 0; } .a2-step-b b { display: block; font-size: .98rem; } .a2-step-b p { margin: 3px 0 0; color: var(--muted); font-size: .9rem; }
+.a2-step.done .a2-step-b b { text-decoration: line-through; color: var(--muted); }
+.a2-btns { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+.a2-copy { margin-top: 8px; }
+.a2-more { margin: 4px 0 6px; } .a2-more > summary { cursor: pointer; color: var(--brand); font-weight: 600; font-size: .88rem; } .a2-more p { font-size: .88rem; margin: 6px 0; }
+.act2 .act-row { padding: 0 18px 12px; }
+.research-box { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: #f5f4ff; border: 1px solid #e4e1ff; border-radius: 12px; padding: 12px 16px; margin: 0 0 14px; font-size: .92rem; }

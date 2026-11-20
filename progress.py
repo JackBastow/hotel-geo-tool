@@ -37,7 +37,7 @@ def action_key(rec):
 
 
 def _snapshot(rec):
-    keep = ("id", "title", "why", "action", "priority", "effort", "team", "kind", "source", "category", "confidence_label", "confidence", "evidence", "example", "short_title", "finding", "success_check", "expected_outcome", "track", "tag", "steps")
+    keep = ("id", "title", "why", "action", "priority", "effort", "team", "kind", "source", "category", "confidence_label", "confidence", "evidence", "example", "short_title", "finding", "success_check", "expected_outcome", "track", "tag", "steps", "kind_label")
     return json.dumps({k: rec.get(k) for k in keep if rec.get(k) is not None}, default=str)[:20000]
 
 
@@ -51,7 +51,7 @@ def _readable(report):
 
 
 _STRATEGY_TRIED = set()
-STRATEGY_VERSION = 2              # raise when strategy actions are built differently: saved ones nobody has touched are replaced on the next page view
+STRATEGY_VERSION = 3              # raise when strategy actions are built differently: saved ones nobody has touched are replaced on the next page view
 
 
 def strategy_recs(report, hotel):
@@ -59,7 +59,8 @@ def strategy_recs(report, hotel):
     try:
         import hotel_profile
         import strategy_actions
-        return strategy_actions.build(report, hotel_profile.confirmed(hotel), hotel.get("name", ""))
+        import strategy_research
+        return strategy_actions.build(report, hotel_profile.confirmed(hotel), hotel.get("name", ""), research=strategy_research.load(hotel))
     except Exception:  # noqa: BLE001
         return []
 
@@ -86,10 +87,11 @@ def ensure_strategy(db, hotel):
         for a in have:
             if a["akey"] not in keys and _untouched(a):
                 db.delete_action(a["id"])
-        have_keys = {a["akey"] for a in db.list_actions(hotel["id"]) if a["source"] == "strategy"}
+        by_key = {a["akey"]: a for a in db.list_actions(hotel["id"]) if a["source"] == "strategy"}
         n = 0
         for rec in recs:
-            if action_key(rec) in have_keys:
+            if action_key(rec) in by_key:
+                db.update_action(by_key[action_key(rec)]["id"], title=rec["title"], rec_json=_snapshot(rec), priority=rec.get("priority", ""), effort=rec.get("effort", ""))      # the latest steps and contacts
                 continue
             db.insert_action(hotel["id"], {"title": rec["title"], "source": "strategy", "category": rec.get("category", ""), "priority": rec.get("priority", ""), "effort": rec.get("effort", ""), "team": rec.get("team", ""),
                                            "kind": rec.get("kind", ""), "rec_json": _snapshot(rec), "last_run_id": runs[0]["id"], "last_seen": when, "akey": action_key(rec), "status": "todo", "state": "open",

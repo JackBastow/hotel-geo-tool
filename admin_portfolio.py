@@ -276,6 +276,7 @@ def register_scope(app, sc):
         view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=c, start=start_here.safe(s, h, sm, acts, runs, False, pst), ai=ai_dash.panel(s, h), settings_url=f"{HB}/{hid}/settings",
                                      prompts_alert=bool(pst["draft"] and not pst["active"]), opps=(_safe(opportunities.build, rep) or []) if rep else [], strategy=(_safe(strategy_view.panel, rep) or "") if rep else "",
                                      **(app.extensions["extra_tabs"](rep, h) if "extra_tabs" in app.extensions else {}),
+                                     research_html=(app.extensions["research_html"](h, f"{HB}/{hid}/research") if "research_html" in app.extensions else ""),
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"{HB}/{hid}/status")
         return sc.shell(grp, h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
 
@@ -347,6 +348,8 @@ def register_scope(app, sc):
             if not error:
                 hotel_profile.apply(s, h, prof)
                 n = hotel_profile.write_prompts(s, s.get_hotel(hid), prof, W.cfg)
+                import strategy_research
+                strategy_research.start(W.cfg.database_url, hid, W.cfg)
                 return redirect(f"{HB}/{hid}/settings#prompts" if n else f"{HB}/{hid}")
             old = prof
         head = (f'<p><a href="{HB}/{hid}">&larr; Back to the hotel</a></p><p class="caption">The hotel normally fills this in when it first signs in. Saving here confirms it on the hotel&rsquo;s behalf and writes a '
@@ -499,6 +502,17 @@ def register_scope(app, sc):
             s.clear_benchmark(h["hotel_key"])
         return hotel_page(s, hid, '<div class="alert success"><b>Check deleted.</b> ' + (f'{len(left)} check{"s" if len(left) != 1 else ""} left for this hotel.' if left else
                                   'This hotel has no checks now: run one to fill its dashboard.') + '</div>')
+
+    @bp.post(HB + "/<int:hid>/research")
+    def hotel_research(hid):
+        bad, s = checked_post()
+        if bad:
+            return bad
+        own(s, hid)
+        import strategy_research
+        W = app.extensions["weekly"]
+        strategy_research.start(W.cfg.database_url, hid, W.cfg)
+        return redirect(f"{HB}/{hid}#actions")
 
     @bp.post(HB + "/<int:hid>/weekly")
     def hotel_weekly_toggle(hid):

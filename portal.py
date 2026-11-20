@@ -237,7 +237,8 @@ def register(app, cfg):
         since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
         body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), start=start_here.safe(d, hotel, sm, acts, runs, True, pst), ai=ai_dash.panel(d, hotel),
                                      prompts_alert=bool(pst["draft"] and not pst["active"]), opps=_opps(rep), strategy=_strategy(rep), **extra_tabs(rep, hotel),
-                                     live=app.extensions["weekly"].hotel_state(hotel["id"]), live_url=f"/portal/api/status/{hotel['id']}", settings_url=f"/portal/hotel/{hotel['id']}/settings")
+                                     live=app.extensions["weekly"].hotel_state(hotel["id"]), live_url=f"/portal/api/status/{hotel['id']}", settings_url=f"/portal/hotel/{hotel['id']}/settings",
+                                     research_html=research_html(hotel, f"/portal/hotel/{hotel['id']}/research"))
         if hotel.get("setup") == "done" and not runs and not app.extensions["weekly"].active(hotel["id"]):
             body = '<div class="alert info"><b>Your first check is on its way.</b> It starts as soon as there is room and takes about 15 minutes; this page fills in when it is done.</div>' + body
         return shell(hotel["name"] + ": progress", profile_banner(hotel) + body, user, hotels)
@@ -366,6 +367,8 @@ def register(app, cfg):
             if not error:
                 hotel_profile.apply(d, h, prof)
                 n = hotel_profile.write_prompts(d, d.get_hotel(h["id"]), prof, cfg)
+                import strategy_research
+                strategy_research.start(cfg.database_url, h["id"], cfg)          # the specific sources for the market the hotel just described
                 return redirect(f"/portal/hotel/{h['id']}/settings#prompts" if n else f"/portal/hotel/{h['id']}?profile=saved")
             old = prof
         new = h.get("setup") == "pending"
@@ -382,6 +385,50 @@ def register(app, cfg):
         if not user or hotel_id not in {h["id"] for h in hotels}:
             return jsonify(ok=False), 404
         return jsonify(ok=True, **app.extensions["weekly"].hotel_state(hotel_id))
+
+    @app.post("/portal/api/action-step")
+    def portal_action_step():
+        """Tick (or untick) one step of an action."""
+        user, hotels = current()
+        if not user:
+            return jsonify(ok=False, error="Please sign in again."), 401
+        if not csrf_ok(request.headers.get("X-CSRF", "")):
+            return jsonify(ok=False, error="Please reload the page and try again."), 400
+        d = db()
+        data = request.get_json(silent=True) or {}
+        try:
+            aid, step = int(data.get("id")), int(data.get("step"))
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="Unknown step."), 400
+        a = d.get_action(aid)
+        if not a or a["hotel_id"] not in {h["id"] for h in hotels} or not 0 <= step < 20:
+            return jsonify(ok=False, error="Unknown step."), 404
+        done = {int(x) for x in str(a.get("steps_done") or "").split(",") if x.strip().isdigit()}
+        (done.add if data.get("done") else done.discard)(step)
+        d.update_action(aid, steps_done=",".join(str(x) for x in sorted(done)))
+        return jsonify(ok=True, done=sorted(done))
+
+    @app.post("/portal/hotel/<int:hotel_id>/research")
+    def portal_research(hotel_id):
+        user, hotels = current()
+        if not user:
+            return redirect("/portal/signin")
+        if hotel_id not in {h["id"] for h in hotels}:
+            abort(404)
+        if not csrf_ok(request.form.get("csrf")):
+            abort(400)
+        import strategy_research
+        strategy_research.start(cfg.database_url, hotel_id, cfg)
+        return redirect(f"/portal/hotel/{hotel_id}#actions")
+
+    def research_html(hotel, post_url):
+        """The Strategy section's research line, starting the research by itself when the hotel has a confirmed profile and none (or an old one)."""
+        import strategy_research
+        if hotel_profile.confirmed(hotel) and strategy_research.stale(hotel) and not strategy_research.running(hotel["id"]):
+            strategy_research.start(cfg.database_url, hotel["id"], cfg)
+        return portal_view.research_box(strategy_research.load(hotel), strategy_research.running(hotel["id"]), post_url, csrf(), can_run=bool(getattr(cfg, "anthropic", None)))
+
+    app.extensions["research_html"] = research_html
 
     @app.post("/portal/api/action")
     def portal_action():

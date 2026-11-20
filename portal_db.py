@@ -8,10 +8,10 @@ hotel's history.
 
 import datetime as dt
 
-HOTEL_COLS = ("name", "website", "city", "tier", "audiences", "weekly", "active", "last_attempt", "last_error", "grp", "profile_json", "setup")
+HOTEL_COLS = ("name", "website", "city", "tier", "audiences", "weekly", "active", "last_attempt", "last_error", "grp", "profile_json", "setup", "strategy_json")
 GROUPS = ("portfolio", "individual")      # the Westmont portfolio, or a hotel set up on its own (not in the portfolio's figures)
 ACTION_COLS = ("akey", "title", "source", "category", "priority", "effort", "team", "kind", "status", "state", "first_run_id", "last_run_id", "first_seen", "last_seen", "updated", "done_at",
-               "resolved_at", "resolution", "reopened", "note", "rec_json", "done_by")
+               "resolved_at", "resolution", "reopened", "note", "rec_json", "done_by", "steps_done")
 
 
 def group_of(hotel):
@@ -36,7 +36,8 @@ class PortalMixin:
         self._run(conn, f"CREATE TABLE IF NOT EXISTS hotel_prompts (id {pk}, hotel_id INTEGER, version INTEGER, status TEXT, prompts_json TEXT, created TEXT, created_by TEXT, confirmed_at TEXT, confirmed_by TEXT, base_version INTEGER)")
         for sql in ("CREATE INDEX IF NOT EXISTS hp_hotel ON hotel_prompts (hotel_id)", "CREATE INDEX IF NOT EXISTS actions_hotel ON actions (hotel_id)", "CREATE INDEX IF NOT EXISTS hu_hotel ON hotel_users (hotel_id)", "CREATE INDEX IF NOT EXISTS inv_hash ON invites (token_hash)"):
             self._run(conn, sql)
-        self._ensure_columns(conn, "hotels", {"grp": "TEXT", "profile_json": "TEXT", "setup": "TEXT"})          # older databases: every hotel already there is in the portfolio
+        self._ensure_columns(conn, "hotels", {"grp": "TEXT", "profile_json": "TEXT", "setup": "TEXT", "strategy_json": "TEXT"})
+        self._ensure_columns(conn, "actions", {"steps_done": "TEXT"})          # which steps of an action the hotel has ticked off          # older databases: every hotel already there is in the portfolio
 
     def _exec(self, sql, params=()):
         conn = self._connect()

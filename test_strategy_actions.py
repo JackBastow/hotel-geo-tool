@@ -55,18 +55,65 @@ check("a site the assistant used, featuring a rival and not the hotel, becomes '
 check("never another hotel group's own website (a Hilton cannot get onto marriott.com)", not any("marriott.com" in t for t in titles))
 check("never a rival hotel's own site, nor the hotel's own", not any("pullman-cdg" in t or "hilton-cdg" in t for t in titles))
 seen = next(a for a in acts if a["title"] == "Get featured on timeout.example")
-check("each has steps: who to contact (the contact page when found), what to send, how to follow up", len(seen["steps"]) == 3 and "https://www.timeout.example/contact" in seen["steps"][0] and "wildlife safaris" in seen["steps"][1])
+st0 = seen["steps"]
+check("each is a few clear steps: a button to the contact page found, an email to copy, a follow-up",
+      st0[0]["link"]["url"] == "https://www.timeout.example/contact" and "copy" in st0[1] and "wildlife safaris" in st0[1]["copy"]["text"] and "Follow up" in st0[2]["title"], st0[:2])
+check("the email is honest and filled with the hotel's own facts, with [brackets] to complete", "Hilton Paris CDG" in st0[1]["copy"]["text"] and "[your name]" in st0[1]["copy"]["text"] and "disclosed as a hosted stay" in st0[1]["copy"]["text"])
 check("and says what it rests on", "Pullman Paris CDG" in seen["finding"] and seen["confidence_label"] == "Seen in the latest check" and seen["source"] == "strategy")
 check("a booking or review site is never claimed as missing: a results page that does not name the hotel says nothing about its listing", not any(re.search(r"booking\.com|trip\.com|zenhotels", t) and ("Get" in t or "Check whether" in t) for t in titles), titles)
 lst = next((a for a in acts if a["tag"] == "listings"), None)
-check("they become one action about making those listings work, naming the sites the assistant read", lst and all(d in lst["finding"] for d in ("booking.com", "trip.com", "zenhotels.com")) and "does not say whether you are listed" in lst["why"])
-check("a site we did not read is 'check whether you are featured', with searching for the hotel as the first step", any(a["title"] == "Check whether you are featured on bestairporthotels.example" and a["steps"][0].startswith("Search bestairporthotels.example") for a in acts), titles)
+check("they become one action about making those listings work, naming the sites the assistant read", lst and all(d in lst["finding"] for d in ("booking.com", "trip.com", "zenhotels.com")) and "not a claim about whether you are listed" in lst["finding"])
+chk = next((a for a in acts if a["title"] == "Check whether you are featured on bestairporthotels.example"), None)
+check("a site we did not read is 'check whether you are featured', and the first step searches it for the hotel", chk and chk["steps"][0]["title"].startswith("Search bestairporthotels.example") and "google.com/search" in chk["steps"][0]["link"]["url"], titles)
 check("the Competitors tab says 'not checked' for booking sites, never 'No'", "Not checked (we do not read booking or review sites)" in __import__("strategy_view").sources_html(report()))
-sugg = [a for a in acts if a["confidence_label"] == "Suggested from your profile"]
-st = " | ".join(a["title"] for a in sugg)
-check("the profile adds the kinds of source that matter for its market, labelled as suggestions", "tourism board for Blekinge" in st and "nature and short breaks in southern Sweden" in st and "conference venue directories" in st, st)
-check("a few, not a flood", len(sugg) <= 4)
-check("without a profile there are no suggestions, only what was seen", all(a["confidence_label"] == "Seen in the latest check" for a in strategy_actions.build(report(), None, "X")))
+lt = [a for a in acts if a["confidence_label"] == "Suggested from your profile"]
+lts = " | ".join(a["title"] for a in lt)
+check("with a profile, long-term moves for its market: tourism board, Wikidata, awards, press", all(x in lts for x in ("tourism board for Blekinge", "Wikidata", "awards", "journalists")), lts)
+check("in all, a focused list", len(acts) <= 12, len(acts))
+check("without a profile there are no profile suggestions, only what was seen", all(a["confidence_label"] == "Seen in the latest check" for a in strategy_actions.build(report(), None, "X")))
+rg = report()
+rg["ai_gap"]["markets"] = [{"qid": "q1", "kind": "niche", "question": "Where can I see bison near Paris?", "status": "not_named", "rivals": [{"name": "Pullman Paris CDG"}]}]
+hub = next((a for a in strategy_actions.build(rg, PROFILE, "Hilton Paris CDG") if a["tag"] == "content-hub"), None)
+check("questions where the hotel was not named become 'answer them on your own website', listing the questions", hub and "Where can I see bison near Paris?" in hub["steps"][0]["detail"])
+
+print("1b. the specific sources researched for the market")
+import review_replies
+import strategy_research
+from types import SimpleNamespace as NS
+raw = [{"name": "Visit Blekinge", "kind": "tourism_board", "url": "https://www.visitblekinge.example/partners", "contact_url": "https://www.visitblekinge.example/contact", "email": "info@visitblekinge.example", "why": "The region's official tourism site."},
+       {"name": "Made-up Guide", "kind": "publication", "url": "https://www.not-in-results.example/", "contact_url": "", "email": "", "why": "x"},
+       {"name": "Booking", "kind": "publication", "url": "https://www.booking.com/region/se/blekinge.html", "email": ""},
+       {"name": "Marriott", "kind": "publication", "url": "https://www.marriott.com/x", "email": ""},
+       {"name": "Wild Sweden Tours", "kind": "tour_operator", "url": "https://wildswedentours.example/trips", "contact_url": "https://elsewhere.example/contact", "email": "sales@gmail.com", "why": "Sells wildlife trips."}]
+seen_set = {review_replies.norm_url(u) for u in ("https://www.visitblekinge.example/partners", "https://www.booking.com/region/se/blekinge.html", "https://www.marriott.com/x", "https://wildswedentours.example/trips")}
+cl = strategy_research.clean(raw, seen_set, "Eriksberg Hotel & Nature Reserve")
+names = [x["name"] for x in cl]
+check("only sources whose page the search really returned are kept", "Made-up Guide" not in names and "Visit Blekinge" in names, names)
+check("never a booking site or a hotel group's own site", "Booking" not in names and "Marriott" not in names, names)
+wst = next((x for x in cl if x["name"] == "Wild Sweden Tours"), {})
+check("a contact page on another site, or an email on another domain, is dropped", wst.get("contact_url") == "" and wst.get("email") == "", wst)
+vb = next(x for x in cl if x["name"] == "Visit Blekinge")
+check("an email on the site's own domain is kept", vb["email"] == "info@visitblekinge.example")
+acts2 = strategy_actions.build(report(), PROFILE, "Hilton Paris CDG", research={"status": "ok", "at": "2026-11-20T10:00:00+00:00", "sources": cl})
+r1 = next((a for a in acts2 if a["title"] == "Get listed with Visit Blekinge"), None)
+check("each found source becomes a specific action with its real contact page and email", r1 and r1["steps"][0]["link"]["url"] == "https://www.visitblekinge.example/contact" and "info@visitblekinge.example" in r1["steps"][0]["detail"]
+      and r1["confidence_label"] == "Found for your market", [a["title"] for a in acts2])
+check("and replaces the generic suggestion of the same kind", not any(a["title"].startswith("Get listed by the official tourism board") for a in acts2))
+
+
+class FakeSearch:
+    def __init__(self):
+        self.messages = self
+
+    def create(self, **kw):
+        return NS(content=[NS(type="web_search_tool_result", content=[NS(url="https://www.visitblekinge.example/partners")]),
+                           NS(type="text", text=json.dumps({"sources": raw[:2]}))], usage=NS(input_tokens=2000, output_tokens=500, server_tool_use=NS(web_search_requests=3)), stop_reason="end_turn")
+
+
+res = strategy_research.research({"name": "Eriksberg Hotel & Nature Reserve", "city": "Karlshamn"}, PROFILE, client=FakeSearch(), model="m")
+check("the research runs one search-assisted call and keeps only what it can check", res["status"] == "ok" and [x["name"] for x in res["sources"]] == ["Visit Blekinge"], res)
+check("without a Claude key it says so instead of guessing", strategy_research.research({"name": "X"}, PROFILE, cfg=NS(anthropic=None))["status"] == "unavailable")
+
 import source_actions
 check("the Competitors tab's 'where to get listed' leaves out chain and rival websites too", not any(s["domain"] in ("marriott.com", "pullman-cdg.example") for s in source_actions.build(report(), limit=20)))
 
@@ -80,8 +127,10 @@ def act(i, title, source, rec):
 
 sm = {"latest_run_id": 1, "runs": 1}
 board = portal_view.action_board(sm, [act(1, "Add a FAQ page", "site", {"action": "Write it"}), act(2, "Get featured on timeout.example", "strategy", seen)], True, strategy_context="<p>context here</p>")
-check("the Actions tab has Fixes and Strategy sections", "Fixes (1)" in board and "Strategy (1)" in board and board.index("Add a FAQ page") < board.index('id="act-strategy"') < board.index("Get featured on timeout.example"))
-check("a strategy action shows its steps", '<ol class="steps-mini">' in board and "Send a short note" in board)
+check("the Actions tab has a clear Fixes / Strategy switch", "act-switch" in board and "<b>Fixes</b>" in board and "<b>Strategy</b>" in board and board.index("Add a FAQ page") < board.index('id="act-strategy"') < board.index("Get featured on timeout.example"))
+check("a strategy action drops down into numbered steps with tick-boxes, a button and an email to copy", '<ol class="a2-steps">' in board and 'type="checkbox" data-step="0"' in board and "Copy email" in board and 'href="https://www.timeout.example/contact"' in board)
+check("a fix drops down into steps too", "Write it" in board[:board.index('id="act-strategy"')] and "a2-step" in board[:board.index('id="act-strategy"')])
+check("and shows how many steps are done", "0 of 4 steps" in board)
 check("with the market context and the honesty note in the section", "context here" in board and "never suggested as a source" in board)
 
 import backend, progress, tempfile as _tf

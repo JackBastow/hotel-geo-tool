@@ -197,7 +197,7 @@
 document.addEventListener("click", function (ev) {
   var b = ev.target.closest("[data-copy]");
   if (!b) { return; }
-  var pre = b.closest(".th-reply").querySelector("pre");
+  var pre = (b.closest(".th-reply, .a2-copy") || document).querySelector("pre");
   var done = function () { var t = b.textContent; b.textContent = "Copied"; setTimeout(function () { b.textContent = t; }, 1500); };
   if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(pre.innerText).then(done, function () {}); }
 });
@@ -489,4 +489,19 @@ document.addEventListener("click", function (ev) {
 document.addEventListener("submit", function (ev) {
   var f = ev.target, q = f && f.getAttribute && f.getAttribute("data-confirm");
   if (q && !window.confirm(q)) { ev.preventDefault(); }
+});
+
+/* hotel portal: tick a step of an action */
+document.addEventListener("change", function (ev) {
+  var c = ev.target.closest(".a2-step input[type=checkbox]");
+  if (!c) { return; }
+  var card = c.closest(".act"), root = c.closest(".pt"), li = c.closest(".a2-step");
+  if (!card || !root) { return; }
+  li.classList.toggle("done", c.checked);
+  var all = card.querySelectorAll(".a2-step input[type=checkbox]"), n = 0;
+  Array.prototype.forEach.call(all, function (x) { if (x.checked) { n++; } });
+  var p = card.querySelector(".a2-prog"); if (p) { p.textContent = n + " of " + all.length + " steps"; }
+  fetch("/portal/api/action-step", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF": root.getAttribute("data-csrf") }, body: JSON.stringify({ id: card.getAttribute("data-id"), step: +c.getAttribute("data-step"), done: c.checked }) })
+    .then(function (r) { return r.json(); }).then(function (j) { if (!j.ok) { c.checked = !c.checked; li.classList.toggle("done", c.checked); } })
+    .catch(function () { c.checked = !c.checked; li.classList.toggle("done", c.checked); });
 });
