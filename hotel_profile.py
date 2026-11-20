@@ -533,6 +533,21 @@ def status(db, hotel):
     return ("not_invited", "Not invited yet")
 
 
+def summary_html(p):
+    """The profile as a two-column table (the Settings pages). Empty string when there is no profile."""
+    if not p:
+        return ""
+    import html as _h
+    e = _h.escape
+    kinds = ", ".join(dict(KINDS).get(k, k) for k in p.get("kinds") or [])
+    auds = ", ".join(dict(audiences()).get(k, k) for k in p.get("audiences") or [])
+    rows = (("Address", p.get("address")), ("Town", p.get("town")), ("Region", p.get("region")), ("Wider area", p.get("area")), ("Places guests come for", ", ".join(p.get("attractions") or [])),
+            ("Kind of stay", kinds), ("Why guests choose you", "; ".join(p.get("reasons") or [])), ("Guests", auds), ("Where they come from", p.get("origins")),
+            ("Languages", ", ".join(p.get("languages") or [])), ("Price level", dict(PRICES).get(p.get("price") or "", "")), ("Competitors", ", ".join(p.get("competitors") or [])))
+    return ('<div class="table-wrap"><table class="table">' + "".join(f'<tr><th style="text-align:left;width:220px">{e(l)}</th><td>{e(v or "") or "<span class=hk-muted>not given</span>"}</td></tr>' for l, v in rows)
+            + "</table></div>")
+
+
 def last_change(profile):
     p = profile or {}
     return f'confirmed {uk_time(p["confirmed_at"])} by {p.get("confirmed_by") or "?"}' if p.get("confirmed_at") else "not confirmed yet"

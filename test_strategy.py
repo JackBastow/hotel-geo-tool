@@ -135,6 +135,7 @@ adm = app.test_client()
 adm.post("/admin/login", data={"password": "adm"})
 pg = adm.get(f"/admin/hotel/{hid}").get_data(as_text=True)
 check("the dashboard has a Strategy tab with the four parts", 'data-name="strategy"' in pg and all(w in pg for w in ("What makes this hotel different", "Why rivals are recommended instead", "Where to get listed: the sites AI relies on", "Supported")))
+pg = adm.get(f"/admin/hotel/{hid}/settings").get_data(as_text=True)          # the hotel's prompts are on its Settings page
 check("the Prompts tab offers the more specific prompts, each with what it rests on and an Add button", "More specific prompts we could test" in pg and "psugadd" in pg and "Rests on:" in pg)
 
 print()

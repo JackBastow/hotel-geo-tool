@@ -252,7 +252,7 @@ def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_
     later = '<div class="alert info">This appears after the first check.</div>'
     tabs = [("overview", "Overview", overview), ("ai", "AI visibility", ai or later), ("analysis", "Prompt analysis", analysis or later), ("competitors", "Competitors", competitors or later),
             ("talk", "Join the conversation", talk or later), ("strategy", "Strategy", strategy or later), ("actions", f"Recommendations ({open_n})", recs)]
-    if not settings_url:                                                   # the operator's view keeps the hotel's prompts and history as tabs
+    if not settings_url:                                                   # a dashboard with nowhere else to put them keeps the prompts and history as tabs
         tabs += [("prompts", "Prompts", prompts or '<div class="alert info">Prompts appear after the first check.</div>'), ("history", "History", history)]
     if start:
         tabs.insert(0, ("start", "Start here", start))

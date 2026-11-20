@@ -153,7 +153,7 @@ rep2.pop("question_plan", None)
 app.extensions["reports"].save(rep2)                   # saved BEFORE the hotel is registered: no draft is made
 hl = db.create_hotel("Late Hotel", "late-hotel.com", "Paris", "late-hotel.com")
 check("before anyone opens it, the hotel has no prompt set", db.prompt_sets(hl) == [])
-pg = adm.get(f"/admin/hotel/{hl}").get_data(as_text=True)
+pg = adm.get(f"/admin/hotel/{hl}/settings").get_data(as_text=True)          # the hotel's prompts are on its Settings page
 d2 = ps.state(db, db.get_hotel(hl))["draft"]
 check("opening the hotel builds the recommended draft from its saved audit, and the tab shows it to review (not the 'appears after the first check' message)", d2 and len(d2["prompts"]) >= 8 and "Review the recommended prompts" in pg and "appear here after the first check" not in pg, (d2 and len(d2["prompts"])))
 check("a prompt built on a scrap of page text is left out of it", not any("Parking Lot" in p["text"] for p in d2["prompts"]))

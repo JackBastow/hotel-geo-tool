@@ -253,6 +253,7 @@ def register_scope(app, sc):
                        + ('<p class="caption">Not checked weekly until its prompts are confirmed (by the hotel or by you on the Prompts tab below).</p>' if h.get("setup") == "pending" else ""))
         panel = (f'<section class="panel"><h4>Manage this hotel</h4>{notice}{where}{profile_box}'
                  f'<p><form method="post" action="{HB}/{hid}/run" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn primary" type="submit">Run a check now</button></form> '
+                 f'<a class="btn" href="{HB}/{hid}/settings">Settings: profile, prompts, history</a> '
                  f'<form method="post" action="{HB}/{hid}/reset-prompts" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Reset its automatic prompts</button></form> '
                  f'<form method="post" action="{HB}/{hid}/weekly" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Weekly checks are {"ON: switch off" if h["weekly"] else "OFF: switch on"}</button></form></p>'
                  + (f'<p class="caption">Last problem: {esc(h["last_error"])}</p>' if h["last_error"] else "")
@@ -272,7 +273,7 @@ def register_scope(app, sc):
                  + f'<form class="filters" method="post" action="{HB}/{hid}/invite"><input type="hidden" name="csrf" value="{c}"><label class="field"><span>Invite someone (their email)</span><input type="email" name="email" required></label>'
                  '<button class="btn" type="submit">Make an invite link</button></form><p class="caption">There is no email service: you get a link to send them yourself. It works once and expires in 7 days.</p>'
                  + (f'<h6>Links still open</h6><ul>{invites}</ul>' if invites else "") + "</section>")
-        view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=c, start=start_here.safe(s, h, sm, acts, runs, False, pst), ai=ai_dash.panel(s, h), prompts=prompts_view.panel(pst, h, f"{HB}/{hid}/prompts", True, since, (_safe(query_matrix.suggest, rep, have) or []) if rep else [], (_safe(exploration.suggest, s, h, have) or []) if pst["draft"] else []),
+        view = portal_view.dashboard(sm, acts, runs, editable=False, csrf=c, start=start_here.safe(s, h, sm, acts, runs, False, pst), ai=ai_dash.panel(s, h), settings_url=f"{HB}/{hid}/settings",
                                      prompts_alert=bool(pst["draft"] and not pst["active"]), opps=(_safe(opportunities.build, rep) or []) if rep else [], strategy=(_safe(strategy_view.panel, rep) or "") if rep else "",
                                      **(app.extensions["extra_tabs"](rep, h) if "extra_tabs" in app.extensions else {}),
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"{HB}/{hid}/status")
@@ -295,6 +296,36 @@ def register_scope(app, sc):
             res = {**res, **app.extensions["first_check"](s, h)}
         return {"ok": ok, **res}, (200 if ok else 400)
 
+    @bp.get(HB + "/<int:hid>/settings")
+    def hotel_settings(hid):
+        """The hotel's Settings, as the hotel sees them (its profile, prompts and history), editable by the operator."""
+        g = sc.guard()
+        if g:
+            return g
+        s, msg = sc.store_or_msg()
+        if s is None:
+            return sc.shell(sc.groups[0], sc.title(sc.groups[0]), f'<div class="alert warning">{esc(msg)}</div>')
+        h = own(s, hid)
+        import query_matrix
+        p = hotel_profile.load(h)
+        prompt_sets.ensure_from_history(s, h)
+        pst = prompt_sets.state(s, h)
+        runs = s.hotel_runs(h["hotel_key"])
+        rep = _latest_report(s, runs)
+        have = [x["text"] for st_ in (pst["draft"], pst["active"]) if st_ for x in st_["prompts"]]
+        since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
+        status = ("Confirmed: " + esc(hotel_profile.last_change(p))) if p and p.get("status") == "confirmed" else ("A draft from the website, not confirmed yet." if p else "Not filled in yet.")
+        profile = (f'<section class="panel"><h4>Hotel profile</h4><p class="caption">{status}</p>{hotel_profile.summary_html(p)}'
+                   f'<p><a class="btn primary" href="{HB}/{hid}/profile">{"Edit the profile" if p else "Fill in the profile"}</a></p></section>')
+        prompts = prompts_view.panel(pst, h, f"{HB}/{hid}/prompts", True, since, (_safe(query_matrix.suggest, rep, have) or []) if rep else [], (_safe(exploration.suggest, s, h, have) or []) if pst["draft"] else [])
+        history = f'<p class="caption">Every check of this hotel, newest first.</p>{portal_view.history_table(runs) or "<p class=caption>No checks yet.</p>"}'
+        tabs = [("profile", "Hotel profile", profile), ("prompts", "Prompts" + (" (to confirm)" if pst["draft"] and not pst["active"] else ""), prompts), ("history", "History", history)]
+        nav = "".join(f'<button type="button" class="tab{" active" if i == 0 else ""}" data-tab="tab-{k}" data-name="{k}">{esc(lbl)}</button>' for i, (k, lbl, _b) in enumerate(tabs))
+        panels = "".join(f'<div class="tab-panel{" active" if i == 0 else ""}" id="tab-{k}">{b}</div>' for i, (k, _l, b) in enumerate(tabs))
+        body = (f'<div class="pt" data-csrf="{esc(sc.csrf())}"><p><a href="{HB}/{hid}">&larr; Back to the hotel</a></p><p class="caption">The hotel&rsquo;s Settings, as the hotel sees them. You can edit them here on its behalf.</p>'
+                f'<div class="tabs top"><div class="tab-bar" role="tablist">{nav}</div>{panels}</div></div>')
+        return sc.shell(portal_db.group_of(h), h["name"] + ": settings", body)
+
     @bp.route(HB + "/<int:hid>/profile", methods=["GET", "POST"])
     def hotel_profile_page(hid):
         g = sc.guard()
@@ -316,7 +347,7 @@ def register_scope(app, sc):
             if not error:
                 hotel_profile.apply(s, h, prof)
                 n = hotel_profile.write_prompts(s, s.get_hotel(hid), prof, W.cfg)
-                return redirect(f"{HB}/{hid}" + ("#prompts" if n else ""))
+                return redirect(f"{HB}/{hid}/settings#prompts" if n else f"{HB}/{hid}")
             old = prof
         head = (f'<p><a href="{HB}/{hid}">&larr; Back to the hotel</a></p><p class="caption">The hotel normally fills this in when it first signs in. Saving here confirms it on the hotel&rsquo;s behalf and writes a '
                 'recommended set of prompts from it (the hotel&rsquo;s confirmed prompts are not replaced until someone confirms the new set).</p>')
