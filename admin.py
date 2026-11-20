@@ -11,6 +11,7 @@ import io
 import json
 import secrets
 import time
+import urllib.parse
 import zipfile
 
 from flask import Response, abort, redirect, render_template, request, session, url_for
@@ -22,7 +23,7 @@ from timeutil import uk_time
 from htmlst import st
 
 ADMIN_HOURS = 8
-NAV = [("overview", "Overview"), ("portfolio", "Portfolio"), ("audit", "Quick audit"), ("runs", "Runs"), ("hotels", "Hotels"), ("markets", "Markets"), ("usage", "Usage"), ("feedback", "Feedback"), ("export", "Export")]
+NAV = [("overview", "Overview"), ("portfolio", "Portfolio"), ("audit", "Quick audit"), ("runs", "Runs"), ("hotels", "Hotels"), ("markets", "Markets"), ("usage", "Usage"), ("speed", "Speed"), ("feedback", "Feedback"), ("export", "Export")]
 PUB_COLS = ["id", "run_at", "hotel", "city", "headline_status", "headline_score", "coverage_pct", "ai_generic_named", "ai_generic_asked", "ai_niche_named", "ai_niche_asked",
             "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_rank_in_table", "ai_top_competitor", "reviews_replied", "reviews_examined", "pack_reviews", "pack_reply_rate", "pagespeed_perf",
             "recs_total", "ai_cost_usd"]
@@ -284,6 +285,51 @@ def register(app, cfg):
                + '<h5>Sites the assistant relies on</h5>' + _table(s.sources(city or None), ["domain", "kind", "answers", "runs", "hotel_found", "hotel_missing"],
                                                                    {"domain": "Site", "kind": "Type", "answers": "Used in answers", "runs": "Audits", "hotel_found": "Hotel found there", "hotel_missing": "Hotel not found there"}))
         return shell("markets", "Markets", out)
+
+    @app.get("/admin/speed")
+    def admin_speed():
+        """Why pages are slow: how long one database request takes from this host, where the database is, what is running now, and the slowest recent pages with their database share."""
+        g = guard()
+        if g:
+            return g
+        esc = htmlst.html.escape
+        s, msg = store_or_msg()
+        out = []
+        if s is None:
+            out.append(f'<div class="alert warning">{esc(msg)}</div>')
+        else:
+            pings = []
+            for _i in range(5):
+                t0 = time.perf_counter()
+                try:
+                    s._rows("SELECT 1 AS x")
+                except Exception as e:  # noqa: BLE001
+                    out.append(f'<div class="alert warning">The database did not answer: {esc(type(e).__name__)}</div>')
+                    break
+                pings.append((time.perf_counter() - t0) * 1000)
+            host = (urllib.parse.urlparse(cfg.database_url).hostname or "") if cfg.database_url else ""
+            region = ".".join(host.split(".")[1:]) if host.count(".") >= 3 else host          # e.g. eu-central-1.aws.neon.tech (never the password or user)
+            if pings:
+                ms = sorted(pings)[len(pings) // 2]
+                verdict = ("fast: the app and the database are close together" if ms < 15 else "slow-ish" if ms < 60 else
+                           "SLOW: every page makes dozens of database requests, so this alone adds seconds. The app and the database are probably in different parts of the world")
+                out.append(f'<section class="panel"><h4>Database</h4><p>One request from the app to the database takes <b>{ms:.0f} ms</b> (middle of 5) &mdash; {esc(verdict)}.</p>'
+                           f'<p class="caption">Database location: <b>{esc(region or "-")}</b>. App location: see Render &rarr; your app &rarr; Settings &rarr; Region. They should be in the same region.</p></section>')
+        W = app.extensions.get("weekly")
+        running = [hid for hid, st in (getattr(W, "live", {}) or {}).items() if st.get("state") in ("queued", "running")] if W else []
+        mgr = app.extensions.get("jobs")
+        quick = sum(1 for j in (getattr(mgr, "jobs", {}) or {}).values() if j.status in ("queued", "running")) if mgr else 0
+        out.append(f'<section class="panel"><h4>Running now</h4><p>{len(running)} hotel check{"s" if len(running) != 1 else ""} and {quick} quick audit{"s" if quick != 1 else ""}. '
+                   'While these run they share the app&rsquo;s processor with every page.</p></section>')
+        rows = sorted(app.extensions.get("slow_log") or [], key=lambda r: -r["when"])[:40]
+        body = "".join(f'<tr><td>{esc(uk_time(time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(r["when"]))))}</td><td>{esc(r["method"])} {esc(r["path"])}</td><td>{r["total"]:.1f}s</td>'
+                       f'<td>{r["queries"]}</td><td>{r["db"]:.1f}s ({(r["db"] / r["total"] * 100) if r["total"] else 0:.0f}%)</td></tr>' for r in rows)
+        out.append('<section class="panel"><h4>Slowest recent pages (over 0.4 s, since the app last started)</h4>'
+                   + (f'<div class="table-wrap"><table class="table"><thead><tr><th>When (UK time)</th><th>Page</th><th>Took</th><th>Database requests</th><th>Of which database</th></tr></thead><tbody>{body}</tbody></table></div>'
+                      if body else '<p class="caption">None yet: open a few pages and come back.</p>')
+                   + '<p class="caption">If most of the time is database, the app and database are too far apart (or the database was waking up). If little of it is, the app&rsquo;s processor is the limit '
+                     '(the free plan, or checks running at the same time).</p></section>')
+        return shell("speed", "Speed", "".join(out))
 
     @app.get("/admin/usage")
     def admin_usage():

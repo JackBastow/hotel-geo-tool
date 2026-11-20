@@ -13,6 +13,8 @@ All the audit logic is the same Python as before; this file is only the web laye
 
 import collections
 import html
+
+import backend
 import hashlib
 import json
 import os
@@ -193,6 +195,13 @@ def create_app(cfg=None, run_fn=None):
     # /healthz stays open for the uptime monitor, and so do the stylesheet and script the sign-in page itself needs. Wrong guesses are slowed and limited.
     failed = collections.defaultdict(list)
 
+    slow_log = collections.deque(maxlen=60)                # the slowest recent pages, for the admin Speed page
+    app.extensions["slow_log"] = slow_log
+
+    @app.before_request
+    def _timer_start():
+        backend.STATS.d = {"queries": 0, "db_s": 0.0, "t0": time.perf_counter()}
+
     @app.before_request
     def site_gate():
         if session.get("admin_ok") is True and (session.get("admin_until") or 0) <= time.time():
@@ -252,6 +261,18 @@ def create_app(cfg=None, run_fn=None):
     def site_logout():
         session.clear()
         return redirect("/login")
+
+    @app.after_request
+    def _timer_end(resp):
+        st = getattr(backend.STATS, "d", None)
+        if st:
+            total = time.perf_counter() - st["t0"]
+            resp.headers["Server-Timing"] = f'db;desc="{st["queries"]} database requests";dur={st["db_s"] * 1000:.0f}, total;dur={total * 1000:.0f}'
+            if total > 0.4 and not request.path.startswith("/static/"):
+                slow_log.append({"when": time.time(), "path": re.sub(r"/[A-Za-z0-9_-]{20,}", "/…", request.path), "method": request.method, "total": total,
+                                 "queries": st["queries"], "db": st["db_s"]})
+            backend.STATS.d = None
+        return resp
 
     @app.after_request
     def headers(resp):

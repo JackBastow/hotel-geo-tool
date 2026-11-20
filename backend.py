@@ -142,6 +142,7 @@ class _Lease:
 
 
 import collections as _collections
+STATS = threading.local()        # per request: {"queries", "db_s"} while a page is built (server.py sets it)
 REPORT_CACHE = 12         # saved reports kept in memory (their JSON text, a few MB in all); one web process, so it is never out of date (update_run and delete_run drop theirs)
 _REPORTS = _collections.OrderedDict()
 _REPORTS_LOCK = threading.Lock()
@@ -193,8 +194,13 @@ class Store(portal_db.PortalMixin):
         return sql if self.kind == "sqlite" else sql.replace("?", "%s")
 
     def _run(self, conn, sql, params=()):
+        t0 = time.perf_counter()
         cur = conn.cursor()
         cur.execute(self._sql(sql), params)
+        st = getattr(STATS, "d", None)
+        if st is not None:                                   # the page being built counts its database requests and their time (the admin Speed page)
+            st["queries"] += 1
+            st["db_s"] += time.perf_counter() - t0
         return cur
 
     def _rows(self, sql, params=()):
