@@ -25,6 +25,16 @@ CHAIN_DOMAINS = ("marriott.com", "hilton.com", "ihg.com", "hyatt.com", "accor.co
                  "ibis.com", "mercure.com", "sofitel.com", "pullmanhotels.com", "fairmont.com", "raffles.com", "swissotel.com", "movenpick.com", "leonardo-hotels.com", "motel-one.com", "citizenm.com")
 
 
+# booking, review and price-comparison sites: we never read them (their terms forbid it), so we can never say the hotel is NOT on one. A page of one that the assistant cited (a list of hotels in a
+# town) not naming the hotel says nothing about whether the hotel is listed there.
+OTA = re.compile(r"booking\.|expedia|hotels\.com|trip\.com|agoda|trivago|kayak|skyscanner|momondo|zenhotels|cozycozy|hotelscombined|priceline|orbitz|travelocity|lastminute|ebookers|hrs\.|hotel\.de|"
+                 r"airbnb|vrbo|holidaycheck|tripadvisor|google\.|yelp|ostrovok|goibibo|makemytrip|hostelworld|hotwire|travelsupermarket|wotif|lastminute|otel\.com|tablethotels|mrandmrssmith", re.I)
+
+
+def is_listing_site(domain, type_=""):
+    return type_ in ("review", "comparison") or bool(OTA.search(domain or ""))
+
+
 def _dom(url_or_domain):
     d = re.sub(r"^https?://", "", str(url_or_domain or "")).split("/")[0].lower()
     return d[4:] if d.startswith("www.") else d
@@ -102,21 +112,40 @@ def build(rep, profile=None, hotel_name="", limit_seen=6, limit_suggested=4):
         seen = source_actions.build(rep, limit=20) if rep else []
     except Exception:  # noqa: BLE001
         seen = []
+    read_absent = {_dom(a.get("domain")) for a in ((rep or {}).get("ai_gap") or {}).get("articles") or [] if a.get("read") == "ok" and a.get("hotel_in") is False}
+    listings = []
     for s in seen:
         d = _dom(s["domain"])
         if not d or d == own or is_chain_site(d) or d in rivals:
             continue                                  # never another chain's or a rival's own site, nor the hotel's own
-        if s["hotel_appears"] and s["type"] not in ("review", "comparison"):
+        if is_listing_site(d, s["type"]):
+            listings.append(s)                        # booking and review sites: one action for all of them, never "get onto" (we cannot see whether the hotel is listed)
+            continue
+        if s["hotel_appears"]:
             continue
         who = ", ".join(s["rivals"][:2])
-        title = (f"Improve your listing on {d}" if s["hotel_appears"] else f"Get onto {d}")
-        why = (f"The AI assistant used {d} ({s['type_label'].lower()}) {s['cited']} time(s) in your latest check" + (f", and it features {who} but not you." if who and not s["hotel_appears"] else "."))
+        absent = d in read_absent                     # we read a page of this site and the hotel is not on it
+        title = f"Get featured on {d}" if absent else f"Check whether you are featured on {d}"
+        why = (f"The AI assistant used {d} ({s['type_label'].lower()}) {s['cited']} time(s) in your latest check"
+               + (f"; the page it read features {who} and does not mention you." if absent and who else f"; it features {who}." if who else "."))
         out.append({"id": f"strat-{d}", "title": title, "finding": why, "why": "Being on the sites the assistant reads gives it something to say about you when it answers.", "action": s["action"],
-                    "steps": _steps_for_site(s, facts, hotel_name), "source": "strategy", "category": "Strategy", "kind": "strategy", "team": "marketing", "tag": d,
-                    "priority": "high" if who and not s["hotel_appears"] else "medium", "effort": "medium", "confidence_label": "Seen in the latest check",
+                    "steps": ([f"Search {d} for your hotel's name to see whether you are already featured."] if not absent else []) + _steps_for_site(s, facts, hotel_name),
+                    "source": "strategy", "category": "Strategy", "kind": "strategy", "team": "marketing", "tag": d, "track": "visibility",
+                    "priority": "high" if absent and who else "medium", "effort": "medium", "confidence_label": "Seen in the latest check",
                     "evidence": [{"url": u, "snippet": f"Cited by the assistant ({s['type_label'].lower()})"} for u in (s.get("evidence") or [])[:2]]})
         if len(out) >= limit_seen:
             break
+    if listings:
+        names = [_dom(s["domain"]) for s in sorted(listings, key=lambda s: -s["cited"])][:8]
+        out.insert(0, {"id": "strat-listings", "title": "Make your booking and review site listings work for AI",
+                       "finding": f"The AI assistant read these booking and review sites in your latest check: {', '.join(names)}. It uses what your listings there say (description, facilities, rating, recent reviews) when it answers.",
+                       "why": "We do not read these sites (their terms do not allow it), so this does not say whether you are listed; it says the assistant relies on them, so your listing on each is part of what it knows about you.",
+                       "action": "Check each listing is complete and says why guests choose you.",
+                       "steps": [f"Open your listing on each of: {', '.join(names)} (create one where you are missing and it suits you).",
+                                 "Check the name, address, photos and facilities; make sure the description states why guests choose you" + (f" ({'; '.join(facts[:3])})" if facts else "") + ".",
+                                 "Reply to recent reviews, good and bad, as the hotel; never offer anything in return for a review."],
+                       "source": "strategy", "category": "Strategy", "kind": "strategy", "team": "marketing", "tag": "listings", "track": "visibility", "priority": "medium", "effort": "medium",
+                       "confidence_label": "Seen in the latest check"})
     if p:
         fill = {"region": p.get("region") or p.get("town") or "your region", "area": p.get("area") or p.get("region") or p.get("town") or "your area", "town": p.get("town") or "your town",
                 "facts": "; ".join(facts) if facts else "what makes the stay different"}
@@ -133,6 +162,6 @@ def build(rep, profile=None, hotel_name="", limit_seen=6, limit_suggested=4):
             t = title.format(**fill)
             out.append({"id": "strat-" + evidence.fold(t)[:40].replace(" ", "-"), "title": t, "finding": why.format(**fill), "why": "A suggestion for the market described in your profile: it was not seen in the assistant's answers, so check it suits you first.",
                         "action": steps[0].format(**fill), "steps": [x.format(**fill) for x in steps], "source": "strategy", "category": "Strategy", "kind": "strategy", "team": "marketing",
-                        "tag": "suggested:" + title.split("{")[0].strip().lower()[:30], "priority": "medium", "effort": "medium", "confidence_label": "Suggested from your profile"})
+                        "tag": "suggested:" + title.split("{")[0].strip().lower()[:30], "track": "visibility", "priority": "medium", "effort": "medium", "confidence_label": "Suggested from your profile"})
             n += 1
     return out

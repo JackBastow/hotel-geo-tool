@@ -86,7 +86,8 @@ def build(rep, limit=6):
             continue                                   # the hotel is there and nobody is ahead of it: nothing to chase
         route = ("a contact page was found: " + r["route"]) if r["route"] else ("commission or affiliate site: placement is commercial, not editorial" if r["affiliate"] else ("sponsored content: a paid placement, check before approaching" if r["sponsored"] else "no submission route was found"))
         action = ("The hotel appears here: verify what is published is accurate and complete. " + ACTION[t]) if (r["hotel"] and t in ("review", "comparison")) else ACTION[t]
-        out.append({"domain": r["domain"], "type": t, "type_label": LABEL[t], "cited": r["cited"], "hotel_appears": r["hotel"], "rivals": sorted(r["rivals"])[:3], "route": route, "action": action,
+        listing = strategy_actions.is_listing_site(r["domain"], t)
+        out.append({"domain": r["domain"], "type": t, "type_label": LABEL[t], "cited": r["cited"], "hotel_appears": r["hotel"], "listing_site": listing, "rivals": sorted(r["rivals"])[:3], "route": route, "action": action,
                     "why_now": (f"The hotel states {reason['label'].lower()}, which could justify inclusion." if reason else "No distinctive reason has been identified yet: do not approach until there is one."),
                     "evidence": r["urls"][:2]})
     return out[:limit]

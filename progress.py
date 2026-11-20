@@ -51,6 +51,7 @@ def _readable(report):
 
 
 _STRATEGY_TRIED = set()
+STRATEGY_VERSION = 2              # raise when strategy actions are built differently: saved ones nobody has touched are replaced on the next page view
 
 
 def strategy_recs(report, hotel):
@@ -63,19 +64,33 @@ def strategy_recs(report, hotel):
         return []
 
 
+def _untouched(a):
+    return a["status"] == "todo" and not (a.get("note") or "").strip()
+
+
 def ensure_strategy(db, hotel):
-    """A hotel whose latest check came before strategy actions existed gets them from that check now (added only, nothing resolved). -> number added."""
+    """
+    The hotel's strategy actions from its latest check, brought up to date: added when there are none yet, and refreshed once whenever they are built differently (STRATEGY_VERSION): a saved one nobody
+    has touched that would not be written today is removed (for example a 'get onto booking.com' from before booking sites were treated properly); anything the hotel has worked on stays. -> number added.
+    """
     try:
-        if any(a["source"] == "strategy" for a in db.list_actions(hotel["id"])):
-            return 0
         runs = db.hotel_runs(hotel["hotel_key"])
-        if not runs or (hotel["id"], runs[0]["id"]) in _STRATEGY_TRIED:
+        if not runs or (hotel["id"], runs[0]["id"], STRATEGY_VERSION) in _STRATEGY_TRIED:
             return 0
-        _STRATEGY_TRIED.add((hotel["id"], runs[0]["id"]))           # one try per hotel and check, so a page view does not rebuild an empty list every time
+        _STRATEGY_TRIED.add((hotel["id"], runs[0]["id"], STRATEGY_VERSION))     # once per hotel, check and version, so a page view does not rebuild the list every time
+        have = [a for a in db.list_actions(hotel["id"]) if a["source"] == "strategy"]
         rep = db.get_report(runs[0]["id"])
         when = (rep.get("meta") or {}).get("run_at") or portal_db.now_iso()
+        recs = strategy_recs(rep, hotel)
+        keys = {action_key(r) for r in recs}
+        for a in have:
+            if a["akey"] not in keys and _untouched(a):
+                db.delete_action(a["id"])
+        have_keys = {a["akey"] for a in db.list_actions(hotel["id"]) if a["source"] == "strategy"}
         n = 0
-        for rec in strategy_recs(rep, hotel):
+        for rec in recs:
+            if action_key(rec) in have_keys:
+                continue
             db.insert_action(hotel["id"], {"title": rec["title"], "source": "strategy", "category": rec.get("category", ""), "priority": rec.get("priority", ""), "effort": rec.get("effort", ""), "team": rec.get("team", ""),
                                            "kind": rec.get("kind", ""), "rec_json": _snapshot(rec), "last_run_id": runs[0]["id"], "last_seen": when, "akey": action_key(rec), "status": "todo", "state": "open",
                                            "first_run_id": runs[0]["id"], "first_seen": when, "updated": when, "reopened": 0, "resolution": "", "note": ""})
@@ -290,8 +305,12 @@ def actions_for(db, hotel):
     acts = db.list_actions(hotel["id"])
     if not acts and ensure_actions(db, hotel):
         acts = db.list_actions(hotel["id"])
-    if acts and not any(a["source"] == "strategy" for a in acts) and ensure_strategy(db, hotel):
-        acts = db.list_actions(hotel["id"])
+    if acts:
+        before = len(acts)
+        ensure_strategy(db, hotel)
+        acts2 = db.list_actions(hotel["id"])
+        if len(acts2) != before or {a["id"] for a in acts2} != {a["id"] for a in acts}:
+            acts = acts2
     return acts
 
 

@@ -37,7 +37,11 @@ def report():
         {"url": "https://www.timeout.example/paris/best-airport-hotels", "domain": "timeout.example", "cited": 3, "names_hotel": False, "names_competitor": "Pullman Paris CDG"},
         {"url": "https://www.marriott.com/en-us/hotels/parcy-paris-marriott-cdg/", "domain": "marriott.com", "cited": 4, "names_hotel": False, "names_competitor": "Paris Marriott CDG"},
         {"url": "https://www.pullman-cdg.example/", "domain": "pullman-cdg.example", "cited": 2, "names_hotel": False, "names_competitor": "Pullman Paris CDG"},
-        {"url": "https://www.hilton-cdg.example/rooms", "domain": "hilton-cdg.example", "cited": 5, "names_hotel": True, "own_site": True}]}
+        {"url": "https://www.hilton-cdg.example/rooms", "domain": "hilton-cdg.example", "cited": 5, "names_hotel": True, "own_site": True},
+        {"url": "https://www.booking.com/city/fr/roissy-en-france.html", "domain": "booking.com", "cited": 6, "names_hotel": False, "names_competitor": "Pullman Paris CDG"},
+        {"url": "https://www.trip.com/hotels/list?city=paris", "domain": "trip.com", "cited": 2, "names_hotel": False, "names_competitor": "Pullman Paris CDG"},
+        {"url": "https://www.zenhotels.com/hotels/paris", "domain": "zenhotels.com", "cited": 1, "names_hotel": False, "names_competitor": "Pullman Paris CDG"},
+        {"url": "https://www.bestairporthotels.example/paris", "domain": "bestairporthotels.example", "cited": 2, "names_hotel": False, "names_competitor": "Pullman Paris CDG"}]}
     r["ai_gap"] = {"status": "ok", "markets": [], "rivals": [{"name": "Pullman Paris CDG", "url": "https://www.pullman-cdg.example/"}],
                    "articles": [{"url": "https://www.timeout.example/paris/best-airport-hotels", "domain": "timeout.example", "cited": 3, "read": "ok", "hotel_in": False, "rivals_in": ["Pullman Paris CDG"],
                                  "questions": [], "contact_url": "https://www.timeout.example/contact"}]}
@@ -47,12 +51,17 @@ def report():
 print("1. strategy actions")
 acts = strategy_actions.build(report(), PROFILE, "Hilton Paris CDG")
 titles = [a["title"] for a in acts]
-check("a site the assistant used, featuring a rival and not the hotel, becomes 'Get onto' it", "Get onto timeout.example" in titles, titles)
+check("a site the assistant used, featuring a rival and not the hotel, becomes 'Get onto' it", "Get featured on timeout.example" in titles, titles)
 check("never another hotel group's own website (a Hilton cannot get onto marriott.com)", not any("marriott.com" in t for t in titles))
 check("never a rival hotel's own site, nor the hotel's own", not any("pullman-cdg" in t or "hilton-cdg" in t for t in titles))
-seen = next(a for a in acts if a["title"] == "Get onto timeout.example")
+seen = next(a for a in acts if a["title"] == "Get featured on timeout.example")
 check("each has steps: who to contact (the contact page when found), what to send, how to follow up", len(seen["steps"]) == 3 and "https://www.timeout.example/contact" in seen["steps"][0] and "wildlife safaris" in seen["steps"][1])
 check("and says what it rests on", "Pullman Paris CDG" in seen["finding"] and seen["confidence_label"] == "Seen in the latest check" and seen["source"] == "strategy")
+check("a booking or review site is never claimed as missing: a results page that does not name the hotel says nothing about its listing", not any(re.search(r"booking\.com|trip\.com|zenhotels", t) and ("Get" in t or "Check whether" in t) for t in titles), titles)
+lst = next((a for a in acts if a["tag"] == "listings"), None)
+check("they become one action about making those listings work, naming the sites the assistant read", lst and all(d in lst["finding"] for d in ("booking.com", "trip.com", "zenhotels.com")) and "does not say whether you are listed" in lst["why"])
+check("a site we did not read is 'check whether you are featured', with searching for the hotel as the first step", any(a["title"] == "Check whether you are featured on bestairporthotels.example" and a["steps"][0].startswith("Search bestairporthotels.example") for a in acts), titles)
+check("the Competitors tab says 'not checked' for booking sites, never 'No'", "Not checked (we do not read booking or review sites)" in __import__("strategy_view").sources_html(report()))
 sugg = [a for a in acts if a["confidence_label"] == "Suggested from your profile"]
 st = " | ".join(a["title"] for a in sugg)
 check("the profile adds the kinds of source that matter for its market, labelled as suggestions", "tourism board for Blekinge" in st and "nature and short breaks in southern Sweden" in st and "conference venue directories" in st, st)
@@ -70,8 +79,8 @@ def act(i, title, source, rec):
 
 
 sm = {"latest_run_id": 1, "runs": 1}
-board = portal_view.action_board(sm, [act(1, "Add a FAQ page", "site", {"action": "Write it"}), act(2, "Get onto timeout.example", "strategy", seen)], True, strategy_context="<p>context here</p>")
-check("the Actions tab has Fixes and Strategy sections", "Fixes (1)" in board and "Strategy (1)" in board and board.index("Add a FAQ page") < board.index('id="act-strategy"') < board.index("Get onto timeout.example"))
+board = portal_view.action_board(sm, [act(1, "Add a FAQ page", "site", {"action": "Write it"}), act(2, "Get featured on timeout.example", "strategy", seen)], True, strategy_context="<p>context here</p>")
+check("the Actions tab has Fixes and Strategy sections", "Fixes (1)" in board and "Strategy (1)" in board and board.index("Add a FAQ page") < board.index('id="act-strategy"') < board.index("Get featured on timeout.example"))
 check("a strategy action shows its steps", '<ol class="steps-mini">' in board and "Send a short note" in board)
 check("with the market context and the honesty note in the section", "context here" in board and "never suggested as a source" in board)
 
@@ -92,6 +101,12 @@ _r2["ai_gap"]["articles"] = []
 _rid2 = _db.save_run(_r2)
 progress.sync(_db, _h, _r2, _rid2)
 check("a later check that does not cite those sites does not close them: they stay until the hotel acts", all(a["state"] == "open" for a in _db.list_actions(_hid) if a["source"] == "strategy"))
+_bad = _db.insert_action(_hid, {"title": "Get onto booking.com", "source": "strategy", "akey": "strategy|booking.com|get onto booking com", "status": "todo", "state": "open", "rec_json": "{}", "reopened": 0, "resolution": "", "note": ""})
+_kept = _db.insert_action(_hid, {"title": "Get onto trip.com", "source": "strategy", "akey": "strategy|trip.com|get onto trip com", "status": "working", "state": "open", "rec_json": "{}", "reopened": 0, "resolution": "", "note": ""})
+progress._STRATEGY_TRIED.clear()
+progress.ensure_strategy(_db, _db.get_hotel(_hid))
+_ids = {a["id"] for a in _db.list_actions(_hid)}
+check("saved strategy actions from before this fix are replaced if nobody touched them, and kept if the hotel is working on them", _bad not in _ids and _kept in _ids)
 
 print("3. the dashboard tabs")
 dash = portal_view.dashboard({"hotel": {"name": "H", "city": "C", "website": "w", "weekly": 1}, "last_run_at": None, "actions": {"todo": 1, "working": 0, "still_flagged": 0, "completed": 0, "total": 1, "verified": 0, "cleared_site": 0},
