@@ -406,3 +406,4 @@ body.wm .wm-brand img { outline: 1px solid #9a7a56; outline-offset: 0; border-ra
 table.pa td { vertical-align: top; }
 table.pa .pa-ev { margin-top: 6px; }
 table.pa .pa-ev summary { font-size: 13px; }
+.steps-mini { margin: 0; padding-left: 20px; } .steps-mini li { margin: 2px 0 6px; }

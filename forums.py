@@ -49,11 +49,40 @@ def airport_code(name):
     return next((c for k, c in AIRPORT_CODE.items() if k in n), "")
 
 
-def topics(hotel, city, prof=None, anchors=()):
-    """The general and specific topics travellers start threads about in the hotel's market, up to six: 'best hotels near Charles de Gaulle Airport (CDG)', 'best hotels in Paris', 'where to stay near the Louvre'."""
+PROFILE_KIND = {"destination": "a nature or wildlife weekend", "countryside": "a quiet countryside break", "coastal": "a weekend by the sea", "spa": "a spa break", "resort": "a resort holiday",
+                "historic": "a stay somewhere historic", "boutique": "a boutique hotel stay", "family": "a family holiday", "business": "a business trip", "airport": "a night before a flight"}
+PROFILE_AUD = {"couples": "a romantic getaway", "meetings": "a team offsite or conference venue", "weddings": "a wedding venue with rooms", "food": "a food lover's weekend", "family": "a family trip",
+               "groups": "a group trip", "wellness": "a spa weekend", "pets": "a dog-friendly break"}
+
+
+def profile_topics(profile):
+    """The threads a hotel's guests really start, from its confirmed profile: the trips it is chosen for, asked at the level people plan them (the wider area or region, not only the town), and the
+    places guests come for. 'a nature or wildlife weekend in southern Sweden', 'where to stay when visiting the Blekinge archipelago', 'wildlife safaris in Blekinge'."""
+    p = profile or {}
+    wide = [x for x in (p.get("area"), p.get("region")) if x]
+    out = []
+    for i, k in enumerate(p.get("kinds") or []):
+        if k in PROFILE_KIND and wide:
+            out.append(f"{PROFILE_KIND[k]} in {wide[i % len(wide)]}")
+    for i, r in enumerate((p.get("reasons") or [])[:3]):
+        if wide:
+            out.append(f"{r} in {wide[(i + 1) % len(wide)]}")
+    for a in (p.get("attractions") or [])[:2]:
+        out.append(f"where to stay when visiting {a}")
+    for i, k in enumerate(p.get("audiences") or []):
+        if k in PROFILE_AUD and wide:
+            out.append(f"{PROFILE_AUD[k]} in {wide[i % len(wide)]}")
+    return out
+
+
+def topics(hotel, city, prof=None, anchors=(), profile=None):
+    """
+    The general and specific topics travellers start threads about in the hotel's market, up to eight: 'best hotels near Charles de Gaulle Airport (CDG)', 'best hotels in Paris', 'where to stay near the
+    Louvre'. With the hotel's confirmed profile, the trips it is chosen for come first ('a nature or wildlife weekend in southern Sweden'), so a destination hotel is not searched only as a town hotel.
+    """
     town = (city or "").split(",")[0].strip()
     prof = prof or {}
-    out = []
+    out = profile_topics(profile)[:5]
     ap = prof.get("airport")
     if ap and prof.get("airport_hotel"):
         code = airport_code(ap["name"])
@@ -73,14 +102,16 @@ def topics(hotel, city, prof=None, anchors=()):
         if t.lower() not in seen:
             seen.add(t.lower())
             res.append(t)
-    return res[:6]
+    return res[:8] if profile else res[:6]
 
 
-def place_terms(hotel, city, prof=None, anchors=()):
+def place_terms(hotel, city, prof=None, anchors=(), profile=None):
     """Words that show a thread is about the hotel's market: the town, the district, the places the questions are built around, the airport with its code, and what is left of the hotel's name once brand words are removed."""
     prof = prof or {}
     town = (city or "").split(",")[0].strip()
     out = [town] + [a["name"] for a in list(anchors or [])[:4]] + ([prof["district"]] if prof.get("district") else [])
+    if profile:                                       # a thread about the hotel's region, wider area or the places its guests come for is about its market too
+        out += [x for x in (profile.get("region"), profile.get("area")) if x] + list(profile.get("attractions") or [])[:4]
     ap = prof.get("airport")
     if ap and prof.get("airport_hotel"):
         out += [ap["name"], airport_code(ap["name"])]

@@ -935,7 +935,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             _core_q = [q["text"] for q in nqs if q.get("priority") == "core" and q.get("kind") == "niche"][:6]
             _fprof, _fanch = (locals().get("prof") or {}), ((question_plan or {}).get("anchors") or [])
             forum_ex = ThreadPoolExecutor(max_workers=1)
-            forum_future = forum_ex.submit(forums_mod.run, hotel, city, _core_q, forums_mod.place_terms(hotel, city, _fprof, _fanch), topics=forums_mod.topics(hotel, city, _fprof, _fanch), api_key=anthropic_api_key, model=anthropic_model)
+            forum_future = forum_ex.submit(forums_mod.run, hotel, city, _core_q, forums_mod.place_terms(hotel, city, _fprof, _fanch, profile=profile), topics=forums_mod.topics(hotel, city, _fprof, _fanch, profile=profile), api_key=anthropic_api_key, model=anthropic_model)
         except Exception:  # noqa: BLE001
             forum_future = None
         if nqs:

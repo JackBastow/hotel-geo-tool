@@ -1,5 +1,5 @@
 """
-The Strategy tab of a hotel's dashboard: the opportunities, what makes the hotel different, why rivals are recommended instead, and which sites to get listed on, all from the hotel's latest check.
+The strategy context on a hotel's dashboard (in the Strategy section of its Actions; rivals and sources on the Competitors tab): the opportunities, what makes the hotel different, why rivals are recommended instead, and which sites to get listed on, all from the hotel's latest check.
 Every claim carries its label (Confirmed, Likely, Worth checking, Supported, Hypothesis) and the page says what it cannot prove.
 """
 

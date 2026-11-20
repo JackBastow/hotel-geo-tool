@@ -121,7 +121,7 @@ def panel(db, hotel, sm, actions, runs, editable=True, prompts_alert=False):
     if prompts_alert:
         callout = ('<section class="talk-callout"><div><h3>Confirm the prompts we ask AI about your hotel</h3><p>Review the recommended set and confirm it, so every check asks the same prompts and progress can be tracked.</p></div>'
                    '<button type="button" class="btn primary" data-goto="prompts">Review the prompts &rarr;</button></section>')
-    more = '<p class="caption">Want the depth? <button type="button" class="linkbtn" data-goto="ai">AI visibility</button> · <button type="button" class="linkbtn" data-goto="actions">all recommendations</button> · <button type="button" class="linkbtn" data-goto="strategy">strategy</button>.</p>'
+    more = '<p class="caption">Want the depth? <button type="button" class="linkbtn" data-goto="ai">AI visibility</button> · <button type="button" class="linkbtn" data-goto="actions">all actions</button> · <button type="button" class="linkbtn" data-goto="competitors">competitors</button>.</p>'
     order = (callout, tiles, changed, todo, more) if weekly else (callout, tiles, todo, changed, more)
     return "".join(order)
 

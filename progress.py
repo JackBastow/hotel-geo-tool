@@ -22,7 +22,7 @@ import re
 import portal_db
 
 VERIFIED = ("verified", "verified_repeat")      # resolutions that count as confirmed: gone from the hotel's own site, or gone from the sampled answers in two checks in a row
-NOISY_SOURCES = {"ai", "ai_facts", "ai_gap", "direct", "reddit", "forums", "competitors"}      # sampled or open-web evidence: absence from one run is not proof of a fix
+NOISY_SOURCES = {"ai", "ai_facts", "ai_gap", "direct", "reddit", "forums", "competitors", "strategy"}      # sampled or open-web evidence: absence from one run is not proof of a fix
 FUZZY = 0.78
 MIN_PAGES = 2
 
@@ -37,7 +37,7 @@ def action_key(rec):
 
 
 def _snapshot(rec):
-    keep = ("id", "title", "why", "action", "priority", "effort", "team", "kind", "source", "category", "confidence_label", "confidence", "evidence", "example", "short_title", "finding", "success_check", "expected_outcome", "track", "tag")
+    keep = ("id", "title", "why", "action", "priority", "effort", "team", "kind", "source", "category", "confidence_label", "confidence", "evidence", "example", "short_title", "finding", "success_check", "expected_outcome", "track", "tag", "steps")
     return json.dumps({k: rec.get(k) for k in keep if rec.get(k) is not None}, default=str)[:20000]
 
 
@@ -50,6 +50,41 @@ def _readable(report):
     return pages is None or pages >= MIN_PAGES
 
 
+_STRATEGY_TRIED = set()
+
+
+def strategy_recs(report, hotel):
+    """The strategy actions for this check: outside sources to get onto (strategy_actions), shaped by the hotel's confirmed profile. Never raises."""
+    try:
+        import hotel_profile
+        import strategy_actions
+        return strategy_actions.build(report, hotel_profile.confirmed(hotel), hotel.get("name", ""))
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def ensure_strategy(db, hotel):
+    """A hotel whose latest check came before strategy actions existed gets them from that check now (added only, nothing resolved). -> number added."""
+    try:
+        if any(a["source"] == "strategy" for a in db.list_actions(hotel["id"])):
+            return 0
+        runs = db.hotel_runs(hotel["hotel_key"])
+        if not runs or (hotel["id"], runs[0]["id"]) in _STRATEGY_TRIED:
+            return 0
+        _STRATEGY_TRIED.add((hotel["id"], runs[0]["id"]))           # one try per hotel and check, so a page view does not rebuild an empty list every time
+        rep = db.get_report(runs[0]["id"])
+        when = (rep.get("meta") or {}).get("run_at") or portal_db.now_iso()
+        n = 0
+        for rec in strategy_recs(rep, hotel):
+            db.insert_action(hotel["id"], {"title": rec["title"], "source": "strategy", "category": rec.get("category", ""), "priority": rec.get("priority", ""), "effort": rec.get("effort", ""), "team": rec.get("team", ""),
+                                           "kind": rec.get("kind", ""), "rec_json": _snapshot(rec), "last_run_id": runs[0]["id"], "last_seen": when, "akey": action_key(rec), "status": "todo", "state": "open",
+                                           "first_run_id": runs[0]["id"], "first_seen": when, "updated": when, "reopened": 0, "resolution": "", "note": ""})
+            n += 1
+        return n
+    except Exception:  # noqa: BLE001 - the dashboard still shows
+        return 0
+
+
 def sync(db, hotel, report, run_id):
     """Bring the hotel's action list up to date from a newly saved audit. -> {"new", "fixed", "reopened", "skipped"}. Never raises into the audit."""
     out = {"new": 0, "fixed": 0, "reopened": 0, "skipped": False}
@@ -57,7 +92,7 @@ def sync(db, hotel, report, run_id):
         out["skipped"] = True
         return out
     when = (report.get("meta") or {}).get("run_at") or portal_db.now_iso()
-    recs = (report.get("consultant") or {}).get("recommendations") or []
+    recs = list((report.get("consultant") or {}).get("recommendations") or []) + strategy_recs(report, hotel)
     existing = db.list_actions(hotel["id"])
     free = {a["id"]: a for a in existing}
     seen = set()
@@ -89,6 +124,8 @@ def sync(db, hotel, report, run_id):
             extra["reopened"] = max(1, a["reopened"] or 0)            # marked done earlier and flagged again: say so
         db.update_action(a["id"], akey=key, **base, **extra)
     for a in free.values():                                            # not flagged this time
+        if a["source"] == "strategy":
+            continue                                                   # a strategy action stays until the hotel marks it done or not relevant: a source not cited one week is still worth being on
         if a["state"] == "open":
             db.update_action(a["id"], state="resolved", resolved_at=when, resolution=("not_flagged" if a["source"] in NOISY_SOURCES else "verified"), last_run_id=run_id)
             out["fixed"] += 1
@@ -252,6 +289,8 @@ def actions_for(db, hotel):
     """The hotel's actions (built from its saved audits first when it has none yet), fetched once so a page does not ask again."""
     acts = db.list_actions(hotel["id"])
     if not acts and ensure_actions(db, hotel):
+        acts = db.list_actions(hotel["id"])
+    if acts and not any(a["source"] == "strategy" for a in acts) and ensure_strategy(db, hotel):
         acts = db.list_actions(hotel["id"])
     return acts
 

@@ -114,5 +114,5 @@ def panel(rep):
                  f'<th>Named instead</th><th>Why them</th><th style="width:30%">What to do</th></tr></thead><tbody>{"".join(r for _t, r in rs)}</tbody></table></div>')
     foot = ('<p class="caption">One assistant (Claude with live web search), a few answers per prompt, one day: a sample, not a ranking. &ldquo;Why them&rdquo; is the reason the assistant gave; '
             '&ldquo;What to do&rdquo; follows from a difference in the evidence, not a proven cause. These findings are also in your '
-            '<button type="button" class="link" data-goto="actions">Recommendations</button>, where you can mark them done.</p>')
+            '<button type="button" class="link" data-goto="actions">Actions</button>, where you can mark them done.</p>')
     return head + body + foot

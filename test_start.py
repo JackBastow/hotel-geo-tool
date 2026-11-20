@@ -61,7 +61,7 @@ class Broken:
 check("a failing history query leaves the tile out but the screen still shows", "Do these first" in start_here.panel(Broken(), hotel, sm, acts, runs, True))
 check("safe() never raises on bad input", isinstance(start_here.safe(None, None, None, None, [{"run_at": "x"}], True), str))
 d = portal_view.dashboard(sm, acts, runs, editable=True, csrf="c", start=html)
-check("the dashboard puts Start here first and keeps every other tab", d.index('data-name="start"') < d.index('data-name="overview"') and all(f'data-name="{k}"' in d for k in ("ai", "strategy", "prompts", "actions", "history")))
+check("the dashboard puts Start here first and keeps every other tab", d.index('data-name="start"') < d.index('data-name="overview"') and all(f'data-name="{k}"' in d for k in ("ai", "actions", "competitors", "analysis", "talk")))
 check("without it the dashboard is as before", 'data-name="start"' not in portal_view.dashboard(sm, acts, runs, editable=True, csrf="c"))
 import dashboard_view
 _rep = {"ai_insights": {"brand_ranking": {"rows": [{"name": "Us", "is_target": True, "coverage_pct": 10}, {"name": "Rival A", "is_target": False, "coverage_pct": 40}]}}, "ai_sample": {"summary": {"top_domains": ["booking.com"]}}, "consultant": {}, "scorecard": {}, "headline": {}}

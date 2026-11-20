@@ -75,7 +75,11 @@ def build(rep, limit=6):
     d = differentiation.build(rep)
     reason = (d["advantages"] or d["strengths"] or [None])[0]
     out = []
+    import strategy_actions
+    rival_sites = strategy_actions._rival_domains(rep)
     for r in sorted(by.values(), key=lambda r: -r["cited"]):
+        if strategy_actions.is_chain_site(r["domain"]) or strategy_actions._dom(r["domain"]) in rival_sites:
+            continue                                   # another hotel group's own website, or a rival hotel's: not somewhere this hotel can be listed
         kind = ai_insights.source_kind(r["domain"])
         t = classify(r["domain"], kind)
         if r["hotel"] and not r["rivals"] and t != "review":

@@ -149,7 +149,9 @@ def action_card(a, sm, editable, lead=None):
         link = f'<a href="{esc(e["url"])}" target="_blank" rel="noopener noreferrer">{esc(urllib.parse.urlparse(e["url"]).path or "/")}</a>: ' if str(e.get("url") or "").startswith("http") else ""
         ev.append(f'{link}{"" if sn.lower().startswith(("pages inspected", "no page about")) else "&ldquo;"}{esc(sn[:300])}{"" if sn.lower().startswith(("pages inspected", "no page about")) else "&rdquo;"}')
     why = (row("The issue", esc(rec.get("finding", ""))) + row("Evidence", "<br>".join(ev)) + row("Why it matters", esc(rec.get("why", ""))))
-    do = (row("What to do", esc(rec.get("action", ""))) + row("Example wording", esc(rec.get("example", "")) if rec.get("example") else "")
+    steps = rec.get("steps") or []
+    do = ((row("Steps", "<ol class=\"steps-mini\">" + "".join(f"<li>{esc(x)}</li>" for x in steps) + "</ol>") if steps else row("What to do", esc(rec.get("action", ""))))
+          + row("Example wording", esc(rec.get("example", "")) if rec.get("example") else "")
           + row("How you will know", esc(rec.get("success_check") or rec.get("expected_outcome") or "")))
     conf = rec.get("confidence_label")
     import advice
@@ -163,16 +165,35 @@ def action_card(a, sm, editable, lead=None):
             f'<div class="rec-body">{why}{do}</div></details>{do_html}<div class="act-row">{_state_chips(a, sm["latest_run_id"], sm["runs"])}{buttons}</div></article>')
 
 
-def action_board(sm, actions, editable):
+def action_board(sm, actions, editable, strategy_context=""):
+    """The Actions tab: the fixes (the hotel's own site, listings and data) and, in their own section, the strategy actions (getting onto the outside sources AI reads)."""
     if not actions:
-        return '<div class="alert info">No recommendations yet. They appear after the first check.</div>'
+        return '<div class="alert info">No actions yet. They appear after the first check.</div>'
+    strat = [a for a in actions if a.get("source") == "strategy"]
+    fixes = [a for a in actions if a.get("source") != "strategy"]
+    open_s = sum(1 for a in strat if progress.board_group(a) in ("todo", "working"))
+    open_f = sum(1 for a in fixes if progress.board_group(a) in ("todo", "working"))
+    s_html = ('<p class="lede">The bigger moves: getting onto the outside sources AI assistants read about hotels like yours (articles, guides, tourism boards, directories, review sites, creators), '
+              'so you are positioned in the market you want. Each has its steps.</p>'
+              + (_board(sm, strat, editable, filters=False) if strat else '<div class="alert info">No strategy actions yet. Complete your hotel profile (Settings) and they appear for the market you describe; '
+                 'the next check adds the sites the assistant was seen to use.</div>')
+              + (f'<details class="details"><summary>Where you could win, and what makes you different</summary><div class="details-body">{strategy_context}</div></details>' if strategy_context else "")
+              + '<p class="caption">Being on a source does not guarantee that an assistant will recommend you, and paying for undisclosed placement is never suggested. Another hotel group&rsquo;s own website, '
+                'or a rival hotel&rsquo;s, is never suggested as a source.</p>')
+    f_html = _board(sm, fixes, editable) if fixes else '<div class="alert info">No fixes flagged.</div>'
+    return (f'<div class="tabs"><div class="tab-bar" role="tablist"><button type="button" class="tab active" data-tab="act-fixes">Fixes ({open_f})</button>'
+            f'<button type="button" class="tab" data-tab="act-strategy">Strategy ({open_s})</button></div>'
+            f'<div class="tab-panel active" id="act-fixes">{f_html}</div><div class="tab-panel" id="act-strategy">{s_html}</div></div>')
+
+
+def _board(sm, actions, editable, filters=True):
     groups = {k: [] for k, _t, _o in SECTIONS}
     for a in actions:
         groups[progress.board_group(a)].append(a)
     bar = ('<div class="filters-bar" role="group" aria-label="Filter by kind of action"><button type="button" class="fchip on" data-t="all">All kinds</button>'
            '<button type="button" class="fchip" data-t="visibility">AI visibility opportunities</button><button type="button" class="fchip" data-t="content">Website content</button>'
            '<button type="button" class="fchip" data-t="accuracy">Data accuracy</button></div>')
-    out = [bar]
+    out = [bar] if filters else []
     for key, title, openn in SECTIONS:
         items = sorted(groups[key], key=lambda a: (PRI_ORDER.get(a["priority"], 9), a["id"]))
         if not items:
@@ -190,7 +211,7 @@ def history_table(runs):
         return ""
     rows = "".join(f'<tr><td>{esc(uk_time(r["run_at"]))}</td><td>{"-" if r["headline_score"] is None else format(r["headline_score"], "g")}</td>'
                    f'<td>{esc(str(r["recs_total"]) if r["recs_total"] is not None else "-")}</td><td>' + (f'<a href="/r/{r["access_token"]}">Detailed analysis</a>' if r.get("access_token") else "") + '</td></tr>' for r in runs[:30])
-    return ('<div class="table-wrap"><table class="table"><thead><tr><th>Checked (UK time)</th><th>Readiness</th><th>Recommendations</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>")
+    return ('<div class="table-wrap"><table class="table"><thead><tr><th>Checked (UK time)</th><th>Readiness</th><th>Actions</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>")
 
 
 def live_panel(state, url):
@@ -234,7 +255,7 @@ def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_
         btns = (f'<a class="btn primary" href="/r/{t}">Detailed analysis</a> <a class="btn" href="/r/{t}/management.pdf">Management report (PDF)</a>')
     hero = (f'<section class="hero"><div><h1>{esc(h["name"])}</h1><div class="sub">{esc(" · ".join(x for x in (h.get("city"), h.get("website")) if x))}</div>'
             f'<div class="hk-chips">{chip("Last checked " + uk_time(sm["last_run_at"]), "brand") if sm["last_run_at"] else ""}{nxt}</div></div><div>{btns}</div></section>')
-    board = action_board(sm, actions, editable)
+    board = action_board(sm, actions, editable, strategy_context=strategy)
     caveat = ('<p class="caption">This shows progress: what has been done and how the score has moved. It does not prove that the actions caused the change. The AI figures come from a sample of answers from one assistant, '
               'which is why they are given with a range.</p>')
     overview = (f'{progress_line(sm)}{kpis(sm)}{opportunities_panel(opps)}{caveat}'
@@ -250,8 +271,8 @@ def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_
     if settings_url and start:
         start = re.sub(r'<button type="button" class="btn primary" data-goto="prompts">(.*?)</button>', lambda m_: f'<a class="btn primary" href="{esc(settings_url)}#prompts">{m_.group(1)}</a>', start)
     later = '<div class="alert info">This appears after the first check.</div>'
-    tabs = [("overview", "Overview", overview), ("ai", "AI visibility", ai or later), ("analysis", "Prompt analysis", analysis or later), ("competitors", "Competitors", competitors or later),
-            ("talk", "Join the conversation", talk or later), ("strategy", "Strategy", strategy or later), ("actions", f"Recommendations ({open_n})", recs)]
+    tabs = [("overview", "Overview", overview), ("ai", "AI visibility", ai or later), ("actions", f"Actions ({open_n})", recs), ("competitors", "Competitors", competitors or later),
+            ("analysis", "Prompt analysis", analysis or later), ("talk", "Join the conversation", talk or later)]
     if not settings_url:                                                   # a dashboard with nowhere else to put them keeps the prompts and history as tabs
         tabs += [("prompts", "Prompts", prompts or '<div class="alert info">Prompts appear after the first check.</div>'), ("history", "History", history)]
     if start:
