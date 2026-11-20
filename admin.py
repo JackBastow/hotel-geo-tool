@@ -361,7 +361,24 @@ def register(app, cfg):
                'Small numbers say little: read these as a check on the labels once there are a few dozen marks, not before.</p>'
                + "<h5>How each evidence label was marked</h5>" + _table(s.feedback_summary(), ["label", "marked", "useful", "wrong", "useful_pct"], {"label": "Label", "marked": "Marked", "useful": "Useful", "wrong": "Wrong", "useful_pct": "% useful"})
                + "<h5>Most recent</h5>" + _table(s.recent_feedback(), ["created", "ref", "verdict", "label", "title", "note"], {"created": "When", "ref": "Ref", "verdict": "Verdict", "label": "Label", "title": "Recommendation", "note": "Note"}))
-        return shell("feedback", "Feedback", out)
+        import tool_feedback_view
+        return shell("feedback", "Feedback", tool_feedback_view.panel(s.tool_feedback(grp="portfolio"), "/admin/tool-feedback", csrf(), "the Westmont portfolio hotels")
+                     + "<h3 class=\"grp\">Marks on report recommendations</h3>" + out)
+
+    @app.post("/admin/tool-feedback/<int:fid>/<status>")
+    def admin_tool_feedback_status(fid, status):
+        g = guard()
+        if g:
+            return g
+        if not hmac.compare_digest(request.form.get("csrf", ""), session.get("csrf", "x")) or status not in ("new", "seen", "done"):
+            abort(400)
+        s, _m = store_or_msg()
+        f = s.get_tool_feedback(fid) if s else None
+        import portal_db
+        if not f or portal_db.group_of(f) != "portfolio":
+            abort(404)
+        s.set_tool_feedback_status(fid, status)
+        return redirect(url_for("admin_feedback"))
 
     @app.get("/admin/export")
     def admin_export():

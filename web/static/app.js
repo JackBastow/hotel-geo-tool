@@ -505,3 +505,17 @@ document.addEventListener("change", function (ev) {
     .then(function (r) { return r.json(); }).then(function (j) { if (!j.ok) { c.checked = !c.checked; li.classList.toggle("done", c.checked); } })
     .catch(function () { c.checked = !c.checked; li.classList.toggle("done", c.checked); });
 });
+
+/* hotel portal: feedback about the tool */
+document.addEventListener("submit", function (ev) {
+  var f = ev.target.closest(".fb-form");
+  if (!f) { return; }
+  ev.preventDefault();
+  var msg = f.querySelector(".fb-msg"), btn = f.querySelector("button");
+  btn.disabled = true;
+  fetch("/portal/api/tool-feedback", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF": f.getAttribute("data-csrf") },
+    body: JSON.stringify({ kind: f.kind.value, message: f.message.value, page: location.pathname + location.hash }) })
+    .then(function (r) { return r.json(); })
+    .then(function (j) { btn.disabled = false; msg.textContent = j.ok ? j.message : (j.error || "That did not send."); if (j.ok) { f.message.value = ""; } })
+    .catch(function () { btn.disabled = false; msg.textContent = "That did not send. Please check your connection."; });
+});

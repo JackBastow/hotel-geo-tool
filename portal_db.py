@@ -25,6 +25,7 @@ def now_iso():
 
 class PortalMixin:
     def _init_portal(self, conn, pk):
+        self._run(conn, f"CREATE TABLE IF NOT EXISTS tool_feedback (id {pk}, created TEXT, hotel_id INTEGER, user_id INTEGER, email TEXT, kind TEXT, message TEXT, page TEXT, status TEXT)")
         self._run(conn, f"CREATE TABLE IF NOT EXISTS users (id {pk}, email TEXT UNIQUE, name TEXT, pw_hash TEXT, role TEXT, active INTEGER, created TEXT, last_login TEXT)")
         self._run(conn, f"CREATE TABLE IF NOT EXISTS hotels (id {pk}, name TEXT, website TEXT, city TEXT, hotel_key TEXT UNIQUE, tier TEXT, audiences TEXT, weekly INTEGER, active INTEGER, "
                         "created TEXT, last_attempt TEXT, last_error TEXT)")
@@ -141,6 +142,29 @@ class PortalMixin:
 
     def open_invites(self, hotel_id):
         return self._rows("SELECT id, email, kind, created, expires FROM invites WHERE hotel_id = ? AND used = '' AND expires > ? ORDER BY id DESC", (hotel_id, now_iso()))
+
+    # feedback about the tool, from hotel users ---------------------------------
+    def add_tool_feedback(self, hotel_id, user_id, email, kind, message, page):
+        conn = self._connect()
+        try:
+            fid = self._insert(conn, "tool_feedback", {"created": now_iso(), "hotel_id": hotel_id, "user_id": user_id, "email": email, "kind": kind, "message": message, "page": page, "status": "new"})
+            conn.commit()
+            return fid
+        finally:
+            conn.close()
+
+    def tool_feedback(self, grp=None, limit=200):
+        """The feedback hotel users sent, newest first, with the hotel's name; grp limits it to one group of hotels (the portfolio or the individual hotels)."""
+        rows = self._rows("SELECT f.id, f.created, f.hotel_id, f.email, f.kind, f.message, f.page, f.status, h.name AS hotel, h.grp AS grp FROM tool_feedback f LEFT JOIN hotels h ON h.id = f.hotel_id "
+                          "ORDER BY f.id DESC LIMIT ?", (int(limit),))
+        return [r for r in rows if grp is None or group_of(r) == grp]
+
+    def get_tool_feedback(self, fid):
+        r = self._rows("SELECT f.*, h.grp AS grp FROM tool_feedback f LEFT JOIN hotels h ON h.id = f.hotel_id WHERE f.id = ?", (fid,))
+        return r[0] if r else None
+
+    def set_tool_feedback_status(self, fid, status):
+        self._exec("UPDATE tool_feedback SET status = ? WHERE id = ?", (status, fid))
 
     # actions -----------------------------------------------------------------
     def list_actions(self, hotel_id):

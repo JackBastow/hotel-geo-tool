@@ -96,5 +96,30 @@ def register(app, cfg):
 
     app.extensions["hotels_admin_can_see_token"] = can_see_token
 
+    @app.get(BASE + "/feedback")
+    def hotels_admin_feedback():
+        g = guard()
+        if g:
+            return g
+        s, msg = store_or_msg()
+        if s is None:
+            return shell("feedback", "Feedback", f'<div class="alert warning">{msg}</div>')
+        import tool_feedback_view
+        return shell("feedback", "Feedback", tool_feedback_view.panel(s.tool_feedback(grp="individual"), BASE + "/feedback", csrf(), "the individual hotels"))
+
+    @app.post(BASE + "/feedback/<int:fid>/<status>")
+    def hotels_admin_feedback_status(fid, status):
+        g = guard()
+        if g:
+            return g
+        if not hmac.compare_digest(request.form.get("csrf", ""), session.get("csrf", "x")) or status not in ("new", "seen", "done"):
+            abort(400)
+        s, _m = store_or_msg()
+        f = s.get_tool_feedback(fid) if s else None
+        if not f or portal_db.group_of(f) != "individual":
+            abort(404)                                                # never another group's feedback
+        s.set_tool_feedback_status(fid, status)
+        return redirect(BASE + "/feedback")
+
     sc = admin_portfolio.Scope("individual", guard, shell, store_or_msg, csrf, authed, ("individual",), {"individual": BASE}, BASE, BASE + "/hotel", False)
     admin_portfolio.register_scope(app, sc)

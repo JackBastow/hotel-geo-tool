@@ -13,6 +13,7 @@ sign-in, separate from the site password and the admin password.
 
 import collections
 import hmac
+import re
 import secrets
 import time
 
@@ -29,6 +30,7 @@ import prompt_sets
 import prompts_view
 
 FAILS = collections.defaultdict(list)
+FEEDBACK_KINDS = {"idea": "An idea", "problem": "Something is wrong", "question": "A question", "praise": "Something I like"}
 
 
 def register(app, cfg):
@@ -385,6 +387,31 @@ def register(app, cfg):
         if not user or hotel_id not in {h["id"] for h in hotels}:
             return jsonify(ok=False), 404
         return jsonify(ok=True, **app.extensions["weekly"].hotel_state(hotel_id))
+
+    @app.post("/portal/api/tool-feedback")
+    def portal_tool_feedback():
+        """Feedback about the tool from a signed-in hotel user: what kind, their words, and the page they were on. Kept short; a few an hour at most."""
+        user, hotels = current()
+        if not user:
+            return jsonify(ok=False, error="Please sign in again."), 401
+        if not csrf_ok(request.headers.get("X-CSRF", "")):
+            return jsonify(ok=False, error="Please reload the page and try again."), 400
+        data = request.get_json(silent=True) or {}
+        kind = str(data.get("kind") or "")
+        msg = re.sub(r"[\x00-\x08\x0b-\x1f\x7f]+", " ", str(data.get("message") or "")).strip()[:2000]
+        page = str(data.get("page") or "")[:200]
+        if kind not in FEEDBACK_KINDS or len(msg) < 3:
+            return jsonify(ok=False, error="Write a few words first."), 400
+        key = f"fb:{user['id']}"
+        now = time.time()
+        FAILS[key] = [t for t in FAILS[key] if now - t < 3600]
+        if len(FAILS[key]) >= 20:
+            return jsonify(ok=False, error="Thank you: that is plenty of feedback for one hour."), 429
+        FAILS[key].append(now)
+        m = re.search(r"/portal/hotel/(\d+)", page)
+        hid = int(m.group(1)) if m and int(m.group(1)) in {h["id"] for h in hotels} else (hotels[0]["id"] if hotels else None)
+        db().add_tool_feedback(hid, user["id"], user["email"], kind, msg, page)
+        return jsonify(ok=True, message="Thank you. Your feedback has been sent.")
 
     @app.post("/portal/api/action-step")
     def portal_action_step():
