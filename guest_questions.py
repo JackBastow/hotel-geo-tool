@@ -699,6 +699,10 @@ def parse_time(token):
     return f"{h:02d}:{mi:02d}"
 
 
+_OPTIONAL_TIME = re.compile(r"\b(?:late|early|extended|express|guaranteed)\s+check[\s-]?(?:in|out)|check[\s-]?(?:in|out)\s+(?:extension|upgrade)|\b(?:for|at) (?:a|an) (?:charge|fee|supplement|additional)|"
+                            r"[£$€]\s?\d+|subject to availability|on request|upon request|per hour", re.I)
+
+
 def _times_for(ok_pages, patterns):
     """[(HH:MM, source_url, snippet)] for every check-in or check-out time found."""
     found = []
@@ -708,6 +712,10 @@ def _times_for(ok_pages, patterns):
             got = False
             for m in rx.finditer(text):
                 t = parse_time(m.group("t"))
+                before = text[max(0, m.start() - 25): m.start()]
+                after = re.split(r"[.;,\n]|\b(?:late|early)\b", text[m.end(): m.end() + 40], maxsplit=1, flags=re.I)[0]       # only the rest of this clause, never the next option
+                if t and _OPTIONAL_TIME.search((before.split(".")[-1] + " " + m.group(0) + " " + after)):
+                    continue        # "late check-out until 12pm for £35", "early check-in from 1pm": an option, not the hotel's standard time
                 if t:
                     got = True
                     found.append((t, p["url"], _snippet(text, m.start(), m.end(), 60)))

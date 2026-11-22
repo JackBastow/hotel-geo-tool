@@ -1194,7 +1194,7 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
     recs += _from_location(location)
     recs += _from_consistency(consistency)
     recs += _from_hidden(hidden)
-    if site.home is not None and not text_only:        # a "no Hotel markup" claim needs the homepage to have been read AS HTML
+    if site.home is not None and not text_only and not (coverage or {}).get("read_via_html"):        # a "no Hotel markup" claim needs the homepage read AS HTML by our own reader (a fallback reader's copy can drop the page's scripts, where the markup lives)
         recs += _from_structured(structured, jsonld_example, site)
     recs += _from_machine(machine)
     recs += _from_intel(intel)

@@ -22,6 +22,7 @@ _NEG = re.compile(
     r"|\bno\s+(?:\w+\s+){0,2}(?:available|offered|provided)\b|\bsold\s+out\b|\bnot\s+offer(?:ed)?\b|\bwithout\b|\bunfortunately\b|\bnot\s+guaranteed\b|\bsubject\s+to\s+availability\b(?=.{0,40}\bnot\b)"
     r"|\bonly\s+(?:on\s+request\s+and\s+)?not\b", re.I)
 _PRE_NO = re.compile(r"\b(?:no|not|without|never|neither|nor|zero)\s+(?:a\s+|an\s+|any\s+|the\s+)?(?:\w+\s+){0,2}$", re.I)
+_PRE_DENY = re.compile(r"\b(?:don[’']?t|do\s+not|does\s+not|doesn[’']?t|cannot|can[’']?t|are\s+unable\s+to|no\s+longer)\s+(?:currently\s+)?(?:offer|have|provide|allow|accept|take|permit|accommodate)\s+(?:a\s+|an\s+|any\s+)?(?:\w+\s+){0,2}$", re.I)
 _SENT_END = ".!?\n;|"
 
 
@@ -40,7 +41,7 @@ def is_negated(text, start, end, window=70):
     a, b = _sentence_bounds(text, start, end)
     before = text[max(a, start - 40):start]
     after = text[end:min(b, end + window)]
-    if _PRE_NO.search(before):
+    if _PRE_NO.search(before) or _PRE_DENY.search(before):
         return True
     return bool(_NEG.search(after))
 

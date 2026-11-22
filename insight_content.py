@@ -869,6 +869,9 @@ def _name_analysis(site):
     return issues, notes
 
 
+_CORPORATE = re.compile(r"registered (?:office|in england|in scotland|in wales|address|company|no\b|number)|company (?:no|number|reg)|vat (?:no|number|reg)|trading as|incorporated", re.I)
+
+
 def consistency(site, guest, today=None):
     """Contradictions between the hotel's own pages. Each lists every page involved."""
     today = today or dt.date.today()
@@ -887,21 +890,43 @@ def consistency(site, guest, today=None):
     # --- postcode / address
     pcs = defaultdict(set)
     streets = defaultdict(set)
+    own_words = {w for w in evidence.fold((site.city or "").split(",")[0]).split() if len(w) > 2} | {w for w in evidence.fold(site.hotel or "").split() if len(w) > 3 and w not in ("hotel", "hotels", "resort", "spa", "the")}
+    attributed = defaultdict(lambda: {"own": False, "seen": False})
     for p in site.content_pages:
         blob = p.get("footer_text", "") + " " + p["text"]
         for m in _POSTCODE.finditer(blob):
-            pcs[f"{m.group(1)} {m.group(2)}"].add(p["url"])
+            k = f"{m.group(1)} {m.group(2)}"
+            pcs[k].add(p["url"])
+            before = blob[max(0, m.start() - 160): m.start()]
+            corporate = bool(_CORPORATE.search(before[-130:]))
+            near = evidence.fold(before[-60:])                # the words just before the postcode: '..., Newquay, TR7 1DB' or '..., Bournemouth, BH2 5EJ'
+            attributed[k]["seen"] = True
+            attributed[k]["own"] = attributed[k]["own"] or (not corporate and bool(own_words & set(near.split())))
+            if corporate:
+                attributed[k]["corporate"] = True
             near = blob[max(0, m.start() - 110): m.start()]
+            prev = list(_POSTCODE.finditer(near))
+            if prev:
+                near = near[prev[-1].end():]                # only the words since the previous postcode: never the street of an address written just before
             for r in _ROAD.finditer(near):
                 nm = re.sub(r"^(?:hotel|the)\s+", "", r.group(2).lower())
                 typ = _ABBR.get(r.group(3).lower(), r.group(3).lower())
-                streets[(nm, typ)].add(p["url"])
+                streets[(nm, typ, k)].add(p["url"])
+    # a postcode written beside the hotel's town or name is the hotel's; one written beside another place (a sister hotel, the head office, a supplier) is someone else's address, not a contradiction
+    for k in [k for k, a in attributed.items() if a.get("corporate") and not a["own"]]:
+        pcs.pop(k, None)                                  # a company's registered office in the legal small print is not the hotel's address
+        streets = {s_: u for s_, u in streets.items() if s_[2] != k}
+    if own_words and any(a["own"] for a in attributed.values()):
+        pcs = {k: u for k, u in pcs.items() if attributed[k]["own"]}
+        streets = {s: u for s, u in streets.items() if attributed[s[2]]["own"]}
+    streets = {(s[0], s[1]): u for s, u in streets.items()}
     if len(pcs) > 1:
         out.append({"type": "postcode", "title": "More than one postcode appears on the site", "severity": "medium",
                     "values": [{"value": k, "url": sorted(u)[0], "pages": len(u)} for k, u in pcs.items()],
                     "detail": "One may be a neighbouring business or an old address. Mixed postcodes can send a map or an assistant to the wrong place.",
                     "fix": "Check each page; keep the hotel's real postcode and remove or label any other."})
     names_only = {k[0] for k in streets}
+    names_only = {n for n in names_only if not any(o != n and n.endswith(" " + o) for o in names_only)}      # 'newquay east' is 'east' (Street) with the town in front: one street
     if len(names_only) > 1:
         out.append({"type": "address", "title": "Different street names appear beside the postcode", "severity": "low",
                     "values": [{"value": f"{k[0].title()} {k[1].title()}", "url": sorted(u)[0], "pages": len(u)} for k, u in streets.items()],
@@ -971,8 +996,13 @@ def consistency(site, guest, today=None):
         "Pool heating": (re.compile(r"heated (?:indoor |outdoor )?(?:swimming )?pool", re.I),
                          re.compile(r"unheated|not heated", re.I), "heated", "unheated"),
     }
+    offer_ctx = re.compile(r"\bdiscount|\bwelcome drink|\bcredit\b|\bon arrival\b|\boffer|\bpackage|\bbreak\b|\bdeal\b|\bmembers?\b|\bmembership|\bincludes?\b|\binclusive\b|\bupgrade|\bwhen you book|\bstay (?:and|&)|\bpromotion|\bvoucher|\bspecial", re.I)
     for amenity, (yes, no, yl, nl) in OPP.items():
-        ys = site.find(yes)
+        def _before(h):
+            txt = (h.get("page") or {}).get("text", "")
+            i = txt.find((h.get("snippet") or "")[:40])
+            return txt[max(0, i - 220): i] if i > 0 else ""
+        ys = [h for h in site.find(yes) if not offer_ctx.search(h.get("snippet", "") + " " + _before(h))]      # 'with complimentary parking' inside a package (described in the sentence before) is what that offer includes, not the hotel's rule
         ns = site.find(no)
         if ys and ns:
             out.append({"type": "amenity", "title": f"{amenity} is described in opposite ways", "severity": "medium" if amenity == "Pets" else "low",

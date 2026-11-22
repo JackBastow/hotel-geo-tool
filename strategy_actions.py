@@ -27,7 +27,7 @@ CHAIN_DOMAINS = ("marriott.com", "hilton.com", "ihg.com", "hyatt.com", "accor.co
                  "ibis.com", "mercure.com", "sofitel.com", "pullmanhotels.com", "fairmont.com", "raffles.com", "swissotel.com", "movenpick.com", "leonardo-hotels.com", "motel-one.com", "citizenm.com")
 # booking, review and price-comparison sites: we never read them (their terms forbid it), so we can never say the hotel is NOT on one
 OTA = re.compile(r"booking\.|expedia|hotels\.com|trip\.com|agoda|trivago|kayak|skyscanner|momondo|zenhotels|cozycozy|hotelscombined|priceline|orbitz|travelocity|lastminute|ebookers|hrs\.|hotel\.de|"
-                 r"airbnb|vrbo|holidaycheck|tripadvisor|google\.|yelp|ostrovok|goibibo|makemytrip|hostelworld|hotwire|travelsupermarket|wotif|otel\.com|tablethotels|mrandmrssmith", re.I)
+                 r"airbnb|vrbo|holidaycheck|tripadvisor|google\.|yelp|ostrovok|goibibo|makemytrip|hostelworld|hotwire|travelsupermarket|wotif|otel\.com|tablethotels|mrandmrssmith|oyorooms|oyo\.|laterooms|travelzoo|secretescapes|hotels\.ng|hostelbookers|almosafer|wego\.|ixigo|cleartrip|easemytrip|traveloka|tiket\.com|hrs\.|hotelopia|destinia|rumbo|edreams|opodo|kiwi\.com", re.I)
 
 
 def is_listing_site(domain, type_=""):

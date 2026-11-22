@@ -32,8 +32,8 @@ esc = html.escape
 GROUP = {"portfolio": ("Portfolio", "/admin/portfolio"), "individual": ("Individual hotels", "/admin/individual")}
 
 
-def _key_for(website):
-    return backend.hotel_key({"meta": {"base": urlscope.normalise(website)[0]}})
+def _key_for(website, hotel="", city=""):
+    return backend.hotel_key({"meta": {"base": urlscope.normalise(website, hotel, city)[0]}})
 
 
 def _latest_report(s, runs):
@@ -206,7 +206,7 @@ def register_scope(app, sc):
             return sc.shell(grp, sc.title(grp), '<div class="alert warning">&ldquo;' + esc(city) + '&rdquo; is a country. Enter the <b>town or city</b> the hotel is in (for example Paris, or Roissy-en-France): the questions put to AI assistants are about hotels in a town.</div>')
         if not (name and site and city) or not netguard.url_ok(site if "//" in site else "https://" + site):
             return sc.shell(grp, sc.title(grp), '<div class="alert warning">Enter the hotel&rsquo;s name, a public website address and the town or city.</div>')
-        key = _key_for(site)
+        key = _key_for(site, name, city)
         have = s.hotel_by_key(key)
         if have:
             if portal_db.group_of(have) not in sc.groups:

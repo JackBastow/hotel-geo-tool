@@ -316,6 +316,22 @@ def actions_for(db, hotel):
     return acts
 
 
+def rekey_all(db):
+    """Hotels registered before a brand site's town folder was recognised as the hotel's own section get their new key (and keep their history). -> number moved. Never raises."""
+    n = 0
+    try:
+        import backend
+        import urlscope
+        for h in db.list_hotels():
+            new = backend.hotel_key({"meta": {"base": urlscope.normalise(h["website"], h["name"], h.get("city") or "")[0]}})
+            if new and new != h["hotel_key"] and not db.hotel_by_key(new):
+                db.rekey_hotel(h["hotel_key"], new)
+                n += 1
+    except Exception:  # noqa: BLE001
+        pass
+    return n
+
+
 def on_run_saved(db, report, run_id):
     """Called after any audit is saved: when the audited website belongs to a registered hotel, update that hotel's actions. Never raises."""
     try:

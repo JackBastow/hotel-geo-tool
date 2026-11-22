@@ -54,8 +54,14 @@ def cat(*parts):
     return Markup("".join(p if isinstance(p, Markup) else escape(clean(p)) for p in parts))
 
 
+_TAG = re.compile(r"</?(?:b|i|u|em|strong|br|span|a|p|div|small|sup|sub)\b[^>]*>", re.I)
+
+
 def clean(s):
     s = "" if s is None else str(s)
+    if "<" in s or "&" in s:
+        import html as _h
+        s = _TAG.sub("", _h.unescape(s))          # text that arrives with web markup in it ('Hotel &amp; Spa', '<b>name</b>') is shown as the words, never as code
     for k, v in _MAP.items():
         s = s.replace(k, v)
     return s.encode("cp1252", "replace").decode("cp1252")

@@ -398,6 +398,32 @@ def leaderboard(extracted, items, hotel, kinds=("generic",)):
     return {"rows": out, "questions": len(gen_ids), "total_mentions": total}
 
 
+def reconcile(ai, extracted, hotel):
+    """
+    One answer to 'did this answer name the hotel?' for the whole report. The quick text match (ai_sample.mentioned) and the reading of each answer (the hotels it lists) can disagree, for example
+    on 'The Nici' for 'THE NICI Newquay'; then one page said 9 of 24 and another 6 of 24. An answer counts as naming the hotel when either finds the hotel itself (never a sister property of
+    the same brand), and the sample's summary is recounted from that, so every figure in the report comes from the same marks. -> number of answers changed.
+    """
+    import ai_sample
+    if not ai or ai.get("status") != "ok" or not extracted:
+        return 0
+    answers = extracted.get("answers") or {}
+    n = 0
+    for it in ai.get("items") or []:
+        if it.get("mentioned") or it.get("kind") == "direct":
+            continue
+        for h in answers.get(it["id"]) or []:
+            if ai_sample.mentioned(h.get("name", ""), hotel) and not _sibling(h.get("name", ""), hotel):
+                it["mentioned"] = True
+                it["position"] = it.get("position") or h.get("rank")
+                it["reconciled"] = True
+                n += 1
+                break
+    if n:
+        ai["summary"] = ai_sample.summarise(ai["items"])
+    return n
+
+
 def alternatives(extracted, hotel):
     """The set the assistant offers when asked what is similar - its view of the competitive set."""
     return [h for h in (extracted["answers"].get("similar") or []) if not ai_sample.mentioned(h["name"], hotel)]

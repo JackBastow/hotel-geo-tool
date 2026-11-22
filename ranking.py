@@ -222,9 +222,16 @@ def plan_30_60_90(recs, top_ids):
             plan[bucket].append(r["id"])
             seen.add(r["id"])
     ordered = sorted(recs, key=lambda r: -r["rank"])
+    # the strongest AI-visibility opportunities (where the hotel is losing recommendations to rivals) start in the first month, not after every small fix
+    vis = [r for r in ordered if r["kind"] != "fix" and (r.get("track") == "visibility" or r.get("source") in ("ai_gap", "sources", "differentiation", "identity"))
+           and (r["priority"] in ("critical", "high") or r["value"] >= 45)]
+    for r in vis[:2]:
+        put("30", r)
     for r in ordered:
         if r["kind"] == "fix" and (r["priority"] in ("critical", "high") or (r["effort"] == "low" and r["value"] >= 40)):
             put("30", r)
+    for r in vis[2:4]:
+        put("60", r)
     for r in ordered:
         if r["kind"] == "fix" and r["effort"] in ("low", "medium") and r["value"] >= 35:
             put("60", r)

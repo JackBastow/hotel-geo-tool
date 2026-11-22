@@ -182,6 +182,9 @@ def _key(u):
     return insight_content._key(u)
 
 
+_NEGATED = re.compile(r"\b(?:don[’']?t|do not|does not|doesn[’']?t|unfortunately|no longer|not (?:available|offered|possible)|we are unable|cannot offer|can[’']?t offer)\b", re.I)
+
+
 def _denial(site, rx, pages=None, context=None):
     """A sentence that names the thing and says it is NOT offered ('connecting rooms are not available'): {url, snippet} or None. Negative evidence is a statement, not a confirmation."""
     for p in (pages or site.content_pages):
@@ -243,8 +246,10 @@ def _assess_requirement(site, req, topic_read, topic_unread, coverage):
         m = _transport_fact(site) if rxf is None else _match(site, rxf, pages, ctx if (i or not req.get("requires_first")) else None)
         if i == 0 and req.get("requires_first"):
             first_ok = bool(m)
-            if not m and rxf is not None:
+            if rxf is not None:
                 denied = _denial(site, rxf, pages)
+                if m and denied and (_NEGATED.search(m.get("snippet", "")) or denied.get("url") == m.get("url")):
+                    first_ok, m = False, None      # 'Unfortunately we don't offer interconnecting rooms': the word is there, and the answer is no
         if m:
             found[name] = m
         else:

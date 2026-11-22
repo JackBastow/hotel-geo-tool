@@ -134,6 +134,9 @@ class Weekly:
         if not h:
             res["error"] = "unknown hotel"
             return res
+        import progress
+        progress.rekey_all(db)                          # a hotel whose own section of a brand site is now recognised keeps its history under its new key
+        h = db.get_hotel(hotel_id) or h
         db.set_hotel(hotel_id, last_attempt=portal_db.now_iso())
         with self.lock:
             st = self.live.setdefault(hotel_id, {"state": "running", "messages": [], "started": time.time(), "finished": None, "error": "", "manual": False})

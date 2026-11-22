@@ -406,8 +406,8 @@ def score_entity(entities, consistency, location):
                        "country, so this may be a different business.",
             })
         else:
-            pts.append((f"{src} missing", 0.0, weight))
-            ev.append(f"{src}: no entry found for this hotel")
+            pts.append((f"{src} not found by name", 0.3, weight))           # a name search that finds nothing is weak evidence (a new or renamed hotel may be listed under another name): never scored as a certain zero
+            ev.append(f"{src}: no entry found by searching the hotel's name" + (f" or its former name(s) ({', '.join(e['former_names'])})" if e.get("former_names") else "") + "; it may be listed under another name")
             recs.append({
                 "code": f"entity_missing:{src}",
                 "priority": "high" if src == "OpenStreetMap" else "medium",

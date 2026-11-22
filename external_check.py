@@ -590,7 +590,7 @@ def check_wikidata(hotel, city="", place_tokens=None):
 
 
 def run_external_check(urls, own_lodging_node, progress=None, hotel="", city="",
-                       location=None):
+                       location=None, former_names=()):
     """
     own_lodging_node: the "lodging_node" dict from site_check.py's output
     (the hotel's own JSON-LD Hotel/LodgingBusiness node), or None.
@@ -632,6 +632,15 @@ def run_external_check(urls, own_lodging_node, progress=None, hotel="", city="",
             lat=loc.get("lat"), lon=loc.get("lon"),
         ))
         time.sleep(1.1)  # Nominatim asks for max 1 request/second - respect it
+        if not entities[-1].get("found"):
+            for fn in list(former_names or [])[:2]:            # a renamed hotel may still be mapped under its old name
+                e2 = check_openstreetmap(fn, city or loc.get("city", ""), postcode=loc.get("postcode", ""), lat=loc.get("lat"), lon=loc.get("lon"))
+                time.sleep(1.1)
+                if e2.get("found"):
+                    e2["found_as"] = fn
+                    entities[-1] = e2
+                    break
+        entities[-1]["former_names"] = list(former_names or [])
 
         # Feed the verified OSM place names into the Wikidata check.
         osm = entities[-1]
@@ -646,6 +655,14 @@ def run_external_check(urls, own_lodging_node, progress=None, hotel="", city="",
             progress("Checking Wikidata...")
         entities.append(check_wikidata(hotel, city or loc.get("city", ""),
                                        place_tokens=place_tokens))
+        if not entities[-1].get("found"):
+            for fn in list(former_names or [])[:2]:
+                e2 = check_wikidata(fn, city or loc.get("city", ""), place_tokens=place_tokens)
+                if e2.get("found"):
+                    e2["found_as"] = fn
+                    entities[-1] = e2
+                    break
+        entities[-1]["former_names"] = list(former_names or [])
 
     # --- sources that refused automated access, reported honestly rather than
     #     silently producing an empty consistency table

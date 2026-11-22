@@ -168,5 +168,24 @@ def mentions(page_text, kind, hotel="", osm_ctx=None):
         if looks_like_nav(s) or len(s.split()) < 4:
             continue
         for p in find(s, kind, hotel):
-            out.append({"name": p["name"], "type": p["type"], "distance": distance_for(s, p), "sentence": re.sub(r"\s+", " ", s).strip()[:260], "map": match_map(p, osm_ctx)})
+            d = distance_for(s, p)
+            if not d and is_origin(s, p["name"]):
+                continue                  # 'connections from cities including London, Manchester, Edinburgh': where guests travel FROM, not a place near the hotel
+            out.append({"name": p["name"], "type": p["type"], "distance": d, "sentence": re.sub(r"\s+", " ", s).strip()[:260], "map": match_map(p, osm_ctx)})
     return out
+
+
+_ORIGIN = re.compile(r"\b(?:from|connections?|links?|flights?|trains?|services?|routes?|travel(?:ling)?|journey|drive|direct)\b[^.]{0,80}$|\b(?:cities|places|airports|destinations) (?:including|such as|like)\b[^.]{0,80}$|\bincluding\b[^.]{0,60}$", re.I)
+
+
+def is_origin(sentence, name):
+    """Is this place named as somewhere guests travel FROM (a list of origins, 'flights from', 'trains from'), rather than as a place near the hotel?"""
+    i = sentence.find(name)
+    if i < 0:
+        i = sentence.lower().find((name or "").lower().split(" airport")[0])
+    if i < 0:
+        return False
+    before = sentence[:i]
+    if re.search(r"\b(?:land(?:s|ing)?|arriv\w*|fly|flying|come|coming|get|getting)\s+(?:at|in|into|to)\s+(?:the\s+)?$|\binto\s+(?:the\s+)?$", before, re.I):
+        return False                      # 'flights from Gatwick land at Newquay Airport': the place guests arrive at
+    return bool(_ORIGIN.search(before)) and not re.search(r"\b(?:near|close to|next to|opposite|beside|minutes? (?:from|to)|walk(?:ing)? (?:from|to)|just)\b[^.]{0,30}$", before, re.I)

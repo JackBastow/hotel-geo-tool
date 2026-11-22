@@ -14,14 +14,40 @@ a malformed address and then audited the whole brand site.
 """
 
 import re
+import threading
+import unicodedata
 import urllib.parse
+
+_HINT = threading.local()          # the hotel's name and town for the audit running in this thread (set by full_audit.run_full_audit)
+
+
+def set_hint(hotel="", city=""):
+    """Tell normalise() which hotel and town this audit is about, so a brand site's folder named after the town or the hotel ('thenici.com/newquay/') is read as that hotel's own section."""
+    _HINT.names = (hotel or "", city or "")
+
+
+def _words(s):
+    s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode().lower()
+    return set(re.findall(r"[a-z0-9]+", s))
+
+
+# first folders that are ordinary pages of a single hotel's own website, never a property's section
+_GENERIC = {"rooms", "room", "suites", "accommodation", "stay", "contact", "contact-us", "about", "about-us", "offers", "special-offers", "packages", "dining", "restaurant", "restaurants", "food",
+            "bar", "spa", "wellness", "meetings", "meetings-events", "events", "weddings", "gallery", "location", "location-map", "find-us", "faq", "faqs", "book", "booking", "news", "blog", "home",
+            "index", "en", "our-story", "experiences", "things-to-do", "explore", "facilities", "amenities", "careers", "jobs", "press", "gift-vouchers", "vouchers", "privacy", "terms", "policies"}
 
 # folders that name a place's own section on a multi-property website
 _PROPERTY_FOLDERS = {"hotels", "hotel", "properties", "property", "resorts", "resort", "locations", "destinations", "rooms-and-suites-hotels"}
 _LANG = re.compile(r"^[a-z]{2}([-_][a-z]{2,4})?$", re.I)
 
 
-def normalise(text):
+def normalise(text, hotel=None, city=None):
+    """
+    -> (start_url, scope). A brand site's folder is the hotel's own section when it is a known property folder (/hotels/xyz/), or when its name is the hotel's town or part of its name
+    (thenici.com/newquay/ for 'THE NICI Newquay'): then only that folder is the hotel's website, never the whole brand site with its other hotels.
+    """
+    if hotel is None and city is None:
+        hotel, city = getattr(_HINT, "names", ("", ""))
     raw = (text or "").strip()
     if "//" not in raw:
         raw = "https://" + raw
@@ -41,6 +67,14 @@ def normalise(text):
     for i, s in enumerate(segs):
         if s.lower() in _PROPERTY_FOLDERS and i + 1 < len(segs):
             return start, "/" + "/".join(segs[: i + 2]) + "/"
+    # a brand site's folder named after this hotel's town or the hotel itself: that folder is the hotel's own section
+    names = _words(hotel) | _words(city)
+    first_i = next(i for i, s in enumerate(segs) if not _LANG.match(s))
+    first = segs[first_i]
+    fw = _words(first.replace("-", " ").replace("_", " "))
+    if names and first.lower() not in _GENERIC and fw and fw <= names and not fw <= {"the", "hotel", "hotels", "and", "spa", "resort"}:
+        scope = "/" + "/".join(segs[: first_i + 1]) + "/"
+        return urllib.parse.urlunparse((p.scheme or "https", host, scope, "", "", "")), scope
     # an ordinary site and the visitor pasted an inner page (/rooms/): they mean the hotel's whole website
     return urllib.parse.urlunparse((p.scheme or "https", host, "/", "", "", "")), None
 

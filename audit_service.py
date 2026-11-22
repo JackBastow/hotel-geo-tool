@@ -101,7 +101,7 @@ def run(params, cfg, progress=None):
             import backend
             import urlscope
             db = backend.open_store(cfg.database_url)
-            _key = backend.hotel_key({"meta": {"base": urlscope.normalise(params["website"])[0]}})
+            _key = backend.hotel_key({"meta": {"base": urlscope.normalise(params["website"], params.get("hotel", ""), params.get("city", ""))[0]}})
             benchmark = (db.confirmed_prompts_for_key(_key) or db.get_benchmark(_key)) if db else []      # the prompts the hotel confirmed come first; otherwise the ones frozen at its first audit
             import placenames
             if benchmark and not db.confirmed_prompts_for_key(_key) and any(placenames.has_scrap(b.get("text")) for b in benchmark):

@@ -415,6 +415,18 @@ class Store(portal_db.PortalMixin):
     def recent_feedback(self, limit=60):
         return self._rows("SELECT created, run_id, ref, verdict, label, source, title, note FROM feedback ORDER BY id DESC LIMIT ?", (int(limit),))
 
+    def rekey_hotel(self, old, new):
+        """A hotel's identity changed (its own section of a brand site is now recognised): move its checks, frozen prompts and record to the new key, so no history is lost."""
+        if not old or not new or old == new:
+            return
+        conn = self._connect()
+        try:
+            for t in ("runs", "benchmark", "hotels"):
+                self._run(conn, f"UPDATE {t} SET hotel_key = ? WHERE hotel_key = ?", (new, old))
+            conn.commit()
+        finally:
+            conn.close()
+
     def get_report_by_token(self, token):
         """(run id, report) for the visitor's own link, or (None, None). The token is never part of any export or list."""
         if not token or len(token) < 20:

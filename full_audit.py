@@ -631,6 +631,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     relaxed version of the same setting. Configuring this does not enable
     or require `include_ai_visibility`, and vice versa.
     """
+    urlscope.set_hint(hotel, city)          # a brand site's folder named after the town or the hotel is this hotel's own section (urlscope.normalise)
     def say(msg):
         if progress:
             progress(msg)
@@ -793,9 +794,14 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                         else "page text" if own_facts else "none found")
 
     say("Checking open data sources...")
+    import former_names as _former_mod
+    try:
+        former = _former_mod.find(own_pages, hotel)          # 'previously known as Hotel Victoria': searched for too, and connected to the current name
+    except Exception:  # noqa: BLE001
+        former = []
     ext = external_check.run_external_check(
         listing_urls, own_facts or None, progress=progress,
-        hotel=hotel, city=city, location=location,
+        hotel=hotel, city=city, location=location, former_names=[f["name"] for f in former],
     )
 
     # ---- join the wider discovery that has been running in the background
@@ -1153,6 +1159,13 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         except Exception as e:  # noqa: BLE001 - an extra; the sample itself still shows
             ai_insight_result = {"source": ai_insights.SOURCE, "status": "unavailable", "reason": f"The analysis of the answers failed ({type(e).__name__}).", "cost_usd": 0.0}
 
+    # one count for the whole report: an answer the reading shows naming the hotel is marked as naming it, and the sample's figures are recounted from those marks
+    if isinstance(ai_insight_result, dict) and ai_insight_result.get("extracted_answers"):
+        try:
+            ai_insights.reconcile(ai_result, ai_insight_result["extracted_answers"], hotel)
+        except Exception:  # noqa: BLE001
+            pass
+
     # What the answers say about the hotel itself (no parking, has a pool, closed for refurbishment), checked against its own website
     if isinstance(ai_insight_result, dict) and ai_insight_result.get("status") in ("ok", "partial"):
         say("Checking what the assistant said about the hotel against its website...")
@@ -1202,6 +1215,13 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                                                "tavily": tavily_result}))
     except Exception as e:  # noqa: BLE001 - the audit must survive a failed analysis
         consult_result = {"error": f"{type(e).__name__}: {e}"}
+    try:
+        _fr = _former_mod.recommendation(former, hotel, ext["entities"])
+        if _fr and isinstance(consult_result.get("recommendations"), list):
+            consult_result["recommendations"].insert(0, _fr)
+            consult_result["former_names"] = former
+    except Exception:  # noqa: BLE001
+        pass
     try:       # the outside sources were read after the scorecard was made: a hotel found under several names, or contradicted by a listing, cannot keep a perfect consistency score
         _recs = {r.get("id"): r for r in (consult_result.get("recommendations") or [])}
         _names = 2 if "I1" in _recs else 0

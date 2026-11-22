@@ -88,9 +88,10 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     except Exception as e:  # noqa: BLE001 - an extra; the keyword-based view still works
         travel = {"segments": [], "assessed": [], "skipped": [], "summary": {"judged": 0, "score": None}, "error": f"{type(e).__name__}: {e}"}
     hidden = ic.hidden_strengths(s, feats, pages_meta, classes=classes)
-    if text_only:
+    if text_only or fc_html:
         sd = {"items": [], "node_count": 0, "hotel_found": None, "unreadable": True,
-              "caution": it.CAUTION + " The pages were read as plain text, so any markup they carry could not be inspected."}
+              "caution": it.CAUTION + (" The pages were read as plain text, so any markup they carry could not be inspected." if text_only else
+                                       " The site refused this tool's own reader; the copy that came through the fallback reader may not carry the page's scripts, where structured data lives, so it was not judged either way.")}
     else:
         sd = it.structured_audit(s, location, guest, intents)
     machine = it.machine_readiness(s, pages_meta, site, entities, intel, sd, cons, questions, web)
@@ -102,6 +103,10 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         machine = [f for f in machine if f["id"] not in ("sitemap_missing", "robots_block_all", "ai_blocked", "js_booking", "js_empty", "http_errors", "slow_pages", "refused")]
     profile = it.readiness_profile(s, guest, intents, loc, sd, machine, cons, intel, coverage=cov,
                                    map_failed=(osm_ctx or {}).get("failed_parts", []) if osm_ctx else ["all (no map data)"], traveller=travel, external=external)
+    if fc_html and not text_only:
+        for p in profile:
+            if p["key"] == "structured":
+                p.update(score=None, band="not assessed", assessed=False, drivers=["the site refused this tool's own reader, so its structured data could not be inspected reliably"], evidence=None)
     if text_only:
         for p in profile:
             if p["key"] in ("technical", "structured", "discoverability"):
