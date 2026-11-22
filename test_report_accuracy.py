@@ -110,5 +110,42 @@ recs = [{"id": "fix1", "kind": "fix", "priority": "high", "effort": "low", "valu
 plan = ranking.plan_30_60_90(recs, set())
 check("the strongest AI-visibility opportunity starts in the first 30 days", "opp1" in plan["30"], plan)
 
+print("8. listings we found are shown as found; booking sites are never 'publishers'")
+import copy
+import json
+import os
+import source_actions
+base = json.load(open(os.path.join("tests_data", "sample_report.json"), encoding="utf8"))
+r8 = copy.deepcopy(base)
+r8["meta"]["base"] = "https://thenici.com/newquay/"
+r8["ai_insights"] = {**(r8.get("ai_insights") or {}), "pages": [
+    {"url": "https://www.booking.com/searchresults.html?ss=Newquay", "domain": "booking.com", "cited": 5, "names_hotel": False, "names_competitor": "Fistral Beach Hotel and Spa"},
+    {"url": "https://www.oyorooms.com/gb/newquay", "domain": "oyorooms.com", "cited": 2, "names_hotel": False, "names_competitor": "Fistral Beach Hotel and Spa"},
+    {"url": "https://www.expedia.co.uk/Newquay-Hotels.d123", "domain": "expedia.co.uk", "cited": 2, "names_hotel": False, "names_competitor": "Great Western"}]}
+r8["ai_gap"] = {"status": "ok", "markets": [], "articles": []}
+r8["intel"] = {"identity": {"footprint": [{"platform": "Booking.com", "discovered": True, "url": "https://www.booking.com/hotel/gb/the-nici-newquay.html"},
+                                          {"platform": "Expedia", "discovered": False, "url": ""}]}}
+rows = {s["domain"]: s for s in source_actions.build(r8, limit=20)}
+check("a listing the audit found in search results shows as there, with its link", source_actions.presence_text(rows["booking.com"]).startswith("Yes") and rows["booking.com"]["listing_url"].endswith("the-nici-newquay.html"), rows.get("booking.com"))
+check("one our searches did not find says so, without claiming it is not listed", "does not show it is not listed" in source_actions.presence_text(rows["expedia.co.uk"]))
+check("OYO is a booking site, not a 'travel publisher'", rows["oyorooms.com"]["type"] in ("comparison", "review"), rows["oyorooms.com"]["type"])
+la = next(a for a in strategy_actions.build(r8, {"reasons": ["surf lessons"]}, H) if a["tag"] == "listings")
+check("the listings action links to the listing found and asks to check the others", la["steps"][0]["link"]["url"].endswith("the-nici-newquay.html") and any("Check whether you are listed on expedia.co.uk" in s["title"] for s in la["steps"]))
+
+print("9. the right questions for the hotel")
+import ai_niche
+prof = ai_niche.profile(H, C, [], None, [{"text": "Newquay Airport: 15 minute drive. Our beachfront spa hotel above Great Western Beach.", "url": "u"}], [], [], classes=["resort", "spa_hotel"])
+check("a beach hotel 12 km from a regional airport is not an 'airport hotel'", not prof["airport_hotel"] and not any(a["key"] == "airport" for a in prof.get("audiences") or []), (prof["airport_hotel"], prof.get("audiences")))
+prof2 = ai_niche.profile("Hilton London Heathrow Airport", "London", [], None, [{"text": "Heathrow Airport: 1 km, a 5 minute walk to Terminal 4.", "url": "u"}], [], [], classes=["airport"])
+check("while a hotel at the airport is", prof2["airport_hotel"])
+import prompt_analysis
+r9 = copy.deepcopy(base)
+r9["ai_sample"] = {"status": "ok", "items": [{"id": "q1", "qid": "q1", "kind": "niche", "text": "Which luxury hotels in Newquay have a spa?", "source": "feature", "mentioned": False}]}
+r9["benchmark"] = {"prompts": [{"text": "Which luxury hotels in Newquay have a spa?"}], "reused": False}
+r9["ai_gap"] = {"status": "ok", "markets": [{"qid": "q1", "kind": "niche", "question": "Which luxury hotels in Newquay have a spa?", "named": 0, "of": 2, "status": "not_named", "rivals": [], "other_category": []}]}
+check("on a first check, the questions frozen as the hotel's tracked set count as tracked", "1 of them your tracked prompts" in prompt_analysis.panel(r9))
+r9["question_plan"] = {"error": "TimeoutError: x"}
+check("a check where the question writer failed says so", "Fewer questions than usual" in prompt_analysis.panel(r9))
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

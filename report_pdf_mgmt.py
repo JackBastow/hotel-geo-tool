@@ -370,7 +370,7 @@ def _source_actions_block(rep):
         return []
     rows = [["Site", "Hotel there?", "Rivals featured", "Route to inclusion", "Suggested action"]]
     for s in rows_[:6]:
-        rows.append([Markup(f"<b>{esc(s['domain'])}</b><br/>{esc(s['type_label'])}, used {s['cited']} time(s)"), "Yes" if s["hotel_appears"] else ("Not checked (booking and review sites are not read)" if s.get("listing_site") else "Not on the page it read"), short(", ".join(s["rivals"]) or "-", 60), short(s["route"], 80), short(s["action"], 170)])
+        rows.append([Markup(f"<b>{esc(s['domain'])}</b><br/>{esc(s['type_label'])}, used {s['cited']} time(s)"), __import__("source_actions").presence_text(s), short(", ".join(s["rivals"]) or "-", 60), short(s["route"], 80), short(s["action"], 170)])
     return [para("Where to get listed: the sites AI relies on", "h3"), table(rows, [0.22, 0.09, 0.19, 0.2, 0.3]),
             para("Being listed or covered does not guarantee that any AI assistant will recommend the hotel, and paying for placement is not recommended. Check each site suits the hotel (its readers, whether it is independent or sponsored) before approaching it.", "tiny")]
 

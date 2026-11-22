@@ -140,14 +140,29 @@ def _from_seen(rep, profile, hotel, own, rivals):
 
 
 def _listings_action(listings, profile, hotel):
-    names = [_dom(s["domain"]) for s in sorted(listings, key=lambda s: -s["cited"])][:8]
+    srt = sorted(listings, key=lambda s: -s["cited"])[:8]
+    names = [_dom(s["domain"]) for s in srt]
+    found = [s for s in srt if s.get("listing_status") == "found" or s.get("hotel_appears")]
+    missing = [s for s in srt if s.get("listing_status") == "not_found"]
     facts = (profile or {}).get("reasons") or []
-    steps = [{"title": f"Open your listing on {n}", "link": {"url": _search(f'{hotel} {n}'), "label": f"Find it on {n}"}} for n in names[:4]]
+    steps = []
+    for s_ in found[:4]:
+        u = s_.get("listing_url")
+        steps.append({"title": f"Open your listing on {_dom(s_['domain'])}", "link": {"url": u or _search(f'{hotel} {_dom(s_["domain"])}'), "label": "Open your listing" if u else f"Find it on {_dom(s_['domain'])}"},
+                      "detail": "Found in public search results." if u else ""})
+    for s_ in missing[:3]:
+        steps.append({"title": f"Check whether you are listed on {_dom(s_['domain'])}", "link": {"url": _search(f'{hotel} site:{_dom(s_["domain"])}'), "label": f"Search {_dom(s_['domain'])}"},
+                      "detail": "Our searches did not find your listing there, which does not prove you are not listed. If you are not, and the site suits you, list the hotel."})
     steps += [{"title": "Make each description say why guests choose you", "detail": ("For example: " + "; ".join(facts[:3]) + ".") if facts else "Two or three specific reasons, not a generic welcome."},
               {"title": "Check the facts and photos match your website", "detail": "Name, address, facilities, check-in times, the restaurant and meeting rooms."},
               {"title": "Reply to recent reviews as the hotel", "detail": "Good and bad, plainly. Never offer anything in return for a review."}]
+    bits = []
+    if found:
+        bits.append(f"your listing was found on {', '.join(_dom(x['domain']) for x in found)}")
+    if missing:
+        bits.append(f"not found by our searches on {', '.join(_dom(x['domain']) for x in missing)}")
     return _act("strat-listings", "Make your booking and review site listings work for AI",
-                f"The AI assistant read these booking and review sites in your latest check: {', '.join(names)}. It uses what your listings there say. (We do not read those sites, so this is not a claim about whether you are listed.)",
+                f"The AI assistant read these booking and review sites in your latest check: {', '.join(names)}. It uses what your listings there say" + (f"; {'; '.join(bits)}." if bits else "."),
                 steps, kind_label="Booking and review sites", confidence="Seen in the latest check", tag="listings", effort="an hour per site")
 
 

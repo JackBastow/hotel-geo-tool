@@ -77,7 +77,7 @@ def sources_html(rep):
     out = []
     out.append('<h3 class="grp">Where to get listed: the sites AI relies on</h3>')
     if srcs:
-        rows = "".join(f'<tr><td><b>{esc(s["domain"])}</b><br><span class="hk-muted">{esc(s["type_label"])}, used {s["cited"]} time(s)</span></td><td>{"Yes" if s["hotel_appears"] else ("Not checked (we do not read booking or review sites)" if s.get("listing_site") else "Not on the page it read")}</td><td>{esc(", ".join(s["rivals"]) or "-")}</td>'
+        rows = "".join(f'<tr><td><b>{esc(s["domain"])}</b><br><span class="hk-muted">{esc(s["type_label"])}, used {s["cited"]} time(s)</span></td><td>{esc(source_actions.presence_text(s))}{(' <a href="' + esc(s["listing_url"]) + '" target="_blank" rel="noopener">listing</a>') if s.get("listing_url") else ""}</td><td>{esc(", ".join(s["rivals"]) or "-")}</td>'
                        f'<td>{esc(s["route"])}</td><td>{esc(s["action"])}<br><span class="hk-muted">{esc(s["why_now"])}</span></td></tr>' for s in srcs)
         out.append('<div class="table-wrap"><table class="table"><thead><tr><th>Site</th><th>Hotel there?</th><th>Rivals featured</th><th>Route to inclusion</th><th>Suggested action</th></tr></thead><tbody>' + rows + "</tbody></table></div>"
                    '<p class="caption">Being listed or covered does not guarantee that any AI assistant will recommend the hotel, and paying for placement is not recommended. Check each site suits the hotel first.</p>')

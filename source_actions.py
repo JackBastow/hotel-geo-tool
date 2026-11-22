@@ -44,6 +44,35 @@ LABEL = {"tourism": "Official destination tourism website", "conference": "Confe
          "review": "Review platform", "publisher": "Travel publisher or blog"}
 
 
+def listing_presence(rep, domain):
+    """For a booking or review site: did the audit find the hotel's OWN listing on it in public search results (the listing lookup and the wider discovery)?
+    -> ("found", url) | ("not_found", "") | ("not_searched", ""). A listing found is real evidence; one not found is not proof of absence."""
+    import identity
+    fp = (((rep or {}).get("intel") or {}).get("identity") or {}).get("footprint") or []
+    for r in fp:
+        tok = next((t for l, t in identity.KEY_PLATFORMS if l == r.get("platform")), None)
+        if tok and identity.on_platform(domain, tok):
+            return ("found", r.get("url") or "") if r.get("discovered") else ("not_found", "")
+    for r in ((rep or {}).get("external") or {}).get("rows") or []:
+        if r.get("url") and r.get("status") in ("identified", "verified", "contradicts") and identity.on_platform(domain, _dom_root(r["url"])):
+            return ("found", r["url"])
+    return ("not_searched", "")
+
+
+def _dom_root(url):
+    d = re.sub(r"^https?://", "", url or "").split("/")[0].lower()
+    return d[4:] if d.startswith("www.") else d
+
+
+def presence_text(s):
+    """What the 'Hotel there?' column says, the same on the dashboard and in the PDF."""
+    if s.get("hotel_appears"):
+        return "Yes" + (": its listing was found in search results" if s.get("listing_url") else "")
+    if s.get("listing_site"):
+        return {"not_found": "Not found by our searches (this does not show it is not listed)", "not_searched": "Not searched for on this site"}.get(s.get("listing_status"), "Not checked")
+    return "Not on the page it read"
+
+
 def build(rep, limit=6):
     ins = (rep or {}).get("ai_insights") or {}
     gap = (rep or {}).get("ai_gap") or {}
@@ -82,12 +111,17 @@ def build(rep, limit=6):
             continue                                   # another hotel group's own website, or a rival hotel's: not somewhere this hotel can be listed
         kind = ai_insights.source_kind(r["domain"])
         t = classify(r["domain"], kind)
+        if strategy_actions.is_listing_site(r["domain"]) and t not in ("review", "comparison"):
+            t = "review" if re.search(r"tripadvisor|trustpilot|yelp|holidaycheck", r["domain"]) else "comparison"      # OYO, Kayak and the like are booking sites, never 'travel publishers'
+        status, lurl = listing_presence(rep, r["domain"]) if strategy_actions.is_listing_site(r["domain"]) else (None, "")
+        if status == "found":
+            r["hotel"] = True
         if r["hotel"] and not r["rivals"] and t != "review":
             continue                                   # the hotel is there and nobody is ahead of it: nothing to chase
         route = ("a contact page was found: " + r["route"]) if r["route"] else ("commission or affiliate site: placement is commercial, not editorial" if r["affiliate"] else ("sponsored content: a paid placement, check before approaching" if r["sponsored"] else "no submission route was found"))
         action = ("The hotel appears here: verify what is published is accurate and complete. " + ACTION[t]) if (r["hotel"] and t in ("review", "comparison")) else ACTION[t]
         listing = strategy_actions.is_listing_site(r["domain"], t)
-        out.append({"domain": r["domain"], "type": t, "type_label": LABEL[t], "cited": r["cited"], "hotel_appears": r["hotel"], "listing_site": listing, "rivals": sorted(r["rivals"])[:3], "route": route, "action": action,
+        out.append({"domain": r["domain"], "type": t, "type_label": LABEL[t], "cited": r["cited"], "hotel_appears": r["hotel"], "listing_site": listing, "listing_status": status, "listing_url": lurl, "rivals": sorted(r["rivals"])[:3], "route": route, "action": action,
                     "why_now": (f"The hotel states {reason['label'].lower()}, which could justify inclusion." if reason else "No distinctive reason has been identified yet: do not approach until there is one."),
                     "evidence": r["urls"][:2]})
     return out[:limit]

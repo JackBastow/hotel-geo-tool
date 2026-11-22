@@ -62,10 +62,10 @@ check("the email is honest and filled with the hotel's own facts, with [brackets
 check("and says what it rests on", "Pullman Paris CDG" in seen["finding"] and seen["confidence_label"] == "Seen in the latest check" and seen["source"] == "strategy")
 check("a booking or review site is never claimed as missing: a results page that does not name the hotel says nothing about its listing", not any(re.search(r"booking\.com|trip\.com|zenhotels", t) and ("Get" in t or "Check whether" in t) for t in titles), titles)
 lst = next((a for a in acts if a["tag"] == "listings"), None)
-check("they become one action about making those listings work, naming the sites the assistant read", lst and all(d in lst["finding"] for d in ("booking.com", "trip.com", "zenhotels.com")) and "not a claim about whether you are listed" in lst["finding"])
+check("they become one action about making those listings work, naming the sites the assistant read", lst and all(d in lst["finding"] for d in ("booking.com", "trip.com", "zenhotels.com")))
 chk = next((a for a in acts if a["title"] == "Check whether you are featured on bestairporthotels.example"), None)
 check("a site we did not read is 'check whether you are featured', and the first step searches it for the hotel", chk and chk["steps"][0]["title"].startswith("Search bestairporthotels.example") and "google.com/search" in chk["steps"][0]["link"]["url"], titles)
-check("the Competitors tab says 'not checked' for booking sites, never 'No'", "Not checked (we do not read booking or review sites)" in __import__("strategy_view").sources_html(report()))
+check("the Competitors tab never says 'No' for a booking site it did not search", "Not searched for on this site" in __import__("strategy_view").sources_html(report()) and ">No<" not in __import__("strategy_view").sources_html(report()))
 lt = [a for a in acts if a["confidence_label"] == "Suggested from your profile"]
 lts = " | ".join(a["title"] for a in lt)
 check("with a profile, long-term moves for its market: tourism board, Wikidata, awards, press", all(x in lts for x in ("tourism board for Blekinge", "Wikidata", "awards", "journalists")), lts)

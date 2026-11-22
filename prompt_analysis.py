@@ -10,6 +10,8 @@ Recommendations (source 'ai_gap'), where they can be marked done.
 
 import html
 
+import evidence
+
 import portal_view
 import prompt_sets
 import textutil
@@ -83,7 +85,9 @@ def panel(rep):
     markets = [m for m in gap.get("markets") or [] if m.get("kind") != "direct"]
     if not markets:
         return '<div class="alert info">The answers of the latest check were not analysed for who was named instead. The next check will show it.</div>'
-    tracked = {i.get("qid") or i["id"] for i in ai["items"] if i.get("source") == "benchmark"}
+    # the hotel's tracked prompts: asked as such (a later check), or the set this check froze as the hotel's benchmark (its first check)
+    bench = {evidence.fold(b.get("text", "")) for b in ((rep.get("benchmark") or {}).get("prompts") or []) if b.get("text")}
+    tracked = {i.get("qid") or i["id"] for i in ai["items"] if i.get("source") == "benchmark" or evidence.fold(i.get("text", "")) in bench}
     crit_by, obs_by, arts = gap.get("criteria") or {}, gap.get("observations") or {}, gap.get("articles") or []
     n_named = sum(1 for m in markets if m["status"] == "named")
     n_some = sum(1 for m in markets if m["status"] == "sometimes")
@@ -99,7 +103,10 @@ def panel(rep):
         row = (f'<tr><td><b>{esc(m["question"])}</b>' + (' <span class="hk-chip brand">tracked</span>' if m["qid"] in tracked else "") + f'</td><td>{_cell_named(m)}</td><td>{esc(who)}</td><td>{esc(why)}</td>'
                f'<td>{esc(todo)}' + (f'<details class="details pa-ev"><summary>Evidence</summary><div class="details-body">{_evidence(m, crit, obs, arts)}</div></details>' if m["status"] != "named" else "") + "</td></tr>")
         rows_by.setdefault(sec, []).append((m["qid"] not in tracked, row))
-    head = ('<p class="lede">Every question we put to the AI assistant in the latest check: whether it named you, who it named instead, why, and the one thing to do about it. '
+    perr = ((rep.get("question_plan") or {}).get("error") or "")
+    warn = (f'<div class="alert warning"><b>Fewer questions than usual in this check.</b> The step that writes the questions for this hotel did not finish ({esc(perr[:120])}), '
+            'so only its tracked prompts and the standard town questions were asked. The next check tries again.</div>' if perr else "")
+    head = warn + ('<p class="lede">Every question we put to the AI assistant in the latest check: whether it named you, who it named instead, why, and the one thing to do about it. '
             'Open &ldquo;Evidence&rdquo; on a line for the detail.</p>'
             + portal_view.kpis_raw([("Prompts asked", str(len(markets)), f"{len(tracked & {m['qid'] for m in markets})} of them your tracked prompts", portal_view.BRAND),
                                     ("Named every time", str(n_named), f"and sometimes in {n_some} more", portal_view.GOOD),

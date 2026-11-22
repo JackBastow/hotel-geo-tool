@@ -152,7 +152,8 @@ def profile(hotel, city, entities, osm_ctx, own_pages, features, intents, hint=N
             "features": [f["key"] for f in features or [] if f.get("level") == "strong"] + [f["key"] for f in features or [] if f.get("level") == "some"],
             "strong_features": [f["key"] for f in features or [] if f.get("level") == "strong"],
             "segments": [r["label"] for r in intents or [] if r.get("level") == "strong"]}
-    prof["airport_hotel"] = bool(airport and airport["km"] <= AIRPORT_HOTEL_KM)
+    # an airport hotel is one guests choose FOR the airport: right beside it, named after it, or shown by its own pages to be one (hotel_class). A beach hotel 8 km from a regional airport is not.
+    prof["airport_hotel"] = bool(airport and airport["km"] <= AIRPORT_HOTEL_KM and (airport["km"] <= AIRPORT_NEXT_KM or "airport" in evidence.fold(hotel or "") or "airport" in (classes or [])))
     prof["tier"] = tier_of(hotel, domain, stars, level, (hint or {}).get("tier"))
     if classes is not None and (prof["tier"] or {}).get("key") == "luxury" and "luxury" not in classes:
         classes = list(classes) + ["luxury"]
@@ -176,6 +177,7 @@ BRAND_TIERS = [
 ]
 TIER_LABEL = {"luxury": "luxury", "upscale": "upscale", "midscale": "mid-range", "budget": "budget"}
 AIRPORT_HOTEL_KM = 15.0
+AIRPORT_NEXT_KM = 4.0          # within this, the airport is the reason to stay whatever else the hotel is
 
 
 def _fold_words(text):
@@ -252,8 +254,12 @@ def audiences(prof, level, flevel, stated=None):
         if key == "airport":
             ap = prof.get("airport")
             # an airport market only for a hotel that IS near the airport: a page quoting 'Schiphol 18.6 km' does not make an airport hotel
-            if ap and ap["km"] <= AIRPORT_HOTEL_KM:
+            if ap and prof.get("airport_hotel"):
                 lv, why = 2, f"{ap['source']} put {ap['name']} {ap['km']:g} km away"
+            elif ap and ap["km"] <= AIRPORT_HOTEL_KM:
+                if lv and key not in (stated or []):
+                    prof.setdefault("skipped", []).append({"key": key, "label": label, "why": f"{ap['name']} is {ap['km']:g} km away, but nothing shows guests choose the hotel for the airport (it is not beside it, named after it, or presented as an airport hotel)"})
+                lv = 0
             else:
                 if ap and lv and key not in (stated or []):
                     prof.setdefault("skipped", []).append({"key": key, "label": label, "why": f"{ap['name']} is {ap['km']:g} km away (further than {AIRPORT_HOTEL_KM:g} km), too far to be an airport hotel"})

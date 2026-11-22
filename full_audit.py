@@ -933,8 +933,19 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                              "questions": [{"id": q["id"], "text": q["text"], "angle": q.get("angle"), "why": q.get("why"), "priority": q.get("priority"), "style": q.get("style"), "kind": q.get("kind"),
                                             "source": q.get("source")} for q in built["questions"]]}
             market_profile["anchors"] = _anch["anchors"][:4]
-        except Exception:  # noqa: BLE001 - the planner is an extra; the standard questions still run
+        except Exception as _pe:  # noqa: BLE001 - the planner is an extra; the standard questions still run
             nqs = []
+            question_plan = {"error": f"{type(_pe).__name__}: {str(_pe)[:200]}", "questions": [], "facts": [], "anchors": []}
+            say(f"The question planner did not finish ({type(_pe).__name__}); the hotel's tracked prompts are still asked.")
+        # the hotel's tracked prompts (confirmed, or frozen at its first check) are asked in EVERY check, whatever happened above: without them the trend means nothing
+        if benchmark and not any(q.get("source") == "benchmark" for q in nqs):
+            _rp = min(_depth_mod.limits(ai_depth)["core_cap"], (anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]) + _depth_mod.limits(ai_depth)["core_extra"])
+            _fr = [{"id": f"niche_bench{i}", "kind": "niche", "angle": b.get("angle") or "Tracked prompt", "text": b["text"], "priority": "core", "source": "benchmark", "repeats": _rp,
+                    "why": "One of the hotel's tracked prompts, asked in every check so the results can be compared over time."} for i, b in enumerate(benchmark[:ai_questions.TRACKED_MAX], 1) if b.get("text")]
+            nqs = _fr + nqs
+            if question_plan is not None:
+                question_plan["questions"] = [{"id": q["id"], "text": q["text"], "angle": q.get("angle"), "why": q.get("why"), "priority": q.get("priority"), "kind": q.get("kind"), "source": q.get("source")} for q in _fr] + list(question_plan.get("questions") or [])
+            benchmark_info = benchmark_info or {"prompts": [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why")} for b in benchmark], "reused": True}
         nqs = nqs + custom_qs
         # Open community conversations (Reddit and similar) where travellers ask for hotels like this one's; searched while the questions are being asked
         try:
