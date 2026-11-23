@@ -133,6 +133,8 @@ class Reports:
             db = self._db()
             if db and rid:
                 db.update_run(rid, report)
+                import progress
+                progress.on_run_saved(db, report, rid)          # a review-pack upload adds recommendations: the hotel's action list follows, not a week later
         except Exception as e:  # noqa: BLE001 - the page still shows the edit; the log says it was not saved
             import steps
             steps.failed("saving an edited report", e)
