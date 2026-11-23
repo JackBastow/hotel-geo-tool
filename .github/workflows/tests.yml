@@ -1,0 +1,67 @@
+# Runs every test on each push to main and on pull requests, before Render deploys (Render: Settings > Build & Deploy > Auto-Deploy "After CI checks pass").
+# The tests are offline: a stand-in blocks any connection to the internet, so a test can never spend API credit or depend on a live website.
+name: Tests
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "marketing/**"
+  pull_request:
+    paths-ignore:
+      - "marketing/**"
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.7"
+          cache: pip
+          cache-dependency-path: |
+            requirements-web.txt
+            requirements-test.txt
+      - name: Install
+        run: pip install -r requirements-test.txt
+      - name: Block the internet for the tests
+        run: |
+          mkdir -p /tmp/offline
+          cat > /tmp/offline/sitecustomize.py <<'PY'
+          import socket
+          _connect, _gai = socket.socket.connect, socket.getaddrinfo
+          LOCAL = ("127.0.0.1", "localhost", "::1", None)
+          def connect(self, addr):
+              if (addr[0] if isinstance(addr, tuple) else addr) not in LOCAL:
+                  raise OSError("network blocked in the test run")
+              return _connect(self, addr)
+          def gai(host, *a, **k):
+              if host not in LOCAL:
+                  raise socket.gaierror("network blocked in the test run")
+              return _gai(host, *a, **k)
+          socket.socket.connect, socket.getaddrinfo = connect, gai
+          PY
+      - name: Run every test
+        env:
+          PYTHONPATH: /tmp/offline
+          PYTHONIOENCODING: utf-8
+        run: |
+          failed=""
+          for t in test_*.py; do
+            echo "::group::$t"
+            if ! timeout 300 python "$t" > /tmp/out.txt 2>&1 || grep -q "  FAIL " /tmp/out.txt; then
+              failed="$failed $t"
+              cat /tmp/out.txt | tail -40
+            else
+              tail -1 /tmp/out.txt
+            fi
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "Failed:$failed"
+            exit 1
+          fi
+          echo "All tests passed"

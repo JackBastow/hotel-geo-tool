@@ -192,10 +192,14 @@ def ensure_draft(db, hotel, report):
     """After a check: a hotel with no prompt set yet gets a RECOMMENDED draft to review and confirm. Returns the draft id or None."""
     if db.prompt_sets(hotel["id"]):
         return None
-    chosen = recommend_set(_with_floor(pool_from_report(report), hotel), hotel["name"])
-    if len(chosen) < 3:
-        return None
-    return db.insert_prompt_set(hotel["id"], "draft", chosen, "recommended")
+    import progress
+    with progress._hotel_lock(hotel["id"]):                     # two checks finishing together made two drafts
+        if db.prompt_sets(hotel["id"]):
+            return None
+        chosen = recommend_set(_with_floor(pool_from_report(report), hotel), hotel["name"])
+        if len(chosen) < 3:
+            return None
+        return db.insert_prompt_set(hotel["id"], "draft", chosen, "recommended")
 
 
 def _town(city):
@@ -207,6 +211,17 @@ def ensure_from_history(db, hotel):
     A hotel registered AFTER its audits were saved has runs but no prompt set (a set is made when an audit is saved). When it has none, build the recommended draft from its newest saved audit that has prompts
     (its question pool, or the benchmark prompts that audit froze), leaving out any prompt built on a scrap of page text. Returns the draft id, or None. Never raises.
     """
+    try:
+        if db.prompt_sets(hotel["id"]):
+            return None
+        import progress
+        with progress._hotel_lock(hotel["id"]):                 # two people opening a new hotel at once made two drafts
+            return _from_history(db, hotel)
+    except Exception:  # noqa: BLE001 - the dashboard still shows
+        return None
+
+
+def _from_history(db, hotel):
     try:
         if db.prompt_sets(hotel["id"]):
             return None

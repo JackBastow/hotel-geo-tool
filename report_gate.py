@@ -423,6 +423,14 @@ def check_more(rep, gate, done):
         review.append({"what": "The hotel's tracked prompts were not asked in this check, so it cannot be compared with earlier ones."})
     if plan_err:
         review.append({"what": f"The step that writes this hotel's questions failed ({plan_err[:100]}); fewer questions than usual were asked."})
+    if ai.get("round2_error"):
+        review.append({"what": ai["round2_error"] + " Its answers are not in this report."})
+    if tracked_ok and bench and asked_tracked:
+        want = {evidence.fold(b["text"]) for b in bench}
+        got = {evidence.fold(i.get("text") or "") for i in ai.get("items") or [] if i.get("source") == "benchmark"}
+        missing = len(want - got)
+        if missing:
+            review.append({"what": f"{missing} of the hotel's {len(want)} tracked prompts got no answer in this check, so those prompts cannot be compared with earlier checks."})
     done("tracked_prompts_asked", 1, 0 if tracked_ok else 1, "the hotel's tracked prompts were asked")
 
     # 15. the hotel itself, or its own name, as a rival 'named instead'
@@ -441,6 +449,10 @@ def check_more(rep, gate, done):
     # 16. things a person should look at before relying on the report
     if c.get("error"):
         review.append({"what": f"The website analysis crashed in this check ({str(c['error'])[:120]}), so the report has no findings about the website. A bug to look at."})
+    errs = rep.get("step_errors") or []
+    if errs:
+        review.append({"what": f"{len(errs)} step(s) of this check failed and left their part of the report empty or partial: "
+                               + "; ".join(f"{e.get('step')} ({e.get('error', '')[:80]})" for e in errs[:5]) + ("; and more" if len(errs) > 5 else "") + ". Details are in the service log."})
     steps = {"guest_questions": "guest questions", "intel": "hotel identity", "ai_gap": "AI gap", "citations": "AI citations", "external": "outside sources", "competitors": "competitors"}
     for k, label in steps.items():
         v = rep.get(k)

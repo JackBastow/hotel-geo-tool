@@ -123,6 +123,35 @@ def register(app, cfg):
             return form("Link not valid", "This link has expired or was already used", "Ask the person who invited you for a new one.", [], "", "", 410)
         reset = inv["kind"] == "reset"
         fields = [{"label": "Email", "name": "email_shown", "type": "email", "value": inv["email"], "readonly": True, "auto": "username"}]
+        existing = None if reset else d.user_by_email(inv["email"])
+        if existing:
+            # This person already has a login. An invite link must never set their password: anyone holding the link (whoever made it, or anyone it was forwarded to) could
+            # otherwise take over the account and every hotel it can see. They prove who they are with their current password, and the hotel is added to their login.
+            hotel = d.get_hotel(inv["hotel_id"]) if inv["hotel_id"] else None
+            fields_x = fields + [{"label": "Your current password", "name": "password", "type": "password", "auto": "current-password", "autofocus": True}]
+            intro_x = (f"You already have a login. Sign in with your current password to add {hotel['name']} to it." if hotel else "You already have a login. Sign in with your current password.")
+            if request.method == "POST":
+                if not csrf_ok(request.form.get("csrf")):
+                    abort(400)
+                if throttled("e:" + inv["email"]) or throttled(request.remote_addr or "?"):
+                    return form("Add a hotel", "Add a hotel to your login", intro_x, fields_x, "Sign in and add", "Too many attempts. Wait ten minutes and try again.", 429)
+                if not existing.get("active") or not accounts.check_password(request.form.get("password", ""), existing.get("pw_hash") or ""):
+                    FAILS["e:" + inv["email"]].append(time.time())
+                    FAILS[request.remote_addr or "?"].append(time.time())
+                    time.sleep(1.0)
+                    return form("Add a hotel", "Add a hotel to your login", intro_x, fields_x, "Sign in and add", "That password is not right. Use the password you already sign in with, or ask for a password-reset link.")
+                if not d.use_invite(inv["id"]):
+                    return form("Link not valid", "This link has expired or was already used", "Ask the person who invited you for a new one.", [], "", "", 410)
+                if inv["hotel_id"]:
+                    d.link_user(existing["id"], inv["hotel_id"])
+                keep = {k: session[k] for k in ("admin_ok", "admin_until", "site_ok", "ind_ok", "ind_until", "csrf") if session.get(k)}
+                session.clear()
+                session.update(keep)
+                session["uid"] = existing["id"]
+                session.permanent = True
+                d.touch_login(existing["id"])
+                return redirect("/portal")
+            return form("Add a hotel", "Add a hotel to your login", intro_x, fields_x, "Sign in and add")
         if not reset:
             fields.append({"label": "Your name", "name": "name", "type": "text", "auto": "name", "autofocus": True})
         fields += [{"label": f"Choose a password (at least {accounts.MIN_PASSWORD} characters)", "name": "password", "type": "password", "auto": "new-password"},
@@ -137,19 +166,17 @@ def register(app, cfg):
             problem = accounts.password_problem(pw) or ("The two passwords are not the same." if pw != pw2 else "")
             if problem:
                 return form(title, heading, intro, fields, "Save", problem)
+            if not d.use_invite(inv["id"]):          # claimed first: one link, one use, even when two requests arrive together
+                return form("Link not valid", "This link has expired or was already used", "Ask the person who invited you for a new one.", [], "", "", 410)
             if reset and inv["user_id"]:
                 uid = inv["user_id"]
                 d.set_password(uid, accounts.hash_password(pw))
             else:
-                existing = d.user_by_email(inv["email"])
-                if existing:
-                    uid = existing["id"]
-                    d.set_password(uid, accounts.hash_password(pw))
-                else:
-                    uid = d.create_user(inv["email"], (request.form.get("name") or "").strip()[:80], accounts.hash_password(pw))
+                if d.user_by_email(inv["email"]):              # a login was created for this email meanwhile: never set its password from a link
+                    return form("Login already exists", "A login already exists for this email", "Sign in with its password, or ask for a password-reset link.", [], "", "", 409)
+                uid = d.create_user(inv["email"], (request.form.get("name") or "").strip()[:80], accounts.hash_password(pw))
                 if inv["hotel_id"]:
                     d.link_user(uid, inv["hotel_id"])
-            d.use_invite(inv["id"])
             try:        # the first time anyone sets up a login for a hotel that has never been checked, start its first check, so the dashboard is full when they land on it
                 hh = d.get_hotel(inv["hotel_id"]) if inv["hotel_id"] else None
                 if hh and hh["active"] and hh.get("setup") != "pending" and not d.hotel_runs(hh["hotel_key"]):

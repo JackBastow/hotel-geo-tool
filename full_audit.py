@@ -54,6 +54,9 @@ Usage:
 """
 
 import argparse
+import threading
+
+import steps
 import datetime as dt
 import html as html_lib
 import json
@@ -631,6 +634,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     relaxed version of the same setting. Configuring this does not enable
     or require `include_ai_visibility`, and vice versa.
     """
+    steps.begin()                   # every step that fails from here on is logged and recorded in the report (step_errors)
     urlscope.set_hint(hotel, city)          # a brand site's folder named after the town or the hotel is this hotel's own section (urlscope.normalise)
     def say(msg):
         if progress:
@@ -705,7 +709,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         try:
             _g = _am.geocode(hotel, city, netguard.get, with_country=True)
             search_country = _g[2] if _g else None
-        except Exception:  # noqa: BLE001
+        except Exception as _step_e:  # noqa: BLE001
+            steps.failed('Working out the hotel / _g', _step_e)
             search_country = None
     if anthropic_api_key and hotel and city:
         ai_ex = ThreadPoolExecutor(max_workers=4)
@@ -737,6 +742,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     try:
         guest = guest_questions.run(site, base, hotel, location=location, progress=say)
     except Exception as e:  # noqa: BLE001
+        steps.failed('Checking whether the website answers guests / guest', e)
         guest = {"error": str(e), "questions": [], "fact_sheet": [], "conflicts": [],
                  "own_facts_node": {}, "pages_attempted": 0, "pages_ok": 0,
                  "pages_failed": [], "evidence_sufficient": False, "sitemap_total": 0}
@@ -772,6 +778,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         try:
             ai_extract.run(guest, guest.get("own_pages") or [], api_key=anthropic_api_key, model=os.environ.get("ANTHROPIC_EXTRACT_MODEL") or None)
         except Exception as e:  # noqa: BLE001 - never fail the audit
+            steps.failed('Reading the hotel / ai_extract.run', e)
             guest["ai_extract"] = {"source": ai_extract.SOURCE, "status": "unavailable", "reason": f"The AI reading did not finish ({type(e).__name__}).", "cost_usd": 0.0}
 
     own_pages = guest.pop("own_pages", [])     # used by the wider analysis, not stored
@@ -779,7 +786,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     # Booking readiness runs in the background from here (a handful of polite requests that can take several seconds on a slow site) and is joined when the report is assembled, so it adds no waiting.
     try:
         _home_links = _page_links(pages_html[0], home_url) if pages_html else []
-    except Exception:  # noqa: BLE001
+    except Exception as _step_e:  # noqa: BLE001
+        steps.failed('Reading the hotel / _home_links', _step_e)
         _home_links = []
     booking_ex = ThreadPoolExecutor(max_workers=1)
     booking_future = booking_ex.submit(booking_check.run, base, _home_links, own_pages, guest.get("pages_meta", []))
@@ -797,7 +805,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     import former_names as _former_mod
     try:
         former = _former_mod.find(own_pages, hotel)          # 'previously known as Hotel Victoria': searched for too, and connected to the current name
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        steps.failed('Former names', e)
         former = []
     ext = external_check.run_external_check(
         listing_urls, own_facts or None, progress=progress,
@@ -816,6 +825,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         try:
             corpus = collect_future.result(timeout=300)
         except Exception as e:  # noqa: BLE001 - the audit must survive a failed wider pass
+            steps.failed('Finishing the wider source checks (media, listings, awards, local context) / corpus', e)
             corpus = {"sources": {}, "queries": [], "candidates": [], "raw_results": [],
                       "notes": [f"The wider discovery pass failed ({type(e).__name__}); the "
                                 "media, listing and local-context sections are therefore empty."],
@@ -834,7 +844,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             places_nearby_info["calls"] = (new or {}).get("places_calls", 0) if new is not ctx else 0
             places_nearby_info["note"] = note
             return new, note
-        except Exception:  # noqa: BLE001
+        except Exception as _step_e:  # noqa: BLE001
+            steps.failed('Finishing the wider source checks (media, listings, awards, local context)', _step_e)
             return ctx, ""
 
     _fc_other = None                  # rival sites and cited pages that refuse our reader are read through Firecrawl (a few pages an audit)
@@ -851,7 +862,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         if own_pages and hotel:
             competitors_ex = ThreadPoolExecutor(max_workers=1)
             competitors_future = competitors_ex.submit(competitors_mod.run, _osm_ctx, own_pages, base, hotel, fetch=_fc_other)
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        steps.failed('Competitors from map data', e)
         competitors_future = None
     wd_entity = next((e for e in ext["entities"]
                       if e.get("source") == "Wikidata" and e.get("found") and e.get("match_confident")), None)
@@ -878,6 +890,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                             if c["read"]["status"] == "read" and c.get("page")},
             )
         except Exception as e:  # noqa: BLE001 - a failed integration must not fail the audit
+            steps.failed('Checking editorial coverage, OTA presence and social mentions / tavily_result', e)
             tavily_result = {"configured": True, "error": str(e), "ota_hits": [],
                              "editorial_hits": [], "social_hits": [], "other_hits": []}
 
@@ -889,6 +902,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 hotel, city, lat=location.get("lat"), lon=location.get("lon"),
                 api_key=places_api_key)
         except Exception as e:  # noqa: BLE001
+            steps.failed('Checking Google rating and reviews / places_result', e)
             places_result = {"configured": True, "found": False, "error": str(e)}
 
     amadeus_result = None
@@ -899,6 +913,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 hotel, lat=location.get("lat"), lon=location.get("lon"),
                 api_key=amadeus_api_key, api_secret=amadeus_api_secret)
         except Exception as e:  # noqa: BLE001
+            steps.failed('Checking Amadeus review sentiment / amadeus_result', e)
             amadeus_result = {"configured": True, "found": False, "error": str(e)}
 
     # Questions for the markets this hotel actually competes in (airport, district, price level, what it is known for), from facts now in hand.
@@ -924,7 +939,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             search_country = search_country or _anch.get("country")
             try:
                 _qclient = ai_sample._make_client(anthropic_api_key, timeout=60.0)
-            except Exception:  # noqa: BLE001
+            except Exception as _step_e:  # noqa: BLE001
+                steps.failed('Checking Amadeus review sentiment / _qclient', _step_e)
                 _qclient = None
             built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]), features=_feats0, benchmark=benchmark, depth=ai_depth, pages=own_pages, profile=profile)
             nqs = built["questions"]
@@ -934,9 +950,10 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                                             "source": q.get("source")} for q in built["questions"]]}
             market_profile["anchors"] = _anch["anchors"][:4]
         except Exception as _pe:  # noqa: BLE001 - the planner is an extra; the standard questions still run
+            steps.failed('Checking Amadeus review sentiment / _qclient', _pe)
             nqs = []
             question_plan = {"error": f"{type(_pe).__name__}: {str(_pe)[:200]}", "questions": [], "facts": [], "anchors": []}
-            say(f"The question planner did not finish ({type(_pe).__name__}); the hotel's tracked prompts are still asked.")
+            say(f"Planning the hotel's questions's tracked prompts are still asked.")
         # the hotel's tracked prompts (confirmed, or frozen at its first check) are asked in EVERY check, whatever happened above: without them the trend means nothing
         if benchmark and not any(q.get("source") == "benchmark" for q in nqs):
             _rp = min(_depth_mod.limits(ai_depth)["core_cap"], (anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]) + _depth_mod.limits(ai_depth)["core_extra"])
@@ -953,15 +970,18 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             _fprof, _fanch = (locals().get("prof") or {}), ((question_plan or {}).get("anchors") or [])
             forum_ex = ThreadPoolExecutor(max_workers=1)
             forum_future = forum_ex.submit(forums_mod.run, hotel, city, _core_q, forums_mod.place_terms(hotel, city, _fprof, _fanch, profile=profile), topics=forums_mod.topics(hotel, city, _fprof, _fanch, profile=profile), api_key=anthropic_api_key, model=anthropic_model)
-        except Exception:  # noqa: BLE001
+        except Exception as _step_e:  # noqa: BLE001
+            steps.failed('Planning the questions / _core_q', _step_e)
             forum_future = None
         if nqs:
             try:
                 _host0 = urllib.parse.urlparse(base).netloc.lower()
                 niche_ex = ThreadPoolExecutor(max_workers=1)
-                niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, api_key=anthropic_api_key, model=anthropic_model, budget_usd=_depth_mod.niche_budget(ai_depth, sum(1 for q in nqs if q.get("priority") == "core")), workers=_depth_mod.limits(ai_depth)["workers"], country=search_country,
+                niche_stop = threading.Event()
+                niche_future = niche_ex.submit(ai_sample.run_extra, hotel, city, nqs, stop_event=niche_stop, api_key=anthropic_api_key, model=anthropic_model, budget_usd=_depth_mod.niche_budget(ai_depth, sum(1 for q in nqs if q.get("priority") == "core")), workers=_depth_mod.limits(ai_depth)["workers"], country=search_country,
                                                own_domain=_host0[4:] if _host0.startswith("www.") else _host0, **({} if anthropic_repeats is None else {"repeats": max(1, min(5, int(anthropic_repeats)))}))
-            except Exception:  # noqa: BLE001
+            except Exception as _step_e:  # noqa: BLE001
+                steps.failed('Planning the questions / _host0', _step_e)
                 niche_future = None
 
     ai_result = review_result = None
@@ -973,28 +993,33 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     if ai_future is not None:
         say("Collecting the sampled AI answers...")
         try:
-            ai_result = ai_future.result(timeout=180)
+            ai_result = ai_future.result(timeout=600)
         except Exception as e:  # noqa: BLE001 - an extra; the audit stands without it
+            steps.failed('Collecting the sampled AI answers / ai_result', e)
             ai_result = {"source": ai_sample.SOURCE, "status": "unavailable", "items": [], "access": ai_sample.ACCESS,
                          "reason": f"The sampled AI answers did not finish in time ({type(e).__name__}), so they were not assessed."}
         try:
             review_result = rv_future.result(timeout=120)
         except Exception as e:  # noqa: BLE001
+            steps.failed('Collecting the sampled AI answers / review_result', e)
             review_result = {"source": review_replies.SOURCE, "status": "unavailable", "items": [], "access": review_replies.ACCESS,
                              "reason": f"The reviews snapshot did not finish in time ({type(e).__name__}), so it was not assessed."}
         try:
             listing_result = ll_future.result(timeout=120)
         except Exception as e:  # noqa: BLE001
+            steps.failed('Collecting the sampled AI answers / listing_result', e)
             listing_result = {"source": listing_lookup.SOURCE, "status": "unavailable", "reason": f"The listing lookup did not finish in time ({type(e).__name__}).", "pages": [], "cost_usd": 0.0}
         try:
             reddit_lookup = rd_future.result(timeout=120)
         except Exception as e:  # noqa: BLE001
+            steps.failed('Collecting the sampled AI answers / reddit_lookup', e)
             reddit_lookup = {"source": reddit_check.SOURCE, "status": "unavailable", "reason": f"The Reddit search did not finish in time ({type(e).__name__}).", "pages": [], "passages": [], "cost_usd": 0.0}
         finally:
             ai_ex.shutdown(wait=False, cancel_futures=True)
     try:
         reddit_result = reddit_check.build(reddit_lookup, ai_result, hotel, city)
-    except Exception:  # noqa: BLE001 - an extra; the audit stands without it
+    except Exception as _step_e:  # noqa: BLE001 - an extra; the audit stands without it
+        steps.failed('Collecting the sampled AI answers / reddit_result', _step_e)
         reddit_result = None
     # Listings found by the AI web searches (this lookup, the sampled answers and the review pages) join the candidates the footprint is built from, but only where the
     # page is on that platform's domain and its address or title names the hotel. They were not opened.
@@ -1017,8 +1042,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                     _have.add(_label)
                     tavily_result.setdefault("ota_hits", []).append({"platform": _label, "url": h["url"], "title": h.get("title", ""),
                                                                       "snippet": "found by an AI web search; the page was not opened"})
-    except Exception:  # noqa: BLE001 - an extra; the footprint stands without it
-        pass
+    except Exception as e:  # noqa: BLE001 - an extra; the footprint stands without it
+        steps.failed("listings found by AI search", e)
 
     ai_visibility_cat, ai_visibility_raw = None, None
     if include_ai_visibility and gemini_api_key:
@@ -1029,17 +1054,23 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 model=gemini_model, limit=ai_visibility_limit, progress=progress)
             ai_visibility_cat = scoring.score_ai_visibility(ai_visibility_raw)
         except Exception as e:  # noqa: BLE001
+            steps.failed('Checking AI visibility (spends Gemini quota) / ai_visibility_raw', e)
             ai_visibility_cat = scoring._not_assessed(
                 "ai_visibility", f"Configured but the check failed: {e}",
                 "Check the Gemini API key and that billing is enabled.")
 
+    round2_error = ""
     if niche_future is not None:
         try:
-            ai_result = ai_sample.merge(ai_result, niche_future.result(timeout=150))
-        except Exception:  # noqa: BLE001 - the standard sample stands without the niche round
-            pass
+            ai_result = ai_sample.merge(ai_result, niche_future.result(timeout=900))      # the hotel's tracked prompts: worth waiting for (a check runs in the background)
+        except Exception as e:  # noqa: BLE001 - the standard sample stands without the niche round, and the report says so
+            steps.failed('Checking AI visibility (spends Gemini quota) / ai_result', e)
+            round2_error = f"The round with the hotel's own prompts did not finish ({type(e).__name__})."
+            niche_stop.set()                                     # stop its remaining calls: they would only spend after the report is saved
         finally:
             niche_ex.shutdown(wait=False, cancel_futures=True)
+        if round2_error and isinstance(ai_result, dict):
+            ai_result["round2_error"] = round2_error
     if market_profile and isinstance(ai_result, dict) and ai_result.get("status") == "ok":
         ai_result["market"] = market_profile                         # how the hotel's market was read, shown beside the answers
     forums_result = None
@@ -1047,6 +1078,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         try:
             forums_result = forum_future.result(timeout=150)
         except Exception as e:  # noqa: BLE001 - an extra
+            steps.failed('Checking AI visibility (spends Gemini quota) / forums_result', e)
             forums_result = {"source": forums_mod.SOURCE, "status": "unavailable", "reason": f"The forum search did not finish ({type(e).__name__}).", "opportunities": [], "closed": [], "searches": 0, "cost_usd": 0.0, "forums": []}
         finally:
             forum_ex.shutdown(wait=False, cancel_futures=True)
@@ -1062,13 +1094,15 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 _cited = {citations_mod._dom(p["url"]) + urllib.parse.urlparse(p["url"]).path for i in ai_result["items"] for p in (i.get("pages") or []) if p.get("cited") and p.get("url")}
                 for o in forums_result["opportunities"] + forums_result.get("closed", []):
                     o["cited_by_ai"] = (citations_mod._dom(o["url"]) + urllib.parse.urlparse(o["url"]).path) in _cited
-        except Exception:  # noqa: BLE001 - an extra; the sample itself still shows
+        except Exception as _step_e:  # noqa: BLE001 - an extra; the sample itself still shows
+            steps.failed('Checking AI visibility (spends Gemini quota) / _hh', _step_e)
             citations_result = None
     if ai_visibility_cat is None:
         ai_visibility_cat = scoring.score_ai_sample(ai_result)       # one model's sample: scored, but always labelled low-evidence
     try:
         web = web_future.result(timeout=120)
     except Exception as e:  # noqa: BLE001 - these are extras; the audit stands without them
+        steps.failed('Checking AI visibility (spends Gemini quota) / web', e)
         web = {"version": 1, "ai_policy": web_signals.ai_policy(site.get("robots")),
                "llms_txt": {"status": "unavailable", "present": None, "reason": f"Not completed ({type(e).__name__})."},
                "commoncrawl": {"source": "Common Crawl", "status": "unavailable", "items": [],
@@ -1116,6 +1150,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     except _NoName:
         intel_result = None
     except Exception as e:  # noqa: BLE001
+        steps.failed('Analysing coverage, traveller fit and recommendations / intel_result', e)
         intel_result = {"error": f"{type(e).__name__}: {e}"}
 
     # What each travel site shows (from quoted passages in public search results) against the hotel's own site, and any listing still carrying a former name.
@@ -1133,7 +1168,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         listing_checks = listing_facts.build(listing_result, hotel, guest, own_pages, _former, {**(location or {}), "region": city}, extra=_extra)
         if listing_checks is not None and ta_result:
             listing_checks["tripadvisor"] = ta_result
-    except Exception:  # noqa: BLE001 - an extra; the audit stands without it
+    except Exception as _step_e:  # noqa: BLE001 - an extra; the audit stands without it
+        steps.failed('Analysing coverage, traveller fit and recommendations / _former', _step_e)
         listing_checks = None
 
     # Booking readiness (a booking link, its destination, broken links) and external presence (is the right hotel identified on each outside source, do they agree with the website).
@@ -1141,6 +1177,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     try:
         booking_result = booking_future.result(timeout=45)
     except Exception as e:  # noqa: BLE001 - an extra; the audit stands without it
+        steps.failed('Analysing coverage, traveller fit and recommendations / booking_result', e)
         booking_result = {"status": "unavailable", "reason": f"The booking check did not finish ({type(e).__name__}).", "checks": [], "candidates": []}
     finally:
         booking_ex.shutdown(wait=False, cancel_futures=True)
@@ -1150,7 +1187,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                                                   [{"url": l["url"], "domain": evidence.domain_of(l["url"])} for l in _home_links],
                                                   own={"postcode": location.get("postcode"), "lat": location.get("lat"), "lon": location.get("lon"),
                                                        "phone": (guest.get("own_facts_node") or {}).get("telephone") or (((guest.get("fact_sheet") or {}) if isinstance(guest.get("fact_sheet"), dict) else {}).get("telephone"))})
-    except Exception:  # noqa: BLE001
+    except Exception as _step_e:  # noqa: BLE001
+        steps.failed('Analysing coverage, traveller fit and recommendations / _ie', _step_e)
         external_result = None
 
     # What the sampled answers mean: who is recommended instead, which sources were used, is it right, why the hotel may not be named.
@@ -1168,13 +1206,15 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                             "strong_intents": strong, "own_domain": host, "brand_domains": (host,) if site["meta"].get("scope") else ()},
                 api_key=anthropic_api_key, model=anthropic_model)
         except Exception as e:  # noqa: BLE001 - an extra; the sample itself still shows
+            steps.failed('Analysing what the assistant said / strong', e)
             ai_insight_result = {"source": ai_insights.SOURCE, "status": "unavailable", "reason": f"The analysis of the answers failed ({type(e).__name__}).", "cost_usd": 0.0}
 
     # one count for the whole report: an answer the reading shows naming the hotel is marked as naming it, and the sample's figures are recounted from those marks
     if isinstance(ai_insight_result, dict) and ai_insight_result.get("extracted_answers"):
         try:
             ai_insights.reconcile(ai_result, ai_insight_result["extracted_answers"], hotel)
-        except Exception:  # noqa: BLE001
+        except Exception as _step_e:  # noqa: BLE001
+            steps.failed('Analysing what the assistant said / ai_insights.reconcile', _step_e)
             pass
 
     # What the answers say about the hotel itself (no parking, has a pool, closed for refurbishment), checked against its own website
@@ -1186,7 +1226,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             fc = ai_facts.run(ai_result, hotel, city, own_pages, base, site_stars=float(_stars) if isinstance(_stars, (int, float)) else None, api_key=anthropic_api_key, model=anthropic_model)
             ai_insight_result["facts_check"] = fc
             ai_insight_result["cost_usd"] = round((ai_insight_result.get("cost_usd") or 0) + (fc.get("cost_usd") or 0), 5)
-        except Exception:  # noqa: BLE001 - an extra
+        except Exception as _step_e:  # noqa: BLE001 - an extra
+            steps.failed('Checking what the assistant said about the hotel against its website / _stars', _step_e)
             pass
 
     # Who the assistant named instead of the hotel, which pages it cited, and what the evidence shows about the difference: the answers already collected, plus a few polite page reads.
@@ -1201,11 +1242,12 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             ai_gap_result = ai_gap.run(ai_result, ai_insight_result, {"hotel": hotel, "city": city, "own_domain": _h, "brand_domains": (_h,) if site["meta"].get("scope") else (), "own_pages": own_pages,
                                                                       "base": base, "osm_ctx": _octx, "hotel_tier": ((market_profile or {}).get("tier") or {}).get("key")}, api_key=anthropic_api_key, model=anthropic_model, fetch=_fc_other)
         except Exception as e:  # noqa: BLE001 - an extra; the sample and its analysis still show
+            steps.failed('Looking at who the assistant recommended instead, and the pages it cited / _o', e)
             ai_gap_result = {"source": ai_gap.SOURCE, "status": "unavailable", "reason": f"The comparison with the hotels named instead did not finish ({type(e).__name__}).", "markets": [], "gaps": [],
                              "articles": [], "opportunities": [], "rivals": [], "comparison": None, "observations": {}, "limits": ai_gap.LIMITS, "cost_usd": 0.0}
 
     # The consultant layer reads pages the crawl already fetched - no further requests (except the few polite ones of the competitor look, below).
-    say("Working out what AI systems can and can't understand about the hotel...")
+    say("Working out what AI systems can read't understand about the hotel...")
     competitors_result = None
     try:
         osm_item = ((corpus.get("sources") or {}).get("osm_context") or {})
@@ -1214,6 +1256,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             try:
                 competitors_result = competitors_future.result(timeout=40)
             except Exception as e:  # noqa: BLE001 - an extra; the audit stands without it
+                steps.failed('Working out what AI systems can read / competitors_result', e)
                 competitors_result = {"status": "unavailable", "reason": f"The competitor look did not finish ({type(e).__name__}).", "competitors": [], "comparisons": []}
             finally:
                 competitors_ex.shutdown(wait=False, cancel_futures=True)
@@ -1225,13 +1268,15 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                                                "discovery": discovery, "entities": ext["entities"], "site": site,
                                                "tavily": tavily_result}))
     except Exception as e:  # noqa: BLE001 - the audit must survive a failed analysis
+        steps.failed('Working out what AI systems can read / competitors_result', e)
         consult_result = {"error": f"{type(e).__name__}: {e}"}
     try:
         _fr = _former_mod.recommendation(former, hotel, ext["entities"])
         if _fr and isinstance(consult_result.get("recommendations"), list):
             consult_result["recommendations"].insert(0, _fr)
             consult_result["former_names"] = former
-    except Exception:  # noqa: BLE001
+    except Exception as _step_e:  # noqa: BLE001
+        steps.failed('Working out what AI systems can read / _fr', _step_e)
         pass
     try:       # the outside sources were read after the scorecard was made: a hotel found under several names, or contradicted by a listing, cannot keep a perfect consistency score
         _recs = {r.get("id"): r for r in (consult_result.get("recommendations") or [])}
@@ -1243,7 +1288,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             _facts = int(_m.group(1)) if _m else 1
         scoring.apply_identity(scorecard, _names, _facts)
         scoring.apply_listings(scorecard, listing_checks)
-    except Exception:  # noqa: BLE001 - an adjustment; the scorecard stands as it was
+    except Exception as _step_e:  # noqa: BLE001 - an adjustment; the scorecard stands as it was
+        steps.failed('Working out what AI systems can read / _fr', _step_e)
         pass
 
     result = {
@@ -1310,9 +1356,11 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "ai_visibility_raw": ai_visibility_raw,
     }
     try:
+        result["step_errors"] = steps.collected()
         import report_gate
         result = report_gate.check(result)          # one pass over the whole report for contradictions and misleading items; it only downgrades, removes or annotates
-    except Exception:  # noqa: BLE001 - the report must never fail because of its own check
+    except Exception as _step_e:  # noqa: BLE001 - the report must never fail because of its own check
+        steps.failed('Report checks', _step_e)
         pass
     return headline.attach(result)
 

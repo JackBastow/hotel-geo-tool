@@ -232,5 +232,25 @@ _sw = glance.strengths_html(_sr)
 check("the two lists on the Overview are the management report's lists", (_good or _bad) and all(__import__("html").escape(x) in _sw for x in _good + _bad))
 check("the Overview banner shows the readiness score", "AI discoverability readiness" in dashboard_view.readiness_banner(_sr, {"headline_score": 50}))
 
+print("14. is the hotel named? one matcher (code review, Nov 2026)")
+_NAMED = [("Fistral Beach Hotel and Spa", "Newquay", "1. Headland Hotel - right above Fistral Beach, great for surfers.", False, "a place with the hotel's name (the beach) is not the hotel"),
+          ("Fistral Beach Hotel and Spa", "Newquay", "2. Fistral Beach Hotel - spa with sea views", True, "the hotel written as a hotel is"),
+          ("Park Hotel", "London", "1. Hyde Park Hotel", False, "another hotel's longer name is not the hotel"),
+          ("Park Hotel", "London", "Stay at the Park Hotel near the station.", True, "the name on its own is"),
+          ("THE NICI Newquay", "Newquay", "1. Headland Hotel\n2. The Nici - boutique", True, "the name without the town counts ('The Nici')"),
+          ("Eriksberg Hotel & Nature Reserve", "Karlshamn", "Try Eriksberg Hotel, a great base", True, "the part before '&' counts"),
+          ("THE PIG at Combe", "Honiton", "The Pig at Combe is lovely", True, "the name with or without 'The' counts"),
+          ("The Hoxton, Shoreditch", "London", "Hoxton Hotel in Shoreditch", True, "the part before the comma, written as a hotel, counts"),
+          ("Hilton Barcelona", "Barcelona", "The Hilton Diagonal Mar Barcelona is near the beach", False, "the brand alone is not the hotel"),
+          ("Hilton Dusseldorf", "Dusseldorf", "Hampton by Hilton Dusseldorf City Centre", False, "'X by Brand' is another hotel of the brand"),
+          ("Brooklands Hotel", "Weybridge", "The Brooklands Museum is great", False, "a one-word name used for something else is not the hotel"),
+          ("Brooklands Hotel", "Weybridge", "In Weybridge, Brooklands is the stylish choice.", True, "a one-word name with the town in the sentence is"),
+          ("Paris Marriott Opera Ambassador Hotel", "Paris", "Marriott Opera Ambassador is near Galeries Lafayette", True, "the name without the town in front counts"),
+          ("Hilton Paris Charles de Gaulle Airport", "Paris", "1. **Hilton Paris Charles de Gaulle Airport** - next to Terminal 2", True, "a chain hotel named after an airport is the hotel")]
+for _h, _c, _t, _exp, _why in _NAMED:
+    check(_why + f" ({_h})", ai_sample.mentioned(_t, _h, _c) == _exp, (_t, ai_sample.mentioned(_t, _h, _c)))
+check("'not the best choice' is not a recommendation", not ai_sample.recommended("Chewton Glen is not the best choice for families on a budget.", "Chewton Glen", "New Milton"))
+check("the bullets under a hotel are details, not list places", ai_sample.list_position("1. Lime Wood\n - Spa\n - From 400\n2. Chewton Glen", "Chewton Glen") == 2)
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

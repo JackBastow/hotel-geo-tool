@@ -1,0 +1,4 @@
+# Only for running the tests (GitHub Actions, or locally): never installed on the live site.
+-r requirements-web.txt
+pymupdf==1.28.2         # reads the generated PDFs back, to check what they say
+streamlit==1.64.0       # a few tests still exercise the older Streamlit screens

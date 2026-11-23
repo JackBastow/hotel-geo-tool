@@ -106,10 +106,25 @@ class StatusErr(Exception):
 for code, want in ((401, "rejected the API key"), (429, "rate limit"), (400, "may not be available"), (402, "no credit")):
     r = ai.run(HOTEL, CITY, client=Fake([], raise_on=(1, StatusErr(code))), workers=1, repeats=1)
     check(f"HTTP {code} becomes a stated reason and never raises", r["status"] == "unavailable" and want in r["reason"], r["reason"])
-ff = Fake([resp("Le Royal is great."), resp("x")], raise_on=(2, StatusErr(429)))
+ff = Fake([resp("Le Royal is great.")] + [resp("x")] * 10, raise_on=(2, StatusErr(429)))
 r = ai.run(HOTEL, CITY, client=ff, workers=1, repeats=1)
-check("a failure part-way keeps what was already answered and stops asking (no hammering a rate limit)",
-      r["status"] == "ok" and r["partial"] and len(r["items"]) == 1 and "rate limit" in r["reason"] and len(ff.calls) == 2, len(ff.calls))
+check("one rate-limit error part-way no longer ends the sample: that question is asked again and every answer is collected",
+      r["status"] == "ok" and len(r["items"]) == 6 and not r.get("partial"), (len(r["items"]), r.get("reason")))
+
+
+class AlwaysBusy:
+    def __init__(self):
+        self.calls, self.messages = 0, self
+
+    def create(self, **kw):
+        self.calls += 1
+        raise StatusErr(429)
+
+
+ab = AlwaysBusy()
+r = ai.run(HOTEL, CITY, client=ab, workers=1, repeats=1)
+check("a provider that keeps refusing is not hammered: it stops after three failures in a row, and says why",
+      ab.calls <= 4 and r["status"] == "unavailable" and "rate limit" in r["reason"], (ab.calls, r["reason"]))
 r = ai.run(HOTEL, CITY, client=Fake([NS(content=[], stop_reason="end_turn", usage=NS(input_tokens=1, output_tokens=1, server_tool_use=NS(web_search_requests=0)))] * 8), workers=1, repeats=1)
 check("an empty answer is recorded as no answer, not as 'hotel not named'", r["status"] == "ok" and all(i["mentioned"] is None for i in r["items"]) and r["summary"]["generic_asked"] == 0)
 err_content = NS(content=[NS(type="web_search_tool_result", content=NS(error_code="max_uses_exceeded")), NS(type="text", text="Le Royal.", citations=None)],

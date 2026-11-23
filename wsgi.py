@@ -1,6 +1,10 @@
 """Entry point for the web host: `waitress-serve --port=$PORT wsgi:app` (see render.yaml)."""
 
-from server import create_app
+import steps
+
+steps.setup()                     # errors go to the service log (Render: Logs), with tracebacks
+
+from server import create_app  # noqa: E402
 
 app = create_app()
 

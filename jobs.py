@@ -109,6 +109,8 @@ class Manager:
             job.status = "done"
         except Exception as e:  # noqa: BLE001 - show the real reason, never a stack trace
             job.status, job.error = "error", f"{type(e).__name__}: {e}"[:300]
+            import steps
+            steps.failed("audit job", e)
         job.params.pop("review_rows", None)       # the review text is not kept once the audit has used it
         job.finished = time.time()
 

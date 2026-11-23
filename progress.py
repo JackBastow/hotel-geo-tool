@@ -18,6 +18,8 @@ The numbers
 import difflib
 import json
 import re
+import threading
+from collections import defaultdict
 
 import portal_db
 
@@ -102,8 +104,22 @@ def ensure_strategy(db, hotel):
         return 0
 
 
+_SYNC_LOCKS = defaultdict(threading.RLock)
+_SYNC_GUARD = threading.Lock()
+
+
+def _hotel_lock(hotel_id):
+    with _SYNC_GUARD:
+        return _SYNC_LOCKS[hotel_id]
+
+
 def sync(db, hotel, report, run_id):
-    """Bring the hotel's action list up to date from a newly saved audit. -> {"new", "fixed", "reopened", "skipped"}. Never raises into the audit."""
+    """Bring the hotel's action list up to date from a newly saved audit. -> {"new", "fixed", "reopened", "skipped"}. One sync at a time per hotel."""
+    with _hotel_lock(hotel["id"]):
+        return _sync(db, hotel, report, run_id)
+
+
+def _sync(db, hotel, report, run_id):
     out = {"new": 0, "fixed": 0, "reopened": 0, "skipped": False}
     if not _readable(report):
         out["skipped"] = True
@@ -113,8 +129,12 @@ def sync(db, hotel, report, run_id):
     existing = db.list_actions(hotel["id"])
     free = {a["id"]: a for a in existing}
     seen = set()
+    keys_done = set()
     for rec in recs:
         key = action_key(rec)
+        if key in keys_done:
+            continue                                                   # the same action twice in one report is one action
+        keys_done.add(key)
         a = next((x for x in free.values() if x["akey"] == key), None)
         if a is None:
             best, score = None, 0.0
@@ -296,10 +316,13 @@ def ensure_actions(db, hotel):
     try:
         if db.list_actions(hotel["id"]):
             return 0
-        for r in db.hotel_runs(hotel["hotel_key"]):
-            rep = db.get_report(r["id"])
-            if rep and _readable(rep):
-                return sync(db, hotel, rep, r["id"])["new"]
+        with _hotel_lock(hotel["id"]):
+            if db.list_actions(hotel["id"]):
+                return 0                                               # another request built the list while this one waited
+            for r in db.hotel_runs(hotel["hotel_key"]):
+                rep = db.get_report(r["id"])
+                if rep and _readable(rep):
+                    return _sync(db, hotel, rep, r["id"])["new"]
     except Exception:  # noqa: BLE001 - the dashboard still shows
         return 0
     return 0

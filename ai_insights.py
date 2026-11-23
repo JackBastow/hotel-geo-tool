@@ -416,6 +416,8 @@ def reconcile(ai, extracted, hotel):
             if ai_sample.mentioned(h.get("name", ""), hotel) and not _sibling(h.get("name", ""), hotel):
                 it["mentioned"] = True
                 it["position"] = it.get("position") or h.get("rank")
+                if it.get("position"):
+                    it["recommended"] = True                 # a line of the assistant's own list of suggestions is a recommendation, as it is for a text match
                 it["reconciled"] = True
                 n += 1
                 break

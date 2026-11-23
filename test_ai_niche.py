@@ -108,7 +108,9 @@ merged = ai.merge(base, extra)
 s = merged["summary"]
 check("merging recomputes the counts: 0 of 2 town-wide, 1 of 2 niche, asked 5, cost summed",
       s["generic_asked"] == 2 and s["generic_named"] == 0 and s["niche_asked"] == 2 and s["niche_named"] == 1 and s["asked"] == 5 and merged["cost_usd"] > base["cost_usd"], s)
-check("merging nothing changes nothing, and a failed sample is never 'merged'", ai.merge(base, {"items": []}) is base and ai.merge({"status": "unavailable"}, extra)["status"] == "unavailable")
+_m = ai.merge({"status": "unavailable", "reason": "rate limit"}, extra)
+check("merging nothing changes nothing; when the town-wide round failed, the second round's answers are kept (never thrown away), marked partial",
+      ai.merge(base, {"items": []}) is base and _m["status"] == "ok" and _m.get("partial") and len(_m["items"]) == len(extra["items"]), _m.get("status"))
 check("no key and no client: not asked, with the reason; no questions: nothing", ai.run_extra(HOTEL, "Rome", NQ)["items"] == [] and ai.run_extra(HOTEL, "Rome", [], api_key="k")["reason"] == "")
 
 print("4. scoring and the plan treat the niche markets as the point")

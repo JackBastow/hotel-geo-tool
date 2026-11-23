@@ -429,6 +429,13 @@ def register_scope(app, sc):
         s.create_invite(h, email, hid, None, "invite", accounts.INVITE_DAYS)
         return hotel_page(s, hid, link_notice(tok, email, "Invite link made"))
 
+    def user_in_scope(s, hid, uid):
+        """The user belongs to this hotel AND every hotel they can see is one this admin manages. The individual-hotels admin must never reset the password of, or switch off,
+        someone who also signs in to portfolio hotels."""
+        if uid not in {x["id"] for x in s.users_for_hotel(hid)}:
+            return False
+        return all(portal_db.group_of(h) in sc.groups for h in s.hotels_linked(uid))
+
     @bp.post(HB + "/<int:hid>/reset/<int:uid>")
     def hotel_reset(hid, uid):
         bad, s = checked_post()
@@ -436,8 +443,8 @@ def register_scope(app, sc):
             return bad
         own(s, hid)
         u = s.user_by_id(uid)
-        if not u or uid not in {x["id"] for x in s.users_for_hotel(hid)}:
-            abort(404)
+        if not u or not user_in_scope(s, hid, uid):
+            return hotel_page(s, hid, '<div class="alert warning">This person also signs in to hotels managed from the main admin, so their password can only be reset there.</div>') if u else abort(404)
         tok, h = accounts.new_token()
         s.create_invite(h, u["email"], hid, uid, "reset", accounts.INVITE_DAYS)
         return hotel_page(s, hid, link_notice(tok, u["email"], "Password-reset link made"))
@@ -448,7 +455,7 @@ def register_scope(app, sc):
         if bad:
             return bad
         own(s, hid)
-        if uid in {x["id"] for x in s.users_for_hotel(hid)} and state in ("on", "off"):
+        if user_in_scope(s, hid, uid) and state in ("on", "off"):
             s.set_user_active(uid, state == "on")
         return redirect(f"{HB}/{hid}")
 

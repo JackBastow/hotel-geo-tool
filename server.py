@@ -133,8 +133,9 @@ class Reports:
             db = self._db()
             if db and rid:
                 db.update_run(rid, report)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as e:  # noqa: BLE001 - the page still shows the edit; the log says it was not saved
+            import steps
+            steps.failed("saving an edited report", e)
 
     def _trim(self):
         now = time.time()

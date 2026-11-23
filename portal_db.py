@@ -38,7 +38,8 @@ class PortalMixin:
         for sql in ("CREATE INDEX IF NOT EXISTS hp_hotel ON hotel_prompts (hotel_id)", "CREATE INDEX IF NOT EXISTS actions_hotel ON actions (hotel_id)", "CREATE INDEX IF NOT EXISTS hu_hotel ON hotel_users (hotel_id)", "CREATE INDEX IF NOT EXISTS inv_hash ON invites (token_hash)"):
             self._run(conn, sql)
         self._ensure_columns(conn, "hotels", {"grp": "TEXT", "profile_json": "TEXT", "setup": "TEXT", "strategy_json": "TEXT"})
-        self._ensure_columns(conn, "actions", {"steps_done": "TEXT"})          # which steps of an action the hotel has ticked off          # older databases: every hotel already there is in the portfolio
+        self._ensure_columns(conn, "actions", {"steps_done": "TEXT"})
+        self._dedupe_actions(conn)          # which steps of an action the hotel has ticked off          # older databases: every hotel already there is in the portfolio
 
     def _exec(self, sql, params=()):
         conn = self._connect()
@@ -138,7 +139,19 @@ class PortalMixin:
         return r[0]
 
     def use_invite(self, invite_id):
-        self._exec("UPDATE invites SET used = ? WHERE id = ?", (now_iso(), invite_id))
+        """Marks the invite used. -> True only for the request that used it (two requests at the same moment cannot both use one link)."""
+        conn = self._connect()
+        try:
+            cur = self._run(conn, "UPDATE invites SET used = ? WHERE id = ? AND (used IS NULL OR used = '')", (now_iso(), invite_id))
+            n = cur.rowcount
+            conn.commit()
+            return n == 1
+        finally:
+            conn.close()
+
+    def hotels_linked(self, uid):
+        """Every hotel the user is linked to, switched off or not."""
+        return self._rows("SELECT h.* FROM hotels h JOIN hotel_users hu ON hu.hotel_id = h.id WHERE hu.user_id = ?", (uid,))
 
     def open_invites(self, hotel_id):
         return self._rows("SELECT id, email, kind, created, expires FROM invites WHERE hotel_id = ? AND used = '' AND expires > ? ORDER BY id DESC", (hotel_id, now_iso()))
@@ -167,6 +180,31 @@ class PortalMixin:
         self._exec("UPDATE tool_feedback SET status = ? WHERE id = ?", (status, fid))
 
     # actions -----------------------------------------------------------------
+    def _dedupe_actions(self, conn):
+        """Older databases may hold two copies of an action (two syncs at once). Keep, per hotel and action key, the copy the hotel has worked on (done, then in progress), else the oldest,
+        delete the others, then let the database refuse any new copy."""
+        try:
+            rows = [dict(r) for r in self._run(conn, "SELECT id, hotel_id, akey, status FROM actions WHERE akey IS NOT NULL AND akey <> ''").fetchall()]
+            groups = {}
+            for r in rows:
+                groups.setdefault((r["hotel_id"], r["akey"]), []).append(r)
+            rank = {"done": 0, "working": 1, "not_relevant": 2}
+            drop = []
+            for g in groups.values():
+                if len(g) > 1:
+                    g.sort(key=lambda r: (rank.get(r["status"], 3), r["id"]))
+                    drop += [r["id"] for r in g[1:]]
+            for i in range(0, len(drop), 200):
+                part = drop[i:i + 200]
+                self._run(conn, f"DELETE FROM actions WHERE id IN ({', '.join('?' for _ in part)})", part)
+            self._run(conn, "CREATE UNIQUE INDEX IF NOT EXISTS actions_hotel_key ON actions (hotel_id, akey)")
+            conn.commit()
+        except Exception:  # noqa: BLE001 - never stop the service starting; the in-process lock still prevents new copies
+            try:
+                conn.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+
     def list_actions(self, hotel_id):
         return self._rows("SELECT * FROM actions WHERE hotel_id = ? ORDER BY id", (hotel_id,))
 
@@ -175,11 +213,20 @@ class PortalMixin:
         return r[0] if r else None
 
     def insert_action(self, hotel_id, row):
+        """-> the new id, or None when this hotel already has this action (the database refuses a second copy)."""
         conn = self._connect()
         try:
             aid = self._insert(conn, "actions", {"hotel_id": hotel_id, **{k: v for k, v in row.items() if k in ACTION_COLS}})
             conn.commit()
             return aid
+        except Exception as e:  # noqa: BLE001
+            try:
+                conn.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+            if "unique" in str(e).lower() or "duplicate" in str(e).lower() or type(e).__name__ in ("IntegrityError", "UniqueViolation"):
+                return None
+            raise
         finally:
             conn.close()
 

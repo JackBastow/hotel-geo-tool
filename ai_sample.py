@@ -126,27 +126,16 @@ def _core_tokens(hotel):
 
 
 def mentioned(text, hotel, city=""):
-    """Is THIS hotel named? Full name, or its distinctive words together; a bare one-word name needs the place beside it."""
-    if not text or not hotel:
-        return False
-    t, h = evidence.fold(text), evidence.fold(hotel).strip()
-    core = _core_tokens(hotel)
-    if not core:
-        return False
-    if len(core) >= 2:
-        # 'Hampton by Hilton Dusseldorf City Centre' contains 'Hilton Dusseldorf' but is another hotel of the same brand: a name that follows 'by ' is the brand line of a different property
-        return any(re.search(r"(?<!by )" + re.escape(p), t) is not None for p in (h, " ".join(core)))
-    if h != core[0]:
-        # "Brooklands Hotel": the distinctive word alone is also a museum and a racetrack, so it must appear AS a hotel
-        return (re.search(r"(?<!by )" + re.escape(h), t) is not None) or re.search(r"\b" + re.escape(core[0]) + r"\s+(?:hotel|spa|resort|inn|suites)\b", t) is not None
-    # a bare one-word name: only with the town in the same sentence
-    place = evidence.fold((city or "").split(",")[0]).strip()
-    sentences = re.split(r"(?<=[.!?\n])\s+", t)
-    return any(core[0] in s and bool(place) and place in s for s in sentences)
+    """Is THIS hotel named? The one matcher every part of the tool uses (hotelname.py): whole words, the usual shorter forms of the name, never a place of the same name
+    ('Fistral Beach') or another hotel's longer name ('Hyde Park Hotel')."""
+    import hotelname
+    return hotelname.mentioned(text, hotel, city)
 
 
 _RECOMMEND = re.compile(r"\b(?:recommend\w*|suggest\w*|best|top|great (?:choice|option|pick)|good (?:choice|option|pick)|ideal|perfect|well[- ]suited|excellent|worth|stands? out|popular|favou?rite|go(?:es)? for)\b", re.I)
-_AGAINST = re.compile(r"\b(?:avoid|not recommended|wouldn'?t recommend|would not recommend|poor|disappointing|closed|no longer|permanently closed|complaints?)\b", re.I)
+_AGAINST = re.compile(r"\b(?:avoid|not recommended|wouldn'?t recommend|would not recommend|poor|disappointing|closed|no longer|permanently closed|complaints?|"
+                      r"(?:is ?n[o']t|not) (?:the |a |an )?(?:best|ideal|suitable|great|good|right|top|recommended|first)|not (?:ideal|suitable|recommended|worth)|"
+                      r"better (?:options|choices|alternatives)|skip|overpriced|tired|dated)\b", re.I)
 
 
 def recommended(text, hotel, city=""):
@@ -166,7 +155,14 @@ def recommended(text, hotel, city=""):
 
 def list_position(text, hotel):
     """1-based place of the hotel among list lines (numbered or bulleted) in the answer; None when it is not in a list."""
-    lines = [ln for ln in (text or "").splitlines() if re.match(r"\s*(?:\d+[.)]|[-*•])\s+", ln)]
+    all_lines = (text or "").splitlines()
+    numbered = [ln for ln in all_lines if re.match(r"\s*\d+[.)]\s+", ln)]
+    if numbered:
+        lines = numbered                         # a numbered list: its numbers are the places; the bullets under each hotel are details, not more places
+    else:
+        bullets = [ln for ln in all_lines if re.match(r"\s*[-*•]\s+", ln)]
+        top = min((len(ln) - len(ln.lstrip()) for ln in bullets), default=0)
+        lines = [ln for ln in bullets if len(ln) - len(ln.lstrip()) == top]
     for i, ln in enumerate(lines, 1):
         if mentioned(ln, hotel):
             return i
@@ -279,9 +275,21 @@ def budget_exhausted():
 
 # ---------------------------------------------------------------------- run
 
-def _make_client(api_key, timeout=60.0):
+def _make_client(api_key, timeout=90.0):
     import anthropic
-    return anthropic.Anthropic(api_key=api_key, max_retries=1, timeout=timeout)
+    return anthropic.Anthropic(api_key=api_key, max_retries=4, timeout=timeout)       # 4 retries with back-off: one busy moment at the provider must not end the sample
+
+
+import threading as _threading
+CALLS = _threading.BoundedSemaphore(6)        # at most 6 questions in flight across the whole app (several checks can run at once); more only trips the rate limit
+
+
+def fatal(exc):
+    """An error that will not go away by asking again: a bad key, no credit, a request the account cannot make. Anything else (busy, rate limit, time-out) is worth retrying."""
+    code = getattr(exc, "status_code", None)
+    name = type(exc).__name__
+    return (code in (400, 401, 402, 403) or name in ("AuthenticationError", "PermissionDeniedError", "BadRequestError")
+            or "credit" in str(exc).lower() or "billing" in str(exc).lower())
 
 
 def expand(questions, repeats=REPEATS):
@@ -302,7 +310,7 @@ def _names_hotel(text, hotel, city=""):
     return bool(core) and all(t in low for t in core)
 
 
-def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=1.60, workers=WORKERS, progress=None, repeats=REPEATS, country=None):
+def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=1.60, workers=WORKERS, progress=None, repeats=REPEATS, country=None, stop_event=None):
     """
     Put the questions to the assistant a few at a time. -> (items in question order, estimated spend, reason it stopped early or '').
     `country` (a two-letter code) tells the search tool to search as if from that country, so the answers reflect what a searcher there sees; if the API will not take the setting the question is asked
@@ -312,7 +320,7 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
     from concurrent.futures import ThreadPoolExecutor
     own = _host(own_domain)
     lock = threading.Lock()
-    state = {"spent": 0.0, "why": "", "stop": False}
+    state = {"spent": 0.0, "why": "", "stop": False, "failed": 0, "in_a_row": 0}
 
     def say(m):
         if progress:
@@ -320,9 +328,10 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
 
     def ask(q):
         with lock:
-            if state["stop"]:
+            if state["stop"] or (stop_event is not None and stop_event.is_set()):
                 return None
-            if state["spent"] >= budget_usd:
+            tracked = q.get("source") == "benchmark"
+            if state["spent"] >= (budget_usd * 2 if tracked else budget_usd):     # the hotel's tracked prompts are finished even when the extra questions used the budget
                 state["why"] = state["why"] or "Stopped early to stay within the per-audit budget."
                 return None
         say(f"Asking an AI assistant: {q['text']}")
@@ -334,7 +343,8 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
                 tool = dict(SEARCH_TOOL)
                 if with_country and country:
                     tool["user_location"] = {"type": "approximate", "country": country}
-                return client.messages.create(model=model, max_tokens=MAX_TOKENS, system=system_for(country), tools=[tool], messages=[{"role": "user", "content": q["text"]}], **extra)
+                with CALLS:
+                    return client.messages.create(model=model, max_tokens=MAX_TOKENS, system=system_for(country), tools=[tool], messages=[{"role": "user", "content": q["text"]}], **extra)
             if country and not state.get("loc_off"):
                 try:
                     resp, applied = call(True), country
@@ -348,13 +358,20 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
                 resp = call(False)
         except Exception as e:  # noqa: BLE001 - never fail the audit
             with lock:
-                state["why"] = state["why"] or _reason_for(e)
-                state["stop"] = True
-            return None
+                state["in_a_row"] += 1
+                if fatal(e):
+                    state["why"] = state["why"] or _reason_for(e)
+                    state["stop"] = True               # asking again would fail the same way
+                else:
+                    state["last_error"] = state.get("last_error") or _reason_for(e)
+                    if state["in_a_row"] >= 3:
+                        state["stop"] = True           # three in a row, after the client's own retries: the provider is refusing now; stop rather than hammer it
+            return {"_failed": True, **q}
         answer, domains, searches, tin, tout = parse_response(resp)
         c = cost_usd(model, tin, tout, searches)
         with lock:
             state["spent"] += c
+            state["in_a_row"] = 0
         if not answer:
             return {**q, "answer": "", "mentioned": None, "position": None, "domains": domains, "searches": searches, "cost_usd": c,
                     "note": "The assistant returned no answer text."}
@@ -364,7 +381,32 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
                 "platform": f"Claude ({model}) with web search", "tested_on": time.strftime("%Y-%m-%d", time.gmtime())}
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:      # a few at a time: faster, still gentle on the rate limit
-        items = [r for r in ex.map(ask, expand(questions, repeats)) if r]
+        todo = expand(questions, repeats)
+        todo = [q for q in todo if q.get("source") == "benchmark"] + [q for q in todo if q.get("source") != "benchmark"]     # tracked prompts first
+        first = list(ex.map(ask, todo))
+    # a question that failed for a passing reason (busy, rate limit, time-out), or came back empty, is asked again, one at a time after a pause, before anything is given up
+    items = []
+    for r in first:
+        if r and (r.get("_failed") or r.get("answer") == "") and not state["stop"] and not (stop_event is not None and stop_event.is_set()):
+            time.sleep(3)
+            again = ask({k: v for k, v in r.items() if k not in ("_failed", "answer", "mentioned", "position", "domains", "searches", "cost_usd", "note")})
+            if again and not again.get("_failed"):
+                items.append(again)
+                continue
+            if r.get("answer") == "":
+                items.append(r)
+                continue
+            state["failed"] += 1
+            continue
+        if r and not r.get("_failed"):
+            items.append(r)
+        elif r:
+            state["failed"] += 1
+    if state["failed"] and state["stop"] and not state["why"]:
+        state["why"] = f"{state.get('last_error') or 'The assistant did not answer'} After several attempts in a row, the remaining questions were not asked."
+    if state["failed"] and not state["why"]:
+        state["why"] = (f"{state['failed']} of {len(first)} answers could not be collected after retrying ({state.get('last_error') or 'the assistant did not answer'}); "
+                        "the figures use the answers that were collected.")
     return items, state["spent"], state["why"]
 
 
@@ -412,7 +454,7 @@ def run(hotel, city, *, api_key=None, model=None, segments=(), own_domain="", bu
                      run_at=time.strftime("%Y-%m-%d", time.gmtime()), search_country=next((i["search_country"] for i in items if i.get("search_country")), None))
 
 
-def run_extra(hotel, city, questions, *, api_key=None, model=None, own_domain="", budget_usd=0.80, client=None, progress=None, workers=WORKERS, repeats=REPEATS, country=None):
+def run_extra(hotel, city, questions, *, api_key=None, model=None, own_domain="", budget_usd=0.80, client=None, progress=None, workers=WORKERS, repeats=REPEATS, country=None, stop_event=None):
     """
     A second round of questions, planned from what the audit learned about the hotel (ai_niche.py). -> {"items", "cost_usd", "reason"}.
     Never raises; an empty result means the extra questions were not asked.
@@ -428,7 +470,7 @@ def run_extra(hotel, city, questions, *, api_key=None, model=None, own_domain=""
         except Exception as e:  # noqa: BLE001
             return {"items": [], "cost_usd": 0.0, "reason": f"The Anthropic library could not be started ({type(e).__name__})."}
     items, spent, why = ask_all(hotel, city, questions, client=client, model=model, own_domain=own_domain, budget_usd=budget_usd, workers=workers, progress=progress,
-                                repeats=repeats, country=country)
+                                repeats=repeats, country=country, stop_event=stop_event)
     return {"items": items, "cost_usd": round(spent, 5), "reason": why, "search_country": next((i["search_country"] for i in items if i.get("search_country")), None)}
 
 
@@ -485,8 +527,15 @@ def by_question(items):
 
 def merge(ai, extra):
     """Add the second round's answers to the sample and recompute the counts. Returns the sample unchanged when there is nothing to add."""
-    if not ai or ai.get("status") != "ok" or not extra or not extra.get("items"):
+    if not extra or not extra.get("items"):
         return ai
+    if not ai or ai.get("status") != "ok":
+        # the town-wide round failed, but the hotel's own prompts were answered: those answers ARE the sample, never thrown away
+        first_why = (ai or {}).get("reason") or "the first round of questions was not answered"
+        out = _envelope("ok", f"Only the hotel's own prompts were answered ({first_why}).", model=(ai or {}).get("model"), items=list(extra["items"]),
+                        summary=summarise(extra["items"]), cost_usd=round(((ai or {}).get("cost_usd") or 0) + (extra.get("cost_usd") or 0), 5), partial=True,
+                        run_at=time.strftime("%Y-%m-%d", time.gmtime()), search_country=extra.get("search_country"))
+        return out
     items = ai["items"] + extra["items"]
     out = {**ai, "items": items, "summary": summarise(items), "cost_usd": round((ai.get("cost_usd") or 0) + (extra.get("cost_usd") or 0), 5),
            "search_country": ai.get("search_country") or extra.get("search_country")}
