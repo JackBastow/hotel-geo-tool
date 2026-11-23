@@ -215,6 +215,18 @@ def register(app, cfg):
         import dashboard_view
         import prompt_analysis
         out = {}
+        if rep:
+            import glance
+
+            def glance_html(prev=None):
+                parts = []
+                for fn in (lambda: dashboard_view.readiness_banner(rep, prev), lambda: dashboard_view.at_a_glance(rep), lambda: glance.scorecard_html(rep), lambda: glance.strengths_html(rep)):
+                    try:
+                        parts.append(fn() or "")
+                    except Exception:  # noqa: BLE001 - one part that fails is left out; the rest of the Overview shows
+                        pass
+                return "".join(parts)
+            out["glance"] = glance_html
         for k, fn in (("analysis", lambda: prompt_analysis.panel(rep)), ("competitors", lambda: competitors_view.panel(rep, hotel)), ("talk", lambda: dashboard_view.talk_tab(rep) if rep else "")):
             try:
                 out[k] = fn()

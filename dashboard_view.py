@@ -197,7 +197,12 @@ def at_a_glance(rep):
     doms = ((rep.get("ai_sample") or {}).get("summary") or {}).get("top_domains") or []
     if not rows and not doms:
         return ""
-    own = (f'<b>{me["coverage_pct"]:g}%</b> of the sampled answers named the hotel.' if me and me.get("coverage_pct") is not None else "The hotel was not named in the sampled answers.")
+    import glance
+    n_ = glance.ai_named(rep)
+    if n_:
+        own = (f'<b>{round(100 * n_[0] / n_[1])}%</b> of the sampled answers named the hotel ({n_[0]} of {n_[1]}).' if n_[0] else "The hotel was not named in the sampled answers.")
+    else:
+        own = (f'<b>{me["coverage_pct"]:g}%</b> of the sampled answers named the hotel.' if me and me.get("coverage_pct") is not None else "The hotel was not named in the sampled answers.")
     inst = ("<ul>" + "".join(f'<li>{esc(r["name"])} <span class="hk-muted">{r["coverage_pct"]:g}%</span></li>' for r in others) + "</ul>") if others else '<p class="hk-muted">No rival was named often enough to list.</p>'
     src = ("<ul>" + "".join(f"<li>{esc(d)}</li>" for d in doms[:4]) + "</ul>") if doms else '<p class="hk-muted">No sources were recorded.</p>'
     return ('<div class="glance"><section class="panel"><h4>Is the hotel named?</h4><p>' + own + ' One assistant, one day: a sample, not a ranking.</p></section>'
@@ -213,13 +218,22 @@ def overview(rep, prev=None):
     parts = []
 
     # --- banner: the score and what it rests on
+    parts.append(readiness_banner(rep, prev))
+    parts.append(at_a_glance(rep))
+    return _overview_rest(rep, prev, parts, cons, h, sc, ins, sb, br, counts, qs)
+
+
+def readiness_banner(rep, prev=None):
+    """The readiness score as a ring, what it rests on and what is not measured. `prev`: the previous check's row (its headline_score gives the change)."""
+    h = rep.get("headline") or {}
     unassessed = "".join(chip(f"{u['label']} · {u['weight']:g}%", "warn") for u in h.get("unassessed", []))
-    parts.append(f'<section class="ov-hero">{ring(h.get("score"), "of 100", 132)}<div class="ov-hero-text"><div class="ov-title">AI discoverability readiness {chip((h.get("badge") or "").capitalize(), "brand")} {delta(h.get("score"), (prev or {}).get("headline_score"))}</div>'
+    return (f'<section class="ov-hero">{ring(h.get("score"), "of 100", 132)}<div class="ov-hero-text"><div class="ov-title">AI discoverability readiness {chip((h.get("badge") or "").capitalize(), "brand")} {delta(h.get("score"), (prev or {}).get("headline_score"))}</div>'
                  f'<div class="p-track" style="margin:8px 0 4px"><div class="p-fill" style="width:{min(max(h.get("coverage_pct", 0), 0), 100):.0f}%"></div></div>'
                  f'<div class="caption">Measurement coverage: {h.get("coverage_pct", 0):.0f}% of the full model assessed</div><p class="ov-expl">{esc(h.get("explanation", ""))}</p>'
                  f'{"<div><span class=hk-label>Not measured</span> " + unassessed + "</div>" if unassessed else ""}</div></section>')
 
-    parts.append(at_a_glance(rep))
+
+def _overview_rest(rep, prev, parts, cons, h, sc, ins, sb, br, counts, qs):
 
     # --- headline numbers
     parts.append('<div class="kpis">' + "".join(_kpi_html(k) for k in kpis(rep, prev)) + "</div>")

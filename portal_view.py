@@ -325,7 +325,7 @@ def opportunities_panel(ops):
     return f'<div class="sec-head"><h3>Your biggest AI discovery opportunities</h3></div><div class="prios">{cards}</div>'
 
 
-def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_url="", prompts="", prompts_alert=False, opps=None, strategy="", start="", analysis="", competitors="", talk="", settings_url="", research_html=""):
+def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_url="", prompts="", prompts_alert=False, opps=None, strategy="", start="", analysis="", competitors="", talk="", settings_url="", research_html="", glance=None):
     """
     The hotel's dashboard. With settings_url (the hotel's own view) its prompts and history live on its Settings page and the dashboard links there; without it (the operator's view of the hotel)
     they stay as tabs, so the operator can edit the prompts in place.
@@ -348,7 +348,11 @@ def dashboard(sm, actions, runs, editable=True, csrf="", ai="", live=None, live_
     board = action_board(sm, actions, editable, strategy_context=strategy, research_html=research_html)
     caveat = ('<p class="caption">This shows progress: what has been done and how the score has moved. It does not prove that the actions caused the change. The AI figures come from a sample of answers from one assistant, '
               'which is why they are given with a range.</p>')
-    overview = (f'{progress_line(sm)}{kpis(sm)}{opportunities_panel(opps)}{caveat}'
+    try:
+        top = glance(runs[1] if len(runs) > 1 else None) if callable(glance) else (glance or "")
+    except Exception:  # noqa: BLE001
+        top = ""
+    overview = (f'{top}{progress_line(sm)}{kpis(sm)}{opportunities_panel(opps)}{caveat}'
                 f'<div class="sec-head"><h3>Readiness score over time</h3></div><section class="panel">{trend_svg(sm["points"])}</section>'
                 f'<div class="sec-head"><h3>Actions completed over time</h3></div><section class="panel">{trend_svg(sm["completed_points"], maximum=max(4, sm["actions"]["total"] or 4), name="Actions completed")}</section>')
     recs = (('<p class="lede">Mark each action as you go. After every weekly check the list updates: fixed items are ticked off, and new ones are added.</p>' if editable else "") + f'<div id="act-list">{board}</div>')

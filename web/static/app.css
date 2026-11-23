@@ -447,3 +447,9 @@ table.pa .pa-ev summary { font-size: 13px; }
 .fb-float[open] > summary { margin-left: auto; width: max-content; }
 .fb-form { position: absolute; right: 0; bottom: 52px; width: min(360px, calc(100vw - 36px)); background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow-lift, 0 8px 24px rgba(0,0,0,.18)); }
 .fb-form textarea, .fb-form select { width: 100%; }
+/* Overview: where the hotel does well / where it does not (the same lists as the management report) */
+.sw-grid { margin-top: 12px; }
+.sw h4 { margin: 0 0 8px; }
+.sw ul { margin: 0; padding-left: 1.1em; } .sw li { margin: .35em 0; line-height: 1.45; }
+.sw-good { background: #f1f8f3; border-left: 4px solid #2e7d4f; } .sw-good h4 { color: #2e7d4f; }
+.sw-bad { background: #fdf3f2; border-left: 4px solid #b3362c; } .sw-bad h4 { color: #b3362c; }

@@ -167,10 +167,10 @@ def _markets_block(rep, c):
 
 # ----------------------------------------------------------------------------- at a glance: where the hotel does well and where it does not
 
-AREA_MEANING = {"ai_visibility": "How often AI assistants name the hotel (sampled)", "otas": "Found on booking platforms (presence only)", "reviews": "Guest reviews and the hotel's replies",
+from glance import AREA_MEANING, AI_AIM_PCT  # noqa: E402,F401 - one definition, shared with the dashboard
+_OLD_AREA_MEANING = {"ai_visibility": "How often AI assistants name the hotel (sampled)", "otas": "Found on booking platforms (presence only)", "reviews": "Guest reviews and the hotel's replies",
                 "editorial": "Coverage by travel writers and blogs", "website": "The hotel's own website: content and technical set-up", "social": "Social media and community presence",
                 "entity": "Outside sources agree on name, address and phone", "freshness": "How up to date the published information is"}
-AI_AIM_PCT = 30            # the owner's aim for how often the hotel is named; shown as an aim, never forced
 
 
 def _verdict(score):
@@ -192,17 +192,10 @@ def _bar(score, colour, w=76, h=8):
 def _scoreboard(rep, h):
     """Every area the readiness score covers, as a bar and a plain verdict, plus the AI sample against the 30% aim."""
     from reportlab.platypus import Table, TableStyle
-    cats = (rep.get("scorecard") or {}).get("categories") or []
-    rows = [(c["label"], c.get("score") if c.get("assessed") else None, AREA_MEANING.get(c["key"], ""), c["key"], c.get("partial")) for c in cats if c["key"] != "ai_visibility"]
-    rows.sort(key=lambda r: (r[1] is None, -(r[1] or 0)))
-    ai = rep.get("ai_sample") or {}
-    ai_row = None
-    if ai.get("status") == "ok":
-        import ai_sample
-        sm = (ai_sample.test_log(ai) or {}).get("summary") or {}
-        if sm.get("non_branded_answers"):
-            pct = round(100 * sm["appeared"] / sm["non_branded_answers"])
-            ai_row = ("AI visibility (sampled)", pct, f"Named in {sm['appeared']} of {sm['non_branded_answers']} answers (aim: about {AI_AIM_PCT}%)", pct >= AI_AIM_PCT)
+    import glance
+    sc = glance.scorecard(rep)
+    rows = [(r["label"], r["score"], r["meaning"], None, r["partial"]) for r in sc["rows"]]
+    ai_row = (("AI visibility (sampled)", sc["ai"]["pct"], f"Named in {sc['ai']['named']} of {sc['ai']['asked']} answers (aim: about {AI_AIM_PCT}%)", sc["ai"]["ok"]) if sc["ai"] else None)
     data = [[R.Paragraph("<b>Area</b>", R.S["cellb"]), R.Paragraph("<b>Score</b>", R.S["cellb"]), "", R.Paragraph("<b>Verdict</b>", R.S["cellb"]), R.Paragraph("<b>What it covers</b>", R.S["cellb"])]]
     style = [("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LINEBELOW", (0, 0), (-1, -1), 0.25, R.RULE), ("BACKGROUND", (0, 0), (-1, 0), R.HEAD_BG), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]
     for label, score, meaning, _k, partial in rows:
@@ -235,49 +228,8 @@ def _engines_band(rep):
 
 def _strengths_weaknesses(rep, c, h, top):
     """Two plain lists the manager reads first: what is working, and what is not, each item concrete and taken from the audit."""
-    good, bad = [], []
-    for cat_ in (rep.get("scorecard") or {}).get("categories") or []:
-        if cat_.get("assessed") and cat_.get("score") is not None and cat_["key"] != "ai_visibility":
-            line = f"{cat_['label']}: {cat_['score']}/100. {short(AREA_MEANING.get(cat_['key'], ''), 80)}"
-            (good if cat_["score"] >= 75 else bad if cat_["score"] < 60 else []).append(line)
-    for sig in (c.get("understanding") or {}).get("strong_signals", [])[:2]:
-        good.append(f"The website clearly shows: {short(sig, 90)}")
-    for seg in (c.get("traveller") or {}).get("segments", []):
-        cn = seg["counts"]
-        tot = cn["confirmed"] + cn["partial"] + cn["missing"]
-        if tot and cn["confirmed"] >= max(2, tot * 0.6):
-            good.append(f"{seg['label']}: {cn['confirmed']} of {tot} things travellers need to know are stated on the website")
-        elif tot and cn["missing"] >= max(2, tot * 0.4):
-            miss = [r["label"] for r in seg["requirements"] if r["state"] == "missing"][:3]
-            bad.append(f"{seg['label']}: {cn['missing']} of {tot} things travellers need to know are missing ({', '.join(miss)})")
-    for f in c.get("facility_depth") or []:
-        n_ = len(f["found"])
-        if f.get("disputed"):
-            continue                                 # another check read this facility as stated: it is a lead in the plan, not a verdict here
-        if f["thin"]:
-            bad.append(f"{f['label']} is mentioned but only {n_} of {f['total']} details are stated (missing: {', '.join(m['label'].split(' (')[0].lower() for m in f['missing'][:3])})")
-        else:
-            good.append(f"{f['label']}: {n_} of {f['total']} details are stated on the website")
-    gap = rep.get("ai_gap") or {}
-    for m in (gap.get("markets") or []):
-        q = short(m["question"], 80)
-        if m["named"] and m["named"] >= m["of"] / 2:
-            good.append(f"AI names the hotel for \u201c{q}\u201d ({m['named']} of {m['of']} answers)")
-        elif m["gap"] and m["rivals"]:
-            bad.append(f"AI does not name the hotel for \u201c{q}\u201d ({m['named']} of {m['of']}); it names {m['rivals'][0]['name']} instead")
-    cit = rep.get("citations") or {}
-    if cit.get("basis") == "named":
-        if cit.get("own_answers", 0) >= cit["answers"] / 2:
-            good.append(f"The hotel's own website is one of the sources AI uses when it names the hotel ({cit['own_answers']} of {cit['answers']} answers)")
-        elif cit.get("ota_answers", 0) > cit.get("own_answers", 0):
-            bad.append(f"When AI names the hotel it cites booking sites in {cit['ota_answers']} of {cit['answers']} answers and the hotel's own website in {cit.get('own_answers', 0)}")
-    for r in top[:3]:
-        bad.append(short(r.get("short_title") or r["title"], 120))
-    if not any("hygiene" in b.lower() or "risk" in b.lower() for b in bad) and not [r for r in c["recommendations"] if r["source"] == "intel" and r["kind"] == "fix" and r["priority"] in ("critical", "high")]:
-        good.append("No serious reputation or consistency problem was found in the outside sources checked")
-    seen = set()
-    good = [x for x in good if not (x in seen or seen.add(x))][:6]
-    bad = [x for x in dict.fromkeys(bad)][:7]
+    import glance
+    good, bad = glance.strengths_weaknesses(rep, top)
     from reportlab.platypus import Table, TableStyle
     from reportlab.lib import colors
 
@@ -561,7 +513,8 @@ def story(rep, H1):
     hotel = meta.get("hotel", "the hotel")
     h = rep.get("headline") or headline_mod.build(rep)
     recs = {r["id"]: r for r in c["recommendations"]}
-    top = [recs[i] for i in c["top_actions"] if recs[i]["kind"] == "fix" and recs[i].get("confidence_label") != "Worth checking"][:5]
+    import glance
+    top = glance.top_fixes(c)
     out = [R.Spacer(1, 6 * R.mm), para("Management report", "title"), para(hotel, "h1"),
            R.P(link(meta.get("base", ""), meta.get("website", "")) + " - " + esc(meta.get("city", "")) +
                " - audit run " + esc(R._date(meta.get("run_at"))), "base"), Spacer(1, 4),

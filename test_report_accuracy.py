@@ -219,5 +219,18 @@ import quality_view as _qv
 check("a hotel entered as its web address, or a town naming two places, is flagged", len(_qv.setup_problems("brooklandshotelsurrey", "Surrey/Weybridge", "https://brooklandshotelsurrey.com/")) == 2
       and _qv.setup_problems("Brooklands Hotel", "Weybridge", "https://brooklandshotelsurrey.com/") == [] and "only the brand" in _qv.setup_problems("Hilton", "Barcelona")[0])
 
+print("13. the Overview shows the same scorecard and lists as the management report")
+import json as _json, os as _os, re as _re
+import dashboard_view, glance
+_sr = _json.load(open(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "tests_data", "sample_report.json"), encoding="utf8"))
+_n = glance.ai_named(_sr)
+_card = dashboard_view.at_a_glance(_sr)
+_sc = glance.scorecard_html(_sr)
+check("'Is the hotel named?' and the scorecard give one figure, from the report's one count", bool(_n) and f"{round(100 * _n[0] / _n[1])}%" in _card and f"Named in {_n[0]} of {_n[1]} answers" in _sc, (_n, _re.sub("<[^>]+>", " ", _card)[:200]))
+_good, _bad = glance.strengths_weaknesses(_sr)
+_sw = glance.strengths_html(_sr)
+check("the two lists on the Overview are the management report's lists", (_good or _bad) and all(__import__("html").escape(x) in _sw for x in _good + _bad))
+check("the Overview banner shows the readiness score", "AI discoverability readiness" in dashboard_view.readiness_banner(_sr, {"headline_score": 50}))
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)
