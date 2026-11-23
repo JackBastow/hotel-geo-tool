@@ -10,7 +10,7 @@ Version 1: "named by AI".
   different headline. `apply()` also writes the figure into the report's older copies (the brand ranking's line for the hotel, the scoreboard), so code that still reads them agrees.
 """
 
-MODEL_VERSION = 1
+MODEL_VERSION = 2          # 2: top priorities by one rule; stable recommendation ids
 
 
 def ai_counts(rep):
@@ -37,6 +37,19 @@ def ai_counts(rep):
             "basis": "every answer whose question did not name the hotel, each counted once"}
 
 
+def priorities_of(cons, n=5):
+    """The top priorities, by ONE rule used by the Overview, Start here, the management and consultant PDFs: the analysis's ranked top actions, leaving out what rests on
+    uncertain evidence ('Worth checking'), topped up from the next-best ranked fixes. -> [recommendation ids] in order."""
+    recs = [r for r in (cons or {}).get("recommendations") or [] if isinstance(r, dict)]
+    by_id = {r.get("id"): r for r in recs}
+    sure = lambda r: r is not None and r.get("confidence_label") != "Worth checking"      # noqa: E731
+    out = [i for i in (cons or {}).get("top_actions") or [] if isinstance(i, str) and sure(by_id.get(i))]
+    if len(out) < n:
+        rest = sorted((r for r in recs if r.get("kind") == "fix" and sure(r) and r.get("id") not in out), key=lambda r: -(r.get("rank") or 0))
+        out += [r["id"] for r in rest]
+    return out[:n]
+
+
 def apply(rep):
     """Build rep["model"] and make the report's older copies of the same figure agree with it. Safe to call again (on every read). -> rep"""
     if not isinstance(rep, dict):
@@ -45,7 +58,11 @@ def apply(rep):
         ai = ai_counts(rep)
     except Exception:  # noqa: BLE001 - a report that cannot be modelled is shown as it was
         return rep
-    rep["model"] = {"version": MODEL_VERSION, "ai": ai}
+    try:
+        top = priorities_of(rep.get("consultant") or {})
+    except Exception:  # noqa: BLE001
+        top = []
+    rep["model"] = {"version": MODEL_VERSION, "ai": ai, "top_priorities": top}
     if not ai:
         return rep
     ins = rep.get("ai_insights") if isinstance(rep.get("ai_insights"), dict) else None

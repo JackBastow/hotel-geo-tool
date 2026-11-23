@@ -39,7 +39,7 @@ def action_key(rec):
 
 
 def _snapshot(rec):
-    keep = ("id", "title", "why", "action", "priority", "effort", "team", "kind", "source", "category", "confidence_label", "confidence", "evidence", "example", "short_title", "finding", "success_check", "expected_outcome", "track", "tag", "steps", "kind_label")
+    keep = ("id", "title", "why", "action", "priority", "effort", "team", "kind", "source", "category", "confidence_label", "confidence", "evidence", "example", "short_title", "finding", "success_check", "expected_outcome", "track", "tag", "steps", "kind_label", "top_n")
     return json.dumps({k: rec.get(k) for k in keep if rec.get(k) is not None}, default=str)[:20000]
 
 
@@ -125,7 +125,9 @@ def _sync(db, hotel, report, run_id):
         out["skipped"] = True
         return out
     when = (report.get("meta") or {}).get("run_at") or portal_db.now_iso()
-    recs = list((report.get("consultant") or {}).get("recommendations") or []) + strategy_recs(report, hotel)
+    import report_model
+    top_n = {rid: k for k, rid in enumerate(report_model.priorities_of(report.get("consultant") or {}))}
+    recs = [({**r, "top_n": top_n[r.get("id")]} if r.get("id") in top_n else r) for r in (report.get("consultant") or {}).get("recommendations") or []] + strategy_recs(report, hotel)
     existing = db.list_actions(hotel["id"])
     free = {a["id"]: a for a in existing}
     seen = set()

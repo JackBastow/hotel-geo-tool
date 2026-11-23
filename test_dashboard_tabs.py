@@ -88,7 +88,7 @@ print("2. the Competitors tab")
 h = {"profile_json": json.dumps({**hotel_profile.empty(), "status": "confirmed", "competitors": ["Hilton Paris Opera", "InterContinental Paris Le Grand"]})}
 cv = competitors_view.panel(rep, h)
 ct = re.sub(r"<[^>]+>", " ", cv)
-check("who AI recommends instead, in how many prompts", "Who AI recommends instead of you" in ct and "Hilton Paris Opéra" in ct and "1 of 3" in ct)
+check("who AI recommends instead, in how many prompts", "Comparable hotels AI recommends instead of you" in ct and "Hilton Paris Opéra" in ct and "1 of 3" in ct)
 check("the hotel's chosen competitors, matched however they are spelled, and the ones AI never named", "your competitor" in ct and "InterContinental Paris Le Grand" in ct and "Not named in this check" in ct)
 check("why rivals are recommended, their websites beside the hotel's, and where to get listed", "Why rivals are recommended instead" in ct and "What their websites say, beside yours" in ct and "Where to get listed" in ct)
 check("and the articles that list rivals but not the hotel", "Articles the assistant read that list rivals but not you" in ct and "timeout.example" in ct)

@@ -39,7 +39,7 @@ acts = [act(1, "Low priority thing", "low"), act(2, "Critical fix", "critical", 
 runs = [{"id": 2, "run_at": "2026-11-09T08:00:00+00:00", "headline_score": 66.0, "recs_total": 5, "access_token": "tok"}, {"id": 1, "run_at": "2026-11-02T08:00:00+00:00", "headline_score": 60.0, "recs_total": 4, "access_token": "t0"}]
 
 html = start_here.panel(DB(), hotel, sm, acts, runs, True)
-check("it shows how visible the hotel is, the score and who is recommended instead", "Named by an AI assistant" in html and "Readiness score" in html and "Recommended instead" in html and "Rival One" in html, html[:300])
+check("it shows how visible the hotel is, the score and who is recommended instead", "Named by an AI assistant" in html and "Readiness score" in html and "Named instead of you" in html and "Rival One" in html, html[:300])
 check("the weekly view opens on what changed, before the actions", "What changed since the last check" in html and html.index("What changed") < html.index("Do these first"))
 check("the score movement is stated with both numbers", "went up by 6" in html and "60 to 66" in html)
 check("a rival that is new in the answers is named", "New in the answers" in html and "New Rival" in html)

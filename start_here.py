@@ -9,6 +9,7 @@ Honest by construction: the AI figures are a sample from one assistant, so chang
 does not support (no change is claimed when there was no earlier check).
 """
 
+import json
 import html
 
 import portal_view as pv
@@ -35,7 +36,15 @@ def _top_actions(actions, n=3):
     """The first things to do: open actions only, most serious first, those that take the least effort breaking ties."""
     effort = {"low": 0, "medium": 1, "high": 2}
     open_ = [a for a in actions if progress.classify(a) in ("todo", "working")]
-    return sorted(open_, key=lambda a: (pv.PRI_ORDER.get(a["priority"], 9), effort.get(a.get("effort") or "", 1), a["id"]))[:n]
+
+    def top_n(a):
+        try:
+            v = json.loads(a.get("rec_json") or "{}").get("top_n")
+        except ValueError:
+            v = None
+        return v if isinstance(v, int) else 99
+    # the report's top priorities first, in their order (report_model.priorities_of: the same rule as the Overview and the PDFs), then the rest by seriousness and effort
+    return sorted(open_, key=lambda a: (top_n(a), pv.PRI_ORDER.get(a["priority"], 9), effort.get(a.get("effort") or "", 1), a["id"]))[:n]
 
 
 def _rivals(ch):
@@ -60,7 +69,7 @@ def panel(db, hotel, sm, actions, runs, editable=True, prompts_alert=False):
     if not runs:
         return '<div class="alert info">The first check has not run yet. This screen fills in as soon as it has: how visible the hotel is, who is recommended instead, and what to do first.</div>'
     try:
-        ch = db.competitor_history(hotel["hotel_key"], 8)
+        ch = db.competitor_history(hotel["hotel_key"], 60)          # every hotel named, so the latest check's top rivals are never cut off by older checks' totals
     except Exception:  # noqa: BLE001 - a missing piece leaves that tile out; the screen still shows
         ch = None
     me, top_rivals, new_rivals = _rivals(ch)
@@ -82,9 +91,9 @@ def panel(db, hotel, sm, actions, runs, editable=True, prompts_alert=False):
     ready = pv.kpi("Readiness score", "-" if sc_now is None else _fmt(sc_now), (_plain(_delta(sc_now, sc_prev)) if sc_prev is not None else "set up to be found and understood"), tone if sc_now is not None else pv.GREY, "/100")
     if top_rivals:
         rows = "".join(f"<li><b>{esc(n)}</b><span>{p:g}%</span></li>" for n, p in top_rivals[:3])
-        inst = (f'<div class="kpi" style="--kc:{pv.WARN}"><span class="kpi-label">Recommended instead</span><ul class="rank">{rows}</ul><span class="kpi-sub">share of sampled answers naming them</span></div>')
+        inst = (f'<div class="kpi" style="--kc:{pv.WARN}"><span class="kpi-label">Named instead of you</span><ul class="rank">{rows}</ul><span class="kpi-sub">share of sampled answers naming them</span></div>')
     else:
-        inst = pv.kpi("Recommended instead", "-", "no rivals were named often enough to list", pv.GREY)
+        inst = pv.kpi("Named instead of you", "-", "no rivals were named often enough to list", pv.GREY)
     tiles = f'<div class="kpis">{vis}{ready}{inst}</div>'
 
     # ---- what changed (the weekly view), or what was found (the first check)

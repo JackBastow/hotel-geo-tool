@@ -42,7 +42,7 @@ def panel(rep, hotel=None):
     board = leaderboard(rep)
     out = ['<p class="lede">The hotels AI recommends instead of you, why, and the sites it reads about them. From the latest check: one assistant, a few answers per prompt.</p>']
     # 1 who AI recommends instead
-    out.append('<h3 class="grp" style="margin-top:6px">Who AI recommends instead of you</h3>')
+    out.append('<h3 class="grp" style="margin-top:6px">Comparable hotels AI recommends instead of you</h3>')
     if board:
         rows = "".join(
             f'<tr><td><b>{esc(d["name"])}</b>' + (' <span class="hk-chip brand">your competitor</span>' if any(_same(d["name"], c) for c in chosen) else "") + f'<br><span class="hk-muted">{esc(d["tier"] or "category not known")}</span></td>'

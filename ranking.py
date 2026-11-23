@@ -281,7 +281,9 @@ def fill_missing(recs):
         r.setdefault("finding", "")
         r.setdefault("action", "")
         r.setdefault("evidence", [])
-        r.setdefault("id", "R-" + str(abs(hash(r["title"])) % 100000))
+        if not r.get("id"):
+            import hashlib
+            r["id"] = "R-" + hashlib.sha1(f"{r.get('source', '')}|{r['title']}".encode("utf8")).hexdigest()[:10]
         r.setdefault("ref", r["id"])
         r.setdefault("source", "other")
         r.setdefault("team", "marketing")

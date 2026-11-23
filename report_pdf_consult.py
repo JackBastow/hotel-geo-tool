@@ -98,9 +98,11 @@ def summary_parts(c, recs):
         rows.append([p["label"], s, "; ".join(p["drivers"][:3])])
     out.append(table(rows, [0.22, 0.17, 0.61]))
     out.append(para("Eight separate measures, deliberately not blended into one score: they need different people and different fixes.", "tiny"))
-    out.append(para(f"The {len(c['top_actions'])} things most worth doing", "h2"))
+    import report_model
+    first = [rid for rid in report_model.priorities_of(c) if rid in recs]          # the one rule for top priorities (the Overview, Start here and the management report use it too)
+    out.append(para(f"The {len(first)} things most worth doing", "h2"))
     rows = [["#", "Action", "Where", "Priority", "Effort"]]
-    for i, rid in enumerate(c["top_actions"], 1):
+    for i, rid in enumerate(first, 1):
         r = recs[rid]
         pg = r.get("page") or {}
         rows.append([str(i), Markup(f"<b>{esc(r['title'])}</b><br/>{esc(r['action'])}"),

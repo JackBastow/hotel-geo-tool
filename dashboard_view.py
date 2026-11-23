@@ -173,11 +173,13 @@ def _insight_html(i):
 
 def _ordered(cons):
     """Recommendations in display order: start here (the top actions), then other fixes, then opportunities. -> (list, set of top ids)"""
+    import report_model
     recs = cons.get("recommendations") or []
-    top = [r for r in recs if r["id"] in (cons.get("top_actions") or [])]
-    top.sort(key=lambda r: (cons.get("top_actions") or []).index(r["id"]))
-    fixes = [r for r in recs if r["kind"] == "fix" and r["id"] not in (cons.get("top_actions") or [])]
-    opps = [r for r in recs if r["kind"] != "fix" and r["id"] not in (cons.get("top_actions") or [])]
+    first = report_model.priorities_of(cons)                 # the one rule for top priorities
+    by_id = {r["id"]: r for r in recs}
+    top = [by_id[i] for i in first if i in by_id]
+    fixes = [r for r in recs if r["kind"] == "fix" and r["id"] not in first]
+    opps = [r for r in recs if r["kind"] != "fix" and r["id"] not in first]
     return top + fixes + opps, {r["id"] for r in top}
 
 
@@ -209,7 +211,7 @@ def at_a_glance(rep):
     inst = ("<ul>" + "".join(f'<li>{esc(r["name"])} <span class="hk-muted">{r["coverage_pct"]:g}%</span></li>' for r in others) + "</ul>") if others else '<p class="hk-muted">No rival was named often enough to list.</p>'
     src = ("<ul>" + "".join(f"<li>{esc(d)}</li>" for d in doms[:4]) + "</ul>") if doms else '<p class="hk-muted">No sources were recorded.</p>'
     return ('<div class="glance"><section class="panel"><h4>Is the hotel named?</h4><p>' + own + ' One assistant, one day: a sample, not a ranking.</p></section>'
-            '<section class="panel"><h4>Recommended instead</h4>' + inst + '</section><section class="panel"><h4>Sites the answers drew on</h4>' + src + '</section></div>')
+            '<section class="panel"><h4>Named instead of you</h4>' + inst + '</section><section class="panel"><h4>Sites the answers drew on</h4>' + src + '</section></div>')
 
 
 def overview(rep, prev=None):

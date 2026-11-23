@@ -86,5 +86,28 @@ finally:
     conn.close()
 check("are filled in from their saved report", db.backfill_ai_counts() == 1 and (db.hotel_runs(key)[0]["ai_named"], db.hotel_runs(key)[0]["ai_asked"]) == (n, m))
 
+print("5. top priorities: one rule")
+import start_here
+cons = rep["consultant"]
+first = report_model.priorities_of(cons)
+by_id = {r["id"]: r for r in cons["recommendations"]}
+check("(the fixture has top priorities)", len(first) >= 2, first)
+check("they leave out what rests on uncertain evidence", all(by_id[i].get("confidence_label") != "Worth checking" for i in first))
+check("the management report's top fixes are the model's", [r["id"] for r in glance.top_fixes(cons)] == first)
+ordered, top_ids = dashboard_view._ordered(cons)
+check("the Overview's 'Start here' list is the model's, in order", [r["id"] for r in ordered[:len(first)]] == first)
+hid = db.create_hotel(hotel, rep["meta"]["website"], rep["meta"]["city"], key)
+h = db.get_hotel(hid)
+progress.sync(db, h, db.get_report(rid), rid)
+acts = db.list_actions(hid)
+lead = start_here._top_actions(acts, 1)
+check("the hotel's Start here leads with the same action", lead and json.loads(lead[0]["rec_json"]).get("id") == first[0], (lead[0]["title"] if lead else None, by_id[first[0]]["title"]))
+
+print("6. stable recommendation ids")
+import ranking
+r1 = ranking.fill_missing([{"title": "A recommendation added after the ranking", "source": "identity"}])[0]["id"]
+r2 = ranking.fill_missing([{"title": "A recommendation added after the ranking", "source": "identity"}])[0]["id"]
+check("a recommendation without an id gets the same one every time (not Python's per-start hash)", r1 == r2 and r1 == "R-" + __import__("hashlib").sha1(b"identity|A recommendation added after the ranking").hexdigest()[:10])
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

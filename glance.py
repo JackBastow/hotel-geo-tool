@@ -61,13 +61,9 @@ def scorecard(rep):
 
 def top_fixes(c, n=5):
     """The top required fixes the report is sure of (the same ones the management report lists)."""
+    import report_model
     recs = {r.get("id"): r for r in (c or {}).get("recommendations") or []}
-    out = []
-    for i in (c or {}).get("top_actions") or []:
-        r = recs.get(i if isinstance(i, str) else (i or {}).get("id"))
-        if r and r.get("kind") == "fix" and r.get("confidence_label") != "Worth checking":
-            out.append(r)
-    return out[:n]
+    return [recs[i] for i in report_model.priorities_of(c, n) if i in recs]
 
 
 def strengths_weaknesses(rep, top=None):
