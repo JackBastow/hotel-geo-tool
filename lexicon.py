@@ -67,7 +67,8 @@ TIME_DIST = rx(
     r"\b(\d{1,3})[- ]?(?:min(?:ute)?s?)\b[^.\n]{0,30}?(?:walk|drive|taxi|cab|train|transfer|away|from|by (?:car|foot))"
     r"|(?:walk|drive|taxi|journey|ride)[^.\n]{0,30}?\b(\d{1,3})[- ]?(?:min(?:ute)?s?)\b")
 LENGTH_DIST = rx(r"\b(\d+(?:\.\d+)?)\s*(?:miles?|km|kilomet(?:re|er)s?)\b")
-HAS_DISTANCE = lambda s: bool(TIME_DIST.search(s) or LENGTH_DIST.search(s))  # noqa: E731
+RELATIVE_PLACE = re.compile(r"\b(?:on the edge of|in the heart of|at the heart of|bordering|next to|next door to|adjacent to|overlooking|opposite|on the doorstep of|right by|steps from|a stone'?s throw from|beside|on the banks of|in the grounds of)\b", re.I)
+HAS_DISTANCE = lambda s: bool(TIME_DIST.search(s) or LENGTH_DIST.search(s) or RELATIVE_PLACE.search(s))  # noqa: E731
 # A sentence only counts as describing the hotel's SURROUNDINGS if it carries a place cue; the
 # word "beach" in a menu item or "shopping" in a gift-voucher line says nothing about location.
 LOCATION_CUE = rx(r"\b(?:near|nearby|close to|minutes?|walk|drive|from the hotel|located|just|opposite|next to|adjacent|within|"

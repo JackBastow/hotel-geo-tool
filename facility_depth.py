@@ -82,11 +82,22 @@ def _context(text, m, before=90, after=190):
     return _norm(seg)
 
 
+def _collapsed(page):
+    if not page:
+        return False
+    try:
+        from traveller_ready import collapsed_sections
+        return bool(collapsed_sections(page))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def analyse(site):
     """-> [{key, label, short, pages: [urls], dedicated: bool, found: [{key, label, quote, url}], missing: [{key, label, example}], total, thin, quote, url, names: [...]}], one per facility the pages mention.
     `site` is insight_content.Site (its content_pages carry each page's text)."""
     out = []
     pages = [(p["url"], _norm(p.get("text") or "")) for p in getattr(site, "content_pages", []) if p.get("text")]
+    by_url = {p["url"]: p for p in getattr(site, "content_pages", [])}
     for key, f in FACILITIES.items():
         trig = re.compile(f["trigger"], I)
         pth = re.compile(f["path"], I)
@@ -122,6 +133,8 @@ def analyse(site):
             operates = bool(dedicated) or (bool({d["key"] for d in found} & {"treatments", "facilities"}) and re.search(r"\b(?:the|our|a|its|on-site|in-house)\s+(?:\w+\s+)?spa\b", alltext, re.I))
             if not operates:
                 continue                        # 'Wellness Offer', a gym or a package is not a spa: nothing is recommended about a facility the hotel may not have
+        if missing and any(_collapsed(by_url.get(u)) for u, *_r in use):
+            continue                        # the page has sections ('Amenities', 'Things to know') whose text was not in the page as read: what looks missing may be there, so nothing is claimed
         url0, text0, _n0, _d0 = use[0]
         m0 = trig.search(text0)
         out.append({"key": key, "label": f["label"], "short": f["short"], "pages": [u for u, *_r in use][:4], "dedicated": bool(dedicated), "found": found, "missing": missing,

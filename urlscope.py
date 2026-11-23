@@ -73,7 +73,13 @@ def normalise(text, hotel=None, city=None):
     first = segs[first_i]
     fw = _words(first.replace("-", " ").replace("_", " "))
     if names and first.lower() not in _GENERIC and fw and fw <= names and not fw <= {"the", "hotel", "hotels", "and", "spa", "resort"}:
-        scope = "/" + "/".join(segs[: first_i + 1]) + "/"
+        last = first_i
+        for j in range(first_i + 1, len(segs)):              # thehoxton.com/london/shoreditch/: the hotel's section is the deepest folder still named after it, not the whole city
+            wj = _words(segs[j].replace("-", " ").replace("_", " "))
+            if segs[j].lower() in _GENERIC or not wj or not wj <= names:
+                break
+            last = j
+        scope = "/" + "/".join(segs[: last + 1]) + "/"
         return urllib.parse.urlunparse((p.scheme or "https", host, scope, "", "", "")), scope
     # an ordinary site and the visitor pasted an inner page (/rooms/): they mean the hotel's whole website
     return urllib.parse.urlunparse((p.scheme or "https", host, "/", "", "", "")), None

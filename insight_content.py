@@ -839,8 +839,11 @@ def _name_analysis(site):
             v = re.sub(r"\s+(?:and|&)$", "", re.sub(r"\s+", " ", m.group(0)).strip(" &,-"), flags=re.I)
             if not any(w in evidence.LODGING_WORDS for w in evidence.fold(v).split()):
                 continue
-            if evidence.fold(v).split()[-1] in ("restaurant", "bar", "grill"):
+            words = evidence.fold(v).split()
+            if words[-1] in ("restaurant", "bar", "grill"):
                 continue    # "Brooklands Hotel & Restaurant" labels a venue, it is not another name
+            if words[-1] in ("spa", "kitchen", "brasserie", "cookery", "club", "lounge") and not any(w in evidence.LODGING_WORDS for w in words[:-1]):
+                continue    # "Chewton Glen Spa" names the spa; "Test Hotel & Spa" is still the hotel's name
             f = forms[evidence.fold(v)]
             f["display"] = f["display"] or v
             f["pages"].add(p["url"])
@@ -898,6 +901,8 @@ def consistency(site, guest, today=None):
             k = f"{m.group(1)} {m.group(2)}"
             pcs[k].add(p["url"])
             before = blob[max(0, m.start() - 160): m.start()]
+            if re.search(r"(?:sat[\s-]?nav|satnav|gps|navigation|for directions|directions use|use (?:the )?postcode|postcode for (?:your )?sat)[^.]{0,25}$", before, re.I):
+                continue                                  # 'Sat nav postcode: BH23 5QL' is deliberately different from the postal address
             corporate = bool(_CORPORATE.search(before[-130:]))
             near = evidence.fold(before[-60:])                # the words just before the postcode: '..., Newquay, TR7 1DB' or '..., Bournemouth, BH2 5EJ'
             attributed[k]["seen"] = True

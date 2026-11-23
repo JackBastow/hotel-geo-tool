@@ -14,6 +14,7 @@ import guest_questions as gq
 import insight_content as ic
 import places
 import ranking
+import report_gate
 import report_pdf
 import scoring
 import strategy_actions
@@ -146,6 +147,68 @@ r9["ai_gap"] = {"status": "ok", "markets": [{"qid": "q1", "kind": "niche", "ques
 check("on a first check, the questions frozen as the hotel's tracked set count as tracked", "1 of them your tracked prompts" in prompt_analysis.panel(r9))
 r9["question_plan"] = {"error": "TimeoutError: x"}
 check("a check where the question writer failed says so", "Fewer questions than usual" in prompt_analysis.panel(r9))
+
+print("10. reading pages properly (found in the multi-hotel review)")
+h = gq._parse_html("https://x/", "<html><body><main><p>Banner</p></main><div>" + "Our rooms are large and quiet, with sea views and a king bed. " * 10 + "</div><script></script></body></html>")
+check("a page whose <main> holds only a banner is read from the whole page", len(h["text"]) > 300 and not h["app_shell"])
+inv = "Estate​‌ Rooms﻿ with a king‍ bed"
+check("invisible characters some sites scatter through their text are removed", gq._clean(inv) == "Estate Rooms with a king bed")
+shell = gq._parse_html("https://x/", '<html><body><div id="root"></div>' + "<script src=a.js></script>" * 3 + "</body></html>")
+check("an empty page built by scripts is an app shell", shell["app_shell"])
+att = gq._parse_html("https://x/logo-2/", '<html><body class="attachment single-attachment"><img src="logo.png">' + "<script></script>" * 10 + "</body></html>")
+check("a WordPress picture page is not called 'built with JavaScript'", not att["app_shell"])
+import langid
+check("a Swedish site is recognised as Swedish", langid.detect("Välkommen till Skandinaviens största safaripark. Här rör sig visenter och kronvilt fritt genom skog och savann. Bo i hjärtat av naturen och njut av råvaror från skog och hav. Det är en plats som är vår och er, med rum för alla som vill uppleva naturen på riktigt och där du kan vandra.", min_words=30)[0] == "sv")
+import consultant
+
+
+class _S:
+    pass
+
+
+s_ = _S()
+s_.content_pages = [{"title": "FISTRAL BEACH NEWQUAY | Fistral Beach Newquay Cornwall", "h1": [], "text": "Rick Stein's restaurant serves fish and chips. Surf competitions all summer.", "url": "u"}]
+s_.home = s_.content_pages[0]
+check("a website that is not the hotel's (an area guide) is flagged before anything else", consultant.site_identity(s_, "Fistral Beach Hotel and Spa")["priority"] == "critical")
+s_.content_pages = [{"title": "Chewton Glen Hotel & Spa | Official Website", "h1": [], "text": "x", "url": "u"}]
+s_.home = s_.content_pages[0]
+check("while a real hotel site is not", consultant.site_identity(s_, "Chewton Glen") is None)
+s_.content_pages = [{"title": "FISTRAL BEACH NEWQUAY | Fistral Beach Newquay Cornwall", "h1": [], "url": "u",
+                     "text": "Be sure to check out The Fish House. Check out the surf school. Check out our beach webcam."}]
+s_.home = s_.content_pages[0]
+check("'be sure to check out The Fish House' is not hotel check-out wording (the real Fistral beach guide)", (consultant.site_identity(s_, "Fistral Beach Hotel and Spa") or {}).get("priority") == "critical")
+s_.content_pages = [{"title": "The Headland | Newquay", "h1": [], "url": "u", "text": "Check-in is from 3pm and check out is by 11am. Our rooms overlook the sea. Book your stay today."}]
+s_.home = s_.content_pages[0]
+check("while a hotel page stating check-in and check-out times is not flagged", consultant.site_identity(s_, "The Headland Hotel") is None)
+import report_check
+check("the events facility is not reconciled against the location need 'Event venues and business destinations'",
+      not __import__("re").search(report_check.FD_TO_REQUIREMENT["events"], "Event venues and business destinations", __import__("re").I)
+      and __import__("re").search(report_check.FD_TO_REQUIREMENT["events"], "Meeting facilities", __import__("re").I))
+
+import guest_questions as _gq
+_B = "https://fistralbeach.co.uk/"
+_fp = [{"url": _B + path, "title": "FISTRAL BEACH NEWQUAY | Fistral Beach Newquay Cornwall", "text": text, "h1": [], "tels": [], "mails": [], "links": [], "signals": {}, "footer_text": "", "ok": True}
+       for path, text in [("", "Fistral Beach is Newquay's most famous surf beach. Be sure to check out The Fish House and the surf school. " * 4),
+                          ("food-and-drink/", "Rick Stein's restaurant serves fish and chips. The Stable offers pizzas and ciders. Check out the Pasty Shack. " * 4),
+                          ("surf/", "Surf lessons run all year at Fistral. Boards and wetsuits can be hired by the hour from the beach huts. " * 4)]]
+_out = consultant.analyse(own_pages=_fp, pages_meta=[{"url": p["url"], "ok": True, "status": 200, "title": p["title"]} for p in _fp], base=_B, hotel="Fistral Beach Hotel and Spa", city="Newquay",
+                          location={"lat": 50.41, "lon": -5.1}, guest={"questions": _gq.evaluate(_fp), "conflicts": [], "own_facts_node": {}, "pages_ok": 3, "pages_attempted": 3},
+                          site={"robots": {"present": False, "status": 200}, "sitemap": {}}, entities=[], intel=None, osm_ctx=None)
+check("end to end: a beach guide audited as a hotel gives a full analysis (no crash) led by 'Check this is the hotel's own website'",
+      not _out.get("error") and (_out.get("recommendations") or [{}])[0].get("tag") == "site-check" and "ID-site-check" in [(t if isinstance(t, str) else t.get("id")) for t in _out.get("top_actions") or []],
+      _out.get("error") or [r.get("id") for r in (_out.get("recommendations") or [])[:3]])
+_g = report_gate.check({"consultant": {"error": "KeyError: 'value'"}, "meta": {}, "guest_questions": {"error": "timeout"}})["gate"]
+check("a crashed analysis or step is flagged for a person to look at, never silently an empty report",
+      any("analysis crashed" in x["what"] for x in _g["needs_review"]) and any("guest questions step failed" in x["what"] for x in _g["needs_review"]), _g.get("needs_review"))
+
+print("11. the operator's quality panel")
+import quality_view
+g_rep = {"gate": {"checks": [{"name": "listing_claims", "looked_at": 9, "found": 1, "summary": "x"}], "changes": [{"check": "listing_claims", "id": "l", "what": "1 claim reworded"}],
+                  "needs_review": [{"what": "Only 3 of 20 pages of the website could be read."}, {"what": "Only 3 of 20 pages of the website could be read."}], "error": "KeyError: 'x'", "summary": "1 check ran."}}
+qp = quality_view.panel(g_rep)
+check("what needs a person's eye is listed once each, with a check that crashed shown as a bug", qp.count("Only 3 of 20") == 1 and "stopped part-way" in qp and "1 claim reworded" in qp)
+check("a report from before the checks existed shows no panel, and a clean one says nothing needs looking at",
+      quality_view.panel({}) == "" and "Nothing in the latest report" in quality_view.panel({"gate": {"checks": [], "changes": [], "needs_review": []}}))
 
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

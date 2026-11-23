@@ -18,7 +18,7 @@ import re
 import advice
 import ranking
 
-FD_TO_REQUIREMENT = {"spa": r"\bspa\b", "restaurant": r"dining|restaurant", "events": r"meeting|event"}
+FD_TO_REQUIREMENT = {"spa": r"\bspa\b", "restaurant": r"dining|restaurant", "events": r"^(?:meeting|conference|event) (?:facilities|space|rooms)"}  # not "Event venues and business destinations", a location need
 OPEN_DATA = ("OpenStreetMap", "Wikidata")
 
 

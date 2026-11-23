@@ -8,6 +8,9 @@ Pure analysis - no network access. It reuses pages the audit already fetched
 collected, so it adds no requests and little time.
 """
 
+import re
+
+import evidence
 import advice
 import hotel_class
 import traveller_ready
@@ -51,6 +54,35 @@ def crawl_coverage(pages_read, pages_meta):
             "failed_pages": [{"url": r["url"], "reason": r.get("reason", ""), "status": r.get("status")} for r in failed[:8]]}
 
 
+_LODGING_TITLE = re.compile(r"\b(?:hotel|hôtel|hotell|inn|lodge|resort|b\s?&\s?b|bed and breakfast|guest ?house|hostel|motel|suites|manor|country house|apartments?|aparthotel|retreat|spa|castle|hall|rooms)\b", re.I)
+_LODGING_TEXT = re.compile(r"\b(?:our (?:rooms|suites|bedrooms)|book (?:your|a) (?:stay|room)|check-(?:in|out)\b|check[\s]?(?:in|out)(?=\s*(?:times?\b|is\b|from\b|by\b|until\b|before\b|after\b|:|\d))|per night|bedrooms?|en[\s-]?suite|accommodation|overnight stay|rum|övernattning|chambres?|zimmer|habitaciones)\b", re.I)
+
+
+def site_identity(s, hotel):
+    """
+    Does this website look like the hotel's own? -> a top recommendation saying it may not be, or None. A site whose homepage title names no kind of place to stay and whose pages say nothing
+    about rooms, stays or check-in is probably not the hotel's (an area guide, a beach, a restaurant): everything else in the report would describe the wrong business.
+    """
+    if not s.content_pages:
+        return None
+    home = s.home or s.content_pages[0]
+    title = " ".join([home.get("title") or ""] + list(home.get("h1") or []))
+    words = [w for w in evidence.fold(hotel or "").split() if len(w) > 2 and w not in ("the", "and", "hotel", "spa", "resort")]
+    name_in_title = bool(words) and all(w in evidence.fold(title) for w in words)
+    lodging_title = bool(_LODGING_TITLE.search(title))
+    lodging_hits = sum(len(_LODGING_TEXT.findall(p.get("text") or "")) for p in s.content_pages)
+    if lodging_title or lodging_hits >= 4 or (name_in_title and lodging_hits >= 2):
+        return None
+    return {"id": "ID-site-check", "title": "Check this is the hotel's own website", "source": "identity", "tag": "site-check", "category": "understanding", "priority": "critical", "effort": "low",
+            "team": "web", "kind": "fix", "track": "accuracy", "confidence_label": "Worth checking", "confidence": "Experimental", "impact": "high",
+            "value": 95.0, "rank": 95.0, "score": 95.0, "question_ids": [], "topics": [],       # set by hand: it is added after the ranking, and must lead the report
+            "finding": f"The website read for {hotel} may not be the hotel's own: its homepage title (“{(home.get('title') or '')[:90]}”) names no hotel or place to stay, and the pages read say almost nothing about rooms, stays or check-in.",
+            "why": "If this is another business's website (an area guide, a beach, a restaurant), every finding in this report describes that business, not the hotel.",
+            "action": "Check the website address used for this hotel and run the check again with the hotel's own site.",
+            "steps": [{"title": "Open the address used for this check and confirm it is the hotel's own website"}, {"title": "If it is not, correct the website address (in the hotel's settings or when adding the hotel) and run the check again"}],
+            "evidence": [{"url": home.get("url", ""), "snippet": (home.get("title") or "")[:160]}]}
+
+
 def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, entities, intel,
             osm_ctx, jsonld_example="", web=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, booking=None, external=None, competitors=None, ai_gap=None, citations=None, forums=None, fc_html=False):
     s = ic.Site(own_pages, base, hotel, city)
@@ -64,6 +96,9 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         cov["note"] = (cov["note"] + " " if cov["note"] else "") + TEXT_ONLY_NOTE
     if cov["unreadable"]:
         return _unreadable(s, cov, pages_meta, site, entities, intel, web, ai, reviews, ai_insights, listing_checks, reddit, booking, external)
+    site_check_warn = site_identity(s, hotel)            # is this website the hotel's own at all? (an area guide or a beach's site audited as a hotel's gives nonsense)
+    if site_check_warn:
+        cov["note"] = (cov.get("note", "") + " " + site_check_warn["finding"]).strip()
     feats = ic.features(s)
     intents = ic.intents(s)
     understanding = ic.understanding(s, intents, feats, city)
@@ -87,7 +122,22 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         travel = traveller_ready.run(s, feats, intents, cov, loc, classes=classes, class_info=hclass)
     except Exception as e:  # noqa: BLE001 - an extra; the keyword-based view still works
         travel = {"segments": [], "assessed": [], "skipped": [], "summary": {"judged": 0, "score": None}, "error": f"{type(e).__name__}: {e}"}
+    # a site in another language: the checks that look for English wording ('check-in', 'breakfast', 'connecting rooms') cannot say something is missing, so they are not assessed rather than wrong
+    import langid
+    site_lang, _lc = langid.detect(" ".join((p.get("text") or "")[:3000] for p in s.content_pages[:8]), min_words=60)
+    non_english = bool(site_lang and site_lang != "en")
+    if non_english:
+        lang_name = langid.name(site_lang)
+        questions = [q for q in questions if q.get("state") in ("answered", "stated", "complete")]
+        travel = {"segments": [], "assessed": [], "skipped": [{"key": "all", "label": "Traveller requirements", "why": f"the site is in {lang_name}; these checks read English wording, so they were not assessed"}],
+                  "summary": traveller_ready.summarise([])}
+        cov["note"] = (cov.get("note", "") + f" The site is written in {lang_name}. The checks that look for specific wording (guest questions, traveller needs, facility details) read English, so "
+                       "they were not assessed here rather than reported as missing.").strip()
     hidden = ic.hidden_strengths(s, feats, pages_meta, classes=classes)
+    if non_english:
+        hidden = [h for h in hidden if h.get("kind") not in ("once",)]
+    if (cov.get("ratio") or 0) < 0.6:
+        hidden = [h for h in hidden if h.get("kind") not in ("poorly_linked", "once", "deep")]      # 'no page links to it' / 'mentioned only once' cannot be said after reading less than most of the site
     if text_only or fc_html:
         sd = {"items": [], "node_count": 0, "hotel_found": None, "unreadable": True,
               "caution": it.CAUTION + (" The pages were read as plain text, so any markup they carry could not be inspected." if text_only else
@@ -114,7 +164,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     suppressed = []
     try:
         import facility_depth
-        facility = facility_depth.analyse(s)
+        facility = [] if non_english else facility_depth.analyse(s)          # facility details are found by English wording
     except Exception:  # noqa: BLE001 - an extra check; the rest of the analysis stands
         facility = []
     try:
@@ -131,6 +181,8 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     recs = advice.build(differentiation=diff, source_actions=src_actions, facility=facility, questions=questions, location=loc, consistency=cons, hidden=hidden, structured=sd,
                         machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai, reviews=reviews, text_only=text_only, ai_insights=ai_insights, ai_gap=ai_gap, citations=citations, forums=forums, listing_checks=listing_checks, reddit=reddit, traveller=travel, booking=booking, external=external, competitors=competitors, suppressed=suppressed)
     recs, dropped = advice.validate(recs, cov, s)
+    if site_check_warn:
+        recs.insert(0, site_check_warn)
     if (site.get("meta") or {}).get("scope"):
         for r in recs:
             if r["source"] == "machine" and r["id"] in ("M-speed", "M-a11y", "M-cc_refused", "M-home_title", "M-home_meta", "M-meta_missing", "M-h1", "M-alt", "M-canonical_missing", "M-dup_titles", "M-canonical_other", "M-noindex", "M-js_empty"):
@@ -195,7 +247,8 @@ def _unreadable(s, cov, pages_meta, site_payload, entities, intel, web=None, ai=
     """
     sd = {"items": [], "node_count": 0, "hotel_found": None, "unreadable": True, "caution": it.CAUTION}
     machine = [f for f in it.machine_readiness(s, pages_meta, site_payload, entities, intel, {"hotel_found": None, "items": []}, [], [], web)
-               if f["bucket"] in ("access", "authority") or f["id"] in ("entity_ok", "entity_missing")]
+               if (f["bucket"] in ("access", "authority") or f["id"] in ("entity_ok", "entity_missing")) and f["id"] not in ("sitemap_missing", "robots_block_all", "ai_blocked", "refused", "http_errors", "slow_pages")]
+    # (a site our reader could not read says nothing about its sitemap or how it treats crawlers: those are never claimed from an unreadable site)
     reasons = "; ".join(f"{n} x {r}" for r, n in cov["failure_reasons"].items()) or "no reason was reported"
     # Not a recommendation: this audit's own reader may be the cause (an address form the site does not answer, a firewall that turns away automated readers, slow hosting), so nothing is asked of the hotel.
     # It is stated as a limit of the audit, with what the reader received.

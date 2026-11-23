@@ -17,10 +17,14 @@ _WORDS = {
     "it": "il lo la i gli le di che e un una è per con non su sono del della dei alla come più ma anche si da nel nella al suo sua".split(),
     "nl": "de het een en van ik te dat die in is niet op aan met als voor zijn er maar om ook dan bij uit nog wel naar hebben wij".split(),
     "pt": "o a os as de que e do da em um uma para com não é por mais dos das como mas foi ao ele se na no seu sua ou ser".split(),
+    "sv": "och att det som en på är av för med till den har de inte om ett var men vi du så kan från eller där här vår våra er".split(),
+    "no": "og i det som en på er av for med til den har de ikke om et var men vi du så kan fra eller der her vår våre dere".split(),
+    "da": "og i det som en på er af for med til den har de ikke om et var men vi du så kan fra eller der her vores jeres".split(),
+    "fi": "ja on ei se että oli hän mutta kun niin tai myös jo vain kuin sekä ovat voi tämä nämä meidän teidän".split(),
 }
 _SETS = {k: set(v) for k, v in _WORDS.items()}
 NAMES = {"en": "English", "fr": "French", "de": "German", "es": "Spanish",
-         "it": "Italian", "nl": "Dutch", "pt": "Portuguese"}
+         "it": "Italian", "nl": "Dutch", "pt": "Portuguese", "sv": "Swedish", "no": "Norwegian", "da": "Danish", "fi": "Finnish"}
 
 
 def detect(text, min_words=25):

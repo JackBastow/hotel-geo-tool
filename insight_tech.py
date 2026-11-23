@@ -280,7 +280,8 @@ def machine_readiness(site, pages_meta, site_payload, entities, intel, structure
                       "Publish a sitemap.xml and reference it in robots.txt.", level=BEST))
     shells_all = [r for r in pm if r.get("js_shell") or "probably built with JavaScript" in (r.get("reason") or "")]
     booking = re.compile(r"book|reserv|checkout|basket|cart|availability|enquir|funnel", re.I)
-    shells = [r for r in shells_all if not booking.search(urllib.parse.urlparse(r["url"]).path)]
+    forms = re.compile(r"form|formular|forfragan|förfrågan|enquir|inquir|request|newsletter|nyhetsbrev|signup|sign-up|subscribe|anmalan|anmälan|rsvp|register", re.I)
+    shells = [r for r in shells_all if not booking.search(urllib.parse.urlparse(r["url"]).path) and not forms.search(urllib.parse.urlparse(r["url"]).path)]
     tools = [r for r in shells_all if r not in shells]
     if tools:
         out.append(_f("access", "js_booking", f"{len(tools)} booking page(s) need JavaScript", "info", "low",

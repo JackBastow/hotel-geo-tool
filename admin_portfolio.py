@@ -278,6 +278,8 @@ def register_scope(app, sc):
                                      **(app.extensions["extra_tabs"](rep, h) if "extra_tabs" in app.extensions else {}),
                                      research_html=(app.extensions["research_html"](h, f"{HB}/{hid}/research") if "research_html" in app.extensions else ""),
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"{HB}/{hid}/status")
+        import quality_view
+        panel += (_safe(quality_view.panel, rep) or "") if rep else ""
         return sc.shell(grp, h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
 
     @bp.post(HB + "/<int:hid>/prompts")

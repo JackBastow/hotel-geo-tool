@@ -326,8 +326,11 @@ def _norm_words(s):
     return " ".join(re.split(r"[^a-z0-9]+", urllib.parse.unquote(s or "").lower())).strip()
 
 
+_INVISIBLE = re.compile(r"[­᠎​-‏‪-‮⁠-⁯﻿]")      # zero-width and direction marks some sites scatter through their text: invisible to a reader, fatal to matching
+
+
 def _clean(s):
-    return re.sub(r"\s+", " ", s or "").strip()
+    return re.sub(r"\s+", " ", _INVISIBLE.sub("", s or "")).strip()
 
 
 def _parse_html(url, html):
@@ -364,6 +367,12 @@ def _parse_html(url, html):
         tag.decompose()
     root = soup.find("main") or soup.find("article") or soup.body or soup
     out["text"] = _clean(root.get_text(" "))[:30000]
+    if len(out["text"]) < MIN_READABLE_CHARS and root is not (soup.body or soup):
+        out["text"] = _clean((soup.body or soup).get_text(" "))[:30000]          # a site whose <main> holds only a banner: the words are in the rest of the page
+    # an app shell: almost no text, and a page that is clearly built by scripts (an empty mount point, or scripts and nothing else). Only then is 'built with JavaScript' said.
+    out["app_shell"] = bool(len(out["text"]) < MIN_READABLE_CHARS and (re.search(r'<div[^>]+id=["\'](?:root|app|__next|__nuxt|___gatsby|svelte)["\']', html or "", re.I)
+                                                                       or len(re.findall(r"<script\b", html or "", re.I)) >= 8)
+                         and not re.search(r"single-attachment|attachment-template|attachmentid=|wp-attachment", html or "", re.I))      # a WordPress picture page is a picture, not a script-built page
     if out["signals"]:
         pagesignals.finish(out["signals"], out["text"])
     return out
@@ -405,7 +414,7 @@ def fetch_page(url, timeout=FETCH_TIMEOUT):
             return res
         if len(res["text"]) < MIN_READABLE_CHARS:
             res["reason"] = ("no readable text (probably built with JavaScript, "
-                             "so a plain fetch sees an empty page)")
+                             "so a plain fetch sees an empty page)") if res.get("app_shell") else "almost no text on this page (an image, a form or a very short page)"
         else:
             res["ok"] = True
 
@@ -975,6 +984,10 @@ def _finish(pages, home, t0, site, base, hotel, location, sitemap_urls):
 
 def run_prefetched(site, base, hotel, pages, location=None):
     """The same analysis on pages somebody else already read (e.g. through Claude's page reader when the site refuses our reader)."""
+    for p in pages or []:
+        for k in ("text", "title", "footer_text"):
+            if isinstance(p.get(k), str):
+                p[k] = _clean(p[k]) if k != "text" else _INVISIBLE.sub("", p[k])       # pages from another reader are cleaned the same way
     home = pages[0] if pages else {"ok": False}
     home["is_start"] = True
     return _finish(pages, home, time.time(), site, base, hotel, location, site.get("sitemap_urls") or [])

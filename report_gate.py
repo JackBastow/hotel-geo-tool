@@ -63,7 +63,7 @@ def _topic_in(sentence, led):
 def _downgrade(rec, note, advice):
     rec["disputed"] = True
     rec["confidence"] = advice.EXPER
-    if note not in (rec.get("finding") or ""):
+    if note not in (rec.get("finding") or "") and not (note.startswith("Only ") and re.search(r"pages could be read", rec.get("finding") or "")):     # the coverage caveat once, not twice
         rec["finding"] = (rec.get("finding") or "") + " " + note
 
 
@@ -99,7 +99,7 @@ def _fold_tokens(name):
 def check(rep):
     """Runs every check on the finished report, changing it in place where a section contradicts the ledger. -> rep (with rep['gate'])."""
     import advice
-    gate = {"checks": [], "changes": [], "version": 1}
+    gate = {"checks": [], "changes": [], "version": 2, "needs_review": []}
 
     def done(name, looked, found, summary):
         gate["checks"].append({"name": name, "looked_at": looked, "found": found, "summary": summary})
@@ -259,8 +259,197 @@ def check(rep):
                 gate["changes"].append({"check": "ai_zero_diagnosis", "id": "ai", "what": diag["reading"][:240]})
             gate["ai_diagnosis"] = diag
         done("ai_zero_diagnosis", asked, 1 if (diag and named == 0) else 0, "when the hotel was named in none of the answers, what that does and does not show")
+        check_more(rep, gate, done)
     except Exception as e:  # noqa: BLE001 - the report must never fail because of its own check
         gate["error"] = f"{type(e).__name__}: {e}"
     gate["summary"] = f"{len(gate['checks'])} consistency checks ran across the report; {len([x for x in gate['changes'] if x['check'] != 'ai_zero_diagnosis'])} contradiction(s) or misleading item(s) were settled."
     rep["gate"] = gate
     return rep
+
+
+# ----------------------------------------------------------------------------- more checks, from the errors found in real reports (THE NICI Newquay, Nov 2026)
+
+_ABSENCE_SOURCES = {"questions", "traveller", "facility", "hidden", "location", "structured"}      # machine findings (a title, a meta tag) are about pages that were read, so coverage does not weaken them
+_LISTING_ABSENT = re.compile(r"\b(?:not|never|isn'?t|is not|no)\s+(?:\w+\s+){0,3}(?:listed|found|present|on)\s+(?:\w+\s+){0,2}(booking\.com|booking|expedia|tripadvisor|hotels\.com|trivago|agoda|kayak|trip\.com)\b", re.I)
+_LEAK = re.compile(r"\{[a-z_]+\}|\bNone\b|\bnan\b|\[object|\bundefined\b|\bnull\b")
+_TAG = re.compile(r"</?(?:b|i|u|em|strong|br|span|a|p|div|small)\b[^>]*>", re.I)
+_INVIS = re.compile(r"[\u00ad\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
+_TEXT_KEYS = ("title", "finding", "action", "why", "summary", "example", "success_check")
+
+
+def _clean_text(s):
+    import html as _h
+    if not isinstance(s, str) or ("<" not in s and "&" not in s):
+        return s
+    return _TAG.sub("", _h.unescape(s))
+
+
+def _remove(rep, ids, why, gate, check):
+    """Take recommendations out of every list that holds them, keeping the reason."""
+    c = rep.get("consultant") or {}
+    gone = set(ids)
+    if not gone:
+        return
+    for lst in (c.get("recommendations"), rep.get("recommendations")):
+        if isinstance(lst, list):
+            lst[:] = [r for r in lst if r.get("id") not in gone]
+    for key in ("top_actions", "quick_wins", "required_fixes", "opportunity_recs"):
+        if isinstance(c.get(key), list):
+            c[key] = [i for i in c[key] if i not in gone]
+    if isinstance(c.get("plan"), dict):
+        c["plan"] = {k: [i for i in v if i not in gone] if isinstance(v, list) else v for k, v in c["plan"].items()}
+    if isinstance(rep.get("top_fixes"), list):
+        rep["top_fixes"] = [t for t in rep["top_fixes"] if (t.get("id") if isinstance(t, dict) else t) not in gone]
+    c.setdefault("dropped_recommendations", [])
+    if isinstance(c["dropped_recommendations"], list):
+        c["dropped_recommendations"] += [{"id": i, "why": why} for i in gone]
+    for i in gone:
+        gate["changes"].append({"check": check, "id": i, "what": "removed: " + why})
+
+
+def check_more(rep, gate, done):
+    """The run checks added after the NICI review. Each fixes what it safely can, downgrades what it cannot prove, and lists what a person should look at (gate['needs_review'])."""
+    import advice
+    c = rep.get("consultant") or {}
+    cov = c.get("coverage") or {}
+    meta = rep.get("meta") or {}
+    recs = c.get("recommendations") or []
+    review = gate.setdefault("needs_review", [])
+
+    # 8. evidence from another hotel's pages: a brand site's other sections, or another website, never supports a finding about this hotel's own site
+    scope = ((rep.get("site") or {}).get("meta") or {}).get("scope") or ""
+    base = meta.get("base") or ""
+    host = re.sub(r"^www\.", "", re.sub(r"^https?://", "", base).split("/")[0].lower())
+    outside, emptied = 0, []
+    for r in recs:
+        if r.get("source") not in _ABSENCE_SOURCES | {"consistency"}:
+            continue
+        keep = []
+        for e in r.get("evidence") or []:
+            u = e.get("url") or ""
+            if u.startswith("http"):
+                h = re.sub(r"^www\.", "", re.sub(r"^https?://", "", u).split("/")[0].lower())
+                path = "/" + "/".join(re.sub(r"^https?://", "", u).split("/")[1:])
+                is_file = bool(re.search(r"\.(?:pdf|jpe?g|png|gif|webp|docx?)(?:$|\?)|/(?:wp-content|uploads|media|assets|files)/", path, re.I))      # a brochure or menu in the site's shared uploads folder is still the hotel's
+                if (host and h != host) or (scope and not is_file and not path.lower().startswith(scope.lower())):
+                    outside += 1
+                    continue
+            keep.append(e)
+        if len(keep) != len(r.get("evidence") or []):
+            r["evidence"] = keep
+            if not keep:
+                emptied.append(r.get("id"))
+    _remove(rep, emptied, "its only evidence came from pages that are not this hotel's (another hotel of the brand, or another website)", gate, "evidence_in_scope")
+    done("evidence_in_scope", len(recs), outside, "evidence taken from pages outside this hotel's own website or section")
+
+    # 9. 'X is missing' after reading too little of the site: downgraded, never stated as fact
+    ratio = cov.get("ratio")
+    low = ratio is not None and ratio < 0.5
+    down = 0
+    if low:
+        for r in c.get("recommendations") or []:
+            if r.get("source") in _ABSENCE_SOURCES and ABSENCE.search(" ".join(str(r.get(k) or "") for k in ("title", "finding"))) and r.get("confidence") != advice.EXPER:
+                _downgrade(r, f"Only {cov.get('pages_read')} of {cov.get('pages_attempted')} pages could be read, so this may be stated on a page that was not read.", advice)
+                if r.get("priority") in ("critical", "high"):
+                    r["priority"] = "medium"
+                down += 1
+        if down:
+            gate["changes"].append({"check": "absence_low_coverage", "id": "coverage", "what": f"{down} 'not stated' finding(s) set to Worth checking: only {cov.get('pages_read')} of {cov.get('pages_attempted')} pages were read"})
+    done("absence_low_coverage", len(c.get("recommendations") or []), down, "'not stated' findings made after reading less than half the site")
+
+    # 10. priority must match how sure we are: nothing uncertain is critical or high
+    capped = 0
+    for r in c.get("recommendations") or []:
+        if r.get("priority") in ("critical", "high") and (r.get("confidence_label") == "Worth checking" or r.get("confidence") == advice.EXPER) and r.get("tag") not in ("site-check", "former-name"):
+            r["priority"] = "medium"
+            capped += 1
+    if capped:
+        gate["changes"].append({"check": "priority_vs_confidence", "id": "priority", "what": f"{capped} uncertain finding(s) lowered from high to medium priority"})
+    done("priority_vs_confidence", len(c.get("recommendations") or []), capped, "high-priority findings that rest on uncertain evidence")
+
+    # 11. never 'not on Booking.com': we do not read booking sites, so absence is never claimed
+    reworded = 0
+    for r in c.get("recommendations") or []:
+        for k in ("title", "finding", "action"):
+            v = r.get(k)
+            if isinstance(v, str) and _LISTING_ABSENT.search(v):
+                r[k] = _LISTING_ABSENT.sub(lambda m: f"not found by our searches on {m.group(1)}", v)
+                reworded += 1
+    if reworded:
+        gate["changes"].append({"check": "listing_claims", "id": "listings", "what": f"{reworded} claim(s) that the hotel is not on a booking site reworded to 'not found by our searches'"})
+    done("listing_claims", len(c.get("recommendations") or []), reworded, "claims that the hotel is missing from a booking site (those sites are not read)")
+
+    # 12 and 13. text a hotel would see: no web markup, no broken placeholders, no duplicates
+    cleaned, broken, dup, seen = 0, [], [], {}
+    for r in c.get("recommendations") or []:
+        for k in _TEXT_KEYS:
+            v = r.get(k)
+            nv = _clean_text(v)
+            if nv != v:
+                r[k] = nv
+                cleaned += 1
+        for st in r.get("steps") or []:
+            if isinstance(st, dict):
+                for k in ("title", "detail"):
+                    if isinstance(st.get(k), str):
+                        st[k] = _clean_text(st[k])
+        for e in r.get("evidence") or []:
+            if isinstance(e.get("snippet"), str):
+                e["snippet"] = _INVIS.sub("", e["snippet"])
+        title = (r.get("title") or "").strip()
+        if not title or _LEAK.search(title) or _LEAK.search(r.get("action") or ""):
+            broken.append(r.get("id"))
+            continue
+        key = evidence.fold(title)
+        if key in seen:
+            dup.append(r.get("id"))
+        else:
+            seen[key] = r.get("id")
+    _remove(rep, broken, "its wording was incomplete (an unfilled placeholder)", gate, "text_quality")
+    _remove(rep, dup, "the same recommendation appeared twice", gate, "text_quality")
+    if broken:
+        review.append({"what": f"{len(broken)} recommendation(s) had unfilled placeholders and were removed: a bug to look at", "ids": broken})
+    done("text_quality", len(c.get("recommendations") or []) + len(broken) + len(dup), cleaned + len(broken) + len(dup), "web markup, unfilled placeholders and duplicate recommendations")
+
+    # 14. the hotel's tracked prompts must have been asked
+    ai = rep.get("ai_sample") or {}
+    bench = [b for b in ((rep.get("benchmark") or {}).get("prompts") or []) if b.get("text")]
+    asked_tracked = any(i.get("source") == "benchmark" for i in ai.get("items") or [])
+    plan_err = (rep.get("question_plan") or {}).get("error")
+    tracked_ok = not ((rep.get("benchmark") or {}).get("reused") and bench and ai.get("status") == "ok" and not asked_tracked)
+    if not tracked_ok:
+        review.append({"what": "The hotel's tracked prompts were not asked in this check, so it cannot be compared with earlier ones."})
+    if plan_err:
+        review.append({"what": f"The step that writes this hotel's questions failed ({plan_err[:100]}); fewer questions than usual were asked."})
+    done("tracked_prompts_asked", 1, 0 if tracked_ok else 1, "the hotel's tracked prompts were asked")
+
+    # 15. the hotel itself, or its own name, as a rival 'named instead'
+    own = _fold_tokens(meta.get("hotel") or "")
+    selfish = 0
+    for m in (rep.get("ai_gap") or {}).get("markets") or []:
+        rv = m.get("rivals") or []
+        keep = [x for x in rv if not (own and _fold_tokens(x.get("name")) and (_fold_tokens(x.get("name")) <= own or own <= _fold_tokens(x.get("name"))))]
+        if len(keep) != len(rv):
+            selfish += len(rv) - len(keep)
+            m["rivals"] = keep
+    if selfish:
+        gate["changes"].append({"check": "self_as_rival", "id": "rivals", "what": f"the hotel itself was listed {selfish} time(s) among the hotels 'named instead': removed"})
+    done("self_as_rival", len((rep.get("ai_gap") or {}).get("markets") or []), selfish, "the hotel itself listed among the hotels named instead of it")
+
+    # 16. things a person should look at before relying on the report
+    if c.get("error"):
+        review.append({"what": f"The website analysis crashed in this check ({str(c['error'])[:120]}), so the report has no findings about the website. A bug to look at."})
+    steps = {"guest_questions": "guest questions", "intel": "hotel identity", "ai_gap": "AI gap", "citations": "AI citations", "external": "outside sources", "competitors": "competitors"}
+    for k, label in steps.items():
+        v = rep.get(k)
+        if isinstance(v, dict) and v.get("error") and v.get("status") not in ("not_configured",):
+            review.append({"what": f"The {label} step failed in this check ({str(v['error'])[:100]}), so that part of the report is missing or partial."})
+    for r in c.get("recommendations") or []:
+        if r.get("tag") == "site-check":
+            review.append({"what": "The website read may not be the hotel's own: check the address before relying on this report."})
+    if cov.get("unreadable"):
+        review.append({"what": "The hotel's website could not be read in this check, so nothing about the website was assessed."})
+    elif low:
+        review.append({"what": f"Only {cov.get('pages_read')} of {cov.get('pages_attempted')} pages of the website could be read."})
+    if (ai.get("status") not in (None, "ok", "not_configured")):
+        review.append({"what": f"The AI answers were not collected in this check ({(ai.get('reason') or ai.get('status'))[:100]})."})
