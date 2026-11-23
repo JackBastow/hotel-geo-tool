@@ -53,6 +53,37 @@ SYSTEM = ("You are a travel assistant answering a traveller's question. Search t
           "When you recommend hotels, name them in a short list, most suitable first, and say in a few words why. "
           "Only state facts you found; say so when you could not find something.")
 
+COUNTRY_NAMES = {"GB": "the United Kingdom", "IE": "Ireland", "FR": "France", "DE": "Germany", "ES": "Spain", "IT": "Italy", "PT": "Portugal", "NL": "the Netherlands", "BE": "Belgium",
+                 "SE": "Sweden", "NO": "Norway", "DK": "Denmark", "FI": "Finland", "CH": "Switzerland", "AT": "Austria", "GR": "Greece", "US": "the United States", "CA": "Canada",
+                 "AU": "Australia", "NZ": "New Zealand", "AE": "the United Arab Emirates", "PL": "Poland", "CZ": "the Czech Republic", "HU": "Hungary", "HR": "Croatia", "IS": "Iceland"}
+
+# rough boxes, checked in order (the smaller countries first, so a point in Ireland or Belgium is not read as the UK or France); only used when the website's ending says nothing
+_BOXES = [("IE", 51.3, 55.5, -10.7, -5.9), ("GB", 49.8, 60.9, -8.7, 1.8), ("BE", 49.5, 51.5, 2.5, 6.4), ("NL", 50.7, 53.6, 3.3, 7.3), ("CH", 45.8, 47.8, 5.9, 10.5),
+          ("DK", 54.5, 57.8, 8.0, 12.7), ("PT", 36.9, 42.2, -9.6, -6.2), ("AT", 46.4, 49.0, 9.5, 17.2), ("FR", 42.3, 51.1, -5.2, 8.3), ("ES", 36.0, 43.8, -9.4, 3.4),
+          ("DE", 47.2, 55.1, 5.8, 15.1), ("IT", 36.6, 47.1, 6.6, 18.6), ("SE", 55.3, 69.1, 11.0, 24.2), ("NO", 57.9, 71.2, 4.5, 31.1), ("FI", 59.8, 70.1, 20.5, 31.6)]
+_UK_POSTCODE = re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b")
+
+
+def country_from_location(loc):
+    """A two-letter country code from where the hotel was placed (a UK postcode, or its map position), or None. Used when the website's ending ('.com') does not say: a question about
+    'Surrey' asked with no country was answered about Surrey in Canada."""
+    loc = loc or {}
+    if _UK_POSTCODE.search(str(loc.get("postcode") or "").upper()):
+        return "GB"
+    lat, lon = loc.get("lat"), loc.get("lon")
+    if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+        for code, la0, la1, lo0, lo1 in _BOXES:
+            if la0 <= lat <= la1 and lo0 <= lon <= lo1:
+                return code
+    return None
+
+
+def system_for(country):
+    """The assistant's instructions, with the traveller's country when known: a traveller in the UK asking about 'Surrey' or 'Newport' means the one in the UK."""
+    name = COUNTRY_NAMES.get((country or "").upper())
+    return SYSTEM + (f" The traveller lives in {name}: when a place name could mean more than one place, assume they mean the one in {name}." if name else "")
+
+
 _GENERIC = {"hotel", "hotels", "the", "by", "and", "spa", "resort", "resorts", "at", "of", "&", "inn", "suites", "collection"}
 
 
@@ -303,7 +334,7 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
                 tool = dict(SEARCH_TOOL)
                 if with_country and country:
                     tool["user_location"] = {"type": "approximate", "country": country}
-                return client.messages.create(model=model, max_tokens=MAX_TOKENS, system=SYSTEM, tools=[tool], messages=[{"role": "user", "content": q["text"]}], **extra)
+                return client.messages.create(model=model, max_tokens=MAX_TOKENS, system=system_for(country), tools=[tool], messages=[{"role": "user", "content": q["text"]}], **extra)
             if country and not state.get("loc_off"):
                 try:
                     resp, applied = call(True), country

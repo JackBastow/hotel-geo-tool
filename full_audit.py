@@ -700,7 +700,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     # The country the searches are run as if from: the hotel's own (its website's ending, or where one search of the map places it). No market picker: one sensible default, stated in the report.
     import anchors as _am
     import phones as _ph0
-    search_country = _ph0.region_from_host(urllib.parse.urlparse(base).netloc)
+    search_country = _ph0.region_from_host(urllib.parse.urlparse(base).netloc) or ai_sample.country_from_location(location)
     if not search_country and hotel and city and anthropic_api_key:
         try:
             _g = _am.geocode(hotel, city, netguard.get, with_country=True)

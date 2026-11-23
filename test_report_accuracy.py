@@ -210,5 +210,14 @@ check("what needs a person's eye is listed once each, with a check that crashed 
 check("a report from before the checks existed shows no panel, and a clean one says nothing needs looking at",
       quality_view.panel({}) == "" and "Nothing in the latest report" in quality_view.panel({"gate": {"checks": [], "changes": [], "needs_review": []}}))
 
+print("12. the traveller's country (Brooklands, Nov 2026: 'hotels in Surrey' was answered about Surrey in Canada)")
+check("a UK postcode or a map position places the hotel's country when its website ends in .com",
+      ai_sample.country_from_location({"postcode": "KT13 0SL"}) == "GB" and ai_sample.country_from_location({"lat": 50.41, "lon": -5.08}) == "GB"
+      and ai_sample.country_from_location({"lat": 53.35, "lon": -6.26}) == "IE" and ai_sample.country_from_location({"lat": 56.17, "lon": 14.86}) == "SE" and ai_sample.country_from_location({}) is None)
+check("the assistant is told the traveller's country, so an ambiguous place name means the one there", "lives in the United Kingdom" in ai_sample.system_for("GB") and ai_sample.system_for(None) == ai_sample.SYSTEM)
+import quality_view as _qv
+check("a hotel entered as its web address, or a town naming two places, is flagged", len(_qv.setup_problems("brooklandshotelsurrey", "Surrey/Weybridge", "https://brooklandshotelsurrey.com/")) == 2
+      and _qv.setup_problems("Brooklands Hotel", "Weybridge", "https://brooklandshotelsurrey.com/") == [] and "only the brand" in _qv.setup_problems("Hilton", "Barcelona")[0])
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)
