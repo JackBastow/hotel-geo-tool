@@ -293,10 +293,10 @@ class PortalMixin:
     # runs, as the portal needs them ---------------------------------------------
     def hotel_runs(self, key):
         """The hotel's saved audits, newest first: id, run time, the link token, the score and the AI coverage."""
-        return self._rows("SELECT id, run_at, city, access_token, headline_score, headline_status, coverage_pct, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked, ai_named, ai_asked, recs_total "
+        return self._rows("SELECT id, run_at, city, access_token, headline_score, headline_status, coverage_pct, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked, ai_named, ai_asked, ai_tracked_named, ai_tracked_asked, ai_tracked_fp, cat_scores, recs_total "
                           "FROM runs WHERE hotel_key = ? ORDER BY run_at DESC, id DESC", (key,))
 
-    LIGHT = "id, hotel_key, run_at, headline_score, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked, ai_named, ai_asked"
+    LIGHT = "id, hotel_key, run_at, headline_score, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked, ai_named, ai_asked, ai_tracked_named, ai_tracked_asked, ai_tracked_fp, cat_scores"
 
     def runs_light(self, keys):
         """Every hotel's audits in ONE query, only the columns the dashboards need: {hotel_key: [rows oldest first]}."""

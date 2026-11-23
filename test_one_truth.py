@@ -109,5 +109,35 @@ r1 = ranking.fill_missing([{"title": "A recommendation added after the ranking",
 r2 = ranking.fill_missing([{"title": "A recommendation added after the ranking", "source": "identity"}])[0]["id"]
 check("a recommendation without an id gets the same one every time (not Python's per-start hash)", r1 == r2 and r1 == "R-" + __import__("hashlib").sha1(b"identity|A recommendation added after the ranking").hexdigest()[:10])
 
+print("7. changes compare like with like")
+db2 = backend.open_store("sqlite:///" + os.path.join(tempfile.mkdtemp(), "c.db"))
+
+
+def check_of(score, cats, tracked_named, tracked_texts, run_at):
+    r = copy.deepcopy(rep)
+    r["meta"]["run_at"] = run_at
+    r["headline"]["score"] = score
+    for c in r["scorecard"]["categories"]:
+        c["assessed"] = c["key"] in cats
+        c["score"] = 60 if c["key"] in cats else None
+    base_i = next(i for i in r["ai_sample"]["items"] if i["kind"] == "niche")
+    r["ai_sample"]["items"] = [i for i in r["ai_sample"]["items"] if i.get("source") != "benchmark"] + [
+        {**copy.deepcopy(base_i), "id": f"b{k}", "qid": f"b{k}", "source": "benchmark", "text": t, "mentioned": k < tracked_named, "names_hotel": False} for k, t in enumerate(tracked_texts)]
+    return r
+
+
+T8 = [f"Tracked prompt {k} about airport hotels" for k in range(8)]
+db2.save_run(check_of(40, {"website", "entity"}, 1, T8, "2026-10-01T05:00:00+00:00"))
+db2.save_run(check_of(50, {"website", "entity", "otas"}, 1, T8, "2026-10-08T05:00:00+00:00"))
+db2.save_run(check_of(55, {"website", "entity", "otas"}, 3, T8, "2026-10-15T05:00:00+00:00"))
+hid2 = db2.create_hotel(hotel, rep["meta"]["website"], rep["meta"]["city"], key)
+sm = progress.hotel_summary(db2, db2.get_hotel(hid2), list(reversed(db2.hotel_runs(key))))
+check("the score change is counted from the first check that measured the same parts (50 -> 55, not 40 -> 55)", sm["first_score"] == 50 and sm["delta"] == 5 and "measured different parts" in sm["score_note"], (sm["first_score"], sm["delta"]))
+check("the change since the last check uses the same tracked prompts", sm["cov_week"] == ((1, 8), (3, 8)) and sm["cov_basis"] == "tracked", sm["cov_week"])
+check("1 of 8 then 3 of 8 is within sampling noise: not a change", report_model.ai_moved((1, 8), (3, 8)) == "same" and report_model.ai_moved((1, 20), (15, 20)) == "up")
+db2.save_run(check_of(56, {"website", "entity", "otas"}, 4, [f"A different tracked prompt {k}" for k in range(8)], "2026-10-22T05:00:00+00:00"))
+sm = progress.hotel_summary(db2, db2.get_hotel(hid2), list(reversed(db2.hotel_runs(key))))
+check("a check with a different set of tracked prompts is not compared with earlier ones", sm["cov_week"] is None and sm["cov_change"] is None, (sm["cov_week"], sm["cov_change"]))
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

@@ -10,7 +10,7 @@ Version 1: "named by AI".
   different headline. `apply()` also writes the figure into the report's older copies (the brand ranking's line for the hotel, the scoreboard), so code that still reads them agrees.
 """
 
-MODEL_VERSION = 2          # 2: top priorities by one rule; stable recommendation ids
+MODEL_VERSION = 3          # 2: top priorities by one rule; stable recommendation ids. 3: tracked-prompt counts and the score's basis, so only like is compared with like
 
 
 def ai_counts(rep):
@@ -35,6 +35,41 @@ def ai_counts(rep):
     return {"named": named, "asked": asked, "pct": round(100 * named / asked), "lo": round(100 * lo), "hi": round(100 * hi),
             "recommended": sum(1 for i in rows if i.get("recommended")), "site_cited": sum(1 for i in rows if i.get("own_site_cited")), "by_kind": by_kind,
             "basis": "every answer whose question did not name the hotel, each counted once"}
+
+
+def tracked_counts(rep):
+    """-> {named, asked, fp} for the hotel's tracked prompts only (the ones asked every week, so weeks can be compared), or None. `fp` identifies the set of prompts asked."""
+    ai = (rep or {}).get("ai_sample") or {}
+    if ai.get("status") != "ok":
+        return None
+    import hashlib
+    import evidence
+    rows = [i for i in ai.get("items") or [] if i.get("source") == "benchmark" and i.get("mentioned") is not None]
+    if not rows:
+        return None
+    texts = sorted({evidence.fold(i.get("text") or "") for i in rows})
+    return {"named": sum(1 for i in rows if i.get("mentioned")), "asked": len(rows), "fp": hashlib.sha1("|".join(texts).encode("utf8")).hexdigest()[:12]}
+
+
+def ai_moved(before, now):
+    """'up', 'down' or 'same' between two (named, asked) figures: a move counts only when the ranges the true rates plausibly lie in do not overlap (95%), because a sample of answers
+    varies from week to week by itself. 1 of 8 then 3 of 8 now is 'same'."""
+    import trend
+    if not before or not now or not before[1] or not now[1]:
+        return "same"
+    lo0, hi0 = trend.wilson(*before)
+    lo1, hi1 = trend.wilson(*now)
+    if lo1 > hi0:
+        return "up"
+    if hi1 < lo0:
+        return "down"
+    return "same"
+
+
+def score_basis(rep):
+    """The areas the readiness score measured, as one string: two scores are comparable only when they measured the same areas."""
+    cats = ((rep or {}).get("scorecard") or {}).get("categories") or []
+    return ",".join(sorted(c.get("key", "") for c in cats if c.get("assessed") and c.get("score") is not None))
 
 
 def priorities_of(cons, n=5):
@@ -62,7 +97,11 @@ def apply(rep):
         top = priorities_of(rep.get("consultant") or {})
     except Exception:  # noqa: BLE001
         top = []
-    rep["model"] = {"version": MODEL_VERSION, "ai": ai, "top_priorities": top}
+    try:
+        tracked = tracked_counts(rep)
+    except Exception:  # noqa: BLE001
+        tracked = None
+    rep["model"] = {"version": MODEL_VERSION, "ai": ai, "tracked": tracked, "top_priorities": top, "score_basis": score_basis(rep)}
     if not ai:
         return rep
     ins = rep.get("ai_insights") if isinstance(rep.get("ai_insights"), dict) else None

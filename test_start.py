@@ -31,7 +31,7 @@ class DB:
 
 
 hotel = {"id": 1, "name": "Our Hotel", "hotel_key": "h.example", "city": "Zurich", "website": "h.example", "weekly": 1}
-sm = {"hotel": hotel, "runs": 2, "first_run_at": "2026-11-02T08:00:00+00:00", "last_run_at": "2026-11-09T08:00:00+00:00", "first_score": 60.0, "latest_score": 66.0, "delta": 6.0,
+sm = {"hotel": hotel, "runs": 2, "first_run_at": "2026-11-02T08:00:00+00:00", "last_run_at": "2026-11-09T08:00:00+00:00", "first_score": 60.0, "latest_score": 66.0, "delta": 6.0, "score_prev": 60.0,
       "points": [{"run_at": "2026-11-02T08:00:00+00:00", "score": 60.0, "id": 1}, {"run_at": "2026-11-09T08:00:00+00:00", "score": 66.0, "id": 2}], "cov_first": (2, 20), "cov_latest": (3, 20),
       "actions": {"completed": 1, "verified": 0, "cleared_site": 0, "working": 0, "todo": 4, "cleared": 0, "not_relevant": 0, "still_flagged": 0, "total": 5}, "latest_run_id": 2, "completed_points": []}
 acts = [act(1, "Low priority thing", "low"), act(2, "Critical fix", "critical", "high"), act(3, "High quick fix", "high", "low"), act(4, "High slow fix", "high", "high"), act(5, "Medium thing", "medium"),

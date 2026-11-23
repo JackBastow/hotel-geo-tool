@@ -235,6 +235,35 @@ def action_counts(actions):
     return c
 
 
+def _basis(row):
+    """The areas a check's score measured (its stored category scores), for comparing like with like."""
+    try:
+        return ",".join(sorted(json.loads(row.get("cat_scores") or "{}")))
+    except (ValueError, TypeError):
+        return ""
+
+
+def _cov_pair(hist, last=None, latest_only=False):
+    """What a change in AI visibility is measured on. -> ((before, now), basis) with before/now as (named, asked), or (None, basis) when there is nothing comparable.
+    The hotel's tracked prompts, against the earliest (or, latest_only, the previous) check that asked the SAME tracked prompts; a check without tracked prompts is compared only with
+    another check without them, on the one count. basis: 'tracked' or 'all'."""
+    rows = [r for r in hist if _cov(r)]
+    if len(rows) < 2:
+        return None, ("tracked" if rows and rows[-1].get("ai_tracked_asked") else "all")
+    latest = rows[-1]
+    if latest.get("ai_tracked_asked") and latest.get("ai_tracked_fp"):
+        same = [r for r in rows[:-1] if r.get("ai_tracked_fp") == latest["ai_tracked_fp"] and r.get("ai_tracked_asked")]
+        if not same:
+            return None, "tracked"
+        f = same[-1] if latest_only else same[0]
+        return ((f["ai_tracked_named"] or 0, f["ai_tracked_asked"]), (latest["ai_tracked_named"] or 0, latest["ai_tracked_asked"])), "tracked"
+    same = [r for r in rows[:-1] if not r.get("ai_tracked_asked")]
+    if not same:
+        return None, "all"
+    f = same[-1] if latest_only else same[0]
+    return (_cov(f), _cov(latest)), "all"
+
+
 def _cov(row):
     """(named, asked) for one check: the one count (report_model.ai_counts, stored as ai_named / ai_asked); older rows not yet filled in fall back to the town-wide plus market counts."""
     if row.get("ai_asked"):
@@ -263,11 +292,25 @@ def hotel_summary(db, hotel, hist=None, actions=None):
     scored = [r for r in hist if r.get("headline_score") is not None]
     actions = actions if actions is not None else db.list_actions(hotel["id"])
     counts = action_counts(actions)
-    first, last = (scored[0], scored[-1]) if scored else (None, None)
+    last = scored[-1] if scored else None
+    # the score moves for two reasons: the hotel changed, or the check measured different areas (a source became available, a key was added). Only the first is progress, so the change
+    # is measured from the earliest check that measured the SAME areas as the latest one.
+    same = [r for r in scored if _basis(r) == _basis(last)] if last else []
+    first = same[0] if same else None
     delta = round(last["headline_score"] - first["headline_score"], 1) if first and last and first is not last else None
-    cov0, cov1 = (_cov(first) if first else None), (_cov(last) if last else None)
-    return {"hotel": hotel, "runs": len(hist), "first_run_at": first["run_at"] if first else None, "last_run_at": hist[-1]["run_at"] if hist else None,
+    score_note = ""
+    if last and scored and first is not scored[0]:
+        score_note = (f"The checks before {first['run_at'][:10]} measured different parts of the score, so the change is counted from then." if first is not last
+                      else "Earlier checks measured different parts of the score, so they are not compared with the latest one.")
+    with_ai = [r for r in hist if _cov(r)]
+    cov0, cov1 = (_cov(with_ai[0]), _cov(with_ai[-1])) if with_ai else (None, None)          # the one count, as shown
+    chg, basis = _cov_pair(hist, last)                                                       # what change is measured on: the same tracked prompts, oldest comparable check first
+    week = _cov_pair(hist, last, latest_only=True)[0]                                        # the same, against the previous comparable check
+    prev_same = [r for r in same if r is not last]
+    return {"hotel": hotel, "runs": len(hist), "first_run_at": first["run_at"] if first else None, "last_run_at": hist[-1]["run_at"] if hist else None, "score_note": score_note,
             "first_score": first["headline_score"] if first else None, "latest_score": last["headline_score"] if last else None, "delta": delta,
+            "score_prev": prev_same[-1]["headline_score"] if prev_same else None,
+            "cov_change": chg, "cov_week": week, "cov_basis": basis,
             "points": [{"run_at": r["run_at"], "score": r["headline_score"], "id": r["id"]} for r in scored], "cov_first": cov0, "cov_latest": cov1, "actions": counts,
             "latest_run_id": hist[-1]["id"] if hist else None, "completed_points": completed_series(actions, [r["run_at"] for r in scored])}
 

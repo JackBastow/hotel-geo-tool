@@ -56,7 +56,7 @@ def kpis(rep, prev=None):
     if mai:
         c = mai["pct"]
         out.append({"label": "Named by an AI assistant", "value": f"{c}", "unit": "%", "tone": GOOD if c >= 50 else WARN if c >= 20 else BAD,
-                    "sub": f"{mai['named']} of {mai['asked']} sampled answers, one model", "delta": delta(c, prev.get("ai_coverage_pct"), "pts"), "goto": "ai"})
+                    "sub": f"{mai['named']} of {mai['asked']} sampled answers, one model", "delta": (lambda t: f'<span class="delta flat">{esc(t)}</span>' if t else "")(_comparable_ai_delta(rep, prev)), "goto": "ai"})
         place = sb.get("place")
         n_br = len(br.get("rows") or [])
         sent = sb.get("sentiment")
@@ -228,11 +228,31 @@ def overview(rep, prev=None):
     return _overview_rest(rep, prev, parts, cons, h, sc, ins, sb, br, counts, qs)
 
 
+def _comparable_prev_score(rep, prev):
+    """The previous check's score, only when it measured the same parts of the score as this one (else no change is shown: the method moved, not the hotel)."""
+    if not prev or prev.get("headline_score") is None:
+        return None
+    import progress
+    import report_model
+    return prev["headline_score"] if progress._basis(prev) == report_model.score_basis(rep) else None
+
+
+def _comparable_ai_delta(rep, prev):
+    """'up/down/about the same on its tracked prompts' against the previous check, only when both asked the same tracked prompts; '' otherwise."""
+    import report_model
+    tr = report_model.tracked_counts(rep)
+    if not prev or not tr or not prev.get("ai_tracked_asked") or prev.get("ai_tracked_fp") != tr["fp"]:
+        return ""
+    m = report_model.ai_moved((prev.get("ai_tracked_named") or 0, prev["ai_tracked_asked"]), (tr["named"], tr["asked"]))
+    return {"up": "up since the last check, on its tracked prompts", "down": "down since the last check, on its tracked prompts",
+            "same": "about the same as the last check, on its tracked prompts"}[m]
+
+
 def readiness_banner(rep, prev=None):
     """The readiness score as a ring, what it rests on and what is not measured. `prev`: the previous check's row (its headline_score gives the change)."""
     h = rep.get("headline") or {}
     unassessed = "".join(chip(f"{u['label']} · {u['weight']:g}%", "warn") for u in h.get("unassessed", []))
-    return (f'<section class="ov-hero">{ring(h.get("score"), "of 100", 132)}<div class="ov-hero-text"><div class="ov-title">AI discoverability readiness {chip((h.get("badge") or "").capitalize(), "brand")} {delta(h.get("score"), (prev or {}).get("headline_score"))}</div>'
+    return (f'<section class="ov-hero">{ring(h.get("score"), "of 100", 132)}<div class="ov-hero-text"><div class="ov-title">AI discoverability readiness {chip((h.get("badge") or "").capitalize(), "brand")} {delta(h.get("score"), _comparable_prev_score(rep, prev))}</div>'
                  f'<div class="p-track" style="margin:8px 0 4px"><div class="p-fill" style="width:{min(max(h.get("coverage_pct", 0), 0), 100):.0f}%"></div></div>'
                  f'<div class="caption">Measurement coverage: {h.get("coverage_pct", 0):.0f}% of the full model assessed</div><p class="ov-expl">{esc(h.get("explanation", ""))}</p>'
                  f'{"<div><span class=hk-label>Not measured</span> " + unassessed + "</div>" if unassessed else ""}</div></section>')

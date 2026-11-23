@@ -64,7 +64,8 @@ def progress_line(sm):
     return (f'<div class="pt-progress"><b>Since {esc(uk_date(sm["first_run_at"]))}:</b> the readiness score has {word} from <b>{sm["first_score"]:g}</b> to <b>{sm["latest_score"]:g}</b> '
             f'({sm["delta"]:+g}), and <b>{done} action{"s" if done != 1 else ""}</b> {"have" if done != 1 else "has"} been completed'
             + (f' ({a["verified"]} verified: a later check confirmed {"they are" if a["verified"] != 1 else "it is"} gone)' if a["verified"] else "")
-            + (f'. The latest check no longer flags <b>{a["cleared_site"]} more</b>, but nobody marked {"them" if a["cleared_site"] != 1 else "it"} done, so {"they are" if a["cleared_site"] != 1 else "it is"} not counted as completed' if a["cleared_site"] else "") + '.</div>')
+            + (f'. The latest check no longer flags <b>{a["cleared_site"]} more</b>, but nobody marked {"them" if a["cleared_site"] != 1 else "it"} done, so {"they are" if a["cleared_site"] != 1 else "it is"} not counted as completed' if a["cleared_site"] else "") + '.'
+            + (f' <span class="caption">{esc(sm["score_note"])}</span>' if sm.get("score_note") else "") + '</div>')
 
 
 def kpi(label, value, sub, colour=GREY, unit=""):
@@ -85,10 +86,15 @@ def kpis(sm):
            kpi("Actions completed", a["completed"], f"marked done, of {a['total']} recommended" + (f" · {a['verified']} verified by a check" if a["verified"] else "") + (f" · {a['cleared_site']} more no longer flagged by the checks" if a["cleared_site"] else ""), GOOD),
            kpi("Working on", a["working"], "marked as in progress", BRAND),
            kpi("Still to do", a["todo"] + a["still_flagged"], (f"includes {a['still_flagged']} marked done but still flagged" if a["still_flagged"] else "not started"), WARN if a["todo"] else GOOD)]
-    c0, c1 = sm["cov_first"], sm["cov_latest"]
+    c1 = sm["cov_latest"]
+    chg = sm.get("cov_change")
     if c1:
         lo, hi = trend.wilson(*c1)
-        sub = f"{c1[0]} of {c1[1]} answers · likely {round(100 * lo)}% to {round(100 * hi)}%" + (f" · at the start: {round(100 * c0[0] / c0[1])}%" if c0 and sm["runs"] > 1 else "")
+        start = ""
+        if chg:
+            (b0, b1), what = chg, ("on its tracked prompts" if sm.get("cov_basis") == "tracked" else "")
+            start = f" · {what + ': ' if what else ''}{round(100 * b0[0] / b0[1])}% at the start, {round(100 * b1[0] / b1[1])}% now"
+        sub = f"{c1[0]} of {c1[1]} answers · likely {round(100 * lo)}% to {round(100 * hi)}%" + start
         out.append(kpi("Named by an AI assistant", f"{round(100 * c1[0] / c1[1])}", sub, BRAND, "%"))
     return '<div class="kpis">' + "".join(out) + "</div>"
 

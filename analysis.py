@@ -39,7 +39,8 @@ def figures(db, runs_all=None, now=None):
     data = progress.portfolio_data(db)
     rows, tot = progress.portfolio_summary(db, data)
     for r in rows:
-        r["cov0"], r["cov1"] = _pct(r["cov_first"]), _pct(r["cov_latest"])
+        pair = r.get("cov_change")
+        r["cov0"], r["cov1"] = (_pct(pair[0]), _pct(pair[1])) if pair else (None, None)          # comparable checks only (the same tracked prompts)
         r["growth"] = (r["cov1"] - r["cov0"]) if (r["runs"] >= 2 and r["cov0"] is not None and r["cov1"] is not None) else None
         r["days_since"] = (now - _parse(r["last_run_at"])).days if r["last_run_at"] and _parse(r["last_run_at"]) else None
     checks = sum(r["runs"] for r in rows)

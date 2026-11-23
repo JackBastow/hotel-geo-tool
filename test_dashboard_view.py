@@ -38,12 +38,17 @@ check("a change since the last audit is a plain chip, green when it moved the ri
 check("the score ring shows a dash, not a zero, when there is no score", "&mdash;" in charts.ring(None) and ">74<" in charts.ring(74))
 
 print("2. the Overview")
-ov = dv.overview(REP, prev={"headline_score": 70, "ai_coverage_pct": 25, "ai_sentiment": 40})
+import json as _json
+import report_model as _rm
+SAME = _json.dumps({k: 1 for k in _rm.score_basis(REP).split(",") if k})          # the previous check measured the same parts of the score
+ov = dv.overview(REP, prev={"headline_score": 70, "ai_coverage_pct": 25, "ai_sentiment": 40, "cat_scores": SAME})
 check("it opens with the readiness score, its coverage and what was not measured, and the change since the last audit", "AI discoverability readiness" in ov and "Not measured" in ov and "AI Visibility" in ov and "+13" in ov)
+ov2 = dv.overview(REP, prev={"headline_score": 70, "cat_scores": _json.dumps({"website": 1})})
+check("no change is shown against a check that measured different parts of the score (the method moved, not the hotel)", "+13" not in ov2)
 ks = dv.kpis(REP, {"ai_coverage_pct": 25})
 check("the headline numbers are AI coverage, place among hotels named, guest questions answered and reviews (here the replies seen in the public-search sample)",
       [k["label"] for k in ks] == ["Named by an AI assistant", "Place among hotels it names", "Guest questions answered", "Replies seen on reviews"], [k["label"] for k in ks])
-check("AI coverage is 50% from 2 of 4 sampled answers, and shows +25 points against the last audit", ks[0]["value"] == "50" and "2 of 4" in ks[0]["sub"] and "+25" in ks[0]["delta"], ks[0])
+check("AI coverage is 50% from 2 of 4 sampled answers; no change is claimed against a check that did not ask the same tracked prompts", ks[0]["value"] == "50" and "2 of 4" in ks[0]["sub"] and "+25" not in ks[0]["delta"], ks[0])
 check("guest questions: 5 answered of 10, with how many are partial and not found", ks[2]["value"] == "5" and ks[2]["unit"] == "of 10" and "4 partly" in ks[2]["sub"] and "1 not found" in ks[2]["sub"], ks[2])
 bare_rv = copy.deepcopy(REP)
 bare_rv["review_snapshot"] = None

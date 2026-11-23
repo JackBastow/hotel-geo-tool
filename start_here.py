@@ -77,14 +77,17 @@ def panel(db, hotel, sm, actions, runs, editable=True, prompts_alert=False):
     prev_at = runs[1]["run_at"] if weekly else None
     pts = sm.get("points") or []
     sc_now = sm["latest_score"]
-    sc_prev = pts[-2]["score"] if len(pts) > 1 else None
+    sc_prev = sm.get("score_prev")                 # the previous check that measured the same parts of the score (progress.hotel_summary)
 
     # ---- the three tiles
     c1 = sm["cov_latest"]
-    cov_prev = me["points"][-2]["coverage_pct"] if me and len(me["points"]) > 1 else None
+    wk = sm.get("cov_week")                         # (previous, now) on the same tracked prompts, or None when the last check is not comparable
+    import report_model
+    moved = report_model.ai_moved(*wk) if wk else None
     if c1:
         pct = round(100 * c1[0] / c1[1])
-        vis = pv.kpi("Named by an AI assistant", f"{pct}", f"{c1[0]} of {c1[1]} sampled answers" + (f" · {_plain(_delta(pct, cov_prev, ' pts'))}" if cov_prev is not None else ""), pv.BRAND, "%")
+        note = ("" if not wk else " · " + {"up": "up since the last check", "down": "down since the last check", "same": "about the same as the last check"}[moved])
+        vis = pv.kpi("Named by an AI assistant", f"{pct}", f"{c1[0]} of {c1[1]} sampled answers" + note, pv.BRAND, "%")
     else:
         vis = pv.kpi("Named by an AI assistant", "-", "no AI answers were sampled in the latest check", pv.GREY)
     tone = pv.GOOD if (sc_now or 0) >= 75 else pv.WARN if (sc_now or 0) >= 50 else pv.BAD
@@ -102,10 +105,16 @@ def panel(db, hotel, sm, actions, runs, editable=True, prompts_alert=False):
         if sc_prev is not None and sc_now is not None:
             d = round(sc_now - sc_prev, 1)
             bits.append(f"The readiness score {'did not change' if d == 0 else ('went up' if d > 0 else 'went down')}" + ("" if d == 0 else f" by {abs(d):g}") + f" ({_fmt(sc_prev)} to {_fmt(sc_now)}).")
-        if cov_prev is not None and c1:
-            now_pct = 100 * c1[0] / c1[1]
-            d = round(now_pct - cov_prev, 1)
-            bits.append(f"In the sampled answers the hotel was named {'about as often as before' if abs(d) < 5 else ('more often' if d > 0 else 'less often')} ({round(cov_prev):g}% then, {round(now_pct):g}% now). Sampled answers vary, so only a large, repeated move means something.")
+        if wk:
+            (p0, p1) = wk
+            what = "its tracked prompts" if sm.get("cov_basis") == "tracked" else "the sampled answers"
+            word = {"up": "more often", "down": "less often", "same": "about as often as before"}[moved]
+            bits.append(f"On {what} the hotel was named {word} ({p0[0]} of {p0[1]} then, {p1[0]} of {p1[1]} now)."
+                        + (" The difference is within what sampling alone produces, so it is not a change." if moved == "same" and (p0[0] * p1[1] != p1[0] * p0[1]) else ""))
+        elif c1 and sm.get("runs", 0) > 1:
+            bits.append("The last check asked different prompts, so its AI figures are not compared with this one.")
+        if sm.get("score_note"):
+            bits.append(sm["score_note"])
         if new_rivals:
             bits.append("New in the answers: " + ", ".join(esc(n) for n in new_rivals) + ".")
         done = _since(actions, prev_at)
