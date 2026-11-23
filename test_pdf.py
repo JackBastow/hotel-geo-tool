@@ -228,6 +228,17 @@ except Exception as e:  # noqa: BLE001
 check("file name is safe and dated", report_pdf.filename(rep).endswith(".pdf") and "/" not in report_pdf.filename(rep)
       and rep["meta"]["run_at"][:10] in report_pdf.filename(rep))
 
+print("9. a recommendation added by hand after the ranking (THE NICI's former name, Nov 2026: 'Internal Server Error' on the management report)")
+bare = copy.deepcopy(rep)
+bare.setdefault("consultant", {}).setdefault("recommendations", []).insert(0, {"id": "ID-former-name", "title": "Connect your former name", "source": "identity", "tag": "former-name", "priority": "high",
+                                                                               "kind": "accuracy", "track": "accuracy", "finding": "x", "action": "y"})
+for part in ("management", "full"):
+    try:
+        ok = report_pdf.build_pdf(copy.deepcopy(bare), part)[:5] == b"%PDF-"
+    except Exception as e:  # noqa: BLE001
+        ok = f"{type(e).__name__}: {e}"
+    check(f"the {part} PDF still builds when a recommendation has no rank, value or ref", ok is True, ok)
+
 print()
 print("FAILURES:", fails if fails else "none")
 raise SystemExit(1 if fails else 0)

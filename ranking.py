@@ -254,3 +254,47 @@ def expected_outcome(r):
     if r["source"] in EXPECTED:
         return EXPECTED[r["source"]]
     return r.get("success_check") or "The next audit no longer reports this."
+
+
+_BY_PRIORITY = {"critical": 90.0, "high": 70.0, "medium": 45.0, "low": 25.0}
+
+
+def fill_missing(recs):
+    """Every recommendation carries the fields the dashboard, the plan and the PDFs sort and group by. One added by hand after the ranking (the former-name or wrong-website
+    warning) gets values from its priority, so a page or a PDF never fails on a missing field. -> recs (changed in place)."""
+    for r in recs or []:
+        if not isinstance(r, dict):
+            continue
+        r.setdefault("priority", "medium")
+        if r["priority"] not in _BY_PRIORITY:
+            r["priority"] = "medium"
+        v = _BY_PRIORITY[r["priority"]]
+        for k in ("value", "rank", "score"):
+            if not isinstance(r.get(k), (int, float)):
+                r[k] = v
+        r.setdefault("kind", "fix")
+        r.setdefault("effort", "medium")
+        r.setdefault("impact", {"critical": "high", "high": "high", "medium": "medium", "low": "low"}[r["priority"]])
+        r.setdefault("category", "other")
+        r.setdefault("confidence_label", "Likely")
+        r.setdefault("title", "")
+        r.setdefault("finding", "")
+        r.setdefault("action", "")
+        r.setdefault("evidence", [])
+        r.setdefault("id", "R-" + str(abs(hash(r["title"])) % 100000))
+        r.setdefault("ref", r["id"])
+        r.setdefault("source", "other")
+        r.setdefault("team", "marketing")
+        r.setdefault("why", "")
+        r.setdefault("example", "")
+        r.setdefault("topics", [])
+        r.setdefault("question_ids", [])
+    return recs
+
+
+def fill_report(rep):
+    """fill_missing on every list of recommendations in a saved report (reports saved before a field existed included). -> rep"""
+    if isinstance(rep, dict):
+        fill_missing((rep.get("consultant") or {}).get("recommendations") if isinstance(rep.get("consultant"), dict) else None)
+        fill_missing(rep.get("recommendations") if isinstance(rep.get("recommendations"), list) else None)
+    return rep

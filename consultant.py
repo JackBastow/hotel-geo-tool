@@ -200,6 +200,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         if "rate_inclusions" in (r.get("question_ids") or []) and RATE_NOTE.strip() not in r.get("action", ""):
             r["action"] = r["action"].rstrip() + RATE_NOTE
         r["track"] = advice.track_of(r)
+    ranking.fill_missing(recs)                          # warnings added after the ranking (wrong website, former name) get the fields every later step sorts by
     top = advice.top_actions(recs)
     quick = advice.quick_wins(recs, exclude_ids={r["id"] for r in top})
     plan = ranking.plan_30_60_90(recs, {r["id"] for r in top})

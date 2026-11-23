@@ -731,6 +731,8 @@ def _evidence_appendix(intel):
 def build_story(rep, part="full"):
     """part: 'management' (short), 'appendix' (detail and evidence) or 'full' (both, in that order)."""
     import report_pdf_mgmt
+    import ranking
+    ranking.fill_report(rep)
     _COUNTER[0] = 0
     consult = rep.get("consultant") or {}
     has_consult = bool(consult) and "error" not in consult

@@ -205,10 +205,25 @@ class Store(portal_db.PortalMixin):
 
     def _rows(self, sql, params=()):
         conn = self._connect()
+        auto = False
+        if self.kind != "sqlite":
+            try:
+                import psycopg.pq
+                raw = getattr(conn, "_c", conn)
+                if raw.info.transaction_status == psycopg.pq.TransactionStatus.IDLE:
+                    raw.autocommit = True          # a read on its own needs no transaction: one trip to the database instead of three (BEGIN, the query, ROLLBACK), which across regions is most of a page's time
+                    auto = True
+            except Exception:  # noqa: BLE001 - fall back to the ordinary transaction
+                auto = False
         try:
             cur = self._run(conn, sql, params)
             return [{k: (float(v) if isinstance(v, decimal.Decimal) else v) for k, v in dict(r).items()} for r in cur.fetchall()]
         finally:
+            if auto:
+                try:
+                    getattr(conn, "_c", conn).autocommit = False
+                except Exception:  # noqa: BLE001
+                    pass
             conn.close()
 
     def _insert(self, conn, table, row):
@@ -466,7 +481,8 @@ class Store(portal_db.PortalMixin):
                 _REPORTS[key] = text
                 while len(_REPORTS) > REPORT_CACHE:
                     _REPORTS.popitem(last=False)
-        return json.loads(text)
+        import ranking
+        return ranking.fill_report(json.loads(text))
 
     def history(self, key):
         cols = "id, " + ", ".join(RUN_COLS)

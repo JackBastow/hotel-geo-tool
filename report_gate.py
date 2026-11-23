@@ -100,6 +100,8 @@ def check(rep):
     """Runs every check on the finished report, changing it in place where a section contradicts the ledger. -> rep (with rep['gate'])."""
     import advice
     gate = {"checks": [], "changes": [], "version": 2, "needs_review": []}
+    import ranking
+    ranking.fill_report(rep)                    # a recommendation added after the ranking (the former name) carries the fields every page and PDF sorts by
 
     def done(name, looked, found, summary):
         gate["checks"].append({"name": name, "looked_at": looked, "found": found, "summary": summary})
