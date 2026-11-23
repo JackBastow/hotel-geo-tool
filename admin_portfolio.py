@@ -43,6 +43,13 @@ def _latest_report(s, runs):
         return None
 
 
+def _setup_flag(h):
+    """A short warning in the hotel list when the hotel's name or town is wrongly entered (they go into every prompt and every drafted email)."""
+    import quality_view
+    probs = _safe(quality_view.setup_problems, h.get("name"), h.get("city"), h.get("website") or "") or []
+    return ("".join(f'<div class="caption" style="color:#a3540b">&#9888; {esc(p.split(".")[0])}.</div>' for p in probs)) if probs else ""
+
+
 def _safe(fn, *a):
     try:
         return fn(*a)
@@ -161,7 +168,7 @@ def register_scope(app, sc):
             f'<tr><td><a href="{HB}/{r["hotel"]["id"]}">{esc(r["hotel"]["name"])}</a><br><span class="hk-muted">{esc(r["hotel"]["city"] or "")}</span></td><td>{esc(uk_date(r["last_run_at"])) or "not yet"}</td><td>{r["runs"]}</td>'
             f'<td>{"-" if r["first_score"] is None else format(r["first_score"], "g")}</td><td>{"-" if r["latest_score"] is None else format(r["latest_score"], "g")}</td><td>{delta_cell(r["delta"])}</td>'
             f'<td>{r["actions"]["completed"]}</td><td>{r["actions"]["working"]}</td><td>{r["actions"]["todo"] + r["actions"]["still_flagged"]}</td><td>{"weekly" if r["hotel"]["weekly"] else "off"}</td>'
-            f'<td>{status_cell(r["hotel"]["id"])}</td><td>{setup_cell(s, r["hotel"])}</td><td>{esc(uk_time(r["hotel"]["last_attempt"])) or "-"}</td><td>{esc(r["hotel"]["last_error"] or "")}</td></tr>' for r in rows)
+            f'<td>{status_cell(r["hotel"]["id"])}</td><td>{setup_cell(s, r["hotel"])}</td><td>{esc(uk_time(r["hotel"]["last_attempt"])) or "-"}</td><td>{esc(r["hotel"]["last_error"] or "")}{_setup_flag(r["hotel"])}</td></tr>' for r in rows)
         empty = "No individual hotels yet: add one below." if grp == "individual" else "No hotels registered yet."
         table = ('<div class="table-wrap"><table class="table"><thead><tr><th>Hotel</th><th>Last check</th><th>Checks</th><th>First score</th><th>Latest score</th><th>Change</th><th>Actions done</th>'
                  '<th>Working on</th><th>To do</th><th>Weekly</th><th>Right now</th><th>Set-up</th><th>Last attempt (UK time)</th><th>Last problem</th></tr></thead><tbody>' + (body or f'<tr><td colspan="14">{empty}</td></tr>') + "</tbody></table></div>")
@@ -279,7 +286,7 @@ def register_scope(app, sc):
                                      research_html=(app.extensions["research_html"](h, f"{HB}/{hid}/research") if "research_html" in app.extensions else ""),
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"{HB}/{hid}/status")
         import quality_view
-        panel += (_safe(quality_view.panel, rep) or "") if rep else ""
+        panel += _safe(quality_view.panel, rep, h) or ""
         return sc.shell(grp, h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
 
     @bp.post(HB + "/<int:hid>/prompts")

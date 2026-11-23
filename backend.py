@@ -524,7 +524,7 @@ class Store(portal_db.PortalMixin):
         How the assistant's naming of this hotel and of its competitors moved from run to run: the hotel plus the `top` rivals named most across its runs.
         -> {"runs": [{run_id, run_at}], "rows": [{name, is_target, points: [{run_id, coverage_pct, sentiment, avg_rank}]}]}. A run where a rival was not named has coverage 0.
         """
-        runs = self._rows("SELECT id AS run_id, run_at FROM runs WHERE hotel_key = ? ORDER BY run_at ASC, id ASC", (key,))
+        runs = self._rows("SELECT id AS run_id, run_at, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked FROM runs WHERE hotel_key = ? ORDER BY run_at ASC, id ASC", (key,))
         if not runs:
             return {"runs": [], "rows": []}
         data = self._rows("SELECT c.run_id AS run_id, c.competitor AS name, c.is_target AS is_target, c.mentions AS mentions, c.coverage_pct AS coverage_pct, c.sentiment AS sentiment, "
@@ -550,8 +550,16 @@ class Store(portal_db.PortalMixin):
             pts = []
             for r in runs:
                 d = v["at"].get(r["run_id"])
-                pts.append({"run_id": r["run_id"], "coverage_pct": (d["coverage_pct"] if d and d["coverage_pct"] is not None else 0), "sentiment": d["sentiment"] if d else None,
-                            "avg_rank": d["avg_rank"] if d else None, "mentions": d["mentions"] if d else 0, "asked": d["asked"] if d else None})
+                p = {"run_id": r["run_id"], "coverage_pct": (d["coverage_pct"] if d and d["coverage_pct"] is not None else 0), "sentiment": d["sentiment"] if d else None,
+                     "avg_rank": d["avg_rank"] if d else None, "mentions": d["mentions"] if d else 0, "asked": d["asked"] if d else None}
+                named = (r.get("ai_generic_named") or 0) + (r.get("ai_niche_named") or 0)
+                asked = (r.get("ai_generic_asked") or 0) + (r.get("ai_niche_asked") or 0)
+                if v["is_target"] and asked:
+                    # the hotel's own line uses the report's one count (the reconciled marks every other page shows), so this tab and Start here never give two numbers for one check
+                    p.update(mentions=named, asked=asked, coverage_pct=round(100 * named / asked))
+                if not d and not (v["is_target"] and asked) and not any(r["run_id"] in w["at"] for w in by.values()):
+                    p.update(coverage_pct=None, mentions=None)     # a check with no AI answers saved: a gap in the line, not a 0
+                pts.append(p)
             rows.append({"name": v["name"], "is_target": v["is_target"], "points": pts})
         return {"runs": runs, "rows": rows}
 

@@ -96,7 +96,7 @@ def panel(db, hotel, sm, actions, runs, editable=True, prompts_alert=False):
         if cov_prev is not None and c1:
             now_pct = 100 * c1[0] / c1[1]
             d = round(now_pct - cov_prev, 1)
-            bits.append(f"In the sampled answers the hotel was named {'about as often as before' if abs(d) < 5 else ('more often' if d > 0 else 'less often')} ({cov_prev:g}% then, {now_pct:g}% now). Sampled answers vary, so only a large, repeated move means something.")
+            bits.append(f"In the sampled answers the hotel was named {'about as often as before' if abs(d) < 5 else ('more often' if d > 0 else 'less often')} ({round(cov_prev):g}% then, {round(now_pct):g}% now). Sampled answers vary, so only a large, repeated move means something.")
         if new_rivals:
             bits.append("New in the answers: " + ", ".join(esc(n) for n in new_rivals) + ".")
         done = _since(actions, prev_at)

@@ -102,6 +102,12 @@ def _outreach_steps(kind, name, url, contact_url, mail, hotel, profile, page_tit
     return [s1, s2, s3, s4]
 
 
+# a business whose page about local hotels the assistant happened to read, but which is not a travel publisher: an estate agent's 'best hotels near Weybridge' blog is not worth a hotel's outreach
+# time ahead of real fixes, so it is never high priority
+NOT_TRAVEL = re.compile(r"realty|realestate|estateagent|estate-agent|propert|homes?\b|rightmove|zoopla|onthemarket|savills|knightfrank|struttandparker|hamptons|foxtons|lettings|mortgage|solicitor|lawyer|legal|bank|insurance|"
+                        r"jobs|careers|recruit|indeed|glassdoor|wikipedia|amazon|ebay|youtube|pinterest|facebook|instagram|linkedin", re.I)
+
+
 def _from_seen(rep, profile, hotel, own, rivals):
     import source_actions
     out, listings = [], []
@@ -134,7 +140,7 @@ def _from_seen(rep, profile, hotel, own, rivals):
             title, finding = f"Check whether you are featured on {d}", f"The AI assistant used {d} ({s['type_label'].lower()}) in your latest check" + (f"; it features {who}." if who else ".")
             steps = [{"title": f"Search {d} for your hotel's name", "link": {"url": _search(f'site:{d} "{hotel}"'), "label": f"Search {d}"}, "detail": "If you are already there, check the facts are right; if not, carry on."}] \
                 + _outreach_steps({"tourism": "tourism_board", "conference": "venue_directory", "attraction": "attraction"}.get(s["type"], "editorial"), d, url, contact, "", hotel, profile)
-        out.append(_act(f"strat-{d}", title, finding, steps, kind_label=s["type_label"], priority="high" if art and who else "medium", confidence="Seen in the latest check", tag=d,
+        out.append(_act(f"strat-{d}", title, finding, steps, kind_label=s["type_label"], priority="high" if art and who and not NOT_TRAVEL.search(d) else ("low" if NOT_TRAVEL.search(d) else "medium"), confidence="Seen in the latest check", tag=d,
                         evidence_=[{"url": u, "snippet": "Cited by the assistant"} for u in (s.get("evidence") or [])[:2]]))
     return out, listings
 

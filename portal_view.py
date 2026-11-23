@@ -212,7 +212,17 @@ def action_card(a, sm, editable, lead=None):
         ev.append(f'{link}{"" if sn.lower().startswith(("pages inspected", "no page about")) else "&ldquo;"}{esc(sn[:300])}{"" if sn.lower().startswith(("pages inspected", "no page about")) else "&rdquo;"}')
     why = (row("The issue", esc(rec.get("finding", ""))) + row("Evidence", "<br>".join(ev)) + row("Why it matters", esc(rec.get("why", ""))))
     steps = rec.get("steps") or []
-    do = ((row("Steps", "<ol class=\"steps-mini\">" + "".join(f"<li>{esc(x)}</li>" for x in steps) + "</ol>") if steps else row("What to do", esc(rec.get("action", ""))))
+    def step_html(x):
+        if not isinstance(x, dict):
+            return esc(str(x))
+        lk = x.get("link") or {}
+        t = esc(x.get("title") or "")
+        if str(lk.get("url") or "").startswith("http"):
+            t = f'<a href="{esc(lk["url"], quote=True)}" target="_blank" rel="noopener noreferrer">{t}</a>'
+        cp = x.get("copy") or {}
+        return (t + (f'<br><span class="caption">{esc(x["detail"])}</span>' if x.get("detail") else "")
+                + (f'<details class="details"><summary>{esc(cp.get("label") or "Text to copy")}</summary><pre class="copy-text">{esc(cp.get("text") or "")}</pre></details>' if cp.get("text") else ""))
+    do = ((row("Steps", "<ol class=\"steps-mini\">" + "".join(f"<li>{step_html(x)}</li>" for x in steps) + "</ol>") if steps else row("What to do", esc(rec.get("action", ""))))
           + row("Example wording", esc(rec.get("example", "")) if rec.get("example") else "")
           + row("How you will know", esc(rec.get("success_check") or rec.get("expected_outcome") or "")))
     conf = rec.get("confidence_label")

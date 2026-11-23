@@ -17,10 +17,32 @@ NAMES = {
 }
 
 
-def review_items(rep):
-    """-> [str] what a person should look at in this report (empty when nothing)."""
+def setup_problems(name, city, website=""):
+    """-> [str] what is wrong with how the hotel was entered. Its name and town go into every question asked about it and every email the tool drafts, so 'brooklandshotelsurrey' or
+    'Surrey/Weybridge' makes every prompt and every email wrong."""
+    import re
+    out = []
+    n, c = (name or "").strip(), (city or "").strip()
+    host = re.sub(r"^www\.", "", re.sub(r"^https?://", "", website or "").split("/")[0].lower())
+    if not n:
+        out.append("The hotel has no name.")
+    elif n.lower() in ("hilton", "marriott", "hyatt", "ihg", "accor", "radisson", "premier inn", "travelodge", "holiday inn", "best western", "novotel", "ibis"):
+        out.append(f"The hotel's name is only the brand (“{n}”). AI assistants are asked about this one hotel by name, so use its full name (for example “Hilton Barcelona”).")
+    elif (" " not in n and len(n) > 12) or re.search(r"\.(?:com|co\.uk|net|org|de|fr|es|se|it)\b|https?://", n, re.I) or (host and n.lower().replace(" ", "") == host.split(".")[0]):
+        out.append(f"The hotel's name (“{n}”) looks like its web address, not its real name. It is used in every question asked about the hotel and every email drafted for it: change it to the name guests use.")
+    if re.search(r"[/;|]|\band\b|&", c):
+        out.append(f"The town (“{c}”) names more than one place. Every question asks about this town, so use the one town travellers search for.")
+    elif not c:
+        out.append("The hotel has no town.")
+    return out
+
+
+def review_items(rep, hotel=None):
+    """-> [str] what a person should look at in this report (empty when nothing). `hotel`: the hotel row (name, city, website), whose set-up is checked too."""
     g = (rep or {}).get("gate") or {}
     out = [x.get("what", "") for x in g.get("needs_review") or [] if x.get("what")]
+    if hotel:
+        out = setup_problems(hotel.get("name"), hotel.get("city"), hotel.get("website") or "") + out
     if g.get("error"):
         out.append(f"The report's own checks stopped part-way ({g['error'][:120]}): some checks did not run. A bug to look at.")
     seen, uniq = set(), []
@@ -31,12 +53,13 @@ def review_items(rep):
     return uniq
 
 
-def panel(rep):
-    """-> HTML for the admin hotel page, or '' when the report has no gate record (made before the checks existed)."""
+def panel(rep, hotel=None):
+    """-> HTML for the admin hotel page, or '' when there is nothing to show (no gate record, and the hotel's set-up looks right)."""
     g = (rep or {}).get("gate")
     if not g:
-        return ""
-    review = review_items(rep)
+        probs = setup_problems(hotel.get("name"), hotel.get("city"), hotel.get("website") or "") if hotel else []
+        return ('<section class="panel"><h4>Quality check</h4><div class="alert warning"><b>Fix this before the next check:</b><ul>' + "".join(f"<li>{esc(x)}</li>" for x in probs) + "</ul></div></section>") if probs else ""
+    review = review_items(rep, hotel)
     changes = [c for c in g.get("changes") or [] if c.get("check") != "ai_zero_diagnosis"]
     checks = g.get("checks") or []
     head = (f'<div class="alert warning"><b>Look at this before the hotel relies on the report:</b><ul>' + "".join(f"<li>{esc(x)}</li>" for x in review) + "</ul></div>"

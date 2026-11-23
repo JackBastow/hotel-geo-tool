@@ -51,7 +51,7 @@ def _readable(report):
 
 
 _STRATEGY_TRIED = set()
-STRATEGY_VERSION = 3              # raise when strategy actions are built differently: saved ones nobody has touched are replaced on the next page view
+STRATEGY_VERSION = 4              # raise when strategy actions are built differently: saved ones nobody has touched are replaced on the next page view
 
 
 def strategy_recs(report, hotel):
@@ -276,7 +276,10 @@ def portfolio_series(db, data=None):
     def week_end(iso):
         d = dt.datetime.fromisoformat(iso.replace("Z", "+00:00")).date()
         return (d + dt.timedelta(days=6 - d.weekday())).isoformat() + "T23:59:59+00:00"
-    ends = sorted({week_end(x) for x in allruns})
+    last_in_week = {}
+    for x in allruns:                       # each week is shown at its last check, never at a Sunday still to come
+        last_in_week[week_end(x)] = max(last_in_week.get(week_end(x), x), x)
+    ends = sorted(last_in_week.values())
     actions = [a for h in hotels for a in data["actions"].get(h["id"], [])]
     avg = []
     for e in ends:
