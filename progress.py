@@ -234,6 +234,9 @@ def action_counts(actions):
 
 
 def _cov(row):
+    """(named, asked) for one check: the one count (report_model.ai_counts, stored as ai_named / ai_asked); older rows not yet filled in fall back to the town-wide plus market counts."""
+    if row.get("ai_asked"):
+        return row.get("ai_named") or 0, row["ai_asked"]
     named = (row.get("ai_generic_named") or 0) + (row.get("ai_niche_named") or 0)
     asked = (row.get("ai_generic_asked") or 0) + (row.get("ai_niche_asked") or 0)
     return (named, asked) if asked else None

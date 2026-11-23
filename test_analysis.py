@@ -44,6 +44,9 @@ def rep(site, name, score, named, asked, days_ago, drop=()):
     r["consultant"]["recommendations"] = [x for x in r["consultant"]["recommendations"] if not any(t in x["title"] for t in drop)]
     r["consultant"]["coverage"] = {"pages_read": 8}
     r["ai_sample"]["summary"].update(generic_named=named, generic_asked=asked, niche_named=0, niche_asked=0)
+    g = next(i for i in r["ai_sample"]["items"] if i["kind"] == "generic")           # the figures come from the answers themselves (report_model.ai_counts), so build those answers
+    r["ai_sample"]["items"] = [i for i in r["ai_sample"]["items"] if i["kind"] == "direct"] + [
+        {**copy.deepcopy(g), "id": f"g{k}", "qid": f"g{k}", "mentioned": k < named, "names_hotel": False} for k in range(asked)]
     return r
 
 

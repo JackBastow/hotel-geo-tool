@@ -1213,6 +1213,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     if isinstance(ai_insight_result, dict) and ai_insight_result.get("extracted_answers"):
         try:
             ai_insights.reconcile(ai_result, ai_insight_result["extracted_answers"], hotel)
+            import report_model
+            report_model.apply({"ai_sample": ai_result, "ai_insights": ai_insight_result})      # the scoreboard and ranking line for the hotel carry the one count from here on
         except Exception as _step_e:  # noqa: BLE001
             steps.failed('Analysing what the assistant said / ai_insights.reconcile', _step_e)
             pass
@@ -1357,6 +1359,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     }
     try:
         result["step_errors"] = steps.collected()
+        import report_model
+        report_model.apply(result)                  # rep["model"]: the one source of truth for the figures every screen and PDF shows
         import report_gate
         result = report_gate.check(result)          # one pass over the whole report for contradictions and misleading items; it only downgrades, removes or annotates
     except Exception as _step_e:  # noqa: BLE001 - the report must never fail because of its own check

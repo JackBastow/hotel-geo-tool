@@ -33,7 +33,7 @@ SCHEMA_VERSION = 2
 RUN_COLS = [
     "run_at", "hotel", "hotel_key", "city", "website", "domain", "hotel_name_source", "headline_status", "headline_score", "coverage_pct",
     "read_via", "pages_read", "pages_attempted", "cat_scores", "ai_status", "ai_model", "ai_generic_named", "ai_generic_asked", "ai_niche_named",
-    "ai_niche_asked", "ai_direct_known", "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_place", "ai_repeats", "ai_rank_in_table", "ai_table_size", "ai_top_competitor", "reviews_status", "reviews_examined",
+    "ai_niche_asked", "ai_named", "ai_asked", "ai_direct_known", "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_place", "ai_repeats", "ai_rank_in_table", "ai_table_size", "ai_top_competitor", "reviews_status", "reviews_examined",
     "reviews_replied", "reviews_neg_examined", "reviews_neg_replied", "pack_reviews", "pack_reply_rate", "pack_critical_unanswered", "pagespeed_perf", "pagespeed_a11y", "commoncrawl_state", "recs_total",
     "top_actions", "ai_cost_usd", "schema_version",
 ]
@@ -76,6 +76,8 @@ def summarise(rep):
     recs = cons.get("recommendations") or []
     by_id = {r.get("id"): r.get("title", "") for r in recs}
     cats = {c["key"]: c.get("score") for c in sc.get("categories", []) if c.get("assessed") and c.get("score") is not None}
+    import report_model
+    mai = report_model.ai_counts(rep)                 # the one count of how often the hotel was named (report_model.py)
     ai_cost = sum(_num(x.get("cost_usd")) or 0 for x in (ai, ins, rv, rep.get("listing_lookup") or {})) + _num((rep.get("guest_questions") or {}).get("reader_cost_usd") or 0)
     return {
         "run_at": str(meta.get("run_at") or dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")),
@@ -87,7 +89,8 @@ def summarise(rep):
         "ai_status": ai.get("status") or "", "ai_model": ai.get("model") or "", "ai_generic_named": s.get("generic_named"), "ai_generic_asked": s.get("generic_asked"),
         "ai_niche_named": s.get("niche_named"), "ai_niche_asked": s.get("niche_asked"),
         "ai_direct_known": None if s.get("direct_known") is None else int(bool(s.get("direct_known"))),
-        "ai_share": sb.get("share"), "ai_coverage_pct": sb.get("coverage_pct"), "ai_sentiment": sb.get("sentiment"), "ai_place": sb.get("place"),
+        "ai_share": sb.get("share"), "ai_coverage_pct": (mai or {}).get("pct", sb.get("coverage_pct")), "ai_sentiment": sb.get("sentiment"), "ai_place": sb.get("place"),
+        "ai_named": (mai or {}).get("named"), "ai_asked": (mai or {}).get("asked"),
         "ai_repeats": sb.get("repeats") or s.get("repeats"), "ai_rank_in_table": sb.get("rank_in_table"), "ai_table_size": sb.get("table_size"), "ai_top_competitor": sb.get("top_competitor") or "",
         "reviews_status": rv.get("status") or "", "reviews_examined": rs.get("examined"), "reviews_replied": rs.get("replied"),
         "reviews_neg_examined": rs.get("negative_examined"), "reviews_neg_replied": rs.get("negative_replied"),
@@ -299,6 +302,34 @@ class Store(portal_db.PortalMixin):
         finally:
             conn.close()
 
+    def backfill_ai_counts(self, limit=2000):
+        """Checks saved before the one count existed: work it out from each saved report and store it (ai_named, ai_asked, ai_coverage_pct). Runs once, in the background. -> runs filled"""
+        try:
+            import report_model
+            todo = self._rows("SELECT id FROM runs WHERE ai_status = 'ok' AND ai_asked IS NULL ORDER BY id DESC LIMIT ?", (limit,))
+        except Exception as e:  # noqa: BLE001
+            import steps
+            steps.failed("backfill of the AI counts", e, quiet=True)
+            return 0
+        n = 0
+        for r in todo:
+            try:
+                rows = self._rows("SELECT report_json FROM runs WHERE id = ?", (r["id"],))
+                rep = json.loads(rows[0]["report_json"]) if rows and rows[0]["report_json"] else None
+                ai = report_model.ai_counts(rep) if rep else None
+                conn = self._connect()
+                try:
+                    self._run(conn, "UPDATE runs SET ai_named = ?, ai_asked = ?, ai_coverage_pct = ? WHERE id = ?",
+                              ((ai or {}).get("named"), (ai or {}).get("asked") or 0, (ai or {}).get("pct"), r["id"]))
+                    conn.commit()
+                finally:
+                    conn.close()
+                n += 1
+            except Exception as e:  # noqa: BLE001 - one unreadable report does not stop the rest
+                import steps
+                steps.failed(f"backfill of the AI counts (run {r['id']})", e, quiet=True)
+        return n
+
     def update_run(self, run_id, rep):
         """Rewrite a saved run after it changed (an uploaded review pack): the summary columns, the full report and the market rows. The run id and date stay."""
         _forget_report(self.url, run_id)
@@ -495,7 +526,8 @@ class Store(portal_db.PortalMixin):
             h = self.history(r["hotel_key"])
             last, prev = h[-1], (h[-2] if len(h) > 1 else None)
             d = lambda k: (None if prev is None or last.get(k) is None or prev.get(k) is None else round(last[k] - prev[k], 1))  # noqa: E731
-            out.append({**r, "headline_score": last["headline_score"], "ai_share": last["ai_share"], "ai_named": last["ai_generic_named"], "ai_asked": last["ai_generic_asked"],
+            out.append({**r, "headline_score": last["headline_score"], "ai_share": last["ai_share"], "ai_named": last.get("ai_named") if last.get("ai_asked") else last["ai_generic_named"],
+                        "ai_asked": last.get("ai_asked") or last["ai_generic_asked"],
                         "niche_named": last["ai_niche_named"], "niche_asked": last["ai_niche_asked"], "d_score": d("headline_score"), "d_share": d("ai_share")})
         return out
 
@@ -524,7 +556,7 @@ class Store(portal_db.PortalMixin):
         How the assistant's naming of this hotel and of its competitors moved from run to run: the hotel plus the `top` rivals named most across its runs.
         -> {"runs": [{run_id, run_at}], "rows": [{name, is_target, points: [{run_id, coverage_pct, sentiment, avg_rank}]}]}. A run where a rival was not named has coverage 0.
         """
-        runs = self._rows("SELECT id AS run_id, run_at, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked FROM runs WHERE hotel_key = ? ORDER BY run_at ASC, id ASC", (key,))
+        runs = self._rows("SELECT id AS run_id, run_at, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked, ai_named, ai_asked FROM runs WHERE hotel_key = ? ORDER BY run_at ASC, id ASC", (key,))
         if not runs:
             return {"runs": [], "rows": []}
         data = self._rows("SELECT c.run_id AS run_id, c.competitor AS name, c.is_target AS is_target, c.mentions AS mentions, c.coverage_pct AS coverage_pct, c.sentiment AS sentiment, "
@@ -552,8 +584,11 @@ class Store(portal_db.PortalMixin):
                 d = v["at"].get(r["run_id"])
                 p = {"run_id": r["run_id"], "coverage_pct": (d["coverage_pct"] if d and d["coverage_pct"] is not None else 0), "sentiment": d["sentiment"] if d else None,
                      "avg_rank": d["avg_rank"] if d else None, "mentions": d["mentions"] if d else 0, "asked": d["asked"] if d else None}
-                named = (r.get("ai_generic_named") or 0) + (r.get("ai_niche_named") or 0)
-                asked = (r.get("ai_generic_asked") or 0) + (r.get("ai_niche_asked") or 0)
+                if r.get("ai_asked"):
+                    named, asked = r.get("ai_named") or 0, r["ai_asked"]             # the one count (report_model.py)
+                else:
+                    named = (r.get("ai_generic_named") or 0) + (r.get("ai_niche_named") or 0)
+                    asked = (r.get("ai_generic_asked") or 0) + (r.get("ai_niche_asked") or 0)
                 if v["is_target"] and asked:
                     # the hotel's own line uses the report's one count (the reconciled marks every other page shows), so this tab and Start here never give two numbers for one check
                     p.update(mentions=named, asked=asked, coverage_pct=round(100 * named / asked))
@@ -610,6 +645,7 @@ def open_store(url):
             s = Store(url)
             s.init()
             _STORES[url] = s
+            threading.Thread(target=s.backfill_ai_counts, name="backfill-ai-counts", daemon=True).start()
         return s
 
 

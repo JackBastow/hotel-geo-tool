@@ -32,17 +32,12 @@ def verdict(score):
 
 def ai_named(rep):
     """(named, asked) from the report's one count of the AI sample (the reconciled marks every page uses), or None when no answers were collected."""
-    ai = (rep or {}).get("ai_sample") or {}
-    if ai.get("status") != "ok":
-        return None
+    import report_model
     try:
-        import ai_sample
-        sm = (ai_sample.test_log(ai) or {}).get("summary") or {}
+        ai = report_model.ai_counts(rep)
     except Exception:  # noqa: BLE001
         return None
-    if not sm.get("non_branded_answers"):
-        return None
-    return sm["appeared"], sm["non_branded_answers"]
+    return (ai["named"], ai["asked"]) if ai else None
 
 
 def scorecard(rep):

@@ -297,4 +297,6 @@ def fill_report(rep):
     if isinstance(rep, dict):
         fill_missing((rep.get("consultant") or {}).get("recommendations") if isinstance(rep.get("consultant"), dict) else None)
         fill_missing(rep.get("recommendations") if isinstance(rep.get("recommendations"), list) else None)
+        import report_model
+        report_model.apply(rep)
     return rep

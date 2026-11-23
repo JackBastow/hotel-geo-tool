@@ -51,11 +51,12 @@ def kpis(rep, prev=None):
     counts, qs = _guest_counts(rep)
     out = []
 
-    if sb.get("coverage_pct") is not None:
-        named = (sb.get("named") or 0) + (sb.get("niche_named") or 0)
-        c = sb["coverage_pct"]
+    import report_model
+    mai = report_model.ai_counts(rep)
+    if mai:
+        c = mai["pct"]
         out.append({"label": "Named by an AI assistant", "value": f"{c}", "unit": "%", "tone": GOOD if c >= 50 else WARN if c >= 20 else BAD,
-                    "sub": f"{named} of {sb.get('asked_all', 0)} sampled answers, one model", "delta": delta(c, prev.get("ai_coverage_pct"), "pts"), "goto": "ai"})
+                    "sub": f"{mai['named']} of {mai['asked']} sampled answers, one model", "delta": delta(c, prev.get("ai_coverage_pct"), "pts"), "goto": "ai"})
         place = sb.get("place")
         n_br = len(br.get("rows") or [])
         sent = sb.get("sentiment")
@@ -96,8 +97,10 @@ def insights(rep, limit=8):
     ins, sb, br = _ai(rep)
     cons = rep.get("consultant") or {}
     counts, qs = _guest_counts(rep)
-    if sb.get("coverage_pct") is not None:
-        c = sb["coverage_pct"]
+    import report_model
+    mai = report_model.ai_counts(rep)
+    if mai:
+        c = mai["pct"]
         top = next((r for r in (br.get("rows") or []) if not r["is_target"]), None)
         tail = f" The hotel it names most is {top['name']}, in {top['coverage_pct']}% of answers." if top else ""
         out.append({"tone": "bad" if c < 20 else "warn" if c < 50 else "good", "title": f"An AI assistant named the hotel in {c}% of its sampled answers",

@@ -745,7 +745,7 @@ def ai_sample_card(ai, ins=None):
     cols = st.columns(n_cols)
     k = 0
     if sb.get("coverage_pct") is not None:
-        cols[k].metric("Coverage", f"{sb['coverage_pct']}%", help=f"the hotel was named in {sb.get('named', 0) + sb.get('niche_named', 0)} of {sb.get('asked_all', 0)} answers")
+        cols[k].metric("Coverage", f"{sb['coverage_pct']}%", help=f"the hotel was named in {sb.get('named_all', sb.get('named', 0) + sb.get('niche_named', 0))} of {sb.get('asked_all', 0)} answers")
         k += 1
     cols[k].metric("Town-wide", f"{s['generic_named']} of {s['generic_asked']}", help="Named in this many of the answers to the general 'where to stay' questions")        # answers, not questions, once repeats are asked
     k += 1
