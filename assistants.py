@@ -260,13 +260,27 @@ def budget_left_milli(engine):
         return cap_milli(engine)
 
 
+def paused():
+    """The assistants switched off for now (the owner, 24 Nov 2026: 'whilst we are improving the reports, don't use the ChatGPT budget'). ASSISTANTS_PAUSED on the host overrides: a comma list, or '' for none."""
+    v = os.environ.get("ASSISTANTS_PAUSED")
+    v = "chatgpt" if v is None else v
+    return {e.strip().lower() for e in v.split(",") if e.strip()}
+
+
 def run_all(prompts, hotel, city, own_domain="", country=None, stop_event=None, progress=None):
     """Every configured assistant, in parallel, on the tracked prompts. -> {engine: result}. Never raises."""
     say = progress or (lambda m: None)
     if not prompts:
         return {}
     out = {}
-    todo = [e for e in ENGINES]
+    off = paused()
+    for e in ENGINES:
+        if e in off:
+            out[e] = {"engine": e, "name": ENGINES[e]["name"], "maker": ENGINES[e]["maker"], "status": "paused", "items": [], "cost_usd": 0.0, "model": None,
+                      "reason": f"{ENGINES[e]['name']} is paused for now, so it was not asked (no spend)."}
+    todo = [e for e in ENGINES if e not in off]
+    if not todo:
+        return out
     names = ", ".join(ENGINES[e]["name"] for e in todo if key_for(e))
     if names:
         say(f"Asking {names} the hotel's tracked prompts...")

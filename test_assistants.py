@@ -153,5 +153,18 @@ import prompt_analysis
 by_p = prompt_analysis._engines_by_prompt(rep)
 check("each tracked prompt shows how the other assistants answered it", any(name == "ChatGPT" and n == 2 and of == 2 for rows_ in by_p.values() for name, n, of in rows_), by_p)
 
+print("5. an assistant can be paused (no spend)")
+_old = os.environ.pop("ASSISTANTS_PAUSED", None)
+try:
+    _r = assistants.run_all(["Which hotels near Brooklands Museum?"], "Brooklands Hotel", "Weybridge")
+    check("ChatGPT is paused by default for now: not asked, and the report says why", _r["chatgpt"]["status"] == "paused" and "paused" in _r["chatgpt"]["reason"], _r.get("chatgpt"))
+    os.environ["ASSISTANTS_PAUSED"] = ""
+    check("ASSISTANTS_PAUSED='' on the host turns it back on", "chatgpt" not in assistants.paused())
+finally:
+    if _old is None:
+        os.environ.pop("ASSISTANTS_PAUSED", None)
+    else:
+        os.environ["ASSISTANTS_PAUSED"] = _old
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)
