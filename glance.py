@@ -147,11 +147,17 @@ def engines_html(rep):
     from html import escape as esc
     import report_model
     rows = report_model.engine_counts(rep)
-    if not any(r["status"] == "ok" for r in rows[1:]):
+    if not any(r["status"] in ("ok", "none_shown") for r in rows[1:]):
         return ""                                     # only Claude was asked: the rest of the Overview already shows it
     body = ""
     for r in rows:
-        if r["status"] == "ok":
+        if r.get("manual"):
+            if r["status"] == "ok":
+                body += (f'<tr><td><b>{esc(r["name"])}</b><br><span class="hk-muted">checked by hand, {esc(r["date"])}</span></td><td><b>{r["pct"]}%</b></td>'
+                         f'<td>{r["named"]} of {r["asked"]} Overviews shown ({r["checked"]} prompt{"s" if r["checked"] != 1 else ""} checked)</td><td>-</td><td class="hk-muted">{esc(", ".join(r.get("sources") or [])[:80])}</td></tr>')
+            else:
+                body += f'<tr><td>{esc(r["name"])}</td><td colspan="4" class="hk-muted">{esc(r.get("reason") or "")}</td></tr>'
+        elif r["status"] == "ok":
             body += (f'<tr><td><b>{esc(r["name"])}</b></td><td><b>{r["pct"]}%</b></td><td>{r["named"]} of {r["asked"]}</td><td>{r["recommended"]}</td>'
                      f'<td>{r.get("site_cited", 0)}</td></tr>')
         else:
@@ -159,7 +165,7 @@ def engines_html(rep):
     return ('<div class="sec-head"><h3>Named by each AI assistant</h3></div><section class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>Assistant</th><th>Named</th>'
             '<th>Answers</th><th>Recommended</th><th>Cited your site</th></tr></thead><tbody>' + body + '</tbody></table></div><p class="caption">The hotel&rsquo;s tracked prompts, put to each assistant '
             'through its official API with live web search, the same questions for each. A sample of answers on the day of the check, not a ranking; the apps people use can differ a little '
-            '(memory, account history).</p></section>')
+            '(memory, account history). Google AI Overviews have no official API, so they are checked by hand, on the date shown.</p></section>')
 
 
 def strengths_html(rep):

@@ -248,6 +248,14 @@ def register(app, cfg):
         out = {}
         if rep:
             import glance
+            try:
+                import manual_checks
+                d_ = db()
+                saved_ = d_.manual_checks(hotel["id"], manual_checks.ENGINE) if d_ is not None and hotel else []
+                if saved_:
+                    rep = {**rep, "manual_checks": saved_}
+            except Exception:  # noqa: BLE001
+                pass
 
             def glance_html(prev=None):
                 parts = []

@@ -295,6 +295,12 @@ def register_scope(app, sc):
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"{HB}/{hid}/status")
         import quality_view
         panel += _safe(quality_view.panel, rep, h) or ""
+        if rep and runs:
+            import manual_checks
+            saved = _safe(s.manual_checks, hid, manual_checks.ENGINE, runs[0]["id"]) or []
+            import ai_sample as _ais
+            ctry = ((rep.get("ai_sample") or {}).get("search_country")) or _ais.country_from_location(((rep.get("meta") or {}).get("location")) or {})
+            panel += '<section class="panel">' + (_safe(manual_checks.form_html, rep, saved, f"{HB}/{hid}/manual-check/{runs[0]['id']}", c, ctry) or "") + "</section>"
         return sc.shell(grp, h["name"], panel + '<p class="caption">Below is exactly what the hotel sees (read-only here).</p>' + view)
 
     @bp.post(HB + "/<int:hid>/prompts")
@@ -503,6 +509,20 @@ def register_scope(app, sc):
             msg += (f' The town is now <b>{esc(city)}</b>. Run a check so the questions are about {esc(city)}; it writes a fresh recommended set of prompts.'
                     + (' The hotel&rsquo;s <i>confirmed</i> prompts still name the old town: change them on the Prompts tab.' if s.confirmed_prompts_for_key(h["hotel_key"]) else ''))
         return hotel_page(s, hid, msg + '</div>')
+
+    @bp.post(HB + "/<int:hid>/manual-check/<int:rid>")
+    def hotel_manual_check(hid, rid):
+        """Save a Google AI Overview check done by hand for one of the hotel's checks."""
+        bad, s = checked_post()
+        if bad:
+            return bad
+        h = own(s, hid)
+        if rid not in {r["id"] for r in s.hotel_runs(h["hotel_key"])}:
+            abort(404)
+        import manual_checks
+        rows = manual_checks.rows_from_form(request.form)
+        s.save_manual_checks(hid, rid, manual_checks.ENGINE, rows, "the operator")
+        return hotel_page(s, hid, f'<div class="alert success">Saved: {len(rows)} prompt(s) checked by hand.</div>')
 
     @bp.post(HB + "/<int:hid>/delete-run/<int:rid>")
     def hotel_delete_run(hid, rid):

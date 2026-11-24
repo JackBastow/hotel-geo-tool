@@ -25,6 +25,8 @@ def now_iso():
 
 class PortalMixin:
     def _init_portal(self, conn, pk):
+        self._run(conn, f"CREATE TABLE IF NOT EXISTS manual_checks (id {pk}, hotel_id INTEGER, run_id INTEGER, engine TEXT, prompt TEXT, shown INTEGER, named INTEGER, sources TEXT, "
+                        "checked_at TEXT, checked_by TEXT)")
         self._run(conn, f"CREATE TABLE IF NOT EXISTS tool_feedback (id {pk}, created TEXT, hotel_id INTEGER, user_id INTEGER, email TEXT, kind TEXT, message TEXT, page TEXT, status TEXT)")
         self._run(conn, f"CREATE TABLE IF NOT EXISTS users (id {pk}, email TEXT UNIQUE, name TEXT, pw_hash TEXT, role TEXT, active INTEGER, created TEXT, last_login TEXT)")
         self._run(conn, f"CREATE TABLE IF NOT EXISTS hotels (id {pk}, name TEXT, website TEXT, city TEXT, hotel_key TEXT UNIQUE, tier TEXT, audiences TEXT, weekly INTEGER, active INTEGER, "
@@ -224,6 +226,25 @@ class PortalMixin:
             conn.commit()
         finally:
             conn.close()
+
+    def save_manual_checks(self, hotel_id, run_id, engine, rows, by):
+        """Replace the hand-made check of one engine for one hotel's check with these rows."""
+        conn = self._connect()
+        try:
+            self._run(conn, "DELETE FROM manual_checks WHERE hotel_id = ? AND run_id = ? AND engine = ?", (hotel_id, run_id, engine))
+            for r in rows:
+                self._insert(conn, "manual_checks", {"hotel_id": hotel_id, "run_id": run_id, "engine": engine, "prompt": r["prompt"], "shown": r["shown"], "named": r["named"],
+                                                     "sources": r.get("sources") or "", "checked_at": now_iso(), "checked_by": by})
+            conn.commit()
+        finally:
+            conn.close()
+
+    def manual_checks(self, hotel_id, engine, run_id=None):
+        """The latest hand-made check of one engine for the hotel (for one check when run_id is given): [rows]."""
+        if run_id is not None:
+            return self._rows("SELECT * FROM manual_checks WHERE hotel_id = ? AND engine = ? AND run_id = ? ORDER BY id", (hotel_id, engine, run_id))
+        last = self._rows("SELECT run_id FROM manual_checks WHERE hotel_id = ? AND engine = ? ORDER BY checked_at DESC, id DESC LIMIT 1", (hotel_id, engine))
+        return self._rows("SELECT * FROM manual_checks WHERE hotel_id = ? AND engine = ? AND run_id = ? ORDER BY id", (hotel_id, engine, last[0]["run_id"])) if last else []
 
     def list_actions(self, hotel_id):
         return self._rows("SELECT * FROM actions WHERE hotel_id = ? ORDER BY id", (hotel_id,))

@@ -115,5 +115,23 @@ try:
 except ImportError:
     print("  (PyMuPDF not installed: PDF text not read)")
 
+print("4. Google AI Overviews, checked by hand")
+import tempfile
+import backend
+import manual_checks
+form = manual_checks.form_html(rep, [], "/x", "tok", "GB")
+check("the form lists the tracked prompts, each opening its Google search", "Tracked 0" in form and "google.com/search?" in form and "gl=gb" in form, form[:200])
+posted = {"n": "2", "p0": "Tracked 0", "s0": "1", "n0": "1", "c0": "tripadvisor.co.uk, visitsurrey.com", "p1": "Tracked 1", "s1": "0", "n1": "1", "c1": ""}
+rows_ = manual_checks.rows_from_form(posted)
+check("what was recorded is read back; 'named' only counts where an Overview appeared", rows_ == [{"prompt": "Tracked 0", "shown": 1, "named": 1, "sources": "tripadvisor.co.uk, visitsurrey.com"},
+                                                                                                   {"prompt": "Tracked 1", "shown": 0, "named": 0, "sources": ""}], rows_)
+db = backend.open_store("sqlite:///" + os.path.join(tempfile.mkdtemp(), "m.db"))
+hid = db.create_hotel("Brooklands Hotel", "b.example", "Weybridge", "b.example")
+db.save_manual_checks(hid, 7, manual_checks.ENGINE, rows_, "the operator")
+saved = db.manual_checks(hid, manual_checks.ENGINE)
+check("it is saved for the hotel's check and read back", len(saved) == 2 and saved[0]["checked_by"] == "the operator")
+h2 = glance.engines_html({**rep, "manual_checks": saved})
+check("the Overview shows it beside the assistants, labelled as checked by hand", "Google AI Overviews" in h2 and "checked by hand" in h2 and "1 of 1 Overviews shown (2 prompts checked)" in h2, h2[-600:])
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

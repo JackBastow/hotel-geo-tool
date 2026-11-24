@@ -95,6 +95,11 @@ def engine_counts(rep):
         c = _count(r.get("items")) if r.get("status") == "ok" else None
         out.append({"engine": e, "name": ENGINE_NAMES[e], "status": "ok" if c else (r.get("status") or "not_configured"),
                     "reason": "" if c else (r.get("reason") or f"No key for {ENGINE_NAMES[e]} is set on the host, so it was not asked."), "model": r.get("model"), **(c or {})})
+    if rep.get("manual_checks"):
+        import manual_checks
+        row = manual_checks.as_engine_row(rep["manual_checks"])
+        if row:
+            out.append(row)
     return out
 
 
