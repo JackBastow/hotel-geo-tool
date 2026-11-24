@@ -218,18 +218,61 @@ def citation_section(cur, prev, own_domain):
             f'<section class="panel"><h4>All cited pages ({len(allrows)})</h4>{table}</section>')
 
 
+ENGINE_LABELS = {"claude": "Claude", "chatgpt": "ChatGPT", "gemini": "Gemini", "perplexity": "Perplexity"}
+
+
+def engines_section(runs):
+    """'Named by each AI assistant over time': the average of every assistant asked (each counted equally) and each assistant's own line, on the hotel's tracked prompts.
+    runs: the hotel's checks, oldest first, with their stored ai_engines. Empty when only Claude has ever been asked (the brand chart below already shows it)."""
+    import json
+    rows = []
+    for r in runs:
+        try:
+            e = json.loads(r.get("ai_engines") or "{}")
+        except (TypeError, ValueError):
+            e = {}
+        rows.append({"run_at": r["run_at"], "e": {k: v for k, v in e.items() if isinstance(v, list) and len(v) == 2 and v[1]}})
+    engines = [k for k in ENGINE_LABELS if any(k in x["e"] for x in rows)]
+    if not any(k != "claude" for k in engines):
+        return ""
+    pct = lambda v: round(100 * v[0] / v[1]) if v else None      # noqa: E731
+    each = [{"name": ENGINE_LABELS[k], "own": False, "points": [pct(x["e"].get(k)) for x in rows]} for k in engines]
+    avg_pts = []
+    for x in rows:
+        vals = [100 * v[0] / v[1] for v in x["e"].values()]
+        avg_pts.append(round(sum(vals) / len(vals)) if vals else None)
+    avg = [{"name": "All assistants (average)", "own": True, "points": avg_pts}]
+    run_rows = [{"run_at": x["run_at"]} for x in rows]
+    last = rows[-1]["e"] if rows else {}
+    tiles = _tile("All assistants", (f'{avg_pts[-1]}<small>%</small>' if avg_pts and avg_pts[-1] is not None else "n/a"),
+                  f'<span class="hk-muted">the average of {len(last)} assistant{"s" if len(last) != 1 else ""}, each counted equally</span>', True, "en-avg")
+    tiles += _tile("Each assistant", " · ".join(f'{ENGINE_LABELS[k]} {pct(last[k])}%' for k in engines if k in last) or "n/a", '<span class="hk-muted">named, on the same tracked prompts</span>', False, "en-each")
+    top = 100
+    panels = (f'<div class="tab-panel active" id="en-avg">{lines_svg(run_rows, avg, 0, top, name="All assistants", fmt="{:.0f}%")}'
+              '<p class="caption">For each check, the share of answers naming the hotel, worked out for each assistant asked and then averaged, so each assistant counts the same however '
+              'many answers it gave. A check where an assistant was not asked leaves it out of that week&rsquo;s average.</p></div>'
+              f'<div class="tab-panel" id="en-each">{lines_svg(run_rows, each, 0, top, name="Named", fmt="{:.0f}%")}{legend(each)}'
+              '<p class="caption">A gap means that assistant was not asked in that check (no key yet, or its monthly budget was used).</p></div>')
+    return ('<section class="panel"><h4>Named by each AI assistant over time</h4><p class="caption">The hotel&rsquo;s tracked prompts, put to each assistant every check.</p>'
+            f'<div class="tabs"><div class="tab-bar tile-bar" role="tablist">{tiles}</div>{panels}</div></section>')
+
+
 def panel(db, hotel):
     """The whole tab as HTML for one hotel."""
     key = hotel["hotel_key"]
     ch = db.competitor_history(key, 5)
     brand, _me = brand_section(ch)
+    try:
+        engines_chart = engines_section(list(reversed(db.hotel_runs(key))))
+    except Exception:  # noqa: BLE001
+        engines_chart = ""
     runs = [r["run_id"] for r in ch["runs"]]
     have = db.runs_with_pages(runs)
     with_pages = [rid for rid in runs if rid in have]
     cur = {p["url"]: p for p in db.run_pages(with_pages[-1])} if with_pages else {}
     prev = {p["url"]: p for p in db.run_pages(with_pages[-2])} if len(with_pages) > 1 else None
     own = key.split("/")[0]
-    chips = ('<div class="hk-chips"><span class="hk-chip brand">Engine: Claude with live web search</span><span class="hk-chip">' + f'{len(runs)} weekly check{"s" if len(runs) != 1 else ""}</span>'
+    chips = ('<div class="hk-chips"><span class="hk-chip brand">' + ("Assistants: Claude, plus others on the tracked prompts" if engines_chart else "Engine: Claude with live web search") + '</span><span class="hk-chip">' + f'{len(runs)} weekly check{"s" if len(runs) != 1 else ""}</span>'
              '<span class="hk-chip">Sampled answers: small moves are noise</span></div>')
     extra = ""
     try:                                   # the fact-check and the gap map come from the latest check's saved answers; a problem leaves them out, never the tab
@@ -240,4 +283,4 @@ def panel(db, hotel):
     except Exception:  # noqa: BLE001
         extra = ""
     return (f'<p class="lede">How AI assistants talk about this hotel and the hotels around it. A sample of answers each week from one assistant. '
-            f'Coverage is how often the hotel was named; position is its average place in the hotels listed.</p>{chips}{brand}{extra}{citation_section(cur, prev, own)}')
+            f'Coverage is how often the hotel was named; position is its average place in the hotels listed.</p>{chips}{engines_chart}{brand}{extra}{citation_section(cur, prev, own)}')

@@ -83,18 +83,34 @@ def build(rep, limit=6):
         d = p.get("domain") or ""
         if not d or p.get("own_site") or (own_dom and (d == own_dom or d.endswith("." + own_dom))):
             continue
-        r = by.setdefault(d, {"domain": d, "cited": 0, "hotel": False, "rivals": set(), "urls": [], "route": "", "affiliate": False, "sponsored": False})
+        r = by.setdefault(d, {"domain": d, "cited": 0, "hotel": False, "rivals": set(), "urls": [], "route": "", "affiliate": False, "sponsored": False, "engines": set()})
         r["cited"] += p.get("cited") or p.get("answers") or 0
+        r["engines"].add("Claude")
         r["hotel"] = r["hotel"] or bool(p.get("names_hotel"))
         if p.get("names_competitor"):
             r["rivals"].add(p["names_competitor"])
         r["urls"].append(p["url"])
+    # the sites the other assistants cite (ChatGPT, Gemini, Perplexity on the tracked prompts): the same list, each site marked with every assistant that used it
+    names = {"chatgpt": "ChatGPT", "gemini": "Gemini", "perplexity": "Perplexity"}
+    for e, res in ((rep or {}).get("ai_engines") or {}).items():
+        if not isinstance(res, dict) or res.get("status") != "ok":
+            continue
+        for it in res.get("items") or []:
+            for p in it.get("pages") or []:
+                d = re.sub(r"^www\.", "", re.sub(r"^https?://", "", p.get("url") or "").split("/")[0].lower())
+                if not d or (own_dom and (d == own_dom or d.endswith("." + own_dom))):
+                    continue
+                r = by.setdefault(d, {"domain": d, "cited": 0, "hotel": False, "rivals": set(), "urls": [], "route": "", "affiliate": False, "sponsored": False, "engines": set()})
+                r["cited"] += 1
+                r["engines"].add(names.get(e, e))
+                if p.get("url") and len(r["urls"]) < 4:
+                    r["urls"].append(p["url"])
     for a in gap.get("articles") or []:
         d = a.get("domain") or ""
         if not d or d not in by:
             if not d or (own_dom and d == own_dom):
                 continue
-            by.setdefault(d, {"domain": d, "cited": a.get("cited") or 0, "hotel": False, "rivals": set(), "urls": [a["url"]], "route": "", "affiliate": False, "sponsored": False})
+            by.setdefault(d, {"domain": d, "cited": a.get("cited") or 0, "hotel": False, "rivals": set(), "urls": [a["url"]], "route": "", "affiliate": False, "sponsored": False, "engines": {"Claude"}})
         r = by[d]
         r["hotel"] = r["hotel"] or a.get("hotel_in") is True
         r["rivals"] |= set(a.get("rivals_in") or [])
@@ -106,7 +122,7 @@ def build(rep, limit=6):
     out = []
     import strategy_actions
     rival_sites = strategy_actions._rival_domains(rep)
-    for r in sorted(by.values(), key=lambda r: -r["cited"]):
+    for r in sorted(by.values(), key=lambda r: (-len(r.get("engines") or ()), -r["cited"])):          # a site several assistants use first: it is not one model's habit
         if strategy_actions.is_chain_site(r["domain"]) or strategy_actions._dom(r["domain"]) in rival_sites:
             continue                                   # another hotel group's own website, or a rival hotel's: not somewhere this hotel can be listed
         kind = ai_insights.source_kind(r["domain"])
@@ -122,6 +138,7 @@ def build(rep, limit=6):
         action = ("The hotel appears here: verify what is published is accurate and complete. " + ACTION[t]) if (r["hotel"] and t in ("review", "comparison")) else ACTION[t]
         listing = strategy_actions.is_listing_site(r["domain"], t)
         out.append({"domain": r["domain"], "type": t, "type_label": LABEL[t], "cited": r["cited"], "hotel_appears": r["hotel"], "listing_site": listing, "listing_status": status, "listing_url": lurl, "rivals": sorted(r["rivals"])[:3], "route": route, "action": action,
+                    "cited_by": [n for n in ("Claude", "ChatGPT", "Gemini", "Perplexity") if n in r.get("engines", set())],
                     "why_now": (f"The hotel states {reason['label'].lower()}, which could justify inclusion." if reason else "No distinctive reason has been identified yet: do not approach until there is one."),
                     "evidence": r["urls"][:2]})
     return out[:limit]

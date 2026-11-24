@@ -33,7 +33,7 @@ SCHEMA_VERSION = 2
 RUN_COLS = [
     "run_at", "hotel", "hotel_key", "city", "website", "domain", "hotel_name_source", "headline_status", "headline_score", "coverage_pct",
     "read_via", "pages_read", "pages_attempted", "cat_scores", "ai_status", "ai_model", "ai_generic_named", "ai_generic_asked", "ai_niche_named",
-    "ai_niche_asked", "ai_named", "ai_asked", "ai_depth", "ai_tracked_named", "ai_tracked_asked", "ai_tracked_fp", "ai_direct_known", "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_place", "ai_repeats", "ai_rank_in_table", "ai_table_size", "ai_top_competitor", "reviews_status", "reviews_examined",
+    "ai_niche_asked", "ai_named", "ai_asked", "ai_depth", "ai_engines", "ai_tracked_named", "ai_tracked_asked", "ai_tracked_fp", "ai_direct_known", "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_place", "ai_repeats", "ai_rank_in_table", "ai_table_size", "ai_top_competitor", "reviews_status", "reviews_examined",
     "reviews_replied", "reviews_neg_examined", "reviews_neg_replied", "pack_reviews", "pack_reply_rate", "pack_critical_unanswered", "pagespeed_perf", "pagespeed_a11y", "commoncrawl_state", "recs_total",
     "top_actions", "ai_cost_usd", "schema_version",
 ]
@@ -92,7 +92,7 @@ def summarise(rep):
         "ai_niche_named": s.get("niche_named"), "ai_niche_asked": s.get("niche_asked"),
         "ai_direct_known": None if s.get("direct_known") is None else int(bool(s.get("direct_known"))),
         "ai_share": sb.get("share"), "ai_coverage_pct": (mai or {}).get("pct", sb.get("coverage_pct")), "ai_sentiment": sb.get("sentiment"), "ai_place": sb.get("place"),
-        "ai_named": (mai or {}).get("named"), "ai_asked": (mai or {}).get("asked"), "ai_depth": report_model.depth_of(rep),
+        "ai_named": (mai or {}).get("named"), "ai_asked": (mai or {}).get("asked"), "ai_depth": report_model.depth_of(rep), "ai_engines": report_model.engines_json(rep),
         "ai_tracked_named": (mtr or {}).get("named"), "ai_tracked_asked": (mtr or {}).get("asked"), "ai_tracked_fp": (mtr or {}).get("fp") or "",
         "ai_repeats": sb.get("repeats") or s.get("repeats"), "ai_rank_in_table": sb.get("rank_in_table"), "ai_table_size": sb.get("table_size"), "ai_top_competitor": sb.get("top_competitor") or "",
         "reviews_status": rv.get("status") or "", "reviews_examined": rs.get("examined"), "reviews_replied": rs.get("replied"),
@@ -272,7 +272,7 @@ class Store(portal_db.PortalMixin):
     def init(self):
         pk = "INTEGER PRIMARY KEY AUTOINCREMENT" if self.kind == "sqlite" else "BIGSERIAL PRIMARY KEY"
         text_cols = {"run_at", "hotel", "hotel_key", "city", "website", "domain", "hotel_name_source", "headline_status", "read_via", "cat_scores", "ai_status", "ai_model",
-                     "ai_top_competitor", "reviews_status", "commoncrawl_state", "top_actions", "ai_tracked_fp", "ai_depth"}
+                     "ai_top_competitor", "reviews_status", "commoncrawl_state", "top_actions", "ai_tracked_fp", "ai_depth", "ai_engines"}
         real_cols = {"headline_score", "coverage_pct", "ai_cost_usd"}
         ddl = ", ".join(f"{c} " + ("TEXT" if c in text_cols else "DOUBLE PRECISION" if (c in real_cols and self.kind != "sqlite") else "REAL" if c in real_cols else "INTEGER")
                         for c in RUN_COLS)
@@ -325,7 +325,7 @@ class Store(portal_db.PortalMixin):
         """Checks saved before the one count existed: work it out from each saved report and store it (ai_named, ai_asked, ai_coverage_pct). Runs once, in the background. -> runs filled"""
         try:
             import report_model
-            todo = self._rows("SELECT id FROM runs WHERE ai_status = 'ok' AND (ai_asked IS NULL OR ai_tracked_fp IS NULL OR ai_depth IS NULL) ORDER BY id DESC LIMIT ?", (limit,))
+            todo = self._rows("SELECT id FROM runs WHERE ai_status = 'ok' AND (ai_asked IS NULL OR ai_tracked_fp IS NULL OR ai_depth IS NULL OR ai_engines IS NULL) ORDER BY id DESC LIMIT ?", (limit,))
         except Exception as e:  # noqa: BLE001
             import steps
             steps.failed("backfill of the AI counts", e, quiet=True)
@@ -339,9 +339,9 @@ class Store(portal_db.PortalMixin):
                 tr = report_model.tracked_counts(rep) if rep else None
                 conn = self._connect()
                 try:
-                    self._run(conn, "UPDATE runs SET ai_named = ?, ai_asked = ?, ai_coverage_pct = ?, ai_tracked_named = ?, ai_tracked_asked = ?, ai_tracked_fp = ?, ai_depth = ? WHERE id = ?",
+                    self._run(conn, "UPDATE runs SET ai_named = ?, ai_asked = ?, ai_coverage_pct = ?, ai_tracked_named = ?, ai_tracked_asked = ?, ai_tracked_fp = ?, ai_depth = ?, ai_engines = ? WHERE id = ?",
                               ((ai or {}).get("named"), (ai or {}).get("asked") or 0, (ai or {}).get("pct"), (tr or {}).get("named"), (tr or {}).get("asked"), (tr or {}).get("fp") or "",
-                               report_model.depth_of(rep) if rep else "", r["id"]))
+                               report_model.depth_of(rep) if rep else "", report_model.engines_json(rep) if rep else "{}", r["id"]))
                     conn.commit()
                 finally:
                     conn.close()

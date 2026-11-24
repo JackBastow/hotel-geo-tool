@@ -57,6 +57,34 @@ def _cell_named(m):
     return f'<span class="hk-chip {tone}">{word}</span><br><span class="hk-muted">{m["named"]} of {m["of"]}</span>'
 
 
+ENGINE_NAMES = {"chatgpt": "ChatGPT", "gemini": "Gemini", "perplexity": "Perplexity"}
+
+
+def _engines_by_prompt(rep):
+    """{folded prompt text: [(assistant, named, of)]} for the other assistants asked the tracked prompts."""
+    out = {}
+    for e, r in ((rep or {}).get("ai_engines") or {}).items():
+        if not isinstance(r, dict) or r.get("status") != "ok":
+            continue
+        tally = {}
+        for i in r.get("items") or []:
+            if i.get("mentioned") is None:
+                continue
+            k = evidence.fold(i.get("text") or "")
+            t = tally.setdefault(k, [0, 0])
+            t[1] += 1
+            t[0] += 1 if i.get("mentioned") else 0
+        for k, (n, of) in tally.items():
+            out.setdefault(k, []).append((ENGINE_NAMES.get(e, e), n, of))
+    return out
+
+
+def _engine_lines(rows):
+    if not rows:
+        return ""
+    return "<br>" + "".join(f'<span class="hk-muted">{esc(name)} {n} of {of}</span><br>' for name, n, of in rows)
+
+
 def _evidence(m, crit, obs, arts):
     """The detail behind one line, for whoever wants it."""
     rows = "".join(f'<tr><td>{esc(r["name"])}</td><td>{r["answers"]} of {r["of"]}</td><td>{esc(str(r.get("best_rank") or "-"))}</td><td>{esc("; ".join(r.get("reasons") or []) or "-")}</td></tr>' for r in m["rivals"])
@@ -93,6 +121,7 @@ def panel(rep):
     n_some = sum(1 for m in markets if m["status"] == "sometimes")
     kinds = {"site": 0, "sources": 0}
     rows_by = {}
+    by_engine = _engines_by_prompt(rep)               # the same tracked prompt, asked of ChatGPT, Gemini and Perplexity
     for m in markets:
         crit, obs = crit_by.get(m["qid"]) or [], obs_by.get(m["qid"]) or []
         todo, kind = _todo(m, crit, arts)
@@ -100,7 +129,7 @@ def panel(rep):
         sec = prompt_sets.section_of({"angle": m.get("angle"), "text": m["question"]})
         who = ", ".join(f'{r["name"]} ({r["answers"]}/{r["of"]})' for r in m["rivals"][:2]) or ("hotels in another category" if m.get("other_category") and m["status"] != "named" else "-")
         why = (crit[0]["label"] if crit else _short((m["rivals"][0].get("reasons") or ["-"])[0], 70) if m["rivals"] else "-")
-        row = (f'<tr><td><b>{esc(m["question"])}</b>' + (' <span class="hk-chip brand">tracked</span>' if m["qid"] in tracked else "") + f'</td><td>{_cell_named(m)}</td><td>{esc(who)}</td><td>{esc(why)}</td>'
+        row = (f'<tr><td><b>{esc(m["question"])}</b>' + (' <span class="hk-chip brand">tracked</span>' if m["qid"] in tracked else "") + f'</td><td>{_cell_named(m)}{_engine_lines(by_engine.get(evidence.fold(m["question"])))}</td><td>{esc(who)}</td><td>{esc(why)}</td>'
                f'<td>{esc(todo)}' + (f'<details class="details pa-ev"><summary>Evidence</summary><div class="details-body">{_evidence(m, crit, obs, arts)}</div></details>' if m["status"] != "named" else "") + "</td></tr>")
         rows_by.setdefault(sec, []).append((m["qid"] not in tracked, row))
     perr = ((rep.get("question_plan") or {}).get("error") or "")
@@ -119,7 +148,8 @@ def panel(rep):
             continue
         body += (f'<h3 class="grp">{esc(title)} <span class="hk-muted">({len(rs)})</span></h3><div class="table-wrap"><table class="table pa"><thead><tr><th style="width:30%">Prompt</th><th>Named?</th>'
                  f'<th>Named instead</th><th>Why them</th><th style="width:30%">What to do</th></tr></thead><tbody>{"".join(r for _t, r in rs)}</tbody></table></div>')
-    foot = ('<p class="caption">One assistant (Claude with live web search), a few answers per prompt, one day: a sample, not a ranking. &ldquo;Why them&rdquo; is the reason the assistant gave; '
+    foot = ('<p class="caption">' + ("Claude with live web search answers every prompt; your tracked prompts are also put to the other assistants shown under &ldquo;Named?&rdquo;. " if by_engine else "One assistant (Claude with live web search). ")
+            + 'A few answers per prompt, one day: a sample, not a ranking. &ldquo;Why them&rdquo; is the reason the assistant gave; '
             '&ldquo;What to do&rdquo; follows from a difference in the evidence, not a proven cause. These findings are also in your '
             '<button type="button" class="link" data-goto="actions">Actions</button>, where you can mark them done.</p>')
     return head + body + foot

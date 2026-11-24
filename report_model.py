@@ -79,6 +79,36 @@ def _count(items):
             "site_cited": sum(1 for i in rows if i.get("own_site_cited"))}
 
 
+def known_rivals(rep):
+    """The rival hotels this check found (Claude's analysis of its answers: the brand ranking and the market-by-market rivals), names only."""
+    rep = rep or {}
+    ins = rep.get("ai_insights") or {}
+    names = [r.get("name") for r in ((ins.get("brand_ranking") or {}).get("rows") or []) if not r.get("is_target")]
+    for m in ((rep.get("ai_gap") or {}).get("markets") or []):
+        names += [x.get("name") for x in m.get("rivals") or []]
+    seen, out = set(), []
+    for n in names:
+        k = (n or "").strip().lower()
+        if k and k not in seen:
+            seen.add(k)
+            out.append(n.strip())
+    return out[:40]
+
+
+def rivals_in(items, rivals, city=""):
+    """-> [(name, answers naming it)] of the known rivals named in these answers, most first."""
+    import hotelname
+    counts = {}
+    for i in items or []:
+        a = i.get("answer") or ""
+        if not a or i.get("names_hotel"):
+            continue
+        for n in rivals:
+            if hotelname.mentioned(a, n, city):
+                counts[n] = counts.get(n, 0) + 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
 def engine_counts(rep):
     """-> [{engine, name, status, reason, named, asked, pct, recommended, site_cited}] for every assistant, Claude first, all on the hotel's TRACKED prompts (the same questions for each).
     An assistant that was not asked has status not_configured / over_budget / unavailable and no figures: 'not tested', never zero."""
@@ -90,9 +120,21 @@ def engine_counts(rep):
     out.append({"engine": "claude", "name": "Claude", "status": "ok" if c else (ai.get("status") or "not_configured"), "reason": "" if c else (ai.get("reason") or "No tracked prompts were asked."),
                 **(c or {})})
     eng = rep.get("ai_engines") or {}
+    try:
+        rivals = known_rivals(rep)
+        city = ((rep.get("meta") or {}).get("city")) or ""
+        if out[0]["status"] == "ok":
+            out[0]["instead"] = rivals_in(claude_items, rivals, city)[:3]
+    except Exception:  # noqa: BLE001
+        rivals, city = [], ""
     for e in ENGINE_ORDER[1:]:
         r = eng.get(e) or {}
         c = _count(r.get("items")) if r.get("status") == "ok" else None
+        if c:
+            try:
+                c["instead"] = rivals_in(r.get("items"), rivals, city)[:3]
+            except Exception:  # noqa: BLE001
+                c["instead"] = []
         out.append({"engine": e, "name": ENGINE_NAMES[e], "status": "ok" if c else (r.get("status") or "not_configured"),
                     "reason": "" if c else (r.get("reason") or f"No key for {ENGINE_NAMES[e]} is set on the host, so it was not asked."), "model": r.get("model"), **(c or {})})
     if rep.get("manual_checks"):
@@ -101,6 +143,15 @@ def engine_counts(rep):
         if row:
             out.append(row)
     return out
+
+
+def engines_json(rep):
+    """Every assistant's figure on the tracked prompts, as stored with each check (runs.ai_engines): '{"claude": [4, 8], "chatgpt": [3, 8]}'. Hand-made checks are not included."""
+    import json
+    try:
+        return json.dumps({r["engine"]: [r["named"], r["asked"]] for r in engine_counts(rep) if r.get("status") == "ok" and not r.get("manual")}, sort_keys=True)
+    except Exception:  # noqa: BLE001
+        return "{}"
 
 
 def depth_of(rep):

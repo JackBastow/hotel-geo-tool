@@ -133,5 +133,25 @@ check("it is saved for the hotel's check and read back", len(saved) == 2 and sav
 h2 = glance.engines_html({**rep, "manual_checks": saved})
 check("the Overview shows it beside the assistants, labelled as checked by hand", "Google AI Overviews" in h2 and "checked by hand" in h2 and "1 of 1 Overviews shown (2 prompts checked)" in h2, h2[-600:])
 
+print("5. into the trend, the strategy and the prompt analysis")
+ej = json.loads(report_model.engines_json(rep))
+check("each check stores every assistant's figure", ej.get("chatgpt") == [4, 4] and ej.get("claude") == [1, 2] and "perplexity" not in ej, ej)
+import ai_dash
+runs_ = [{"run_at": "2026-11-17T05:00:00+00:00", "ai_engines": json.dumps({"claude": [2, 4]})},
+         {"run_at": "2026-11-24T05:00:00+00:00", "ai_engines": json.dumps({"claude": [1, 2], "chatgpt": [4, 4]})}]
+chart = ai_dash.engines_section(runs_)
+check("the AI tab shows the average of all assistants and each one, with a gap where one was not asked", "All assistants" in chart and "75<small>%</small>" in chart and "ChatGPT 100%" in chart, chart[:300])
+check("no such chart while only Claude has been asked", ai_dash.engines_section(runs_[:1]) == "")
+rep["ai_insights"].setdefault("brand_ranking", {}).setdefault("rows", []).append({"name": "Oatlands Park Hotel", "is_target": False})
+rows2 = {x["engine"]: x for x in report_model.engine_counts(rep)}
+check("who each assistant names instead is found by the same name matcher", ("Oatlands Park Hotel", 4) in rows2["chatgpt"].get("instead", []), rows2["chatgpt"].get("instead"))
+import source_actions
+srcs = {s["domain"]: s for s in source_actions.build(rep, limit=30)}
+check("sites the other assistants cite reach the strategy list, with who cited them", "tripadvisor.co.uk" in srcs and "ChatGPT" in srcs["tripadvisor.co.uk"]["cited_by"], list(srcs)[:6])
+check("the hotel's own site is never among them", not any("brooklandshotelsurrey.com" in d for d in srcs))
+import prompt_analysis
+by_p = prompt_analysis._engines_by_prompt(rep)
+check("each tracked prompt shows how the other assistants answered it", any(name == "ChatGPT" and n == 2 and of == 2 for rows_ in by_p.values() for name, n, of in rows_), by_p)
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)
