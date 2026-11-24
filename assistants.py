@@ -9,7 +9,7 @@ Every answer is judged by the same rules as Claude's: the one hotel-name matcher
 (report_model.engine_counts). An assistant with no key, or past its monthly cap, is 'not tested', never shown as zero.
 
 Official APIs only:
-  ChatGPT     POST https://api.openai.com/v1/responses, tools [{"type": "web_search"}]; $10 per 1,000 searches plus tokens (OPENAI_MODEL, OPENAI_PRICE_IN/OUT per million)
+  ChatGPT     POST https://api.openai.com/v1/responses, tools [{"type": "web_search"}]; $10 per 1,000 searches plus tokens (OPENAI_MODEL, default gpt-5.4-mini; prices in OPENAI_PRICES)
   Perplexity  POST https://api.perplexity.ai/v1/agent, model perplexity/sonar, tools [{"type": "web_search"}]; the API reports each answer's cost
   Gemini      the existing GeminiClient (Google Search grounding); $14 per 1,000 searches after 5,000 free a month (counted at the full price here, to stay on the safe side)
 These answers come through the providers' APIs, a close stand-in for their consumer apps (which add memory, account history and their own settings), and are labelled as such.
@@ -72,10 +72,16 @@ def _host(u):
 
 # ----------------------------------------------------------------- one question, one assistant -> {answer, domains, pages, searches, cost_usd}
 
+# OpenAI's published prices ($ per million tokens, input / output; developers.openai.com/api/docs/models, Nov 2026) for models whose pages list web_search. The pages ChatGPT reads during a
+# search are billed as input, so the model's input price matters most. gpt-5.4-mini: about $0.03 an answer; gpt-6.2-astra (OpenAI's suggestion for web search) about $0.20.
+OPENAI_PRICES = {"gpt-6-luna": (0.10, 0.50), "gpt-5.6-luna": (0.20, 1.20), "gpt-5.4-nano": (0.20, 1.25), "gpt-5.4-mini": (0.75, 4.50), "gpt-5.4": (2.50, 15.00), "gpt-6.2-astra": (8.00, 40.00)}
+
+
 def ask_chatgpt(q, key, country=None, post=requests.post):
-    model = os.environ.get("OPENAI_MODEL") or "gpt-6.2-astra"
-    price_in = float(os.environ.get("OPENAI_PRICE_IN") or 2.0)        # $ per million tokens; set to the model's real price on the host
-    price_out = float(os.environ.get("OPENAI_PRICE_OUT") or 10.0)
+    model = os.environ.get("OPENAI_MODEL") or "gpt-5.4-mini"
+    known_in, known_out = OPENAI_PRICES.get(model, (8.0, 40.0))         # an unknown model is priced as the dearest, never under-counted
+    price_in = float(os.environ.get("OPENAI_PRICE_IN") or known_in)
+    price_out = float(os.environ.get("OPENAI_PRICE_OUT") or known_out)
     tool = {"type": "web_search", "search_context_size": "medium"}
     if country:
         tool["user_location"] = {"type": "approximate", "country": country.upper()}
