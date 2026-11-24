@@ -32,6 +32,51 @@ SOURCE = "Competitors the assistant named instead, the pages it cited, and what 
 MAX_RIVALS_PER_MARKET = 4
 MAX_ARTICLES = 8
 MAX_RIVAL_SITES = 3
+FAR_RIVAL_KM = 30          # a hotel this far away is in another market (Hilton Zurich Airport: Hotel Amaris in Olten, about 50 km); measured, never guessed from the name
+MAX_TOWN_LOOKUPS = 6
+
+
+def town_km(town, location, geo):
+    """Measured distance (km) from the hotel to a town (one OpenStreetMap search), or None when it cannot be placed."""
+    import anchors
+    import sources
+    try:
+        r = geo(anchors.NOMINATIM + "?" + urllib.parse.urlencode({"q": town, "format": "json", "limit": 1, "accept-language": "en"}), headers={"User-Agent": anchors.UA}, timeout=10)
+        rows = r.json() if r.status_code == 200 else []
+        return round(sources.haversine_km(location["lat"], location["lon"], float(rows[0]["lat"]), float(rows[0]["lon"])), 1) if rows else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def place_rivals(ms, city, location, geo, sleep=1.0):
+    """
+    The hotels the assistant placed in another town are not the hotel's competitors for these searches: measure each town the answers gave (never the hotel's own town), and move a rival more than
+    FAR_RIVAL_KM away from 'rivals' to 'elsewhere'; a market whose only rivals were elsewhere is no longer a gap. Changes ms in place.
+    """
+    if not (location and location.get("lat") is not None and location.get("lon") is not None and geo):
+        return
+    own = evidence.fold(city or "")
+    km, done = {}, 0
+    for m in ms:
+        keep, away = [], []
+        for r in m.get("rivals") or []:
+            t = evidence.fold(r.get("town") or "").strip()
+            if t and own and (t in own or own.split(",")[0].strip() in t):
+                t = ""                                                 # the hotel's own town
+            if t and t not in km and done < MAX_TOWN_LOOKUPS:
+                if done and sleep:
+                    time.sleep(sleep)                                  # OpenStreetMap's limit: one search a second
+                km[t] = town_km(r["town"], location, geo)
+                done += 1
+            d = km.get(t) if t else None
+            if d is not None:
+                r["km"] = d
+            (away if d is not None and d > FAR_RIVAL_KM else keep).append(r)
+        if away:
+            m["rivals"], m["elsewhere"] = keep, away
+            m["gap"] = m["status"] != "named" and bool(keep)
+            top = keep[0] if keep else None
+            m["consistent"] = bool(top and top["of"] >= 2 and top["answers"] == top["of"] and m["named"] == 0)
 DEADLINE_S = 45
 SEARCH_BUDGET_USD = 0.20
 EDITORIAL = ("Travel media", "Tourism board", "Other")
@@ -76,13 +121,15 @@ def market_rivals(answer_ids, extracted, hotel, resolver=None, city="", hotel_ti
             if ai_sample.mentioned(h["name"], hotel):
                 continue
             key, display, aliases, unc = resolver.get(h["name"], (ains.canon(h["name"]), h["name"], [], False))
-            r = rows.setdefault(key, {"name": display, "aliases": aliases, "uncertain": unc, "answers": set(), "ranks": [], "reasons": [], "ratings": [], "sent": [], "themes": {}, "stars": []})
+            r = rows.setdefault(key, {"name": display, "aliases": aliases, "uncertain": unc, "answers": set(), "ranks": [], "reasons": [], "ratings": [], "sent": [], "themes": {}, "stars": [], "towns": []})
             r["answers"].add(aid)
             r["sent"].append(h.get("sentiment") or "neutral")
             if h.get("rank"):
                 r["ranks"].append(h["rank"])
             if h.get("stars"):
                 r["stars"].append(h["stars"])
+            if h.get("town"):
+                r["towns"].append(h["town"])
             for t in h.get("themes") or []:
                 r["themes"][t] = r["themes"].get(t, 0) + 1
             if h.get("reason") and h["reason"] not in r["reasons"]:
@@ -95,6 +142,7 @@ def market_rivals(answer_ids, extracted, hotel, resolver=None, city="", hotel_ti
         tier = rivals.tier_of(r["name"], stars)
         out.append({"name": r["name"], "aliases": r["aliases"], "uncertain": r["uncertain"], "answers": len(r["answers"]), "of": len(answer_ids), "best_rank": min(r["ranks"]) if r["ranks"] else None,
                     "reasons": r["reasons"][:2], "ratings": r["ratings"][:2], "sentiment": ains.sentiment_of(r["sent"]).get("sentiment"), "themes": r["themes"], "stars_said": stars,
+                    "town": max(set(r["towns"]), key=r["towns"].count) if r["towns"] else None,
                     "tier": tier, "relation": rivals.relation(hotel_tier, tier["key"])})
     out.sort(key=lambda r: (-r["answers"], r["best_rank"] or 99, r["name"]))
     return out
@@ -511,6 +559,12 @@ def run(ai, ins, ctx, *, api_key=None, model=None, client=None, reader=None, fet
         return env("unavailable", "The answers could not be broken down into the hotels they name, so who was named instead cannot be shown.")
     hotel, city = ctx["hotel"], ctx.get("city", "")
     ms = markets(ai["items"], extracted, hotel, city, ctx.get("hotel_tier"))
+    try:
+        if ctx.get("location"):
+            import netguard
+            place_rivals(ms, city, ctx["location"], ctx.get("geo_fetch") or netguard.get, sleep=ctx.get("geo_sleep", 1.0))
+    except Exception:  # noqa: BLE001 - measuring is an extra; unmeasured rivals stay
+        pass
     gaps = [m for m in ms if m["gap"]]
     out = env("ok", "" if gaps else ("The hotel was named in every answer to every question, so there is no gap to analyse." if all(m["status"] == "named" for m in ms) else
                                       "The hotel was not named in some answers, but only hotels in a different category were: that is not a competitive gap."),

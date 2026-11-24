@@ -125,12 +125,13 @@ For the answers that are ABOUT the target hotel (ids: {about_ids}) also return h
 
 Return JSON in exactly this shape:
 {{
-  "answers": [{{"id": "best", "hotels": [{{"name": "as written", "rank": 1, "reason": "paraphrase", "rating": "e.g. 8.6 on Booking.com or null", "sentiment": "positive|neutral|negative", "stars": 4, "themes": ["location"]}}]}}],
+  "answers": [{{"id": "best", "hotels": [{{"name": "as written", "rank": 1, "reason": "paraphrase", "rating": "e.g. 8.6 on Booking.com or null", "sentiment": "positive|neutral|negative", "stars": 4, "town": "Olten", "themes": ["location"]}}]}}],
   "about": {{"tone": "positive|mixed|negative|unclear",
             "strengths": ["short phrases the assistant gives as positives"], "weaknesses": ["short phrases the assistant gives as drawbacks"],
             "claims": [{{"type": "phone|address|check_in|check_out|star_rating|parking|pets|other", "value": "exactly as stated", "answer_id": "about"}}]}}
 }}
 Use an empty list where nothing applies. rank is the position in the answer's list (1 first), or null if the answer is not a list.
+town is the town or city the answer places THAT hotel in, as written in the answer, or null when the answer does not say: never guess it.
 stars is the star rating the answer gives for THAT hotel (a number from 1 to 5), or null when the answer gives none: never guess it. themes are the reasons the answer gives for recommending THAT hotel, chosen ONLY from this list: {themes}.'''
 
 
@@ -214,7 +215,10 @@ def extract(client, model, items, hotel, city):
             if stars and not _star_near(by_id[a["id"]]["answer"], nm, stars):
                 stars = None                                   # a star rating the answer does not give for THIS hotel is an invention
             themes = [t for t in (h.get("themes") or []) if t in THEMES][:5]
-            keep.append({"name": nm, "stars": stars, "themes": themes, "rank": rank if isinstance(rank, int) and 1 <= rank <= 30 else None, "sentiment": sent if sent in SENTIMENTS else "neutral",
+            town = re.sub(r"\s+", " ", str(h.get("town") or "")).strip()[:60]
+            if town.lower() in ("null", "none") or (town and evidence.fold(town) not in evidence.fold(by_id[a["id"]]["answer"])):
+                town = ""                                      # a town the answer never wrote is an invention
+            keep.append({"name": nm, "stars": stars, "themes": themes, "town": town or None, "rank": rank if isinstance(rank, int) and 1 <= rank <= 30 else None, "sentiment": sent if sent in SENTIMENTS else "neutral",
                          "reason": re.sub(r"\s+", " ", str(h.get("reason") or "")).strip()[:140],
                          "rating": (str(h.get("rating"))[:40] if h.get("rating") not in (None, "null", "") else None)})
         answers[a["id"]] = keep

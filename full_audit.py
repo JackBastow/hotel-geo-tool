@@ -1324,7 +1324,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             _h = urllib.parse.urlparse(base).netloc.lower()
             _h = _h[4:] if _h.startswith("www.") else _h
             ai_gap_result = ai_gap.run(ai_result, ai_insight_result, {"hotel": hotel, "city": city, "own_domain": _h, "brand_domains": (_h,) if site["meta"].get("scope") else (), "own_pages": own_pages,
-                                                                      "base": base, "osm_ctx": _octx, "hotel_tier": ((market_profile or {}).get("tier") or {}).get("key")}, api_key=anthropic_api_key, model=anthropic_model, fetch=_fc_other)
+                                                                      "base": base, "osm_ctx": _octx, "location": location, "hotel_tier": ((market_profile or {}).get("tier") or {}).get("key")}, api_key=anthropic_api_key, model=anthropic_model, fetch=_fc_other)
         except Exception as e:  # noqa: BLE001 - an extra; the sample and its analysis still show
             steps.failed('Looking at who the assistant recommended instead, and the pages it cited / _o', e)
             ai_gap_result = {"source": ai_gap.SOURCE, "status": "unavailable", "reason": f"The comparison with the hotels named instead did not finish ({type(e).__name__}).", "markets": [], "gaps": [],

@@ -138,6 +138,43 @@ check("a hotel chain's own website is not a page to get onto (Holiday Inn Amster
 check("a booking site is a listing to claim, not an editor to write to (reservations.com)", any("reservations.com" in r["title"] and "Claim or update" in r["action"] and "editor" not in r["action"] for r in _s3),
       [(r["title"], r["action"][:80]) for r in _s3])
 
+print("3b. a rival in another town is not a competitor (Hilton Zurich Airport: Hotel Amaris, Olten)")
+import ai_gap
+
+
+class _Resp:
+    status_code = 200
+
+    def __init__(self, rows):
+        self._r = rows
+
+    def json(self):
+        return self._r
+
+
+_asked = []
+
+
+def _geo(url, **kw):
+    _asked.append(url)
+    return _Resp([{"lat": "47.35", "lon": "7.90"}] if "Olten" in url else [{"lat": "47.45", "lon": "8.58"}])
+
+
+_ms = [{"qid": "q1", "status": "not_named", "named": 0, "of": 2, "gap": True, "consistent": True,
+        "rivals": [{"name": "Hotel Amaris", "town": "Olten", "answers": 2, "of": 2}]},
+       {"qid": "q2", "status": "not_named", "named": 0, "of": 2, "gap": True, "consistent": False,
+        "rivals": [{"name": "Hotel Amaris", "town": "Olten", "answers": 1, "of": 2}, {"name": "Novotel Zurich Airport Messe", "town": "Zurich", "answers": 1, "of": 2},
+                   {"name": "Radisson Blu", "town": "Kloten", "answers": 1, "of": 2}, {"name": "Unplaced Hotel", "town": None, "answers": 1, "of": 2}]}]
+ai_gap.place_rivals(_ms, "Kloten, Zurich", {"lat": 47.45, "lon": 8.56}, _geo, sleep=0)
+check("a rival the answers place 50 km away is moved out of the gap", [r["name"] for r in _ms[0]["rivals"]] == [] and _ms[0]["elsewhere"][0]["name"] == "Hotel Amaris" and not _ms[0]["gap"],
+      _ms[0])
+check("rivals in the hotel's own area, or with no town given, stay", [r["name"] for r in _ms[1]["rivals"]] == ["Novotel Zurich Airport Messe", "Radisson Blu", "Unplaced Hotel"] and _ms[1]["gap"],
+      _ms[1]["rivals"])
+check("the hotel's own town is never looked up, each other town once", sum("Kloten" in u for u in _asked) == 0 and sum("Olten" in u for u in _asked) == 1, _asked)
+_ms2 = [{"qid": "q1", "status": "not_named", "named": 0, "of": 2, "gap": True, "consistent": True, "rivals": [{"name": "Hotel Amaris", "town": "Olten", "answers": 2, "of": 2}]}]
+ai_gap.place_rivals(_ms2, "Kloten", None, _geo, sleep=0)
+check("without the hotel's position nothing is moved", _ms2[0]["gap"] and _ms2[0]["rivals"])
+
 print("4. the report leads with them")
 cons = {"recommendations": recs, "top_actions": [r["id"] for r in ranking.top_actions(recs)]}
 top = report_model.priorities_of(cons, 5)
