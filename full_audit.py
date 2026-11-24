@@ -791,7 +791,10 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         fb = claude_reader.read_hotel_pages(home_url, api_key=anthropic_api_key, model=anthropic_model, progress=say)
         if fb["status"] == "ok" and sum(1 for p in fb["pages"] if p["ok"]) >= 1:
             refused = guest.get("pages_failed") or []
+            fc_note = guest.get("firecrawl")             # why Firecrawl did not read it (robots.txt, or it failed): kept, so the report can say so
             guest = guest_questions.run_prefetched(site, base, hotel, fb["pages"], location=location)
+            if fc_note:
+                guest["firecrawl"] = fc_note
             guest["read_via"] = "anthropic_page_reader"
             guest["reader_cost_usd"] = fb["cost_usd"]
             guest["own_reader_refused"] = refused[:3]

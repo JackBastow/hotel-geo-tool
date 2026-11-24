@@ -61,13 +61,40 @@ def _short(q, n=80):
     return q if len(q) <= n else q[: n - 3].rstrip() + "..."
 
 
+_NAME_STOP = {"hotel", "hotels", "hotell", "hôtel", "resort", "house", "suites", "palace", "grand", "boutique", "residence", "collection", "inn", "lodge", "spa", "home", "best", "the"}
+
+
+def rival_own_site(a):
+    """A page on one of the rival hotels' own websites (Eriksberg: 'bestwestern.se' naming only Best Western Hotell Karlshamn): there is nothing to get onto. The domain carries a
+    distinctive word of a rival's name, and the page names one or two hotels (a town's tourism site that happens to share a word with a hotel names many)."""
+    dom = evidence.fold(a.get("domain") or "").replace("-", "")
+    names = a.get("rivals_in") or []
+    if len(names) > 2 and a.get("lists_hotels") is not False:
+        return False
+    for n in names:
+        for w in evidence.fold(n).split():
+            if len(w) >= 5 and w not in _NAME_STOP and w in dom:
+                return True
+    return False
+
+
+def _site_type(a):
+    """What kind of site a cited page is on (sourcetypes): a hotel chain's own site, a booking or review platform, a directory, a tourism body, or another site."""
+    try:
+        import sourcetypes
+        return sourcetypes.classify_domain(a.get("url") or ("https://" + (a.get("domain") or "")))[0]
+    except Exception:  # noqa: BLE001
+        return "other"
+
+
 def source_plays(gap, rec_fn, conf):
     """Pages the assistant used for the hotel's own lost searches that name its rivals and not it. -> [recommendation]"""
     markets = {m["qid"]: m for m in gap.get("markets") or []}
     lost = {q for q, m in markets.items() if _lost(m)}
     found = []
     for a in gap.get("articles") or []:
-        if a.get("hotel_in") or a.get("sponsored") or not a.get("rivals_in"):
+        st = _site_type(a)
+        if a.get("hotel_in") or a.get("sponsored") or not a.get("rivals_in") or rival_own_site(a) or st in ("hotel_group", "own_website", "social", "video", "map_or_open_data"):
             continue
         qs = [q for q in a.get("questions") or [] if q in lost]
         cited = int(a.get("cited") or 0)
@@ -83,7 +110,7 @@ def source_plays(gap, rec_fn, conf):
         sure = n_q >= 2 and cited >= 3
         rivals = a["rivals_in"][:3]
         q1 = markets[qs[0]]["question"]
-        editorial = (a.get("kind") or "").lower() not in ("booking and comparison site", "booking site", "review site", "directory")
+        editorial = st not in ("booking_platform", "hotel_directory", "government_register", "awards_body") and (a.get("kind") or "").lower() not in ("booking and comparison site", "booking site", "review site", "directory")
         route = (("For a chain hotel this is normally the brand's PR or regional marketing team. " if gap.get("chain") else "")
                  + ("Write to the publication's editor with accurate, factual information about what the hotel offers and where it is; ask how hotels are chosen for the list. Do not pay for a "
                     "placement presented as editorial." if editorial else "Claim or update the hotel's listing there, with the same facts as the hotel's own website."))

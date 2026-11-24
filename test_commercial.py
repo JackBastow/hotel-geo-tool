@@ -123,6 +123,21 @@ check("a baseline town question ('Which hotels in Paris are best for a weekend a
       not any("timeout.com" in r["title"] for r in _r2) and not any("Pavillon" in r["title"] for r in _r2 if r["id"].startswith("CP-")))
 check("and its 'Not named when asked' finding is low priority", next(r for r in _r2 if r["id"] == "AG-niche_base2")["priority"] == "low")
 
+check("a rival hotel's own website is not a page to 'get onto' (Eriksberg: bestwestern.se naming only Best Western Hotell Karlshamn)",
+      commercial.rival_own_site({"domain": "bestwestern.se", "rivals_in": ["Best Western Hotell Karlshamn"]}) and commercial.rival_own_site({"domain": "hotelcarlshamn.se", "rivals_in": ["Home Hotel Carlshamn"]}))
+check("a town's tourism site naming several hotels, or an editorial site, still is", not commercial.rival_own_site({"domain": "visitkarlshamn.se", "rivals_in": ["Hotel Carlshamn", "Best Western Hotell Karlshamn", "Villa Vegatorp"]})
+      and not commercial.rival_own_site({"domain": "oyster.com", "rivals_in": ["Sofitel Le Scribe Paris Opéra"]}))
+
+_g3 = copy.deepcopy(GAP)
+_g3["articles"] = [{"url": "https://all.accor.com/a/en/amsterdam.html", "title": "Hotels in Amsterdam", "domain": "all.accor.com", "cited": 4, "questions": ["niche_anchor_business0", "niche_anchor_value"],
+                    "rivals_in": ["Mercure Amsterdam City", "Novotel Amsterdam City"], "hotel_in": False, "sponsored": False},
+                   {"url": "https://www.reservations.com/hotels/amsterdam", "title": "Amsterdam hotels", "domain": "reservations.com", "cited": 3, "questions": ["niche_anchor_business0", "niche_anchor_value"],
+                    "rivals_in": ["Swissôtel Amsterdam", "Hotel Estherea", "Hotel Okura"], "hotel_in": False, "sponsored": False}]
+_s3 = commercial.source_plays(_g3, advice._rec, {"INFER": advice.INFER, "EXPER": advice.EXPER})
+check("a hotel chain's own website is not a page to get onto (Holiday Inn Amsterdam: 'all.accor.com')", not any("accor" in r["title"] for r in _s3), [r["title"] for r in _s3])
+check("a booking site is a listing to claim, not an editor to write to (reservations.com)", any("reservations.com" in r["title"] and "Claim or update" in r["action"] and "editor" not in r["action"] for r in _s3),
+      [(r["title"], r["action"][:80]) for r in _s3])
+
 print("4. the report leads with them")
 cons = {"recommendations": recs, "top_actions": [r["id"] for r in ranking.top_actions(recs)]}
 top = report_model.priorities_of(cons, 5)

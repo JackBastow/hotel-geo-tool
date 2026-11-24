@@ -484,6 +484,24 @@ def fetch_page(url, timeout=FETCH_TIMEOUT):
 
 # ------------------------------------------------------------ page selection
 
+# Pages that never answer a guest's question, whatever their address shares with one ('privacy-policy' and 'company-information' share 'policy' and 'information' with a hotel-policies page):
+# InterContinental Rome, Nov 2026: 10 of 25 pages read were legal pages and Italian copies, no FAQ or contact page was read, and check-in, parking and breakfast were 'not found'.
+_BOILERPLATE = re.compile(r"privacy|cookie|gdpr|data[-_]?protection|modern[-_]?slavery|whistle[-_]?blow|service[-_]?mark|trademark|company[-_]?information|corporate[-_]?information|imprint|impressum|"
+                          r"legal[-_]?notice|mentions[-_]?legales|note[-_]?legali|disclaimer|accessibility[-_]?statement|sitemap|careers?|jobs?|vacancies|press[-_]?releases?|investor", re.I)
+# a staging or test copy of the site (Chewton Glen: /testing/faq/, /testing/contact-details/)
+_STAGING = re.compile(r"/(?:testing|test|staging|stage|dev|draft|preview|old|backup|wip)(?:/|$)", re.I)
+_LANG_SEG = re.compile(r"^/([a-z]{2})(?:[-_][a-z]{2})?(?:/|$)", re.I)
+_SECTION_CAP = 4                 # pages read from one section of the site (/accommodation/...): the room pages must not crowd out the FAQ and the contact page
+
+
+def _lang_of(path):
+    m = _LANG_SEG.match(path or "")
+    return m.group(1).lower() if m and m.group(1).lower() in _LANGS else ""
+
+
+_LANGS = {"en", "it", "de", "fr", "es", "nl", "sv", "da", "no", "nb", "fi", "pt", "pl", "cs", "ru", "ja", "zh", "ko", "tr", "el", "hu", "ro", "ar", "he"}
+
+
 def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES, start=None):
     """
     Choose which pages to read: the homepage, then the pages whose addresses
@@ -495,6 +513,7 @@ def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES, start=None
     _, scope = urlscope.normalise(base)          # a page inside a chain's website: stay inside this hotel's own pages
     seen, cands = set(), []
     start_host = urllib.parse.urlparse(start or base).netloc
+    start_lang = _lang_of(urllib.parse.urlparse(start or base).path)
     n_sib = 0
     for u in list(sitemap_urls or []) + list(home_links or []):
         p = urllib.parse.urlparse(u)
@@ -507,8 +526,11 @@ def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES, start=None
             continue                                   # the same page in another language (index.fr.shtml)
         clean = urllib.parse.urlunparse((p.scheme, p.netloc, p.path, "", "", ""))
         key = clean.rstrip("/").lower()
-        if key in seen or _SKIP_PATH.search(p.path):
+        if key in seen or _SKIP_PATH.search(p.path) or _BOILERPLATE.search(p.path) or _STAGING.search(p.path):
             continue
+        lang = _lang_of(p.path)
+        if not sib and lang and lang != start_lang and not (lang == "en" and not start_lang):
+            continue                                   # the same pages in another language (/it/rooms-suites/ beside /rooms-suites/); an English start page's /en/ pages are its own
         seen.add(key)
         n_sib += 1 if sib else 0
         cands.append(clean)
@@ -529,11 +551,29 @@ def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES, start=None
         return s - 0.1 * depth, depth
 
     cands = [u for u in cands if u.rstrip("/").lower() != home_key and _pk(u) not in home_keys]
+    base_path = urllib.parse.urlparse(base).path.rstrip("/")
+
+    def section(u):
+        rest_ = urllib.parse.urlparse(u).path
+        rest_ = rest_[len(base_path):] if base_path and rest_.lower().startswith(base_path.lower()) else rest_
+        parts = [x for x in rest_.split("/") if x]
+        return parts[0].lower() if len(parts) > 1 else ""          # '/accommodation/garden-rooms/' is in 'accommodation'; a top-level page is its own
+
+    per = {}
+
+    def room(u):
+        sec = section(u)
+        if not sec:
+            return True
+        if per.get(sec, 0) >= _SECTION_CAP:
+            return False
+        per[sec] = per.get(sec, 0) + 1
+        return True
     ranked = sorted(cands, key=lambda u: (-score(u)[0], score(u)[1]))
-    chosen = [u for u in ranked if score(u)[0] > 0][: max_pages - 1]
+    chosen = [u for u in ranked if score(u)[0] > 0 and room(u)][: max_pages - 1]
     if len(chosen) < max_pages - 1:
         rest = sorted((u for u in cands if u not in chosen), key=lambda u: score(u)[1])
-        chosen += rest[: max_pages - 1 - len(chosen)]
+        chosen += [u for u in rest if room(u)][: max_pages - 1 - len(chosen)]
     return [start] + chosen
 
 

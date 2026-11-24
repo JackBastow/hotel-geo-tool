@@ -21,6 +21,7 @@ BOOKING_PLATFORMS = {
     "guestreservations.com": "Guest Reservations", "ebookers": "Ebookers",
     "travelrepublic": "Travel Republic", "wowcher.co.uk": "Wowcher",
     "groupon": "Groupon", "hotelplanner": "HotelPlanner", "priceline": "Priceline",
+    "reservations.com": "Reservations.com", "hotwire.com": "Hotwire", "orbitz.com": "Orbitz", "travelocity.com": "Travelocity", "momondo": "Momondo", "hrs.com": "HRS", "hostelworld": "Hostelworld",
     "orbitz": "Orbitz", "travelocity": "Travelocity", "hrs.com": "HRS",
     "mrandmrssmith.com": "Mr & Mrs Smith", "i-escape": "i-escape",
     "classic-british-hotels": "Classic British Hotels", "bedandbreakfast": "Bed and Breakfast",

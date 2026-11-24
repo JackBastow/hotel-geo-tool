@@ -75,12 +75,39 @@ def _queries(hotel, city):
     """The full name first, then the shorter forms the hotel is also known by (OpenStreetMap has 'Marriott Opera Ambassador', not 'Paris Marriott Opera Ambassador Hotel'). At most four searches."""
     import hotelname
     out = [f"{hotel}, {city}".strip(", ")]
+    forms = []
     for v in hotelname.variants(hotel, city):
-        for form in (v, _LODGING_TAIL.sub("", v)):
-            q = f"{form}, {city}".strip(", ")
-            if len(form) >= 4 and evidence.fold(q) not in {evidence.fold(x) for x in out}:
-                out.append(q)
-    return out[:4]
+        forms += [v, _LODGING_TAIL.sub("", v)]
+        for b in sorted(hotelname.BRANDS, key=len, reverse=True):          # without the brand in front: OpenStreetMap has 'Hotel Ambasciatori Palace', not 'InterContinental Rome Ambasciatori Palace'
+            if evidence.fold(v).startswith(b + " "):
+                bare = evidence.fold(v)[len(b) + 1:]
+                bare = " ".join(w for w in bare.split() if w not in evidence.fold(city or "").split())
+                forms += [bare, "hotel " + bare]
+                break
+    core = min((f for f in forms if len(f) >= 4), key=len, default="")
+    if core and " " not in core.strip():
+        forms += [f"{core} hotell", f"{core} hotel"]                         # the local word for hotel (Eriksberg: 'Eriksberg Hotell' in Karlshamn)
+    for form in forms:
+        q = f"{form}, {city}".strip(", ")
+        if len(form) >= 4 and evidence.fold(q) not in {evidence.fold(x) for x in out}:
+            out.append(q)
+    return out[:6]
+
+
+_COMMON = {"hotel", "hotell", "hotels", "palace", "grand", "resort", "house", "park", "nature", "reserve", "suites", "boutique", "collection", "international", "airport", "centre",
+           "center", "city", "garden", "gardens", "plaza", "royal", "luxury", "apartments", "lodge"}
+
+
+def _same_name(found, hotel, city):
+    """Is a place found under a shorter name this hotel? The full name in it (hotelname.mentioned), or a distinctive word of the hotel's name (not 'hotel', 'palace', its brand or its town):
+    'Hotel Ambasciatori Palace' for 'InterContinental Rome Ambasciatori Palace', 'Eriksberg Vilt och Natur' for 'Eriksberg Hotel & Nature Reserve'."""
+    import hotelname
+    if hotelname.mentioned(found, hotel, city):
+        return True
+    skip = _COMMON | set(evidence.fold(city or "").split()) | {w for b in hotelname.BRANDS for w in b.split()}
+    mine = {w for w in re.findall(r"[a-z0-9]+", evidence.fold(hotel)) if len(w) >= 5 and w not in skip}
+    theirs = set(re.findall(r"[a-z0-9]+", evidence.fold(found)))
+    return bool(mine & theirs)
 
 
 def geocode(hotel, city, fetch, with_country=False, sleep=None):
@@ -95,8 +122,8 @@ def geocode(hotel, city, fetch, with_country=False, sleep=None):
         if n:
             (sleep or _time.sleep)(1.1)                      # Nominatim's usage policy: one request a second
         try:
-            r = fetch(NOMINATIM + "?" + urllib.parse.urlencode({"q": q, "format": "json", "limit": 3, "addressdetails": 1}), headers={"User-Agent": UA}, timeout=10)
-            rows = r.json() if r.status_code == 200 else []
+            r = fetch(NOMINATIM + "?" + urllib.parse.urlencode({"q": q, "format": "json", "limit": 3, "addressdetails": 1, "accept-language": "en"}), headers={"User-Agent": UA}, timeout=10)
+            rows = r.json() if r.status_code == 200 else []      # place names in English, so 'Roma' comes back as 'Rome' and matches the town given
         except Exception:  # noqa: BLE001
             continue
         for row in rows or []:
@@ -104,7 +131,7 @@ def geocode(hotel, city, fetch, with_country=False, sleep=None):
             where = evidence.fold(" ".join(str(a.get(k, "")) for k in ("city", "town", "village", "municipality", "suburb", "county")) + " " + row.get("display_name", ""))
             if not (town and town in where):
                 continue
-            if n and not (row.get("type") in ("hotel", "guest_house", "hostel", "motel", "apartment", "resort") and hotelname.mentioned(row.get("display_name", "").split(",")[0], hotel, city)):
+            if n and not (row.get("type") in ("hotel", "guest_house", "hostel", "motel", "apartment", "resort") and _same_name(row.get("display_name", "").split(",")[0], hotel, city)):
                 continue                                      # a shorter name must find this hotel, not another place with a similar name
             try:
                 xy = float(row["lat"]), float(row["lon"])

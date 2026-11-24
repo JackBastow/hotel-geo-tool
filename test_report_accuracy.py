@@ -401,6 +401,10 @@ def _nom(url, **kw):
 check("the hotel is found on the map under the shorter name it is known by", anchors.geocode(_MH, "Paris", _nom, sleep=lambda s: None) == (48.8727, 2.3367), _asked)
 check("a shorter name must find a place to stay with that name, not anything similar", anchors.geocode("Opera Ambassador Hotel", "Paris", lambda u, **k: _NR([{"lat": "1", "lon": "1", "type": "attraction",
       "display_name": "Opera Ambassador Theatre, Paris", "address": {"city": "Paris"}}]) if "Hotel" not in u else _NR([]), sleep=lambda s: None) is None)
+check("a hotel listed on the map without its brand, or with the local word for hotel, is found (Rome: 'Hotel Ambasciatori Palace'; Eriksberg: 'Eriksberg Vilt och Natur')",
+      anchors._same_name("Hotel Ambasciatori Palace", "InterContinental Rome Ambasciatori Palace", "Rome") and anchors._same_name("Eriksberg Vilt och Natur", "Eriksberg Hotel & Nature Reserve", "Karlshamn")
+      and "ambasciatori palace, Rome" in anchors._queries("InterContinental Rome Ambasciatori Palace", "Rome") and "eriksberg hotell, Karlshamn" in anchors._queries("Eriksberg Hotel & Nature Reserve", "Karlshamn"))
+check("but never another hotel in the same town", not anchors._same_name("Hotel Splendide Royal", "InterContinental Rome Ambasciatori Palace", "Rome"))
 _facts = [{"text": t} for t in ("price level: upscale", "kind of hotel: business", "close to Louvre Museum (15 minutes)", "offers restaurant (strong evidence on its own pages)",
                                  "its kind and pages support: meetings and events")]
 check("a frozen prompt about a facility the hotel does not have no longer fits", "spa" in (ai_questions.misfit("Are there hotels in Paris with a spa where we could unwind together?", _facts, "upscale", "Paris") or ""))

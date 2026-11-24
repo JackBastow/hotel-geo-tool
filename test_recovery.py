@@ -58,6 +58,17 @@ for path, skip in (("/rooms/sea-view-bedroom-jpg/", True), ("/img_2041-2/", True
                    ("/booking/", True), ("/rooms/", False), ("/weddings/", False), ("/the-form-room/", False), ("/meetings-events/", False)):
     check(f"{path} is {'skipped' if skip else 'read'}", bool(gq._SKIP_PATH.search(path)) == skip)
 
+_RB = "https://rome.intercontinental.com/"
+_sel = gq.select_pages(_RB, [_RB + p for p in ("privacy-policy/", "it/privacy-policy/", "it/rooms-suites/", "cookie-policy/", "ihg-service-mark/", "company-information/", "whistleblowing/",
+                                               "rooms-suites/", "faq/", "contact-us/", "getting-here/", "terms-and-conditions/", "testing/faq/")], [], max_pages=12)
+check("legal pages, other-language copies and staging copies are never chosen; the FAQ, contact and getting-here pages are (InterContinental Rome: 10 of 25 pages read were legal pages and Italian copies)",
+      not any(x in u for u in _sel for x in ("privacy", "cookie", "service-mark", "company-information", "whistleblowing", "/it/", "/testing/"))
+      and all(any(u.endswith(p) for u in _sel) for p in ("faq/", "contact-us/", "getting-here/")), [u.replace(_RB, "/") for u in _sel])
+_CB = "https://www.chewtonglen.com/"
+_sel2 = gq.select_pages(_CB, [_CB + "accommodation/room-%d/" % i for i in range(12)] + [_CB + "faq/", _CB + "contact/", _CB + "visit/getting-here/"], [], max_pages=10)
+check("no more than four pages from one section, so the room pages do not crowd out the FAQ (Chewton Glen: 12 of 25 were room pages)",
+      sum(1 for u in _sel2 if "/accommodation/" in u) <= 4 and any(u.endswith("faq/") for u in _sel2), [u.replace(_CB, "/") for u in _sel2])
+
 print("3. a page that fails is recovered or replaced")
 ok_text = "Our rooms have sea views and king beds. Breakfast is served from 7 to 10. " * 6
 
