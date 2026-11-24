@@ -365,6 +365,8 @@ _air = places.mentions("Tel: +33 1-4483 4040\nCharles de Gaulle International Ai
 check("an airport's distance on the line below its name is its distance (Marriott: 'Distance From Property: 30.0 KM'; three findings said it was not stated)",
       [(m["name"], m["distance"]) for m in _air] == [("Charles de Gaulle", "30.0 KM")], [(m["name"], m["distance"], m["sentence"]) for m in _air])
 check("a square named after the same person is not the airport ('Place Charles de Gaulle, Paris')", not any("Place Charles" in m["sentence"] for m in _air))
+_gym = {q["id"]: q for q in gq.evaluate([{"url": _MB + "overview/", "ok": True, "title": "Overview", "h1": [], "text": "Take advantage of our hotel gym to train on treadmills, do bodybuilding, or fitness."}])}
+check("'our gym, to train on treadmills' is not a train (Marriott: transport was answered by the gym)", not _gym["transport"].get("fact_snippets"))
 import locate
 check("the postcode on a page read as plain text places the hotel (THE NICI: its site refused our reader, so it had no map position and no comparable hotels)",
       locate.postcode_from_pages(["FAQs\nWhere is THE NICI Newquay?\nEnter East Street, Newquay, Cornwall, TR7 1DB into your sat nav."], "Newquay") == "TR7 1DB")
