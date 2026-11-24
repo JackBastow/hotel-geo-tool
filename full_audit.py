@@ -938,6 +938,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
 
     # Questions for the markets this hotel actually competes in (airport, district, price level, what it is known for), from facts now in hand.
     niche_ex = niche_future = market_profile = question_plan = benchmark_info = forum_ex = forum_future = None
+    engines_ex = engines_future = engines_stop = None
+    engines_result = {}
     custom_qs = ai_niche.custom_questions(custom_prompts)          # the person's own prompts, asked exactly as typed
     if anthropic_api_key and hotel and city:
         nqs = []
@@ -993,6 +995,25 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         except Exception as _step_e:  # noqa: BLE001
             steps.failed('Planning the questions / _core_q', _step_e)
             forum_future = None
+        if nqs and hotel and city:
+            # the other assistants (ChatGPT, Gemini, Perplexity) are asked the hotel's tracked prompts while Claude answers its own round (assistants.py; only those with a key)
+            try:
+                import assistants
+                _tracked = [q for q in nqs if q.get("source") == "benchmark"] or [q for q in nqs if q.get("priority") == "core"]
+                _seen_t, _tp = set(), []
+                for q in _tracked:
+                    k_ = q.get("qid") or q.get("id")
+                    if k_ not in _seen_t and q.get("text"):
+                        _seen_t.add(k_)
+                        _tp.append({"id": k_, "text": q["text"], "kind": q.get("kind") or "niche", "angle": q.get("angle")})
+                if _tp and any(assistants.key_for(e) for e in assistants.ENGINES):
+                    engines_stop = threading.Event()
+                    engines_ex = ThreadPoolExecutor(max_workers=1)
+                    _host1 = urllib.parse.urlparse(base).netloc.lower()
+                    engines_future = engines_ex.submit(assistants.run_all, _tp, hotel, city, own_domain=_host1[4:] if _host1.startswith("www.") else _host1, country=search_country,
+                                                       stop_event=engines_stop, progress=say)
+            except Exception as e:  # noqa: BLE001
+                steps.failed("Asking the other AI assistants", e)
         if nqs:
             try:
                 _host0 = urllib.parse.urlparse(base).netloc.lower()
@@ -1079,6 +1100,15 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 "ai_visibility", f"Configured but the check failed: {e}",
                 "Check the Gemini API key and that billing is enabled.")
 
+    if engines_future is not None:
+        try:
+            engines_result = engines_future.result(timeout=900)
+        except Exception as e:  # noqa: BLE001 - Claude's sample stands without them, and the report says so
+            steps.failed("Asking the other AI assistants", e)
+            if engines_stop is not None:
+                engines_stop.set()
+        finally:
+            engines_ex.shutdown(wait=False, cancel_futures=True)
     round2_error = ""
     if niche_future is not None:
         try:
@@ -1355,6 +1385,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "consultant": consult_result,
         "web_signals": web,
         "ai_sample": ai_result,
+        "ai_engines": engines_result,             # ChatGPT, Gemini, Perplexity on the tracked prompts (assistants.py); empty when none has a key
         "market_profile": market_profile,
         "question_plan": question_plan,
         "firecrawl_other": {"credits": (_fc_other.state["credits"] if _fc_other else 0), "pages": (_fc_other.state["used"] if _fc_other else [])},

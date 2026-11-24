@@ -251,7 +251,7 @@ def register(app, cfg):
 
             def glance_html(prev=None):
                 parts = []
-                for fn in (lambda: dashboard_view.readiness_banner(rep, prev), lambda: dashboard_view.at_a_glance(rep), lambda: glance.scorecard_html(rep), lambda: glance.strengths_html(rep)):
+                for fn in (lambda: dashboard_view.readiness_banner(rep, prev), lambda: dashboard_view.at_a_glance(rep), lambda: glance.scorecard_html(rep), lambda: glance.engines_html(rep), lambda: glance.strengths_html(rep)):
                     try:
                         parts.append(fn() or "")
                     except Exception:  # noqa: BLE001 - one part that fails is left out; the rest of the Overview shows

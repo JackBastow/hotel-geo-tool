@@ -19,6 +19,16 @@ def rows(rep):
         k = i.get("qid") or i.get("id")
         by_q[k] = by_q.get(k, 0) + 1
     top = max(by_q.values()) if by_q else 0
-    return [{"name": "Claude", "maker": "Anthropic", "tested": True,
-             "detail": f"Tested: {ai.get('model', 'Claude')} with live web search{where}, on {log.get('date') or 'the audit date'}. {len(by_q)} different prompts, {len(items)} answers in all"
-                       + (f"; the most important prompts were each asked {top} times." if top > 1 else ".")}]
+    out = [{"name": "Claude", "maker": "Anthropic", "tested": True,
+            "detail": f"Tested: {ai.get('model', 'Claude')} with live web search{where}, on {log.get('date') or 'the audit date'}. {len(by_q)} different prompts, {len(items)} answers in all"
+                      + (f"; the most important prompts were each asked {top} times." if top > 1 else ".")}]
+    import assistants
+    for e, meta in assistants.ENGINES.items():
+        r = ((rep or {}).get("ai_engines") or {}).get(e) or {}
+        if r.get("status") == "ok":
+            n_q = len({i.get("qid") for i in r.get("items") or []})
+            out.append({"name": meta["name"], "maker": meta["maker"], "tested": True,
+                        "detail": f"Tested: {meta['name']} ({r.get('model') or meta['maker']}) through its official API with live web search: the hotel's {n_q} tracked prompts, {len(r.get('items') or [])} answers."})
+        else:
+            out.append({"name": meta["name"], "maker": meta["maker"], "tested": False, "detail": "Not asked in this check: " + (r.get("reason") or "no API key is set for it.")})
+    return out

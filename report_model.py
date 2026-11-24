@@ -66,6 +66,38 @@ def ai_moved(before, now):
     return "same"
 
 
+ENGINE_ORDER = ("claude", "chatgpt", "gemini", "perplexity")
+ENGINE_NAMES = {"claude": "Claude", "chatgpt": "ChatGPT", "gemini": "Gemini", "perplexity": "Perplexity"}
+
+
+def _count(items):
+    rows = [i for i in items or [] if i.get("mentioned") is not None and i.get("kind") != "direct" and not i.get("names_hotel")]
+    if not rows:
+        return None
+    named = sum(1 for i in rows if i.get("mentioned"))
+    return {"named": named, "asked": len(rows), "pct": round(100 * named / len(rows)), "recommended": sum(1 for i in rows if i.get("recommended")),
+            "site_cited": sum(1 for i in rows if i.get("own_site_cited"))}
+
+
+def engine_counts(rep):
+    """-> [{engine, name, status, reason, named, asked, pct, recommended, site_cited}] for every assistant, Claude first, all on the hotel's TRACKED prompts (the same questions for each).
+    An assistant that was not asked has status not_configured / over_budget / unavailable and no figures: 'not tested', never zero."""
+    rep = rep or {}
+    out = []
+    ai = rep.get("ai_sample") or {}
+    claude_items = [i for i in ai.get("items") or [] if i.get("source") == "benchmark"] if ai.get("status") == "ok" else []
+    c = _count(claude_items)
+    out.append({"engine": "claude", "name": "Claude", "status": "ok" if c else (ai.get("status") or "not_configured"), "reason": "" if c else (ai.get("reason") or "No tracked prompts were asked."),
+                **(c or {})})
+    eng = rep.get("ai_engines") or {}
+    for e in ENGINE_ORDER[1:]:
+        r = eng.get(e) or {}
+        c = _count(r.get("items")) if r.get("status") == "ok" else None
+        out.append({"engine": e, "name": ENGINE_NAMES[e], "status": "ok" if c else (r.get("status") or "not_configured"),
+                    "reason": "" if c else (r.get("reason") or f"No key for {ENGINE_NAMES[e]} is set on the host, so it was not asked."), "model": r.get("model"), **(c or {})})
+    return out
+
+
 def depth_of(rep):
     """'deep', 'standard' or '' (no AI test). Recorded on checks since Nov 2026; older ones are recognised by their repeats (a deep test asks its core prompts 5 times)."""
     d = ((rep or {}).get("meta") or {}).get("ai_depth")
@@ -113,7 +145,11 @@ def apply(rep):
         tracked = tracked_counts(rep)
     except Exception:  # noqa: BLE001
         tracked = None
-    rep["model"] = {"version": MODEL_VERSION, "ai": ai, "tracked": tracked, "top_priorities": top, "score_basis": score_basis(rep)}
+    try:
+        engines = engine_counts(rep)
+    except Exception:  # noqa: BLE001
+        engines = []
+    rep["model"] = {"version": MODEL_VERSION, "ai": ai, "tracked": tracked, "top_priorities": top, "score_basis": score_basis(rep), "engines": engines}
     if not ai:
         return rep
     ins = rep.get("ai_insights") if isinstance(rep.get("ai_insights"), dict) else None

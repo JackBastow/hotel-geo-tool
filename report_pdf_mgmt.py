@@ -221,7 +221,14 @@ def _engines_band(rep):
     tested = [e for e in engines.rows(rep) if e["tested"]]
     if not tested:
         return []
-    t = Table([[R.Paragraph("<font color='%s'><b>AI assistant asked</b></font><br/>%s" % (R.GOOD, esc(tested[0]["detail"].replace("Tested: ", "", 1))), R.S["cell"])]], colWidths=[R.W])
+    import report_model
+    counts = {r["name"]: r for r in report_model.engine_counts(rep)}
+    lines = []
+    for e in tested:
+        c = counts.get(e["name"]) or {}
+        fig = f" Named in {c['named']} of {c['asked']} answers to the tracked prompts ({c['pct']}%)." if c.get("status") == "ok" and len(tested) > 1 else ""
+        lines.append(f"<b>{esc(e['name'])}</b>: {esc(e['detail'].replace('Tested: ', '', 1))}{esc(fig)}")
+    t = Table([[R.Paragraph("<font color='%s'><b>%s</b></font><br/>%s" % (R.GOOD, "AI assistants asked" if len(tested) > 1 else "AI assistant asked", "<br/>".join(lines)), R.S["cell"])]], colWidths=[R.W])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f1f8f3")), ("LEFTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
     return [Spacer(1, 3), t]
 

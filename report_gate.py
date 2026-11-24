@@ -425,6 +425,9 @@ def check_more(rep, gate, done):
         review.append({"what": f"The step that writes this hotel's questions failed ({plan_err[:100]}); fewer questions than usual were asked."})
     if (rep.get("ai_insights") or {}).get("unanalysed"):
         review.append({"what": f"{rep['ai_insights']['unanalysed']} AI answer(s) could not be analysed for the hotels they name; the rival figures leave them out."})
+    for e_, r_ in (rep.get("ai_engines") or {}).items():
+        if isinstance(r_, dict) and r_.get("status") in ("unavailable",):
+            review.append({"what": f"{r_.get('name', e_)} was not asked successfully in this check ({str(r_.get('reason') or '')[:100]})."})
     if ai.get("round2_error"):
         review.append({"what": ai["round2_error"] + " Its answers are not in this report."})
     if tracked_ok and bench and asked_tracked:

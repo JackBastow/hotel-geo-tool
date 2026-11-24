@@ -341,9 +341,10 @@ def register(app, cfg):
             return shell("usage", "Usage", f'<div class="alert warning">{htmlst.html.escape(msg)}</div>')
         import store as quota
         lines = []
-        for svc in ("tavily", "claude", "gemini_reader", "amadeus"):
+        names = {"claude": "Claude ($, thousandths)", "ai_chatgpt_usd": "ChatGPT ($, thousandths)", "ai_gemini_usd": "Gemini ($, thousandths)", "ai_perplexity_usd": "Perplexity ($, thousandths)"}
+        for svc in ("tavily", "claude", "ai_chatgpt_usd", "ai_gemini_usd", "ai_perplexity_usd", "gemini_reader", "amadeus"):
             used, remaining, _w = quota.quota_status(service=svc)
-            lines.append({"Service": svc, "Used this month": used, "Allowance": quota.SERVICE_CAPS.get(svc), "Left": remaining})
+            lines.append({"Service": names.get(svc, svc), "Used this month": used, "Allowance": quota.SERVICE_CAPS.get(svc), "Left": remaining})
         out = ("<h5>By month</h5>" + _table(s.usage_by_month(), ["month", "runs", "hotels", "ai_cost_usd"], {"month": "Month", "runs": "Audits", "hotels": "Hotels", "ai_cost_usd": "Estimated AI cost $"})
                + '<p class="caption">Costs are the app\'s own estimates from reported token use and searches. The Anthropic Console is the source of truth for what was charged.</p>'
                + "<h5>Free-tier guards this month</h5>" + _table(lines) + '<p class="caption">Claude is counted in thousandths of a US dollar. These guards stop the service calling a key once its monthly allowance is used; the workspace spend limit in the Anthropic Console is the hard stop.</p>')
