@@ -417,6 +417,11 @@ check("the prompt that no longer fits is retired with its reason; the others are
       and any(q["text"] == _bench[0]["text"] and q["source"] == "benchmark" for q in _built["questions"]) and not any(q["text"] == _bench[1]["text"] for q in _built["questions"]), _built["benchmark_retired"])
 check("and the renewed set is saved in its place", _bench[0]["text"] in [b["text"] for b in _built["benchmark_prompts"]] and _bench[1]["text"] not in [b["text"] for b in _built["benchmark_prompts"]]
       and not _built["benchmark_reused"])
+import competitors as _cmp
+_own4 = {"stars": 4, "stars_inferred": "brand level", "rooms": None, "facilities": ["restaurant", "meeting_rooms"]}
+check("a brand hotel with no star rating on its pages is compared with hotels of its brand's level, and the reason says it is inferred (Marriott: 'none comparable')",
+      _cmp.comparable(_own4, {"stars": 5, "rooms": None, "facilities": ["restaurant", "meeting_rooms"]})[0] >= 3 and "inferred" in " ".join(_cmp.comparable(_own4, {"stars": 4, "rooms": None, "facilities": ["restaurant"]})[1]))
+check("a 2-star guest house is not comparable with it", _cmp.comparable(_own4, {"stars": 2, "rooms": None, "facilities": ["restaurant"]})[0] == 0)
 _mine = ai_questions.build({"tier": {"key": "upscale", "label": "Upscale", "why": "brand"}, "classes": []}, _MH, "Paris", [], benchmark=[dict(_bench[1], confirmed=True)])
 check("a prompt the hotel confirmed itself is its choice, and is never retired automatically", not _mine["benchmark_retired"] and any(q["text"] == _bench[1]["text"] for q in _mine["questions"]))
 

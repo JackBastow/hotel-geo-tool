@@ -70,7 +70,7 @@ def comparable(own, rival):
         d = abs(own["stars"] - rival["stars"])
         if d == 0:
             pts += 2
-            why.append(f"both {own['stars']}-star")
+            why.append(f"both {own['stars']}-star" + (" (this hotel's level inferred from its brand)" if own.get("stars_inferred") else ""))
         elif d == 1:
             pts += 1
             why.append(f"{rival['stars']}-star against {own['stars']}-star")
@@ -160,6 +160,16 @@ def run(osm_ctx, own_pages, base, hotel, fetch=None, deadline_s=DEADLINE_S, poli
         polite_allowed = polite.allowed
     own_site = ic.Site(own_pages, base, hotel, "")
     own = profile(own_pages, base, hotel)
+    if not own["stars"]:
+        # no star rating on the pages: a brand's usual level stands in, said as an inference (Paris Marriott: 'none comparable' because its own level was unknown,
+        # with 4- and 5-star hotels around it). Never used for an independent hotel: its level comes only from what it states.
+        try:
+            import ai_niche
+            t = ai_niche.tier_of(hotel, own_domain, None, {})
+            if t and t.get("source") == "brand":
+                own["stars"], own["stars_inferred"] = {"luxury": 5, "upscale": 4, "midscale": 3, "budget": 2}[t["key"]], t["why"]
+        except Exception:  # noqa: BLE001
+            pass
     own_wanted = [k for k in own["facilities"]]
     slugs = sorted({s for rid, ss in TOPIC_SLUGS.items() if FEATURE_FOR[rid] in own_wanted or FEATURE_FOR[rid] == "family" and own["features"].get("family") in ("some", "strong") for s in ss})
     end = time.time() + deadline_s
@@ -213,4 +223,4 @@ def run(osm_ctx, own_pages, base, hotel, fetch=None, deadline_s=DEADLINE_S, poli
                       "missing": missing_own, "example": rid_rule["example"], "verified": True})
     return {"status": "ok", "reason": "", "competitors": [{"name": c["name"], "url": c["url"], "km": c["km"], "why_comparable": why, "pages_read": len(pages), "stars": rp["stars"], "rooms": rp["rooms"],
                                                            "facilities": rp["facilities"]} for _p, _k, c, pages, rp, why in rivals],
-            "own": {"stars": own["stars"], "rooms": own["rooms"], "facilities": own["facilities"]}, "comparisons": comps, "limits": base_out["limits"]}
+            "own": {"stars": own["stars"], "stars_inferred": own.get("stars_inferred"), "rooms": own["rooms"], "facilities": own["facilities"]}, "comparisons": comps, "limits": base_out["limits"]}

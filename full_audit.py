@@ -816,7 +816,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         try:
             import locate
             if not location.get("postcode"):
-                pc = locate.postcode_from_pages([p.get("text") or "" for p in own_pages if p.get("ok")], city)
+                pc = locate.postcode_from_pages([p.get("text") or "" for p in own_pages if p.get("ok", True)], city)      # own_pages holds only pages that were read (no 'ok' flag)
                 if pc:
                     location["postcode"], location["postcode_source"] = pc, "the hotel's own pages"
             locate.fill_position(location, hotel, city, netguard.get)
