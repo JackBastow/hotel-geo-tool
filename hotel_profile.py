@@ -193,7 +193,7 @@ def draft_from_site(hotel, cfg, fetch=None, client=None):
             text, _d, _s, tin, tout = ai_sample.parse_response(resp)
             try:
                 import store
-                store.record_usage(max(1, round(ai_sample.cost_usd(model, tin, tout, 0) * 1000)), service="claude")
+                pass                                  # the spend itself is metered per answer (costs.py)
             except Exception:  # noqa: BLE001
                 pass
             d = review_replies.parse_json(text)
@@ -451,7 +451,7 @@ def prompts_from_profile(profile, hotel_name, client=None, model=None, n=20):
             text, _d, _s, tin, tout = ai_sample.parse_response(resp)
             try:
                 import store
-                store.record_usage(max(1, round(ai_sample.cost_usd(model, tin, tout, 0) * 1000)), service="claude")
+                pass                                  # the spend itself is metered per answer (costs.py)
             except Exception:  # noqa: BLE001
                 pass
             d = review_replies.parse_json(text)

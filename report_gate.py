@@ -423,6 +423,8 @@ def check_more(rep, gate, done):
         review.append({"what": "The hotel's tracked prompts were not asked in this check, so it cannot be compared with earlier ones."})
     if plan_err:
         review.append({"what": f"The step that writes this hotel's questions failed ({plan_err[:100]}); fewer questions than usual were asked."})
+    if (rep.get("ai_insights") or {}).get("unanalysed"):
+        review.append({"what": f"{rep['ai_insights']['unanalysed']} AI answer(s) could not be analysed for the hotels they name; the rival figures leave them out."})
     if ai.get("round2_error"):
         review.append({"what": ai["round2_error"] + " Its answers are not in this report."})
     if tracked_ok and bench and asked_tracked:

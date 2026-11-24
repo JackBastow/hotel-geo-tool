@@ -277,7 +277,8 @@ def budget_exhausted():
 
 def _make_client(api_key, timeout=90.0):
     import anthropic
-    return anthropic.Anthropic(api_key=api_key, max_retries=4, timeout=timeout)       # 4 retries with back-off: one busy moment at the provider must not end the sample
+    import costs
+    return costs.metered(anthropic.Anthropic(api_key=api_key, max_retries=4, timeout=timeout))   # 4 retries with back-off; every answer priced and added to the month's spend (costs.py)
 
 
 import threading as _threading

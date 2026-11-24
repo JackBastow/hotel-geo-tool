@@ -90,5 +90,29 @@ c = Client()
 items, spent, why = ai_sample.ask_all("Brooklands Hotel", "Weybridge", QS, client=c, model="claude-haiku-4-5", repeats=1, workers=1, stop_event=ev)
 check("a round the check has stopped makes no more calls", c.calls == 0 and items == [])
 
+print("4. an answer the analysis could not read")
+import ai_insights
+_items = [{"id": f"g{k}", "kind": "generic", "answer": "1. Brooklands Hotel\n2. Oatlands Park Hotel", "mentioned": True} for k in range(12)]
+_calls = {"n": 0}
+_orig = ai_insights._extract_batch
+
+
+def _fake_batch(client, model, batch, hotel, city):
+    _calls["n"] += 1
+    if any(i["id"] == "g0" for i in batch):
+        return None, (10, 10)
+    return {"answers": [{"id": i["id"], "hotels": [{"name": "Brooklands Hotel", "rank": 1}, {"name": "Oatlands Park Hotel", "rank": 2}]} for i in batch], "about": {}}, (10, 10)
+
+
+ai_insights._extract_batch = _fake_batch
+try:
+    _ex, _u = ai_insights.extract(None, "m", _items, "Brooklands Hotel", "Weybridge")
+    _lb = ai_insights.leaderboard(_ex, _items, "Brooklands Hotel")
+finally:
+    ai_insights._extract_batch = _orig
+_me = next(r for r in _lb["rows"] if r["is_target"])
+check("a batch that could not be read is tried again once", _calls["n"] == 3, _calls["n"])
+check("its answers are left out of the totals, not counted as naming nobody (4 of 4, not 4 of 12)", (_me["mentions"], _me["of"]) == (4, 4) and len(_ex["failed_ids"]) == 8, (_me["mentions"], _me["of"]))
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

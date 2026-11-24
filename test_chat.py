@@ -63,7 +63,7 @@ out = chat.reply([{"role": "user", "content": "What do you do?"}], "key", client
 call = fc.calls[0]
 check("the model is given the fact sheet, the conversation and a short limit", "FACT SHEET" in call["system"] and call["messages"][-1]["content"] == "What do you do?" and call["max_tokens"] == chat.MAX_TOKENS and "tools" not in call)
 check("the reply comes back", out == fc.text)
-check("the call and an estimated spend are counted", store.read_quota("chat")["calls"] == 1 and store.read_quota("claude")["calls"] >= 1)
+check("the call is counted (its spend is metered by the shared Claude client, costs.py: test_costs)", store.read_quota("chat")["calls"] == 1)
 try:
     chat.reply([{"role": "user", "content": "hi"}], "", client=fc)
     check("without a key it says it is not switched on", False)

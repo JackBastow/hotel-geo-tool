@@ -79,7 +79,8 @@ def summarise(rep):
     import report_model
     mai = report_model.ai_counts(rep)                 # the one count of how often the hotel was named (report_model.py)
     mtr = report_model.tracked_counts(rep)            # the hotel's tracked prompts only: what week-on-week change is measured on
-    ai_cost = sum(_num(x.get("cost_usd")) or 0 for x in (ai, ins, rv, rep.get("listing_lookup") or {})) + _num((rep.get("guest_questions") or {}).get("reader_cost_usd") or 0)
+    import costs
+    ai_cost = costs.report_usd(rep)                   # every part of the check that reports a cost (the gap analysis, forums, Reddit, page reading and question writer included)
     return {
         "run_at": str(meta.get("run_at") or dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")),
         "hotel": meta.get("hotel") or "", "hotel_key": hotel_key(rep), "city": meta.get("city") or "", "website": meta.get("website") or "",

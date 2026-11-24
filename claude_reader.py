@@ -111,7 +111,7 @@ def read_hotel_pages(start_url, *, api_key=None, model=None, client=None, max_pa
             return out("not_configured", "No Anthropic API key is configured, so the fallback page reader was not used.")
         try:
             import anthropic
-            client = anthropic.Anthropic(api_key=api_key, max_retries=1, timeout=120.0)
+            client = ai_sample._make_client(api_key, timeout=120.0)
         except Exception as e:  # noqa: BLE001
             return out("unavailable", f"The Anthropic library could not be started ({type(e).__name__}).")
     say = progress or (lambda m: None)

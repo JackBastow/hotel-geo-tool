@@ -81,7 +81,7 @@ names = [h["name"] for h in ex["answers"]["best"]]
 check("a hotel the answer never mentioned is dropped ('The Invented Palace'), real ones kept", "The Invented Palace" not in names and len(names) == 3, names)
 check("an answer id that was never asked is ignored", "ghost" not in ex["answers"])
 check("only known claim types are kept, with the tone validated", [c["type"] for c in ex["about"]["claims"]] == ["parking", "check_in", "phone", "star_rating"] and ex["about"]["tone"] == "mixed")
-check("prose instead of JSON gives None, never a guess", ins.extract(Fake([resp("sorry")]), "claude-haiku-5-5", ITEMS, HOTEL, CITY)[0] is None)
+check("prose instead of JSON gives None, never a guess", ins.extract(Fake([resp("sorry"), resp("sorry")]), "claude-haiku-5-5", ITEMS, HOTEL, CITY)[0] is None)          # tried twice (a one-off unreadable reply is asked again)
 
 print("3. the leaderboard (plain arithmetic)")
 lb = ins.leaderboard(ex, ITEMS, HOTEL)

@@ -134,7 +134,7 @@ class Weekly:
             return {"state": s["state"], "messages": list(s["messages"][-8:]), "elapsed": round((s["finished"] or time.time()) - s["started"]), "error": s["error"]}
 
     def params_for(self, h, manual=False):
-        depth = getattr(self.cfg, "ai_depth", "deep") if manual else getattr(self.cfg, "weekly_ai_depth", "standard")
+        depth = getattr(self.cfg, "ai_depth", "standard") if manual else getattr(self.cfg, "weekly_ai_depth", "standard")
         import hotel_profile
         return {"website": h["website"], "hotel": h["name"], "city": h["city"], "wider": True, "tier": h["tier"] or None,
                 "audiences": [a for a in (h["audiences"] or "").split(",") if a], "depth": depth, "profile": hotel_profile.confirmed(h)}

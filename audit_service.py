@@ -49,7 +49,7 @@ class Config:
         self.secret_key = get("SECRET_KEY")
         self.closed = bool(get("RENDER") or get("REQUIRE_SIGNIN"))      # on the live host the site is never open: with no site password only a signed-in admin may use the audit tool
         import depth as _depth
-        self.ai_depth = _depth.clean(get("AI_DEPTH") or "deep")                 # manual and demo audits: the thorough test
+        self.ai_depth = _depth.clean(get("AI_DEPTH") or "standard")             # manual and demo audits: the standard test (a deep one costs about $6.50, up to ~$17); set AI_DEPTH=deep on the host for the thorough one
         self.weekly_ai_depth = _depth.clean(get("WEEKLY_AI_DEPTH") or "standard")      # the weekly checks: the lighter test, so a portfolio of hotels stays affordable and quick
         self.cron_token = get("CRON_TOKEN")                # lets the scheduled weekly-check job call /internal/weekly; without it those routes do not exist
         try:
@@ -133,8 +133,10 @@ def run(params, cfg, progress=None):
     spent = (((fa_res.get("ai_sample") or {}).get("cost_usd") or 0) + ((fa_res.get("review_snapshot") or {}).get("cost_usd") or 0)
              + ((fa_res.get("guest_questions") or {}).get("reader_cost_usd") or 0) + (((fa_res.get("guest_questions") or {}).get("ai_extract") or {}).get("cost_usd") or 0) + ((fa_res.get("ai_insights") or {}).get("cost_usd") or 0)
              + ((fa_res.get("ai_gap") or {}).get("cost_usd") or 0) + ((fa_res.get("forums") or {}).get("cost_usd") or 0) + ((fa_res.get("listing_lookup") or {}).get("cost_usd") or 0) + ((fa_res.get("reddit") or {}).get("cost_usd") or 0))
+    import costs
+    costs.flush()                                 # the month's AI spend is metered per answer (costs.py); what is still pending is recorded now
     if spent:
-        store.record_usage(max(1, round(spent * 1000)), service="claude")      # estimated spend, in thousandths of a dollar
+        store.record_usage(0, audits=1, service="claude")      # one more audit that used Claude (the spend itself is already metered)
     fc = (fa_res.get("guest_questions") or {}).get("firecrawl") or {}
     fc_credits = int(fc.get("credits") or 0) + int((fa_res.get("firecrawl_other") or {}).get("credits") or 0)
     if fa_res.get("tripadvisor_calls"):

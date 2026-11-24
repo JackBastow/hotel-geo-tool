@@ -199,7 +199,7 @@ def reply(messages, api_key, client=None):
     try:
         cost = ai_sample.cost_usd(MODEL, getattr(usage, "input_tokens", 0) or 0, getattr(usage, "output_tokens", 0) or 0, 0)
         store.record_usage(1, audits=0, service="chat")
-        store.record_usage(max(1, round(cost * 1000)), audits=0, service="claude")
+        pass                                          # the spend itself is metered per answer (costs.py)
     except Exception:  # noqa: BLE001 - counting must never break an answer
         pass
     return text[:1400]

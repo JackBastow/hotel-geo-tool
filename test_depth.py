@@ -43,7 +43,7 @@ check("the deeper test has a bigger budget and more workers, and reserves more o
 
 print("2. who uses which")
 cfg = audit_service.Config({"CRON_TOKEN": "x"})
-check("manual and demo audits use the deep test; weekly checks use the standard one", cfg.ai_depth == "deep" and cfg.weekly_ai_depth == "standard")
+check("manual and demo audits use the standard test by default (a deep one costs about $6.50); weekly checks too", cfg.ai_depth == "standard" and cfg.weekly_ai_depth == "standard")
 cfg2 = audit_service.Config({"AI_DEPTH": "standard", "WEEKLY_AI_DEPTH": "deep"})
 check("both can be changed in the settings", cfg2.ai_depth == "standard" and cfg2.weekly_ai_depth == "deep")
 w = scheduler.Weekly(cfg, None, lambda p, cb: None)

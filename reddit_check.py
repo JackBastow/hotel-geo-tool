@@ -65,7 +65,7 @@ def run(hotel, city, *, api_key=None, model=None, client=None):
             return _envelope("not_configured", "No Anthropic API key is configured, so Reddit was not searched.")
         try:
             import anthropic
-            client = anthropic.Anthropic(api_key=api_key, max_retries=1, timeout=120.0)
+            client = ai_sample._make_client(api_key, timeout=120.0)
         except Exception as e:  # noqa: BLE001
             return _envelope("unavailable", f"The Anthropic library could not be started ({type(e).__name__}).")
     extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}

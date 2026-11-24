@@ -178,10 +178,15 @@ def extract(client, model, items, hotel, city):
     ordered = sorted(by_id.values(), key=lambda i: i["kind"] != "direct")
     batches = [ordered[k:k + BATCH] for k in range(0, len(ordered), BATCH)]
     answers_raw, data_about, tin, tout, ok = [], {}, 0, 0, 0
+    failed_ids = []
     for n, batch in enumerate(batches):
         d, (a, b) = _extract_batch(client, model, batch, hotel, city)
         tin, tout = tin + a, tout + b
         if d is None:
+            d, (a, b) = _extract_batch(client, model, batch, hotel, city)         # once more: a reply that could not be read is usually a one-off
+            tin, tout = tin + a, tout + b
+        if d is None:
+            failed_ids += [i["id"] for i in batch]                               # left out of every total below, never counted as 'nobody named'
             continue
         ok += 1
         answers_raw += [x for x in (d.get("answers") or []) if isinstance(x, dict)]
@@ -221,7 +226,7 @@ def extract(client, model, items, hotel, city):
             claims.append({"type": c["type"], "value": str(c["value"])[:120], "answer_id": str(c.get("answer_id") or "")[:20]})
     about = {"tone": ab.get("tone") if ab.get("tone") in ("positive", "mixed", "negative", "unclear") else "unclear",
              "strengths": clean(ab.get("strengths")), "weaknesses": clean(ab.get("weaknesses")), "claims": claims}
-    return {"answers": answers, "about": about}, (tin, tout)
+    return {"answers": answers, "about": about, "failed_ids": failed_ids}, (tin, tout)
 
 
 # ------------------------------------------------------------ arithmetic
@@ -355,7 +360,8 @@ def question_rows(items, extracted):
 
 def leaderboard(extracted, items, hotel, kinds=("generic",)):
     """Who is named most across the GENERIC questions (or the niche ones), with the hotel in the same table (a row of zeros if it is never named)."""
-    gen_ids = [i["id"] for i in items if i["kind"] in kinds and i.get("answer")]
+    failed = set(extracted.get("failed_ids") or [])
+    gen_ids = [i["id"] for i in items if i["kind"] in kinds and i.get("answer") and i["id"] not in failed]     # an answer the analysis could not read is not an answer that named nobody
     rows, total = {}, 0
     for qid in gen_ids:
         for h in (extracted["answers"].get(qid) or []):
@@ -642,7 +648,7 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
             return {**out, "status": "partial", "reason": "No Anthropic key, so only the source analysis could be shown."}
         try:
             import anthropic
-            client = anthropic.Anthropic(api_key=api_key, max_retries=1, timeout=120.0)
+            client = ai_sample._make_client(api_key, timeout=120.0)
         except Exception as e:  # noqa: BLE001
             return {**out, "status": "partial", "reason": f"The Anthropic library could not be started ({type(e).__name__}).", }
 
@@ -656,6 +662,10 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
         return {**out, "status": "partial", "reason": "The answers could not be broken down into hotels and claims, so only the source analysis is shown.", "cost_usd": round(cost, 5)}
 
     out["extracted_answers"] = extracted["answers"]           # the hotels each answer named, kept so ai_gap can say who was named instead, question by question
+    if extracted.get("failed_ids"):
+        out["unanalysed"] = len(extracted["failed_ids"])
+        out["reason"] = (out.get("reason") or "") + (f" {len(extracted['failed_ids'])} answer(s) could not be broken down into hotels even after a second try; they are left out of the "
+                                                     "rival and ranking figures rather than counted as naming nobody.")
     lb = leaderboard(extracted, items, hotel)
     out.update(leaderboard=lb, alternatives=alternatives(extracted, hotel), matrix=question_rows(items, extracted))
     niche_rows = [m for m in out["matrix"] if m["kind"] == "niche"]

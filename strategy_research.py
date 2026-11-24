@@ -126,7 +126,7 @@ def research(hotel, profile, cfg=None, client=None, model=None):
     cost = ai_sample.cost_usd(model, tin, tout, searches)
     try:
         import store
-        store.record_usage(max(1, round(cost * 1000)), service="claude")
+        pass                                          # the spend itself is metered per answer (costs.py)
     except Exception:  # noqa: BLE001
         pass
     data = review_replies.parse_json(text)
