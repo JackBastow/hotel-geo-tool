@@ -126,13 +126,17 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     import langid
     site_lang, _lc = langid.detect(" ".join((p.get("text") or "")[:3000] for p in s.content_pages[:8]), min_words=60)
     non_english = bool(site_lang and site_lang != "en")
+    ai_read = ((guest or {}).get("ai_extract") or {}).get("status") == "ok"          # the AI reading of the pages ran: it reads any language
     if non_english:
         lang_name = langid.name(site_lang)
-        questions = [q for q in questions if q.get("state") in ("answered", "stated", "complete")]
+        if not ai_read:
+            questions = [q for q in questions if q.get("state") in ("answered", "stated", "complete")]
         travel = {"segments": [], "assessed": [], "skipped": [{"key": "all", "label": "Traveller requirements", "why": f"the site is in {lang_name}; these checks read English wording, so they were not assessed"}],
                   "summary": traveller_ready.summarise([])}
-        cov["note"] = (cov.get("note", "") + f" The site is written in {lang_name}. The checks that look for specific wording (guest questions, traveller needs, facility details) read English, so "
-                       "they were not assessed here rather than reported as missing.").strip()
+        cov["note"] = (cov.get("note", "") + (f" The site is written in {lang_name}. Guest questions were read by AI in {lang_name}: what it found is quoted; what neither it nor the "
+                       "word checks found is listed as worth checking, not as missing. Traveller needs and facility details read English, so they were not assessed."
+                       if ai_read else f" The site is written in {lang_name}. The checks that look for specific wording (guest questions, traveller needs, facility details) read English, so "
+                       "they were not assessed here rather than reported as missing.")).strip()
     hidden = ic.hidden_strengths(s, feats, pages_meta, classes=classes)
     if non_english:
         hidden = [h for h in hidden if h.get("kind") not in ("once",)]
@@ -181,6 +185,14 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     recs = advice.build(differentiation=diff, source_actions=src_actions, facility=facility, questions=questions, location=loc, consistency=cons, hidden=hidden, structured=sd,
                         machine=machine, intel=intel, jsonld_example=jsonld_example, site=s, coverage=cov, ai=ai, reviews=reviews, text_only=text_only, ai_insights=ai_insights, ai_gap=ai_gap, citations=citations, forums=forums, listing_checks=listing_checks, reddit=reddit, traveller=travel, booking=booking, external=external, competitors=competitors, suppressed=suppressed)
     recs, dropped = advice.validate(recs, cov, s)
+    if non_english and ai_read:
+        for r in recs:
+            if r.get("source") == "questions":
+                r["confidence"], r["confidence_label"] = advice.EXPER, "Worth checking"
+                if "AI reading" not in (r.get("finding") or ""):
+                    r["finding"] = (r.get("finding") or "") + f" The site is in {lang_name}: neither the AI reading of its pages nor the word checks found this, so check the pages before acting."
+                if r.get("priority") in ("critical", "high"):
+                    r["priority"] = "medium"
     if site_check_warn:
         recs.insert(0, site_check_warn)
     if (site.get("meta") or {}).get("scope"):

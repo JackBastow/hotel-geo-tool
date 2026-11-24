@@ -311,8 +311,12 @@ GENERIC_SLUGS = ["faq", "faqs", "frequently", "terms", "conditions", "policy",
 
 _SKIP_PATH = re.compile(
     r"/(?:blog|news|post|posts|tag|category|author|wp-json|feed|cart|basket|"
-    r"checkout|login|account|search)(?:/|$)|\.(?:jpg|jpeg|png|gif|webp|svg|pdf|"
-    r"zip|css|js|xml|ico|mp4|mp3)$", re.I)
+    r"checkout|login|account|search|attachment|wp-content|wp-admin|wp-login\.php)(?:/|$)|\.(?:jpg|jpeg|png|gif|webp|svg|pdf|"
+    r"zip|css|js|xml|ico|mp4|mp3)$|"
+    # a WordPress page for one image ('/rooms/sea-view-bedroom-jpg/', '/img_2041-2/'): a picture and a caption, nothing to read
+    r"[-_](?:jpe?g|png|webp|gif)/?$|/(?:img|dsc|image|photo)[-_]?\d+(?:-\d+)?/?$|"
+    # forms and booking tools: a form has almost no text, and a booking widget is built by script (Fistral: 14 of 25 pages; Eriksberg: 5 form pages read as 'built with JavaScript')
+    r"/(?:[a-z0-9-]*-)?(?:enquiry|enquire|inquiry|form|formular|newsletter|nyhetsbrev|subscribe|signup|sign-up|rsvp|register|anmalan|book-now|booknow|booking|bookings|reservations?|boka|buchen)/?$", re.I)
 
 
 # --------------------------------------------------------------------- fetch
@@ -868,6 +872,7 @@ def build_fact_sheet(ok_pages, questions, hotel, base, lodging_node=None, locati
 def _page_row(p):
     s = p.get("signals") or {}
     return {"url": p["url"], "ok": p["ok"], "reason": p.get("reason", ""), "status": p.get("status"), "is_start": bool(p.get("is_start")), "retested": bool(p.get("retested")), "retest": p.get("retest", []),
+            "replaced": bool(p.get("replaced")), "replacement": bool(p.get("replacement")), "retried": bool(p.get("retried")), "via_second_reader": bool(p.get("via_second_reader")),
             "final_url": p.get("final_url") or p["url"], "title": p.get("title", ""),
             "h1": p.get("h1", []), "meta_description": s.get("meta_description", ""),
             "canonical": s.get("canonical"), "noindex": bool(s.get("noindex")),
@@ -880,8 +885,24 @@ def _page_row(p):
             "h1_count": s.get("h1_count"), "lang": s.get("lang")}
 
 
+RESERVE = 10            # next-best pages kept in reserve: each page that fails is replaced by one of these
+FALLBACK_LIMIT = 6      # pages per check that may go to the second reader (Firecrawl) one by one
+
+
+def _retryable(p):
+    """A failure worth another go: a time-out or a dropped connection (not a 404, not a refusal, not a page that has no text)."""
+    return not p.get("ok") and p.get("status") is None and not p.get("is_start") and (
+        "timed out" in (p.get("reason") or "") or (p.get("reason") or "").startswith(("error:", "request failed")))
+
+
+def _second_reader_worth_it(p):
+    """A page our reader could not use but a reader that renders pages may: built by script, timed out, or refused (401/403/429)."""
+    r = p.get("reason") or ""
+    return not p.get("ok") and not p.get("is_start") and ("JavaScript" in r or "timed out" in r or r.startswith(("error:", "request failed")) or p.get("status") in (401, 403, 429))
+
+
 def run(site, base, hotel="", location=None, progress=None,
-        max_pages=MAX_PAGES, budget_s=TIME_BUDGET_S):
+        max_pages=MAX_PAGES, budget_s=TIME_BUDGET_S, fallback=None):
     """
     Crawl a bounded set of the hotel's own pages and answer the guest
     questions from them. `site` is site_check.run_site_check()'s output.
@@ -894,7 +915,8 @@ def run(site, base, hotel="", location=None, progress=None,
     start = meta_.get("home_url") or meta_.get("entry_url") or base      # the address the visitor gave (or a verified page of the same site), never a shortened form
     home = fetch_page(start)
     sitemap_urls = site.get("sitemap_urls") or []
-    targets = select_pages(base, home.get("links", []), sitemap_urls, max_pages, start=start)
+    picked = select_pages(base, home.get("links", []), sitemap_urls, max_pages + RESERVE, start=start)
+    targets, reserve = picked[:max_pages], picked[max_pages:]
 
     say(f"Reading up to {len(targets)} pages to see what guests can learn...")
     pages = [home]
@@ -920,7 +942,62 @@ def run(site, base, hotel="", location=None, progress=None,
 
     home["is_start"] = True
     _retest_errors(pages, t0, budget_s)
+    _recover_failed(pages, reserve, t0, budget_s, fallback, say)
     return _finish(pages, home, t0, site, base, hotel, location, sitemap_urls)
+
+
+def _recover_failed(pages, reserve, t0, budget_s, fallback, say):
+    """
+    Get the pages instead of reporting them as missing (code review, Nov 2026: 21 of 100 pages tried on the test hotels were forms or image pages, timeouts were never retried, and the
+    second reader only helped a site where fewer than 3 pages could be read). In order:
+      1. a page that timed out or dropped the connection is asked for again, alone, with twice the time;
+      2. a page still failing (script-built, timed out, refused) is read by the second reader one by one, when there is one (`fallback`, url -> page);
+      3. each page still failing is replaced by the next-best page in reserve, so the check reads as many real pages as it set out to.
+    Replaced pages stay on the record (marked 'replaced') but do not count as pages attempted.
+    """
+    extra = max(30, budget_s)                      # this recovery has its own time, after the first pass
+    for p in pages:
+        if time.time() - t0 > budget_s + extra:
+            break
+        if _retryable(p):
+            with _LOCK:
+                _CACHE.pop(p["url"], None)
+            again = fetch_page(p["url"], timeout=FETCH_TIMEOUT * 2)
+            if again.get("ok"):
+                p.clear()
+                p.update(again, retried=True)
+    if fallback:
+        n = 0
+        for p in pages:
+            if n >= FALLBACK_LIMIT or time.time() - t0 > budget_s + extra:
+                break
+            if _second_reader_worth_it(p):
+                n += 1
+                try:
+                    new = fallback(p["url"])
+                except Exception:  # noqa: BLE001
+                    new = None
+                if new and new.get("ok"):
+                    p.clear()
+                    p.update(new, via_second_reader=True)
+    failed = [p for p in pages if not p.get("ok") and not p.get("is_start") and p.get("status") not in (404, 410)]
+    if failed and reserve and time.time() - t0 < budget_s + extra:
+        want = reserve[:len(failed)]
+        say(f"{len(failed)} page(s) could not be read: reading {len(want)} others instead...")
+        ex = ThreadPoolExecutor(max_workers=4)
+        try:
+            futs = [ex.submit(fetch_page, u) for u in want]
+            done, _nd = wait(futs, timeout=max(5, budget_s + extra - (time.time() - t0)))
+            got = [f.result() for f in futs if f in done]
+        finally:
+            ex.shutdown(wait=False, cancel_futures=True)
+        n_ok = 0
+        for g in got:
+            if g.get("ok"):
+                pages.append({**g, "replacement": True})
+                n_ok += 1
+        for p in failed[:n_ok]:
+            p["replaced"] = True
 
 
 def _recover(url, r):
@@ -944,8 +1021,8 @@ def _retest_errors(pages, t0, budget_s, limit=6):
 def _finish(pages, home, t0, site, base, hotel, location, sitemap_urls):
     """Everything after the pages are in hand: sufficiency, the questions, the fact sheet, the saved shape."""
     ok_pages = [p for p in pages if p["ok"]]
-    failed = [p for p in pages if not p["ok"]]
-    attempted = len(pages)
+    failed = [p for p in pages if not p["ok"] and not p.get("replaced")]       # a failed page replaced by another that was read is not a gap in what was read
+    attempted = len([p for p in pages if not p.get("replaced")])
     sufficient = (len(ok_pages) >= 3 and bool(home.get("ok"))
                   and len(failed) <= 0.5 * max(attempted, 1))
 

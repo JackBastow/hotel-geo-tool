@@ -199,6 +199,34 @@ def _center(el):
     return c.get("lat"), c.get("lon")
 
 
+_OVERPASS_GOOD = [OVERPASS[0] if OVERPASS else ""]          # the server that answered last
+
+# When the public Overpass servers are down (they often are: Nov 2026, every query timed out on all three), the same OpenStreetMap data is searched through Nominatim, OpenStreetMap's own
+# search service: the hotels, stations and attractions around the point. Free, one request a second, the same licence. -> elements in Overpass's shape, so the rest is unchanged.
+_NOMINATIM_SEARCH = "https://nominatim.openstreetmap.org/search"
+_NOMINATIM_PARTS = {"hotels": (["hotel", "guest house", "bed and breakfast"], 2.5), "stations": (["railway station"], 4.0), "attractions": (["museum", "castle", "attraction"], 7.0)}
+
+
+def _nominatim_elements(lat, lon, want):
+    import math
+    out = []
+    for part in want:
+        terms, km = _NOMINATIM_PARTS.get(part, ([], 0))
+        dlat = km / 111.0
+        dlon = km / (111.0 * max(0.2, math.cos(math.radians(lat))))
+        for q in terms:
+            data, code, err = _get(_NOMINATIM_SEARCH, params={"q": q, "format": "jsonv2", "limit": 40, "bounded": 1, "extratags": 1,
+                                                              "viewbox": f"{lon - dlon},{lat + dlat},{lon + dlon},{lat - dlat}"}, timeout=(6, 20))
+            time.sleep(1.1)                                    # Nominatim's usage policy: at most one request a second
+            for x in data if isinstance(data, list) else []:
+                try:
+                    tags = {**(x.get("extratags") or {}), "name": x.get("name") or "", x.get("category") or "": x.get("type") or ""}
+                    out.append({"type": x.get("osm_type") or "node", "id": x.get("osm_id"), "lat": float(x["lat"]), "lon": float(x["lon"]), "tags": tags})
+                except (KeyError, TypeError, ValueError):
+                    continue
+    return out
+
+
 def osm_context(lat, lon, hotel_name=""):
     """Nearby hotels, stations, attractions around a verified point."""
     if lat is None or lon is None:
@@ -221,16 +249,24 @@ def osm_context(lat, lon, hotel_name=""):
         "venues": around(6000, '[amenity~"^(conference_centre|events_venue)$"][name]'),
         "airports": around(30000, '[aeroway=aerodrome][iata]'),
     }
-    elements, failed, deadline = [], [], time.time() + 70
+    elements, failed, deadline = [], [], time.time() + 150
+    down = 0
     for name, body in parts.items():
-        if time.time() > deadline:
-            failed.append(name)
+        if time.time() > deadline or down >= 2:
+            failed.append(name)                            # two parts in a row unanswered by every server: they are down; OpenStreetMap's search is asked instead (below)
             continue
         q = f"[out:json][timeout:15];({body});out center tags 80;"
         data, err = None, "not tried"
-        for k_, ep in enumerate(OVERPASS):
-            tmo = (6, 28) if k_ == 0 else (4, 12)          # the main server is given time; a mirror that hangs is given up on quickly
+        # the public servers come and go (Nov 2026: the main one answered 502 while a mirror answered in 20 s): the server that answered last is asked first, and every server is given
+        # the time a real answer takes, instead of giving up on the mirrors after 12 s
+        part_start = time.time()
+        for k_, ep in enumerate(sorted(OVERPASS, key=lambda e: e != _OVERPASS_GOOD[0])):
+            if time.time() - part_start > 35:
+                break                                      # at most ~35 s a part: when the servers are down, the search fallback below does the job in seconds
+            tmo = (6, 22)
             data, code, err = _get(ep, method="POST", data={"data": q}, timeout=tmo)
+            if data is not None and not (data.get("remark") and not data.get("elements")):
+                _OVERPASS_GOOD[0] = ep
             if code == 429 and time.time() < deadline - 10:
                 time.sleep(6)
                 data, code, err = _get(ep, method="POST", data={"data": q}, timeout=tmo)
@@ -242,12 +278,25 @@ def osm_context(lat, lon, hotel_name=""):
                 break
         if data is None:
             failed.append(name)
+            down += 1
         else:
             elements += data.get("elements", [])
+            down = 0
         time.sleep(1.2)
-    if len(failed) == len(parts):
+    via_search = False
+    want = [p for p in failed if p in _NOMINATIM_PARTS]
+    if want:
+        try:
+            got = _nominatim_elements(lat, lon, want)
+        except Exception:  # noqa: BLE001
+            got = []
+        if got:
+            elements += got
+            via_search = True
+            failed = [p for p in failed if p not in want]
+    if not elements:
         return _envelope("OpenStreetMap context", OSM_ACCESS, "unavailable",
-                         "The public Overpass servers did not answer. Local context was not "
+                         "Neither the public Overpass servers nor OpenStreetMap's search answered. Local context was not "
                          "assessed - this does not mean nothing is nearby.")
     data = {"elements": elements}
     me = evidence.fold(hotel_name)
@@ -289,6 +338,8 @@ def osm_context(lat, lon, hotel_name=""):
         return _envelope("OpenStreetMap context", OSM_ACCESS, "no_results",
                          "OpenStreetMap lists no named stations, attractions or hotels near this point.")
     ctx["failed_parts"] = failed
+    if via_search:
+        ctx["via_search"] = True                              # the Overpass servers were down: hotels, stations and attractions came from OpenStreetMap's search
     res = _envelope("OpenStreetMap context", OSM_ACCESS, items=[ctx],
                     reason=(f"Partial: {', '.join(failed)} could not be retrieved from the "
                             "public servers." if failed else ""))

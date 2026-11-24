@@ -392,13 +392,13 @@ def infer_location(site_payload, base, pages_html=None):
                 out["source"] = "Google Maps link on the site"
                 return out
 
-    # 4. last resort - a postcode anywhere in the markup
-    for html in (pages_html or []):
-        pc = _POSTCODE.search(re.sub(r"<[^>]+>", " ", html).upper())
-        if pc:
-            out["postcode"] = f"{pc.group(1)} {pc.group(2)}"
-            out["source"] = "postcode found in page text"
-            return out
+    # 4. last resort - a valid UK postcode in the text a visitor sees (never in scripts or styles, where strings like 'V8 3OH' are code; never a registered-office address)
+    import locate
+    pc = locate.postcode_from_pages(pages_html)
+    if pc:
+        out["postcode"] = pc
+        out["source"] = "postcode found in page text"
+        return out
 
     return out
 
@@ -693,6 +693,11 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         if place:
             location["city"], location["source"] = place, ("inferred from the hotel's name and web address")
     city = location["city"]
+    try:
+        import locate
+        locate.fill_position(location, hotel, city, netguard.get)          # no map position yet: from the postcode (postcodes.io), else the name and town (OpenStreetMap search)
+    except Exception as e:  # noqa: BLE001
+        steps.failed("Finding the hotel on the map", e, quiet=True)
 
     # The wider discovery (other sources, media coverage, listings, awards) needs only
     # the name, place and segments - not the guest-question results - so it runs in
@@ -739,8 +744,23 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     # AI assistant) can actually learn from them. Failure here must not fail
     # the audit - the rest of the report stands without it.
     say("Checking whether the website answers guests' questions...")
+    _second = None
+    if firecrawl_api_key:
+        import firecrawl_reader
+        import polite as _polite
+        _second_used = []
+
+        def _second(u):
+            """A page our reader could not use (script-built, timed out, refused), read once by Firecrawl, which renders pages; only where robots.txt allows automated reading."""
+            if not _polite.allowed(u):
+                return None
+            _second_used.append(u)
+            res = firecrawl_reader.scrape(u, firecrawl_api_key)
+            return firecrawl_reader.build_page(u, res) if res.get("ok") else None
     try:
-        guest = guest_questions.run(site, base, hotel, location=location, progress=say)
+        guest = guest_questions.run(site, base, hotel, location=location, progress=say, fallback=_second)
+        if _second is not None and _second_used:
+            guest["firecrawl_pages"] = {"credits": len(_second_used), "pages": _second_used[:10]}
     except Exception as e:  # noqa: BLE001
         steps.failed('Checking whether the website answers guests / guest', e)
         guest = {"error": str(e), "questions": [], "fact_sheet": [], "conflicts": [],

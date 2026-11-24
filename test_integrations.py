@@ -151,7 +151,8 @@ sources._get, sources.time.sleep = fake_get, lambda s: None
 sources._OSM_CACHE.clear()
 r1 = sources.osm_context(48.8736, 2.3354, "Hotel X")
 n1 = len(seen)
-check("when the main server does not answer, a mirror is used, and a mirror is given a short timeout", r1["status"] == "ok" and any("overpass-api.de" not in u for u, _t in seen) and [t for u, t in seen if "overpass-api.de" not in u][0] == (4, 12), seen[:3])
+check("when the main server does not answer, a mirror is used, and the mirror that answered is asked first for the next part (the public servers come and go)",
+      r1["status"] == "ok" and any("overpass-api.de" not in u for u, _t in seen) and "overpass-api.de" not in seen[-1][0] and sum(1 for u, _t in seen if "overpass-api.de" in u) == 1, seen[:4])
 check("the hotels found are returned", any(h["name"] == "Hotel Gamma" for h in r1["items"][0]["hotels"]))
 r2 = sources.osm_context(48.8736, 2.3354, "Hotel X")
 check("a complete answer is remembered for a day: the same hotel's next check does not ask the public servers again", len(seen) == n1 and r2 is r1)
