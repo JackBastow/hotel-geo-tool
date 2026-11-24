@@ -367,6 +367,12 @@ check("an airport's distance on the line below its name is its distance (Marriot
 check("a square named after the same person is not the airport ('Place Charles de Gaulle, Paris')", not any("Place Charles" in m["sentence"] for m in _air))
 _gym = {q["id"]: q for q in gq.evaluate([{"url": _MB + "overview/", "ok": True, "title": "Overview", "h1": [], "text": "Take advantage of our hotel gym to train on treadmills, do bodybuilding, or fitness."}])}
 check("'our gym, to train on treadmills' is not a train (Marriott: transport was answered by the gym)", not _gym["transport"].get("fact_snippets"))
+_ZB = "https://www.hilton.com/en/hotels/zrhhitw-hilton-zurich-airport/"
+_zs = ic.Site([{"url": _ZB, "ok": True, "title": "Hilton Zurich Airport", "h1": [], "text": "Opfikon Hotels/\nPerfect location, only 5 drive minutes from Zurich International Airport.\nTake the train from Glattbrugg station, a 10 minute walk."}], _ZB, "Hilton Zurich Airport", "Zurich")
+_zi = {i["place"]: i for i in ic.location(_zs, {"stations": [{"name": "Opfikon", "km": 1.2}, {"name": "Glattbrugg", "km": 1.0}], "airports": [{"name": "Hotel", "km": 2}, {"name": "Zurich Airport", "km": 3}],
+                                                "attractions": [], "venues": []})["items"]}
+check("a map entry with a generic name ('Hotel') is no place to measure from; the real airport is used (Hilton Zurich Airport: 'Distance to Hotel')", "Hotel" not in _zi and _zi.get("Zurich Airport", {}).get("state") == "stated", list(_zi))
+check("a town's name in a breadcrumb ('Opfikon Hotels/') is not a mention of its station", _zi.get("Opfikon station", {}).get("state") == "not_mentioned", _zi.get("Opfikon station"))
 import locate
 check("the postcode on a page read as plain text places the hotel (THE NICI: its site refused our reader, so it had no map position and no comparable hotels)",
       locate.postcode_from_pages(["FAQs\nWhere is THE NICI Newquay?\nEnter East Street, Newquay, Cornwall, TR7 1DB into your sat nav."], "Newquay") == "TR7 1DB")

@@ -589,6 +589,9 @@ def sources_km(a_, b_):
     return sources.haversine_km(a_["lat"], a_["lon"], b_["lat"], b_["lon"])
 
 
+_GENERIC_MAP_NAMES = {"hotel", "airport", "station", "heliport", "helipad", "airfield", "bahnhof", "gare", "terminal", "airstrip"}
+
+
 def location(site, osm_ctx):
     """
     How clearly the pages relate the hotel to places that matter. A distance is
@@ -598,7 +601,7 @@ def location(site, osm_ctx):
     ctx = osm_ctx or {}
     items = []
     named = []   # (category, label, display name, search variants, km)
-    for s in ctx.get("stations", [])[:2]:
+    for s in [x for x in ctx.get("stations", []) if not places.is_generic_label(x.get("name") or "")][:2]:
         if s["km"] <= 4:
             base = re.sub(r"\s+(?:railway )?station$", "", s["name"], flags=re.I)
             named.append(("transport", "Rail and public transport", f"{base} station", [s["name"], base], s["km"]))
@@ -606,7 +609,9 @@ def location(site, osm_ctx):
         for nm in _generic_places(site):
             base = nm.replace(" station", "")
             named.append(("transport", "Rail and public transport", nm, [nm, base], None))
-    for a in ctx.get("airports", [])[:1]:
+    # a map entry with a generic name is no place to measure from (Hilton Zurich Airport: an 'airport' named 'Hotel', matched by 'Opfikon Hotels/' in a breadcrumb)
+    _real = lambda x: not places.is_generic_label(x.get("name") or "") and evidence.fold(x.get("name") or "") not in _GENERIC_MAP_NAMES      # noqa: E731
+    for a in [x for x in ctx.get("airports", []) if _real(x)][:1]:
         if a["km"] <= 40:
             named.append(("airports", "Airports", a["name"], [a["name"], re.sub(r"\s+airport$", "", a["name"], flags=re.I)], a["km"]))
     exhibits = _exhibits(ctx.get("attractions", []))
@@ -626,7 +631,10 @@ def location(site, osm_ctx):
                 if textutil.looks_like_nav(s):
                     continue                                  # a menu strip that lists the place's name is not a statement about it
                 low = evidence.fold(s)
-                hit = next((v for v in _name_aliases(variants) if v and len(v) > 3 and evidence.fold(v) in low), None)
+                hit = next((v for v in _name_aliases(variants) if v and len(v) > 3 and re.search(r"(?<![a-z0-9])" + re.escape(evidence.fold(v)) + r"(?![a-z0-9])", low)), None)
+                if hit and cat == "transport" and not re.search(r"station|train|rail|bahn|tram|metro|tube|underground|stop\b|subway|s-bahn|u-bahn", low) \
+                        and evidence.fold(hit) != evidence.fold(name):
+                    hit = None                                # 'Opfikon' (the town) in a sentence that is not about transport is not 'Opfikon station'
                 if hit:
                     at = low.index(evidence.fold(hit))
                     sentences.append((p, s, bool(places.distance_for(s, {"start": at, "end": at + len(hit)}))))

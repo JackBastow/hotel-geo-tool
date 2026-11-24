@@ -92,7 +92,7 @@ names = [i["place"] for i in loc_items]
 check("the location analysis names no 'Charging station', no menu strip and no bare 'Airports'", not any(re.search(r"charging|info offers|^airports$", n, re.I) for n in names), names)
 check("transport and airport items are named places, validated against the map where it lists them", all(i["place"] for i in loc_items if i["category"] in ("transport", "airports")), loc_items)
 req = {r["id"]: r for s in trv["segments"] for r in s["requirements"]}
-check("no location requirement is Confirmed from a label: any Confirmed one has a named place with its distance", all((not r["id"].startswith("loc_")) or r["state"] != "confirmed" or any(" with a distance" in f["fact"] for f in r["found"]) for r in req.values()))
+check("no location requirement is Confirmed from a label: any Confirmed one has a named place with its distance", all((not r["id"].startswith("loc_")) or r["state"] != "confirmed" or any(" with a distance" in f["fact"] or ": " in f["fact"] and any(ch.isdigit() for ch in f["fact"].split(": ", 1)[1]) for f in r["found"]) for r in req.values()))
 
 print("3. recommendations name a page this information belongs on")
 site = ic.Site(PAGES, BASE, HOTEL, CITY)

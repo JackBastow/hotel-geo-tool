@@ -40,7 +40,8 @@ _ATTRACTION_RX = re.compile(rf"(?P<name>(?:{_TOK}\s+){{1,3}}(?i:Museum|Castle|Ca
                             rf"|(?P<name2>(?:Museum|Palace|Castle|Lake|Mount|Mt\.?|Fort)\s+(?:of\s+)?{_TOK}(?:\s+{_TOK})?)")
 _VENUE_RX = re.compile(rf"(?P<name>(?:{_TOK}\s+){{1,3}}(?:Exhibition Centre|Exhibition Center|Convention Centre|Convention Center|Conference Centre|Congress Centre|Messe|Expo|Arena|Stadium|Business Park))\b")
 
-_DIST = re.compile(r"\b(\d{1,3}(?:[.,]\d)?)\s?[-–]?\s?(?:min(?:ute)?s?|mins)\b(?:\s+(?:by|on|via)\s+\w+|\s+(?:walk|drive|ride|journey|away))?"
+# '5 drive minutes from Zurich Airport' (Hilton Zurich Airport), '10 walking minutes': the way of travel may stand between the figure and 'minutes'
+_DIST = re.compile(r"\b(\d{1,3}(?:[.,]\d)?)\s?[-–]?\s?(?:(?:drive|driving|walk|walking|taxi|train|tram|bus|car)\s+)?(?:min(?:ute)?s?|mins)\b(?:\s+(?:by|on|via)\s+\w+|\s+(?:walk|drive|ride|journey|away))?"
                    r"|\b(\d+(?:[.,]\d+)?)\s?(?:km|kilomet(?:re|er)s?|miles?|mi)\b|\b(\d{2,4})\s?(?:m|metres?|meters?)\b(?!\w)"
                    r"|\b(?:walking|driving)\s+distance\b|\bsteps?\s+(?:from|away)\b|\bdirectly\s+(?:at|connected|linked)\b|\bconnected\s+to\b|\bnext\s+to\b|\bopposite\b|\bon\s+site\b", re.I)
 
