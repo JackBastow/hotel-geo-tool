@@ -83,6 +83,8 @@ F = {
     ("listings", "LC1"): (3, 4, 3, "fix"), ("listings", "LC2"): (3, 3, 4, "fix"),     # a travel site disagrees with the website / still shows an old name
     ("ai", "AI4"): (2, 4, 4, "opportunity"),     # not named where the hotel is positioned to compete: more telling than a town-wide list
     ("ai", "AI3"): (3, 4, 3, "fix"), ("ai", "AI2"): (1, 3, 3, "opportunity"),     # AI3: the assistant's statement differs from the hotel's own record
+    ("commercial", "CP-S"): (4, 4, 5, "opportunity"), ("commercial", "CP-M"): (4, 4, 5, "opportunity"),     # a play from the hotel's own lost searches, on repeated evidence (commercial.py)
+    ("ai", "AG-GENERIC"): (1, 2, 2, "opportunity"), ("differentiation", "DE-LOW"): (1, 2, 2, "opportunity"), ("location", "L-MINOR"): (1, 2, 2, "fix"),     # generic leftovers: context, not priorities
     ("ai", "AG1"): (3, 4, 4, "opportunity"), ("ai", "AG2"): (3, 4, 4, "opportunity"), ("ai", "AG3"): (3, 4, 4, "opportunity"),     # not named for a question the hotel is positioned for, with the evidence beside it
     ("ai", "AGO1"): (2, 3, 4, "opportunity"), ("ai", "AGO2"): (2, 3, 4, "opportunity"), ("ai", "AGO3"): (2, 3, 4, "opportunity"),     # a named editorial list that omits the hotel
     ("differentiation", "DE"): (3, 4, 4, "opportunity"),     # something distinctive the assistant is not picking up

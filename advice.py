@@ -1217,6 +1217,13 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
     recs += _from_booking(booking)
     recs += _from_external(external)
     recs += _from_competitors(competitors, site)
+    try:
+        import commercial                  # the few plays most likely to win bookings, from the hotel's own lost searches; the generic findings they cover fold into them
+        commercial.apply(recs, ai_gap, _rec, {"INFER": INFER, "EXPER": EXPER})
+    except Exception:  # noqa: BLE001 - the report stands without them
+        import steps
+        import sys
+        steps.failed("Commercial priorities", sys.exc_info()[1] or Exception("commercial"), quiet=True)
     recs = drop_duplicate_entity(recs)
     limited_note = None
     if coverage.get("limited"):

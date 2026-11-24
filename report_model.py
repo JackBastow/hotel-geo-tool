@@ -205,7 +205,11 @@ def priorities_of(cons, n=5):
     recs = [r for r in (cons or {}).get("recommendations") or [] if isinstance(r, dict)]
     by_id = {r.get("id"): r for r in recs}
     sure = lambda r: r is not None and r.get("confidence_label") != "Worth checking"      # noqa: E731
-    out = [i for i in (cons or {}).get("top_actions") or [] if isinstance(i, str) and sure(by_id.get(i))]
+    import commercial
+    lead = [r["id"] for r in commercial.top(recs, 3)]                  # the plays most likely to win bookings come first, on repeated evidence (Paris Marriott review)
+    high_fix = [i for i in (cons or {}).get("top_actions") or [] if isinstance(i, str) and sure(by_id.get(i)) and (by_id[i].get("factors") or {}).get("risk", 0) >= 4]
+    out = high_fix[:2] + [i for i in lead if i not in high_fix]       # a serious fix (wrong facts, a blocked site) still comes first
+    out += [i for i in (cons or {}).get("top_actions") or [] if isinstance(i, str) and sure(by_id.get(i)) and i not in out]
     if len(out) < n:
         rest = sorted((r for r in recs if r.get("kind") == "fix" and sure(r) and r.get("id") not in out), key=lambda r: -(r.get("rank") or 0))
         out += [r["id"] for r in rest]
