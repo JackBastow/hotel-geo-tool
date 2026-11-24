@@ -95,7 +95,7 @@ check("a chain is pointed to the brand's PR team", src and "brand's PR" in src[0
 print("2. the searches the hotel lost, grouped by what the traveller wanted")
 srch = [r for r in recs if r["id"].startswith("CP-M")]
 titles = " | ".join(r["title"] for r in srch)
-check("business-trip and meetings searches each become a play naming the hotels of its level that won", "business trips" in titles and "InterContinental Paris Le Grand" in titles, titles)
+check("business-trip and meetings searches each become a play naming the hotels of its level that won", "about business trips" in titles and "InterContinental Paris Le Grand" in titles, titles)
 check("a palace hotel (another category) is not named as who it competes with", "Ritz" not in titles + " ".join(r["finding"] for r in srch))
 check("a search where the hotel IS named sometimes (2 of 3) is not called lost", not any("weekend" in r["title"] for r in srch), titles)
 biz = next((r for r in srch if "business trips" in r["title"]), {})
@@ -112,6 +112,16 @@ check("'Position the hotel for business travellers' folds into the business play
 check("'Position the hotel for families', with no lost search behind it, is low priority", by.get("DE-family", {}).get("priority") == "low", by.get("DE-family", {}).get("priority"))
 check("'Say how far from Musée Grévin' (no search is about it) is low; 'from Palais Garnier' (the searches are) is not",
       by["L1"]["priority"] == "low" and by["L2"]["priority"] != "low", (by["L1"]["priority"], by["L2"]["priority"]))
+
+_g2 = copy.deepcopy(GAP)
+_g2["markets"].append(market("niche_base2", "Which hotels in Paris are best for a weekend away?", "City breaks", 0, 2, [rival("Le Pavillon de la Reine", 2, UP, "Hidden courtyard")]))
+_g2["articles"].append({"url": "https://www.timeout.com/paris/en/hotels/best-hotels-in-paris", "title": "The best hotels in Paris", "domain": "timeout.com", "cited": 5, "questions": ["niche_base2", "best"],
+                        "rivals_in": ["Le Pavillon de la Reine"], "hotel_in": False, "sponsored": False})
+_r2 = commercial.apply([rec("AG-niche_base2", "ai", "Not named when asked weekend in Paris", tag="AG3")], _g2, advice._rec, {"INFER": advice.INFER, "EXPER": advice.EXPER})
+ranking.annotate(_r2, [])
+check("a baseline town question ('Which hotels in Paris are best for a weekend away?') is not the hotel's own market: no play rests on it (Marriott run 50: Time Out)",
+      not any("timeout.com" in r["title"] for r in _r2) and not any("Pavillon" in r["title"] for r in _r2 if r["id"].startswith("CP-")))
+check("and its 'Not named when asked' finding is low priority", next(r for r in _r2 if r["id"] == "AG-niche_base2")["priority"] == "low")
 
 print("4. the report leads with them")
 cons = {"recommendations": recs, "top_actions": [r["id"] for r in ranking.top_actions(recs)]}

@@ -33,14 +33,19 @@ ANGLE = {
     "Weddings": ("weddings and celebrations", {"weddings"}), "Pet-friendly": ("stays with a dog", {"pets"}), "Accessibility": ("accessible stays", {"accessible"}),
     "Dining": ("eating well at the hotel", {"dining"}), "Character and heritage": ("hotels with character", set()), "Luxury": ("luxury stays", set()),
     "Groups": ("group stays", set()), "Long stays": ("longer stays", set()), "Parking": ("arriving by car", set()), "Facilities": ("the hotel's facilities", set()),
-    "Traveller intent": ("searches written around the hotel's own facts", set()), "Short search": ("short searches for the hotel's market", set()),
-    "Conversational": ("searches for the hotel's market", set()), "Benchmark": ("the hotel's tracked searches", set()),
+    "Traveller intent": ("the hotel's own kind of stay", set()), "Short search": ("the hotel's own kind of stay", set()),
+    "Conversational": ("the hotel's own kind of stay", set()), "Benchmark": ("the hotel's own kind of stay", set()),
 }
 MAX_SOURCE, MAX_SEARCH = 3, 3
 
 
+def _generic(m):
+    """A town-wide search: asked of every hotel in the town ('best hotels in Paris'), or a baseline town question written when the hotel's facts were thin (ids niche_base*)."""
+    return m.get("kind") not in RELEVANT or str(m.get("qid") or "").startswith("niche_base")
+
+
 def _lost(m):
-    return m.get("kind") in RELEVANT and m.get("status") in LOST
+    return not _generic(m) and m.get("status") in LOST
 
 
 def _level_ok(rival, tier):
@@ -151,13 +156,13 @@ def search_plays(gap, src_plays, rec_fn, conf):
         if reasons:
             ev.append({"url": "", "snippet": "Reasons the assistant gave: " + reasons})
         r = rec_fn(f"CP-M{len(out) + 1}", "authority",
-                   f"Win searches for {label}: the hotel was named in {asked - lost_n} of {asked} answers; {' and '.join(w['name'] for w in winners[:2])} were named instead",
+                   f"Win searches about {label}: the hotel was named in {asked - lost_n} of {asked} answers; {' and '.join(w['name'] for w in winners[:2])} were named instead",
                    f"Across {len(ms)} search{'es' if len(ms) != 1 else ''} for {label} (for example “{_short(ms[0]['question'])}”), the hotel was named in {asked - lost_n} of {asked} answers. "
                    f"Named instead: " + ", ".join(f"{w['name']} ({w['answers']})" for w in winners) + "."
                    + ("" if all(w["level"] for w in winners) else " Some of these hotels' level could not be confirmed."),
                    "These are searches for the market the hotel is actually in, written from its own facts, not a town-wide list. They are where a better answer is most likely to bring bookings.",
                    ev, " ".join(steps), "high", "medium", confidence=conf["INFER"] if sure else conf["EXPER"], team="marketing", source="commercial", tag="CP-M",
-                   short_title=f"Win {label} searches", summary=label)
+                   short_title=f"Win searches about {label}", summary=label)
         r["kind_hint"], r["play"] = "opportunity", {"kind": "search", "angle": angle, "questions": [m["qid"] for m in ms], "rivals": [w["name"] for w in winners]}
         out.append(r)
     return out
@@ -191,7 +196,7 @@ def apply(recs, gap, rec_fn, conf, anchors=()):
             qid = rid[3:]
             if qid in covered_q:
                 continue                                                   # folded into a search play
-            if (markets.get(qid) or {}).get("kind") == "generic":
+            if qid in markets and _generic(markets[qid]):
                 r["tag"] = "AG-GENERIC"                                    # a town-wide 'best hotels in X' answer: context, not a priority
         if r.get("source") == "differentiation" and rid.startswith("DE-"):
             if rid[3:] in covered_themes:
