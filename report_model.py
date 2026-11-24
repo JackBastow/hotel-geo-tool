@@ -145,6 +145,33 @@ def engine_counts(rep):
     return out
 
 
+ENGINE_HOW = {"chatgpt": "through OpenAI's API with web search; the ChatGPT app may answer differently", "gemini": "through Google's API with Google Search grounding",
+              "perplexity": "through Perplexity's API"}
+
+
+def assistants_asked(rep):
+    """-> ['Claude (claude-x) with web search', 'ChatGPT (gpt-5.4-mini through OpenAI's API with web search; ...)'] for every assistant actually asked in this check. Hand-made checks are not included."""
+    rep = rep or {}
+    out = []
+    ai = rep.get("ai_sample") or {}
+    if ai.get("status") == "ok":
+        out.append(f"Claude ({ai.get('model', '')}) with web search" if ai.get("model") else "Claude with web search")
+    for r in engine_counts(rep)[1:]:
+        if r.get("status") == "ok" and not r.get("manual"):
+            out.append(f"{r['name']} ({(r.get('model') + ' ') if r.get('model') else ''}{ENGINE_HOW.get(r['engine'], 'through its API')})")
+    return out
+
+
+def assistants_phrase(rep):
+    """'one assistant only: Claude (...)' or '2 assistants: Claude (...) and ChatGPT (...)'."""
+    a = assistants_asked(rep)
+    if not a:
+        return "no assistant"
+    if len(a) == 1:
+        return f"one assistant only: {a[0]}"
+    return f"{len(a)} assistants: {', '.join(a[:-1])} and {a[-1]}"
+
+
 def engines_json(rep):
     """Every assistant's figure on the tracked prompts, as stored with each check (runs.ai_engines): '{"claude": [4, 8], "chatgpt": [3, 8]}'. Hand-made checks are not included."""
     import json

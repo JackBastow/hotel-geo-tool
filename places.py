@@ -34,7 +34,7 @@ KNOWN_AIRPORTS = ["Heathrow", "Gatwick", "Stansted", "Luton", "Schiphol", "Charl
 _AIRPORT_RX = re.compile(rf"(?P<name>(?:{_TOK}\s+){{1,3}}(?:International\s+|Intl\.?\s+)?(?i:Airport|Flughafen|Aeroport|Aéroport|Aeropuerto|Aeroporto))\b|(?P<name2>(?:Flughafen|Aéroport|Aeroport|Aeropuerto|Aeroporto)\s+{_TOK}(?:\s+{_TOK})?)"
                          rf"|\b(?P<name3>{'|'.join(re.escape(a) for a in KNOWN_AIRPORTS)})\b(?:\s+Airport)?")
 _STATION_RX = re.compile(rf"(?P<name>(?:{_TOK}\s+){{1,3}}(?i:(?:Railway|Train|Rail|Metro|Tube|Underground|U-Bahn|S-Bahn|Tram|Bus|Coach)\s+)?(?i:Station|Bahnhof|Hauptbahnhof|Hbf|Stop))\b"
-                         rf"|(?P<name2>(?:Bahnhof|Gare(?:\s+de)?|Stazione|Estación(?:\s+de)?)\s+{_TOK}(?:\s+{_TOK})?)"
+                         rf"|(?P<name2>(?:Bahnhof|Gare(?:\s+(?:du|des|de\s+la|de\s+l['’]|de|d['’]))?|Stazione(?:\s+di)?|Estación(?:\s+de)?)\s*{_TOK}(?:\s+{_TOK})?)"
                          rf"|(?P<name3>{_TOK}\s+(?:HB|Hbf|Hauptbahnhof|Centraal|Central|Termini))\b")
 _ATTRACTION_RX = re.compile(rf"(?P<name>(?:{_TOK}\s+){{1,3}}(?i:Museum|Castle|Cathedral|Palace|Zoo|Theme Park|Stadium|Arena|Abbey|Tower|Bridge|Lake|Gardens|Park|Opera House|Old Town|Market|Gallery|Church|Fortress|Temple|Falls|Square|Racecourse|Circuit|Beach|Promenade|Basilica|Monastery|Aquarium|Observatory))\b"
                             rf"|(?P<name2>(?:Museum|Palace|Castle|Lake|Mount|Mt\.?|Fort)\s+(?:of\s+)?{_TOK}(?:\s+{_TOK})?)")
@@ -62,9 +62,23 @@ def _clean(name):
     return re.sub(r"\s+", " ", name or "").strip(" .,;:-")
 
 
+# a big city has several mainline stations, so '<city> train station' names none of them (Paris Marriott: 'the distance to Paris train station'); 'Weybridge station' is one real station
+MULTI_STATION_CITIES = {"london", "paris", "berlin", "madrid", "barcelona", "rome", "roma", "milan", "milano", "brussels", "bruxelles", "lisbon", "lisboa", "manchester", "glasgow",
+                        "birmingham", "new york", "tokyo", "moscow", "istanbul", "munich", "munchen", "vienna", "wien", "prague", "praha", "budapest", "warsaw", "naples", "napoli", "lyon",
+                        "frankfurt", "hamburg", "cologne", "koln", "copenhagen", "stockholm", "oslo", "dublin", "edinburgh", "liverpool"}
+
+
+def _generic_city_station(name):
+    import evidence as _ev
+    w = [t for t in _ev.fold(name).split() if t not in ("the", "main", "central", "train", "railway", "rail", "station", "stations", "mainline")]
+    return bool(w) and " ".join(w) in MULTI_STATION_CITIES
+
+
 def _ok_name(name, kind, hotel=""):
     """Reject menu strips, generic labels, an own-name run and impossible prefixes."""
     if not name or is_generic_label(name) or looks_like_nav(name):
+        return False
+    if kind == "station" and _generic_city_station(name):
         return False
     words = re.findall(r"[\wÀ-ÿ'’.-]+", name)
     if len(words) < 2:

@@ -309,7 +309,7 @@ def _overview_rest(rep, prev, parts, cons, h, sc, ins, sb, br, counts, qs):
 def _rec_card(r, n, start):
     """One recommendation as a single line (number, title, how sure, priority, owner) that opens to the reason, the action and the evidence. The first few of 'Start here' are open."""
     detail = htmlst.build(ui_consult.rec_card, r, True)
-    team = TEAM_LABEL.get(r["team"], r["team"])
+    team = r.get("owner") or TEAM_LABEL.get(r["team"], r["team"])
     label = r.get("confidence_label") or r["confidence"]
     label_tone = {"Confirmed": "good", "Likely": "", "Worth checking": "warn"}.get(label, "")
     return (f'<article class="rec compact {PRI_TONE.get(r["priority"], "")}" id="rec-{n}" data-team="{esc(r["team"])}" data-kind="{esc(r["kind"])}" data-start="{1 if start else 0}">'

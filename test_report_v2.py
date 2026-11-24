@@ -49,7 +49,7 @@ check("the sources that come up first are ranked, with their type of site and sh
 check("the actions come after, each with example wording and how you will know it worked", "What to do first: the action plan" in full and "Example wording" in full and "How you will know" in full)
 check("it opens with which AI searches name the hotel and who is named instead, in the hotel's own category", "Which AI searches name the hotel, and who is named instead" in first and "Named instead (same category)" in first)
 check("each search shows how often the hotel was named, as a band and never as a rank", "0 of 2 (not appearing)" in first and "1 of 2 (sometimes)" in first)
-check("the visibility sentence gives a range, not a number alone", "plausibly" in first and "true rate" in first)
+check("the visibility sentence gives the count and says what the sample is, with no 'true rate' range (Paris Marriott review)", "sampled answers" in first and "not independent traveller searches" in first and "true rate is plausibly" not in first)
 check("then what the evidence suggests differs, labelled as observations and not causes", "What the evidence suggests differs (observations, not proven causes)" in first)
 check("then what to do first, with each action's evidence label, and how sure we are with the three labels explained", "What to do first" in full and "How sure we are" in full and "Confirmed:" in full and "Worth checking:" in full)
 check("the sample's limits are on the page: one assistant, one day, other categories not counted", "One assistant on one day" in first and "not counted as competitors" in first)

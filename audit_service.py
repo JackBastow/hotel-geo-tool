@@ -125,6 +125,9 @@ def run(params, cfg, progress=None):
         store.record_usage(credits or len(tr.get("queries_run") or []) or 1, service="tavily")
     if (fa_res.get("amadeus_result") or {}).get("configured"):
         store.record_usage(2, service="amadeus")
+    if cfg.firecrawl and not use_firecrawl:       # key set but this month's page allowance is used: brand sites that refuse our reader then go unread, so the check says why
+        fa_res.setdefault("step_errors", []).append({"step": "firecrawl", "error": f"Firecrawl was not used: this month's page allowance ({store.SERVICE_CAPS.get('firecrawl')} pages) is used up. "
+                                                     "Raise FIRECRAWL_MONTHLY_CAP on the host if the Firecrawl plan allows more."})
     if cfg.anthropic and not use_anthropic:       # key configured but this month's allowance is used: say so, rather than silently showing nothing
         import ai_sample
         import review_replies

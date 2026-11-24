@@ -213,7 +213,7 @@ def _appendix_story(rep):
     # ---- cover
     story += [Spacer(1, 12 * mm), para("Technical & evidence appendix", "title"),
               para(hotel, "h1"),
-              P(link(meta.get("base", ""), meta.get("website", "")) + " - " + esc(meta.get("city", "")), "base"),
+              P(link(meta.get("base", ""), __import__("urlscope").clean_entry(meta.get("website", "")) if meta.get("website") else "") + " - " + esc(meta.get("city", "")), "base"),
               Spacer(1, 4),
               para(f"Audit run {_date(meta.get('run_at'))}. Generated from the completed audit; no further "
                    "requests were made to produce this document.", "muted"),
@@ -223,7 +223,7 @@ def _appendix_story(rep):
                 "methodology, the structured-data examples, platform discovery, media coverage and technical checks. Findings are "
                 "labelled <b>observed</b> (we read it), <b>inferred</b> (a conclusion drawn from observed evidence) or <b>not assessed</b> "
                 "(we could not check it, with the reason). <b>Nothing here measures what AI assistants recommend in general</b>; "
-                + ("one assistant was asked a few questions, shown as a labelled sample." if (rep.get("ai_sample") or {}).get("status") == "ok" else "no assistant was asked."), "note")]
+                + (("one assistant was" if len(__import__('report_model').assistants_asked(rep)) < 2 else f"{len(__import__('report_model').assistants_asked(rep))} assistants were") + " asked a set of questions, shown as a labelled sample." if (rep.get("ai_sample") or {}).get("status") == "ok" else "no assistant was asked."), "note")]
 
     # ---- scorecard, coverage and evidence strength (the summary lives in the management report)
     h = rep.get("headline") or headline_mod.build(rep)

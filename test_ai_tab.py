@@ -40,7 +40,7 @@ ai = panel("ai")
 print("1. the AI tab answers first")
 first_details = ai.index("<details")
 glance = ai[:first_details]
-check("it opens with the question and a one-sentence answer with the honest range", "Do AI assistants name this hotel?" in glance and "plausibly" in glance and "of 4 answers" in glance or "answers" in glance)
+check("it opens with the question and a one-sentence answer with the honest range", "Do AI assistants name this hotel?" in glance and "answers" in glance)
 check("four numbers sit beside it", glance.count('class="metric"') == 4 and "Named in" in glance and "Most-named rival" in glance and "Own website cited" in glance)
 check("a bar for every search says 'n of m' and who was named instead", "hk-bar wide" in glance and "0 of 2" in glance and "Named instead:" in glance)
 check("what stands out is a short list, not a table", "What stands out" in glance and glance.count("<li>") <= 4)

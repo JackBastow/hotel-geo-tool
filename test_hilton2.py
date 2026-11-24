@@ -77,7 +77,7 @@ import report_pdf_mgmt
 src = open("report_pdf_mgmt.py", encoding="utf8").read()
 check("the PDF says the technical checks were not made rather than 'no significant technical issue'", "No technical conclusion is drawn" in src and src.index("No technical conclusion") < src.index("No significant technical issue was found"))
 isrc = open("insight_tech.py", encoding="utf8").read()
-check("entity clarity leaves structured data out for a plain-text read instead of counting it against the hotel", "structured data not assessed (the pages were read as plain text)" in isrc)
+check("entity clarity leaves structured data out for a plain-text read instead of counting it against the hotel", "structured data not assessed (the page source could not be inspected)" in isrc and "read_via_html" in isrc)
 
 print("8. wording, sitemap and the audit's own notes")
 rec = {}

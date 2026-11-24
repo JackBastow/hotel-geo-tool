@@ -345,6 +345,10 @@ def _remove(rep, ids, why, gate, check):
         gate["changes"].append({"check": check, "id": i, "what": "removed: " + why})
 
 
+_GETTING_THERE = re.compile(r"\bairports?\b|\bstations?\b|getting (?:here|there)|how to get|\btransport\b|\btransfers?\b|\bmetro\b|\brail\b|\btrain\b", re.I)
+_HOW_FAR = re.compile(r"\bdistances?\b|\bhow far\b|\bminutes?\b|journey|travel time|walking (?:or driving )?time|driving time|how to get|directions|getting (?:here|there)", re.I)
+
+
 def check_more(rep, gate, done):
     """The run checks added after the NICI review. Each fixes what it safely can, downgrades what it cannot prove, and lists what a person should look at (gate['needs_review'])."""
     import advice
@@ -443,6 +447,14 @@ def check_more(rep, gate, done):
             dup.append(r.get("id"))
         else:
             seen[key] = r.get("id")
+    # the same getting-here advice from several checks (Paris Marriott review: airport and station findings in several variations): one recommendation, naming every place
+    trans = [r for r in c.get("recommendations") or [] if r.get("id") not in broken and r.get("id") not in dup
+             and _GETTING_THERE.search(" ".join(str(r.get(k) or "") for k in ("title", "finding"))) and _HOW_FAR.search(" ".join(str(r.get(k) or "") for k in ("title", "action")))]
+    if len(trans) > 1:
+        keep = trans[0]
+        extra = [t for t in trans[1:] if (t.get("title") or "").strip()]
+        keep["action"] = ((keep.get("action") or "").rstrip() + " This also covers: " + "; ".join(t["title"].rstrip(".") for t in extra) + ".").strip()
+        dup += [t.get("id") for t in extra]
     _remove(rep, broken, "its wording was incomplete (an unfilled placeholder)", gate, "text_quality")
     _remove(rep, dup, "the same recommendation appeared twice", gate, "text_quality")
     if broken:

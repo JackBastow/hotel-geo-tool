@@ -623,12 +623,14 @@ def readiness_profile(site, guest, intent_rows, location_res, structured, findin
 
     # Entity clarity
     e, er = 40, []
-    sd_skip = bool((coverage or {}).get("text_only"))        # a plain-text read cannot show structured data either way: it is left out, not counted against the hotel
-    if structured["hotel_found"]:
+    # a plain-text read, or a fallback reader's copy that may have dropped the page's scripts, cannot show structured data either way: it is left out, not counted against the hotel
+    # (Paris Marriott review: 'structured data not assessed' on one page, 'no Hotel structured data' lowering entity clarity on another)
+    sd_skip = bool((coverage or {}).get("text_only") or (coverage or {}).get("read_via_html") or structured.get("unreadable") or structured.get("hotel_found") is None)
+    if structured.get("hotel_found"):
         e += 20
         er.append("+ Hotel structured data present")
     elif sd_skip:
-        er.append("structured data not assessed (the pages were read as plain text)")
+        er.append("structured data not assessed (the page source could not be inspected)")
     else:
         er.append("- no Hotel structured data")
     if byid.get("entity_ok"):
@@ -642,10 +644,10 @@ def readiness_profile(site, guest, intent_rows, location_res, structured, findin
         er.append("+ name, phone, address and times are consistent across pages")
     else:
         er.append(f"- {len(bad)} consistency problem(s): " + ", ".join(sorted({c['type'] for c in bad})))
-    if any(i["status"] == "incorrect" for i in structured["items"]):
+    if any(i["status"] == "incorrect" for i in structured.get("items") or []):
         e -= 20
         er.append("- structured data contradicts the page")
-    comp("entity", "Entity clarity", e * 100 / 80 if (sd_skip and not structured["hotel_found"]) else e, er, note="Is it clear what and where this hotel is?")
+    comp("entity", "Entity clarity", e * 100 / 80 if (sd_skip and not structured.get("hotel_found")) else e, er, note="Is it clear what and where this hotel is?")
 
     # Content completeness
     qs = (guest or {}).get("questions", [])

@@ -41,7 +41,7 @@ SEGMENTS = [
     {"key": "spa_couples", "label": "Romantic and spa breaks", "goes_to": "couples and spa guests",
      "applies": {"features": ("spa",), "intents": ("spa", "couples")}, "slugs": ("spa", "wellness", "treatments", "romantic", "couples"),
      "requirements": [
-         {"id": "spa_facilities", "label": "Spa facilities and who can use them", "context": _rx(r"spa|wellness|treatment|massage|pool|sauna|steam|thermal|hot tub|relax"),
+         {"id": "spa_facilities", "label": "Spa facilities and who can use them", "gate": ("features", "spa"), "classes": {"spa_hotel", "resort"}, "context": _rx(r"spa|wellness|treatment|massage|pool|sauna|steam|thermal|hot tub|relax"),
           "facts": {"what the spa has (treatments, pool, sauna, steam room)": _rx(r"treatment|massage|facial|sauna|steam room|hydrotherapy|thermal|jacuzzi|hot tub|relaxation (?:room|area)|swimming pool|\bpool\b"),
                     "who can use it and when (guests, day visitors, opening times)": _rx(r"non[- ]?residents?|day (?:guest|spa|pass|visitor)|day spa|residents? only|hotel guests|complimentary (?:spa )?access|access to the spa|spa access|spa (?:is )?open|opening (?:hours|times)|open (?:daily|from|until)")},
           "need": 2, "add": ["what the spa includes (treatments, pool, sauna)", "who may use the spa (hotel guests, day visitors) and when it is open"]},
@@ -334,6 +334,8 @@ def assess(site, features, intents, coverage=None, location=None, classes=None, 
                 fe = {f["key"]: f["level"] for f in features or []}
                 if fe.get(gate[1]) not in ("some", "strong"):
                     continue                       # meeting facilities are only assessed when the hotel offers meeting rooms
+            if req.get("classes") and classes is not None and not (set(classes) & req["classes"]):
+                continue                           # a spa's details only for a hotel with a spa of its own (hotel_class: treatments and the hotel's spa named), never 'say more about your spa' to one without
             reqs.append(_assess_requirement(site, req, topic_read, topic_unread, coverage))
         out.append({**_finish(seg, why, reqs, topic_read), "relevance": rel})
         assessed.append(seg["key"])

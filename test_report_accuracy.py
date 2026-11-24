@@ -252,5 +252,70 @@ for _h, _c, _t, _exp, _why in _NAMED:
 check("'not the best choice' is not a recommendation", not ai_sample.recommended("Chewton Glen is not the best choice for families on a budget.", "Chewton Glen", "New Milton"))
 check("the bullets under a hotel are details, not list places", ai_sample.list_position("1. Lime Wood\n - Spa\n - From 400\n2. Chewton Glen", "Chewton Glen") == 2)
 
+print("15. a brand hotel that says no, prices in euros, and no spa (Paris Marriott review, Nov 2026)")
+import consultant
+import hotel_class
+import traveller_ready
+_MB = "https://www.marriott.com/en-us/hotels/parmc-paris-marriott-opera-ambassador-hotel/"
+_MH = "Paris Marriott Opera Ambassador Hotel"
+
+
+def _mp(path, title, text):
+    return {"url": _MB + path, "title": title, "text": text, "h1": [title], "tels": ["+33 1 44 83 40 40"], "mails": [], "links": [], "signals": {}, "footer_text": "", "ok": True}
+
+
+_MPAGES = [
+    _mp("overview/", _MH, "Paris Marriott Opera Ambassador Hotel is located on Boulevard Haussmann in the Opera district, five minutes from Palais Garnier and Galeries Lafayette. "
+        "The hotel has 297 rooms and suites, an Executive Lounge with views over the Paris skyline, and nine meeting rooms with 752 square metres of event space for up to 250 guests. "
+        "Built in 1927, the hotel keeps its Art Deco character. Check-in time: 3:00 PM. Check-out time: 12:00 PM. Pets are not allowed. Free Wi-Fi in all rooms. "
+        "There is no spa at the hotel, but several day spas are nearby for massage treatments. A 24-hour fitness centre is available to guests. "),
+    _mp("faq/", "FAQ", "Frequently asked questions. Does Paris Marriott Opera Ambassador Hotel have EV charging? No, Paris Marriott Opera Ambassador Hotel does not have electric vehicle charging stations. "
+        "Is there parking at the hotel? There is no on-site parking. Guests can use the partner car park Indigo Haussmann, 200 metres away, at a daily rate of EUR 35. "
+        "Is breakfast included? Breakfast is served daily from 6:30 AM to 10:30 AM in Brasserie Sixtine and costs EUR 39 per person. "),
+    _mp("dining/", "Dining", "Brasserie Sixtine serves modern French cuisine. Opening hours: Monday to Friday 12:00 to 14:30 and 17:30 to 22:00; Saturday 17:30 to 22:00; Sunday closed. "
+        "Breakfast is served from 6:30 to 10:30 every day. Bar Lindbergh is open daily from 17:00 to 01:00 and serves cocktails and light dishes. "),
+    _mp("location/", "Location", "Getting here. Charles de Gaulle International Airport: 30 km. Paris-Orly Airport: 18 km. Auber RER station: 200 m. Gare du Nord: 2 km. "
+        "Metro: Chaussée d'Antin La Fayette, 2-minute walk. Taxi from Charles de Gaulle takes about 45 minutes. "),
+    _mp("events/", "Meetings and events", "Nine meeting rooms, 752 square metres of event space, the largest room seats 250 theatre style. Contact our events team for a proposal. "),
+    _mp("rooms/", "Rooms", "Our 297 rooms and suites offer king or twin beds, rain showers and city views. Suites sleep up to four guests. "),
+]
+_mq = {q["id"]: q.get("state") for q in gq.evaluate(_MPAGES)}
+for _k in ("ev", "parking", "checkin_out", "wifi", "breakfast", "transport"):
+    check(f"'{_k}' is answered from the hotel's own words (a clear 'no', a euro price, times on the overview page)", _mq.get(_k) == "answered", _mq.get(_k))
+_mguest = {"questions": gq.evaluate(_MPAGES), "conflicts": [], "own_facts_node": {}, "pages_ok": len(_MPAGES), "pages_attempted": len(_MPAGES)}
+_mout = consultant.analyse(own_pages=_MPAGES, pages_meta=[{"url": p["url"], "ok": True, "status": 200, "title": p["title"]} for p in _MPAGES], base=_MB, hotel=_MH, city="Paris",
+                           location={"lat": 48.8728, "lon": 2.3335}, guest=_mguest, site={"robots": {"present": False, "status": 200}, "sitemap": {}}, entities=[], intel=None, osm_ctx=None)
+_mtext = " ".join(((r.get("title") or "") + " " + (r.get("finding") or "")).lower() for r in _mout.get("recommendations") or [])
+for _w in ("ev charging", "electric vehicle", "parking", "check-in", "wi-fi", "spa"):
+    check(f"no finding about '{_w}' (each is answered on the pages, or not offered)", _w not in _mtext, [r.get("title") for r in _mout.get("recommendations") or [] if _w in ((r.get("title") or "") + (r.get("finding") or "")).lower()])
+_msite = ic.Site(_MPAGES, _MB, _MH, "Paris")
+_mfeat = ic.features(_msite)
+_mlev = {f["key"]: f["level"] for f in _mfeat}
+check("'there is no spa... day spas nearby' does not give the hotel a spa", _mlev.get("spa") not in ("some", "strong"), _mlev.get("spa"))
+_mcls = hotel_class.classify(_msite, _mfeat, ic.intents(_msite), hotel=_MH)
+check("nor make it a spa hotel", "spa_hotel" not in _mcls["keys"], _mcls["keys"])
+_mtr = traveller_ready.assess(_msite, _mfeat, ic.intents(_msite), classes=_mcls["keys"] + ["luxury"])
+_mreq = [r.get("id") for s in _mtr["segments"] for r in s.get("requirements") or []]
+check("a luxury hotel without a spa of its own is never asked for its spa's details", "spa_facilities" not in _mreq, _mreq)
+_spa_site = ic.Site([_mp("spa/", "Spa", "Our spa offers massage and facial treatments, a sauna and a steam room. The spa is open daily from 9am to 8pm for hotel guests and day visitors. " * 2),
+                     _mp("overview/", _MH, "Relax in the hotel's spa after a day in Paris. Book a spa treatment at reception. " * 2)], _MB, _MH, "Paris")
+_sfeat = ic.features(_spa_site)
+check("a hotel that describes its own spa still has one", {f["key"]: f["level"] for f in _sfeat}.get("spa") in ("some", "strong")
+      and "spa_hotel" in hotel_class.classify(_spa_site, _sfeat, ic.intents(_spa_site), hotel=_MH)["keys"])
+_br = consultant.brand_route([{"id": "M-sitemap_missing", "source": "machine", "title": "Publish a sitemap", "finding": "No sitemap.", "action": "Add one.", "team": "web", "priority": "medium"},
+                               {"id": "Q1", "source": "questions", "title": "Make sure your website answers: accessibility", "finding": "", "action": "State it.", "team": "web", "priority": "medium"},
+                               {"id": "R1", "source": "reviews", "title": "Reply to reviews", "finding": "", "action": "Reply.", "team": "reputation management", "priority": "medium"}])
+check("on a brand's website a site-wide setting is low priority and the brand's", _br[0]["priority"] == "low" and _br[0]["owner"] == "Brand digital team" and "(brand-run page)" in _br[0]["title"])
+check("a change to the hotel's own pages goes to the brand's digital team; work outside the website stays with the hotel",
+      _br[1]["owner"] == "Brand digital team" and "brand's digital team" in _br[1]["action"] and not _br[2].get("owner"))
+_recs = [{"id": "T1", "title": "Say how far the hotel is from Charles de Gaulle Airport", "finding": "The airport is named but no journey time is given.", "action": "State the travel time to the airport.", "priority": "medium"},
+         {"id": "T2", "title": "Add the walking time to Gare Saint-Lazare station", "finding": "The station is named without a distance.", "action": "Give the walking time in minutes.", "priority": "low"},
+         {"id": "T3", "title": "Answer this clearly: how to get to the hotel from the airport", "finding": "Getting here: airport transfer details.", "action": "Add directions from the airport.", "priority": "low"},
+         {"id": "M1", "title": "Describe the meeting rooms' capacities", "finding": "Meeting rooms are named.", "action": "List each room's capacity.", "priority": "medium"}]
+_gr = report_gate.check({"meta": {"hotel": _MH, "city": "Paris"}, "consultant": {"recommendations": copy.deepcopy(_recs), "coverage": {"pages_read": 6}, "pages_read": 6}})
+_ids = [r["id"] for r in _gr["consultant"]["recommendations"]]
+check("airport and station advice from several checks becomes one recommendation that names every place", _ids.count("T1") == 1 and "T2" not in _ids and "T3" not in _ids and "M1" in _ids
+      and "Gare Saint-Lazare" in next(r for r in _gr["consultant"]["recommendations"] if r["id"] == "T1")["action"], _ids)
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

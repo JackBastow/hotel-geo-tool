@@ -288,6 +288,23 @@ ov = ca.get("/admin/overview").get_data(as_text=True)
 check("the overview shows the number of saved audits, and says no hotel is registered yet (the analysis needs registered hotels)", "Audits saved" in ov and "No hotels are registered yet" in ov)
 check("runs can be filtered, a run opened, and its report, data and PDFs downloaded", "Brooklands" in ca.get("/admin/runs?q=brooklands").get_data(as_text=True) and "Open the full report" in ca.get("/admin/run/1").get_data(as_text=True)
       and "Brand ranking" in ca.get("/admin/run/1/report").get_data(as_text=True) and ca.get("/admin/run/1/management.pdf").data[:4] == b"%PDF" and json.loads(ca.get("/admin/run/1/data.json").data)["meta"]["hotel"])
+import firecrawl_reader as _fr
+_orig_scrape, _old_key = _fr.scrape, os.environ.get("FIRECRAWL_API_KEY")
+_fr.scrape = lambda u, k, **kw: {"ok": True, "markdown": "# Overview\n\nThere is no on-site parking.", "html": "<html><body><main><h1>Overview</h1><p>There is no on-site parking.</p></main></body></html>",
+                                 "links": [], "title": "Overview", "reason": ""}
+os.environ["FIRECRAWL_API_KEY"] = "test-key"
+try:
+    _anon = app2.test_client().get("/admin/read?url=https://example.com/")
+    _diag = json.loads(ca.get("/admin/read?url=https://example.com/overview/").data)
+finally:
+    _fr.scrape = _orig_scrape
+    if _old_key is None:
+        os.environ.pop("FIRECRAWL_API_KEY", None)
+    else:
+        os.environ["FIRECRAWL_API_KEY"] = _old_key
+check("the page-reading diagnostic is for the admin only", _anon.status_code in (302, 401, 403))
+check("it shows each stage: what Firecrawl returned, the text the reader made, and what each question quoted",
+      _diag["firecrawl"]["ok"] and "no on-site parking" in _diag["page"]["text"] and any(q["id"] == "parking" for q in _diag["questions"]), _diag.keys())
 check("the hotels, markets and usage pages render", all(ca.get(p).status_code == 200 for p in ("/admin/hotels", "/admin/markets", "/admin/usage", "/admin/export")) and "Free-tier guards" in ca.get("/admin/usage").get_data(as_text=True))
 check("the exports download: summary, competitors, pages, sources, the monthly pack and the zip",
       all(ca.get(f"/admin/export/{n}").status_code == 200 for n in ("runs.csv", "competitors.csv", "pages.csv", "sources.csv", "reports.zip"))

@@ -7,7 +7,7 @@ AREA_MEANING = {"ai_visibility": "How often AI assistants name the hotel (sample
                 "editorial": "Coverage by travel writers and blogs", "website": "The hotel's own website: content and technical set-up", "social": "Social media and community presence",
                 "entity": "Outside sources agree on name, address and phone", "freshness": "How up to date the published information is"}
 AI_AIM_PCT = 30            # the owner's aim for how often the hotel is named; shown as an aim, never forced
-SCALE_NOTE = "Strong is 75 or more, partly there 50 to 74, weak under 50. AI visibility is a sample from one assistant and is not part of the readiness score."
+SCALE_NOTE = "Strong is 75 or more, partly there 50 to 74, weak under 50. AI visibility is a sample of answers from the assistants asked and is not part of the readiness score."
 
 
 def short(text, n):

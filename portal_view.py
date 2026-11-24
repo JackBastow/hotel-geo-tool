@@ -89,12 +89,11 @@ def kpis(sm):
     c1 = sm["cov_latest"]
     chg = sm.get("cov_change")
     if c1:
-        lo, hi = trend.wilson(*c1)
         start = ""
         if chg:
             (b0, b1), what = chg, ("on its tracked prompts" if sm.get("cov_basis") == "tracked" else "")
             start = f" · {what + ': ' if what else ''}{round(100 * b0[0] / b0[1])}% at the start, {round(100 * b1[0] / b1[1])}% now"
-        sub = f"{c1[0]} of {c1[1]} answers · likely {round(100 * lo)}% to {round(100 * hi)}%" + start
+        sub = f"{c1[0]} of {c1[1]} sampled answers" + start
         out.append(kpi("Named by an AI assistant", f"{round(100 * c1[0] / c1[1])}", sub, BRAND, "%"))
     return '<div class="kpis">' + "".join(out) + "</div>"
 

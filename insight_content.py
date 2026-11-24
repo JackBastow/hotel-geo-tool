@@ -237,15 +237,29 @@ def understanding(site, intent_rows, feature_rows, city):
                      "absent here it may simply be unstated.")}
 
 
+# a facility that is somewhere else: 'spas nearby', 'our partner spa', 'a short walk to the pool' (Paris Marriott review: a hotel without a spa was assessed as a spa hotel)
+_ELSEWHERE = re.compile(r"\b(?:nearby|near ?by|partner(?:ed|ship)?|neighbou?ring|close by|close to|local|in the area|around the hotel|a short (?:walk|drive)|minutes? (?:walk|away|from)|public)\b", re.I)
+_OWN_FACILITY = {"spa", "pool", "gym"}
+
+
+def _real_mention(key, pat, text):
+    """A mention of the facility that the sentence neither denies ('no gym', 'the spa is not available') nor puts somewhere else (a spa or pool nearby, for the facilities a hotel has on site)."""
+    for m in pat.finditer(text):
+        ctx = text[max(0, m.start() - 40): m.start()].lower()
+        if re.search(r"\b(?:no|not|without|don'?t have|does not have|doesn'?t have)\s*(?:a |an |any )?$", ctx) or textutil.is_negated(text, m.start(), m.end()):
+            continue
+        if key in _OWN_FACILITY and _ELSEWHERE.search(textutil.sentence_of(text, m.start(), m.end(), limit=400)):
+            continue
+        return True
+    return False
+
+
 def features(site):
     out = []
     for key, (label, pat) in lexicon.FEATURES.items():
         found = []
         for f in site.find(pat):
-            # skip a negated mention ("no gym", "we do not have a pool")
-            ms = pat.search(f["page"]["text"])
-            ctx = f["page"]["text"][max(0, ms.start() - 40): ms.start()].lower() if ms else ""
-            if re.search(r"\b(?:no|not|without|don'?t have|does not have|doesn'?t have)\s*(?:a |an |any )?$", ctx):
+            if not _real_mention(key, pat, f["page"]["text"]):
                 continue
             found.append(f)
         out.append({"key": key, "label": label, "level": strength(site, found), "found": found,

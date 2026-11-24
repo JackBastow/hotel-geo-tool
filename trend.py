@@ -1,7 +1,7 @@
 """
 Reading AI-test counts honestly: how often, with how much doubt, and whether a change since the last audit is more than noise.
 
-A handful of answers from one assistant cannot give a precise rate. 'Named in 3 of 9 answers' is shown together with the range the true rate could plausibly be in (a Wilson interval at 95%), a plain band
+A handful of answers cannot give a precise rate. 'Named in 3 of 9 sampled answers' is shown with a plain band (no 'true rate' range: the answers are not independent searches; the Wilson interval at 95% is used only to judge change), a plain band
 ('not appearing', 'rarely', 'sometimes', 'usually'), and the number of answers behind it. A change between two audits is called a change ONLY when those ranges do not overlap; otherwise it is 'no clear
 change'. Prompts are compared by their wording, which is why each hotel's benchmark prompts are frozen at its first audit and asked again word for word.
 """
@@ -33,12 +33,16 @@ def band(named, n):
     return "not appearing" if named == 0 else "rarely" if r <= 0.25 else "sometimes" if r < 0.75 else "usually"
 
 
+SAMPLE_NOTE = ("The answers are repeated asks of the same assistants on one day, not independent traveller searches, so they show a pattern across the tested prompts, "
+               "not a rate for all AI searches.")
+
+
 def describe(named, n):
-    """'named in 3 of 9 answers (sometimes; the true rate is plausibly 17% to 56%)'. Honest about the small sample."""
+    """'named in 3 of 9 sampled answers (sometimes)'. The count and a plain band: no 'true rate' range, because repeated asks of one assistant on one day are not independent samples of
+    traveller searches (Paris Marriott review). The interval is still used inside, to decide whether a change between checks is more than noise (report_model.ai_moved)."""
     if not n:
         return "no answers were judged"
-    lo, hi = wilson(named, n)
-    return f"named in {named} of {n} answers ({band(named, n)}; from {n} answers the true rate is plausibly {round(100 * lo)}% to {round(100 * hi)}%)"
+    return f"named in {named} of {n} sampled answers ({band(named, n)})"
 
 
 def _norm(text):

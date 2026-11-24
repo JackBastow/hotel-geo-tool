@@ -11,6 +11,8 @@ a restaurant is not a wedding venue, a family room is not a family hotel.
 
 import re
 
+import textutil
+
 import evidence
 import pagetarget
 import places
@@ -95,8 +97,15 @@ def classify(site, features, intents, osm_ctx=None, hotel="", prof=None):
             spa_hits |= n
         if len(n) >= 2 or (pagetarget.classify(site, p) == "spa" and re.search(r"\bspa\b|treatment|massage|sauna|steam room|wellness", t, re.I)):
             spa_pages.add(p["url"])
-    has_core = any(_SPA_CORE.search(t) for _p, t in pages)
-    has_place = any(_SPA_PLACE.search(t) for _p, t in pages)
+    def _own_spa(t):
+        m = _SPA_PLACE.search(t)
+        while m:
+            sent = textutil.sentence_of(t, m.start(), m.end(), limit=400)
+            if not textutil.is_negated(t, m.start(), m.end()) and not re.search(r"\b(?:nearby|near ?by|partner\w*|neighbou?ring|close to|close by|a short (?:walk|drive)|minutes? (?:walk|away|from))\b", sent, re.I):
+                return True
+            m = _SPA_PLACE.search(t, m.end())
+        return False
+    has_core = has_place = any(_SPA_CORE.search(t) and _own_spa(t) for _p, t in pages)
     if len(spa_hits) >= 2 and spa_pages and has_core and has_place:            # a real spa: treatments (not just a sauna or a gym) AND the hotel's own spa named as a place
         add("spa_hotel", "strong" if len(spa_pages) >= 2 else "some", [f"{len(spa_hits)} spa features (treatments, sauna, steam room, wellness...) described on {len(spa_pages)} page(s)"])
     # ---- luxury, from the tier the audit already works out

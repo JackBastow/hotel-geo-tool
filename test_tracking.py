@@ -31,7 +31,7 @@ lo, hi = trend.wilson(3, 9)
 check("3 of 9 answers: the plausible range is wide, from about an eighth to about two thirds", 0.08 < lo < 0.2 and 0.55 < hi < 0.7, (lo, hi))
 check("0 of 10 is 'not appearing' but the range still reaches into the twenties, never 'never'", trend.band(0, 10) == "not appearing" and trend.wilson(0, 10)[1] > 0.2)
 check("bands are plain words and never 'always'", [trend.band(k, 12) for k in (0, 2, 6, 11)] == ["not appearing", "rarely", "sometimes", "usually"] and trend.band(0, 0) == "no answers")
-check("the sentence carries the count, the band and the range", "named in 3 of 9 answers" in trend.describe(3, 9) and "sometimes" in trend.describe(3, 9) and "plausibly" in trend.describe(3, 9))
+check("the sentence carries the count and the band, never a 'true rate' (the answers are not independent searches)", "named in 3 of 9 sampled answers" in trend.describe(3, 9) and "sometimes" in trend.describe(3, 9) and "plausibly" not in trend.describe(3, 9))
 
 
 def items(text, named, n, kind="niche"):

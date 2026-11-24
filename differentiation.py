@@ -82,8 +82,11 @@ def build(rep):
             ai = f"In this sample the assistant named the hotel in {res['named']} of {res['of']} answers to searches of this kind." if res and res["of"] else "No search of this kind was in this sample."
             gapped = bool(res and res["of"] and res["named"] / res["of"] < 0.5)
             if kind == "advantage":
-                finding = f"The hotel states {r['label'].lower()}, and {len(r['lacking'])} comparable hotel(s) whose pages were read do not."
-                action = f"Make the verified facts about {r['label'].lower()} (what exists, sizes or capacities, who it suits, how to book) easy to find on one page, in plain text, and use them in how the hotel is described to {THEME_LABEL.get(th, 'this kind of traveller')}."
+                # not 'the rival lacks it': the pages read did not mention it (Paris Marriott review: Hotel du Louvre advertises eight meeting rooms on a page that was not read)
+                finding = (f"The hotel states {r['label'].lower()}. The pages we read for {', '.join(r['lacking'][:2])} did not mention it, which may only mean they say less about it online, "
+                           "not that they lack it. A possible advantage, to check on their own sites before using it as a selling point.")
+                action = (f"Check whether {', '.join(r['lacking'][:2])} offer {r['label'].lower()}. If the hotel's offer is genuinely stronger, make the verified facts (what exists, sizes or capacities, "
+                          f"who it suits, how to book) easy to find on one page, in plain text, and use them in how the hotel is described to {THEME_LABEL.get(th, 'this kind of traveller')}.")
             elif kind == "under-explained":
                 finding = f"The hotel has {r['label'].lower()} but explains it thinly: {r['why']}."
                 action = f"State the missing details in plain text on the page about {r['label'].lower()}, using only facts the hotel can stand behind."
@@ -91,7 +94,7 @@ def build(rep):
                 finding = f"{r['label']} is a clear strength on the hotel's own site ({r['proof']})."
                 action = f"Keep it prominent and consistent, and check the sources the assistant cites describe it too."
             opps.append({"theme": th, "theme_label": THEME_LABEL.get(th, th), "kind": kind, "finding": finding, "opportunity": f"Position the hotel for {THEME_LABEL.get(th, th)}.", "action": action, "ai_result": ai, "gap": gapped,
-                         "confidence": r.get("confidence", "Likely") if kind != "advantage" or len(r.get("lacking", [])) else "Worth checking", "evidence": r.get("proof") or r.get("why") or ""})
+                         "confidence": "Worth checking" if kind == "advantage" else r.get("confidence", "Likely"), "evidence": r.get("proof") or r.get("why") or ""})
     opps.sort(key=lambda o: (not o["gap"], o["kind"] != "advantage", o["kind"] != "under-explained"))
     return {"strengths": strengths[:8], "advantages": adv[:6], "underexplained": under[:6], "opportunities": opps[:6],
             "limits": "Based on the hotel's own pages and the comparable hotels' pages the audit could read, and on one assistant's answers on one day. A page that is silent about a facility does not prove the facility is missing. "

@@ -83,6 +83,33 @@ def site_identity(s, hotel):
             "evidence": [{"url": home.get("url", ""), "snippet": (home.get("title") or "")[:160]}]}
 
 
+BRAND_SITE_WIDE = ("M-speed", "M-a11y", "M-cc_refused", "M-home_title", "M-home_meta", "M-meta_missing", "M-h1", "M-alt", "M-canonical_missing", "M-dup_titles", "M-canonical_other", "M-noindex",
+                   "M-js_empty", "M-sitemap_missing", "M-robots_missing", "M-robots_block_all", "M-ai_blocked", "M-llms_missing", "M-cc_policy", "M-cc_none", "M-http_errors", "M-slow_pages")
+BRAND_OWNER = "Brand digital team"
+BRAND_NOTE = (" On a brand-run website the hotel usually cannot edit the pages itself: send this to the brand's digital team with the evidence below, "
+              "or use the property content tool the brand provides, where there is one.")
+
+
+def brand_route(recs):
+    """
+    A hotel's section of a brand's website (Marriott, Hilton...): say who makes each change (Paris Marriott review). Site-wide settings (sitemap, robots.txt, page speed, titles...) belong to the whole
+    brand website: low priority, labelled 'brand-run page'. Changes to the hotel's own pages are kept, routed to the brand's digital team. Changes outside the website stay with the hotel.
+    """
+    for r in recs or []:
+        if r.get("source") == "machine" and r.get("id") in BRAND_SITE_WIDE:
+            r["kind"], r["priority"], r["impact"] = "opportunity", "low", "low"
+            if "(brand-run page)" not in (r.get("title") or ""):
+                r["title"] = (r.get("title") or "") + " (brand-run page)"
+            if "brand's web team" not in (r.get("finding") or ""):
+                r["finding"] = (r.get("finding") or "") + " This setting belongs to the brand's whole website, so the hotel cannot change it itself: pass it to the brand's web team."
+            r["owner"], r["brand_run"] = BRAND_OWNER, True
+        elif r.get("team") == "web" or r.get("source") in ("questions", "hidden", "structured"):
+            r["owner"], r["brand_run"] = BRAND_OWNER, True
+            if BRAND_NOTE.strip() not in (r.get("action") or ""):
+                r["action"] = (r.get("action") or "").rstrip() + BRAND_NOTE
+    return recs
+
+
 def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, entities, intel,
             osm_ctx, jsonld_example="", web=None, ai=None, reviews=None, text_only=False, ai_insights=None, listing_checks=None, reddit=None, booking=None, external=None, competitors=None, ai_gap=None, citations=None, forums=None, fc_html=False):
     s = ic.Site(own_pages, base, hotel, city)
@@ -196,11 +223,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     if site_check_warn:
         recs.insert(0, site_check_warn)
     if (site.get("meta") or {}).get("scope"):
-        for r in recs:
-            if r["source"] == "machine" and r["id"] in ("M-speed", "M-a11y", "M-cc_refused", "M-home_title", "M-home_meta", "M-meta_missing", "M-h1", "M-alt", "M-canonical_missing", "M-dup_titles", "M-canonical_other", "M-noindex", "M-js_empty"):
-                r["kind"], r["priority"], r["impact"] = "opportunity", "low", "low"
-                r["title"] = r["title"] + " (brand-run page)"
-                r["finding"] += " This page belongs to the brand's website, so the hotel cannot change it itself: pass it to the brand's web team."
+        brand_route(recs)
     try:
         import report_check
         reconciled = report_check.reconcile(recs, facility, travel if isinstance(travel, dict) else None, profile, external)

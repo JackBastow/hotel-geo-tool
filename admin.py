@@ -9,6 +9,7 @@ import collections
 import hmac
 import io
 import json
+import re
 import secrets
 import time
 import urllib.parse
@@ -331,6 +332,44 @@ def register(app, cfg):
                      '(the free plan, or checks running at the same time).</p></section>')
         return shell("speed", "Speed", "".join(out))
 
+    @app.get("/admin/read")
+    def admin_read():
+        """
+        Diagnostic: one page through Firecrawl, then every stage of our pipeline, so a wrong finding can be traced to where it went wrong (Paris Marriott review): what Firecrawl returned, the text the
+        page reader made of it, and what each guest question extracted, with the exact sentence quoted. ?url=...  &raw=html|markdown returns that copy as a file (for a test fixture). One Firecrawl credit.
+        """
+        g = guard()
+        if g:
+            return g
+        import os
+        import firecrawl_reader
+        import guest_questions as gq
+        import store as quota
+        url = (request.args.get("url") or "").strip()
+        if not url.startswith(("https://", "http://")):
+            return Response(json.dumps({"error": "give ?url=https://... (the page to read)"}), status=400, mimetype="application/json")
+        key = os.environ.get("FIRECRAWL_API_KEY")
+        if not key:
+            return Response(json.dumps({"error": "FIRECRAWL_API_KEY is not set on this host"}), status=400, mimetype="application/json")
+        res = firecrawl_reader.scrape(url, key)
+        quota.record_usage(1, audits=0, service="firecrawl")
+        raw = request.args.get("raw")
+        if raw in ("html", "markdown"):
+            body = res.get("html" if raw == "html" else "markdown") or ""
+            name = re.sub(r"[^a-z0-9]+", "-", urllib.parse.urlparse(url).path.lower()).strip("-")[:60] or "page"
+            return Response(body, mimetype="text/plain; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{name}.{"html" if raw == "html" else "md"}"'})
+        out = {"url": url, "firecrawl": {"ok": res.get("ok"), "reason": res.get("reason"), "title": res.get("title"), "markdown_chars": len(res.get("markdown") or ""), "html_chars": len(res.get("html") or ""),
+                                         "links": len(res.get("links") or []), "markdown": (res.get("markdown") or "")[:20000]}}
+        if res.get("ok"):
+            page = firecrawl_reader.build_page(url, res)
+            out["page"] = {"built_from": "html" if page.get("html_via") else "markdown", "text_chars": len(page.get("text") or ""), "lines": (page.get("text") or "").count("\n") + 1,
+                           "title": page.get("title"), "h1": page.get("h1"), "text": (page.get("text") or "")[:20000]}
+            qs = gq.evaluate([dict(page, ok=True)])
+            out["questions"] = [{"id": q["id"], "state": q.get("state"), "found": q.get("found"), "missing": q.get("missing"), "not_offered": q.get("not_offered"),
+                                 "quoted": [{"fact": f.get("label"), "sentence": f.get("snippet")} for f in q.get("fact_snippets") or []] or ([{"fact": "-", "sentence": q.get("snippet")}] if q.get("snippet") else [])}
+                                for q in qs]
+        return Response(json.dumps(out, indent=1, ensure_ascii=False), mimetype="application/json")
+
     @app.get("/admin/usage")
     def admin_usage():
         g = guard()
@@ -342,7 +381,7 @@ def register(app, cfg):
         import store as quota
         lines = []
         names = {"claude": "Claude ($, thousandths)", "ai_chatgpt_usd": "ChatGPT ($, thousandths)", "ai_gemini_usd": "Gemini ($, thousandths)", "ai_perplexity_usd": "Perplexity ($, thousandths)"}
-        for svc in ("tavily", "claude", "ai_chatgpt_usd", "ai_gemini_usd", "ai_perplexity_usd", "gemini_reader", "amadeus"):
+        for svc in ("tavily", "claude", "ai_chatgpt_usd", "ai_gemini_usd", "ai_perplexity_usd", "firecrawl", "google_places", "tripadvisor", "chat", "gemini_reader", "amadeus"):     # every metered service, Firecrawl pages included
             used, remaining, _w = quota.quota_status(service=svc)
             lines.append({"Service": names.get(svc, svc), "Used this month": used, "Allowance": quota.SERVICE_CAPS.get(svc), "Left": remaining})
         out = ("<h5>By month</h5>" + _table(s.usage_by_month(), ["month", "runs", "hotels", "ai_cost_usd"], {"month": "Month", "runs": "Audits", "hotels": "Hotels", "ai_cost_usd": "Estimated AI cost $"})

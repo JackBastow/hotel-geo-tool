@@ -103,9 +103,15 @@ def _ai_line(rep):
     s = log["summary"]
     import trend
     where = f" Searches were run as if from {ai['search_country']}." if ai.get("search_country") else ""
-    return (f"Sampled on one assistant only: {log['platform']}, on {log['date'] or 'the audit date'}.{where} It named the hotel in {s['appeared']} of {s['non_branded_answers']} answers to {s['prompts']} questions that do not "
-            f"mention the hotel ({trend.band(s['appeared'], s['non_branded_answers'])}; from that many answers the true rate is plausibly {round(100 * trend.wilson(s['appeared'], s['non_branded_answers'])[0])}% to "
-            f"{round(100 * trend.wilson(s['appeared'], s['non_branded_answers'])[1])}%), and recommended it in {s['recommended']}. This is a sample of answers, not a ranking." + (" " + (rep.get("gate") or {}).get("ai_diagnosis", {}).get("reading", "") if (rep.get("gate") or {}).get("ai_diagnosis", {}).get("reading") else ""), True)
+    import report_model
+    rows = [r for r in report_model.engine_counts(rep) if r.get("status") == "ok" and not r.get("manual")]
+    many = len(report_model.assistants_asked(rep)) > 1
+    each = ""
+    if many and rows:
+        each = (" On the tracked prompts, asked of every assistant: " + "; ".join(f"{r['name']} named it in {r['named']} of {r['asked']}" for r in rows) + ".")
+    return (f"Sampled on {report_model.assistants_phrase(rep)}, on {log['date'] or 'the audit date'}.{where} {'Claude' if many else 'It'} named the hotel in {s['appeared']} of {s['non_branded_answers']} sampled answers "
+            f"to {s['prompts']} questions that do not mention the hotel ({trend.band(s['appeared'], s['non_branded_answers'])}), and recommended it in {s['recommended']}.{each} {trend.SAMPLE_NOTE}"
+            + (" " + (rep.get("gate") or {}).get("ai_diagnosis", {}).get("reading", "") if (rep.get("gate") or {}).get("ai_diagnosis", {}).get("reading") else ""), True)
 
 
 def _exec_sentences(c, h, top, hotel):
@@ -210,7 +216,7 @@ def _scoreboard(rep, h):
     t = Table(data, colWidths=[w * R.W for w in (0.24, 0.07, 0.17, 0.13, 0.39)], repeatRows=1)
     t.setStyle(TableStyle(style))
     return [para("Scorecard at a glance", "h3"), t,
-            para("Strong is 75 or more, partly there 50 to 74, weak under 50. AI visibility is a sample from one assistant and is not part of the readiness score.", "tiny")]
+            para("Strong is 75 or more, partly there 50 to 74, weak under 50. AI visibility is a sample of answers from the assistants asked and is not part of the readiness score.", "tiny")]
 
 
 def _engines_band(rep):
@@ -523,7 +529,7 @@ def story(rep, H1):
     import glance
     top = glance.top_fixes(c)
     out = [R.Spacer(1, 6 * R.mm), para("Management report", "title"), para(hotel, "h1"),
-           R.P(link(meta.get("base", ""), meta.get("website", "")) + " - " + esc(meta.get("city", "")) +
+           R.P(link(meta.get("base", ""), __import__("urlscope").clean_entry(meta.get("website", "")) if meta.get("website") else "") + " - " + esc(meta.get("city", "")) +
                " - audit run " + esc(R._date(meta.get("run_at"))), "base"), Spacer(1, 4),
            para("How well this hotel is set up to be found and understood by search and AI systems, what travellers and assistants cannot yet learn from it, and what to do first. "
                 "Quotes, URLs and method are in the Technical & Evidence Appendix; every action gives its reference.", "muted")]
