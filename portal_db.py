@@ -205,6 +205,17 @@ class PortalMixin:
             except Exception:  # noqa: BLE001
                 pass
 
+    def touch_actions(self, ids, run_id, when):
+        """'Flagged again by this check' for many actions in one statement (it was one database trip per action)."""
+        conn = self._connect()
+        try:
+            for i in range(0, len(ids), 300):
+                part = ids[i:i + 300]
+                self._run(conn, f"UPDATE actions SET last_run_id = ?, last_seen = ? WHERE id IN ({', '.join('?' for _ in part)})", [run_id, when] + list(part))
+            conn.commit()
+        finally:
+            conn.close()
+
     def list_actions(self, hotel_id):
         return self._rows("SELECT * FROM actions WHERE hotel_id = ? ORDER BY id", (hotel_id,))
 

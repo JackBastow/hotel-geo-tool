@@ -35,6 +35,14 @@ def _parse(iso):
         return None
 
 
+def interrupted(h, last_run, now):
+    """A check that was started (last_attempt) less than a day ago, has no saved result since, and recorded no error: the process stopped under it."""
+    tried = _parse(h.get("last_attempt")) if h.get("last_attempt") else None
+    if not tried or h.get("last_error") or (now - tried).total_seconds() > 86400:
+        return False
+    return last_run is None or last_run < tried
+
+
 class Weekly:
     def __init__(self, cfg, reports, run_fn):
         """run_fn(params, progress) -> a finished report; reports.save(report) -> token."""
@@ -46,6 +54,7 @@ class Weekly:
         self.done = []
         self.started = None
         self.live = {}                  # hotel id -> {"state": queued|running|done|error, "messages": [...], "started", "finished", "error", "manual"}: what the admin and hotel pages show while a check runs
+        self.resumed = set()            # hotels whose cut-off check is being run again: marked, so a check that itself brings the service down is not retried at every restart
         self.manual = set()             # hotels asked for by a person (a button or a new account): these get the thorough test; the Monday batch gets the lighter one
 
     def _db(self):
@@ -65,6 +74,10 @@ class Weekly:
             hist = db.hotel_runs(h["hotel_key"])
             last = _parse(hist[0]["run_at"]) if hist else None
             tried = _parse(h["last_attempt"]) if h["last_attempt"] else None
+            if interrupted(h, last, now):
+                out.append(h)                  # started, never finished, never failed: the service restarted under it (a deploy); it is run again rather than waiting a week
+                self.resumed.add(h["id"])
+                continue
             if last and (now - last).total_seconds() < DUE_DAYS * 86400:
                 continue
             if tried and (now - tried).total_seconds() < RETRY_HOURS * 3600:
@@ -137,7 +150,12 @@ class Weekly:
         import progress
         progress.rekey_all(db)                          # a hotel whose own section of a brand site is now recognised keeps its history under its new key
         h = db.get_hotel(hotel_id) or h
-        db.set_hotel(hotel_id, last_attempt=portal_db.now_iso())
+        if hotel_id in self.resumed:
+            self.resumed.discard(hotel_id)
+            # a second cut-off of the same check then counts as a failure (12-hour retry), never a loop of restarts
+            db.set_hotel(hotel_id, last_attempt=portal_db.now_iso(), last_error="The previous check was cut off by a restart; this is the second attempt.")
+        else:
+            db.set_hotel(hotel_id, last_attempt=portal_db.now_iso())
         with self.lock:
             st = self.live.setdefault(hotel_id, {"state": "running", "messages": [], "started": time.time(), "finished": None, "error": "", "manual": False})
             st.update(state="running", started=st["started"] or time.time())
@@ -182,8 +200,27 @@ class Weekly:
             return {"running": self.running, "current": self.current, "remaining": len(self.queue), "done": list(self.done), "elapsed": round(time.time() - self.started) if self.started else 0}
 
 
+def resume_soon(weekly, delay_s=60):
+    """A restart (every deploy) stops checks half way and empties the queue, which lived only in memory. A minute after the service starts, whatever is due, a cut-off check included,
+    is started again, so nothing waits for the next scheduled run."""
+    def go():
+        time.sleep(delay_s)
+        try:
+            started, n = weekly.start()
+            if n:
+                import steps
+                steps.log.info("resumed %s due hotel check(s) after the service started", n)
+        except Exception as e:  # noqa: BLE001
+            import steps
+            steps.failed("resuming due checks after a restart", e, quiet=True)
+    threading.Thread(target=go, name="weekly-resume", daemon=True).start()
+
+
 def register(app, cfg, weekly):
     token = getattr(cfg, "cron_token", None)
+    import os
+    if getattr(cfg, "database_url", None) and os.environ.get("RENDER"):          # the live service only (a test or a local copy never starts checks by itself)
+        resume_soon(weekly)
 
     def allowed():
         got = (request.headers.get("Authorization") or "")

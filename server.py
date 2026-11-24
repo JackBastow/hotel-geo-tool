@@ -204,6 +204,7 @@ def create_app(cfg=None, run_fn=None):
     @app.before_request
     def _timer_start():
         backend.STATS.d = {"queries": 0, "db_s": 0.0, "t0": time.perf_counter()}
+        backend.MEMO.d = {}
 
     @app.before_request
     def site_gate():
@@ -275,6 +276,7 @@ def create_app(cfg=None, run_fn=None):
                 slow_log.append({"when": time.time(), "path": re.sub(r"/[A-Za-z0-9_-]{20,}", "/…", request.path), "method": request.method, "total": total,
                                  "queries": st["queries"], "db": st["db_s"]})
             backend.STATS.d = None
+            backend.MEMO.d = None
         return resp
 
     @app.after_request

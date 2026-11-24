@@ -6,7 +6,7 @@
 name: Weekly hotel checks
 on:
   schedule:
-    - cron: "0 5 * * 1"        # Mondays at 05:00 UTC (06:00 UK in summer, 05:00 in winter)
+    - cron: "0 5 * * *"        # every day at 05:00 UTC: only hotels that are due (6 days since their last check) or whose check was cut off are run, so a missed Monday is caught the next day
   workflow_dispatch: {}
 permissions: {}
 jobs:
@@ -33,6 +33,11 @@ jobs:
             sleep 60
             body=$(curl -s --max-time 60 -H "Authorization: Bearer $CRON_TOKEN" "$APP_URL/internal/weekly/status" || true)
             echo "$body" | head -c 400; echo
-            echo "$body" | grep -q '"running":true' || { echo "Finished"; exit 0; }
+            if ! echo "$body" | grep -q '"running":true'; then
+              # not running: either everything is done, or the service restarted (a deploy) and lost its queue. Ask again: it starts whatever is still due (a cut-off check included).
+              again=$(curl -s --max-time 120 -X POST -H "Authorization: Bearer $CRON_TOKEN" "$APP_URL/internal/weekly" || true)
+              echo "re-check: $again" | head -c 300; echo
+              echo "$again" | grep -q '"hotels":0' && { echo "Finished: nothing left to check"; exit 0; }
+            fi
           done
           echo "Still running after two hours"; exit 1

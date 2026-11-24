@@ -148,6 +148,8 @@ class _Lease:
 
 import collections as _collections
 STATS = threading.local()        # per request: {"queries", "db_s"} while a page is built (server.py sets it)
+MEMO = threading.local()         # per request: the answers to reads already made while this page is built (server.py starts and ends it); any write empties it
+_WRITE = ("insert", "update", "delete", "create", "alter", "drop")
 REPORT_CACHE = 12         # saved reports kept in memory (their JSON text, a few MB in all); one web process, so it is never out of date (update_run and delete_run drop theirs)
 _REPORTS = _collections.OrderedDict()
 _REPORTS_LOCK = threading.Lock()
@@ -158,7 +160,7 @@ def _forget_report(url, run_id):
         _REPORTS.pop((url, run_id), None)
 
 
-IDLE_PING_S = 20          # a connection idle longer than this is tested with one cheap query before it is used again (the host closes idle ones)
+IDLE_PING_S = 240          # a connection idle longer than this is tested with one cheap query before it is used again (the host closes idle ones)
 
 
 class Store(portal_db.PortalMixin):
@@ -199,6 +201,8 @@ class Store(portal_db.PortalMixin):
         return sql if self.kind == "sqlite" else sql.replace("?", "%s")
 
     def _run(self, conn, sql, params=()):
+        if getattr(MEMO, "d", None) and sql.lstrip()[:6].lower() in _WRITE:
+            MEMO.d.clear()                                   # data changed: no read made earlier in this page is reused
         t0 = time.perf_counter()
         cur = conn.cursor()
         cur.execute(self._sql(sql), params)
@@ -209,6 +213,18 @@ class Store(portal_db.PortalMixin):
         return cur
 
     def _rows(self, sql, params=()):
+        memo = getattr(MEMO, "d", None)
+        if memo is not None:
+            key = (self.url, sql, tuple(params) if isinstance(params, (list, tuple)) else params)
+            hit = memo.get(key)
+            if hit is not None:
+                return [dict(r) for r in hit]               # the same read again while this page is built (a hotel page read the run list four times): no trip to the database
+            rows = self._rows_db(sql, params)
+            memo[key] = [dict(r) for r in rows]
+            return rows
+        return self._rows_db(sql, params)
+
+    def _rows_db(self, sql, params=()):
         conn = self._connect()
         auto = False
         if self.kind != "sqlite":

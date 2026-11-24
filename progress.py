@@ -132,6 +132,7 @@ def _sync(db, hotel, report, run_id):
     free = {a["id"]: a for a in existing}
     seen = set()
     keys_done = set()
+    seen_now = []                                                      # actions this check flagged again: their 'last seen' is updated in one statement below
     for rec in recs:
         key = action_key(rec)
         if key in keys_done:
@@ -161,7 +162,12 @@ def _sync(db, hotel, report, run_id):
             out["reopened"] += 1
         if a["status"] == "done" and (a["done_at"] or "") <= portal_db.now_iso() and not extra:
             extra["reopened"] = max(1, a["reopened"] or 0)            # marked done earlier and flagged again: say so
-        db.update_action(a["id"], akey=key, **base, **extra)
+        change = {k: v for k, v in {"akey": key, **base, **extra}.items() if a.get(k) != v and k not in ("last_run_id", "last_seen")}
+        seen_now.append(a["id"])
+        if change:
+            db.update_action(a["id"], **change)          # only what changed: each update is a trip to the database, and most actions are the same as last week
+    if seen_now:
+        db.touch_actions(seen_now, run_id, when)
     for a in free.values():                                            # not flagged this time
         if a["source"] == "strategy":
             continue                                                   # a strategy action stays until the hotel marks it done or not relevant: a source not cited one week is still worth being on
