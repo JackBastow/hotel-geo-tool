@@ -358,6 +358,16 @@ _dn = {q["id"]: q for q in gq.evaluate([{"url": _MB + "dining/", "ok": True, "ti
                                           "Breakfast\nEnjoy a generous American-style breakfast buffet.\nBreakfast hours: 6:30 AM-10:30 AM"}])}
 check("breakfast times are the breakfast hours, not the brasserie's lunch and dinner hours (Marriott dining page, the live false finding)",
       any("6:30 AM" in f["snippet"] for f in _dn["breakfast"].get("fact_snippets") or []) and not any("12:00 PM" in f["snippet"] for f in _dn["breakfast"].get("fact_snippets") or []), _dn["breakfast"].get("fact_snippets"))
+_pk = {q["id"]: q for q in gq.evaluate([{"url": _NB + "events/delegate-packages/", "ok": True, "title": "Delegate packages", "h1": [], "text": "Day Delegate Package\n• Use of stationery\n• High-speed Wi-Fi\n• Prices include VAT\nFrom £65 Per Person"}])}
+check("one item of a list is not answered by the lines after it (THE NICI: a delegate package's '£65 per person' became the Wi-Fi price)", not _pk["wifi"].get("fact_snippets"), _pk["wifi"].get("fact_snippets"))
+check("a list item keeps its bullet when the page is read", gq._parse_html(_NB, "<main><ul><li>High-speed Wi-Fi</li><li>Prices include VAT</li></ul></main>", lines=True)["text"].startswith("• High-speed Wi-Fi"))
+_air = places.mentions("Tel: +33 1-4483 4040\nCharles de Gaulle International Airport\nDistance From Property: 30.0 KM\nThe Arc de Triomphe\nPlace Charles de Gaulle, Paris, 75008", "airport")
+check("an airport's distance on the line below its name is its distance (Marriott: 'Distance From Property: 30.0 KM'; three findings said it was not stated)",
+      [(m["name"], m["distance"]) for m in _air] == [("Charles de Gaulle", "30.0 KM")], [(m["name"], m["distance"], m["sentence"]) for m in _air])
+check("a square named after the same person is not the airport ('Place Charles de Gaulle, Paris')", not any("Place Charles" in m["sentence"] for m in _air))
+import locate
+check("the postcode on a page read as plain text places the hotel (THE NICI: its site refused our reader, so it had no map position and no comparable hotels)",
+      locate.postcode_from_pages(["FAQs\nWhere is THE NICI Newquay?\nEnter East Street, Newquay, Cornwall, TR7 1DB into your sat nav."], "Newquay") == "TR7 1DB")
 import claude_reader
 _md = claude_reader.to_page(_MB, "# Overview\n\n## Parking\n\n- On-site parking: not available\n- Nearby: EUR 35 a day\n\n## Pets\n\nPet fee EUR 50", lines=True)
 check("a page that came as markdown keeps its lines too", "On-site parking: not available\nNearby: EUR 35 a day" in _md["text"], _md["text"])

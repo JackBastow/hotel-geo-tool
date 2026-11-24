@@ -124,6 +124,9 @@ def _read_candidate(c, hotel, city, postcode, own_url):
     return c
 
 
+OSM_WAIT_S = 180
+
+
 def collect(hotel, city, base_url, *, location=None, segments=None, tavily_key=None,
             youtube_key=None, existing_tavily=None, progress=None,
             read_budget_s=100, max_reads=30):
@@ -151,6 +154,7 @@ def collect(hotel, city, base_url, *, location=None, segments=None, tavily_key=N
     say("Checking GDELT, Wikipedia, OpenStreetMap, the Internet Archive and official registers...")
     adapter_ex = ThreadPoolExecutor(max_workers=4)
     adapter_futs = {adapter_ex.submit(fn): name for name, fn in tasks.items()}
+    adapters_started = time.time()
 
     # ---- 2. planned searches
     pool = {}
@@ -245,8 +249,11 @@ def collect(hotel, city, base_url, *, location=None, segments=None, tavily_key=N
     # ---- 4. join the background adapters (they ran while we searched and read)
     join_deadline = time.time() + 45
     for f, name in adapter_futs.items():
+        # the places around the hotel decide the comparable hotels, distances and nearby places: the public map servers take up to ~150 s for a dense city (Paris, measured Nov 2026),
+        # so that one is waited for up to OSM_WAIT_S from its start rather than 45 s after the searches (it was cut off, and the report said 'open map data was not available')
+        dl = max(join_deadline, adapters_started + OSM_WAIT_S) if name == "osm_context" else join_deadline
         try:
-            out["sources"][name] = f.result(timeout=max(1, join_deadline - time.time()))
+            out["sources"][name] = f.result(timeout=max(1, dl - time.time()))
         except Exception as e:  # noqa: BLE001 - one adapter failing never fails the audit
             why = ("timed out waiting for the server" if type(e).__name__ == "TimeoutError"
                    else f"adapter error: {type(e).__name__}")

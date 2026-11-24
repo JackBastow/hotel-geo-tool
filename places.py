@@ -108,6 +108,8 @@ def find(text, kind, hotel=""):
         while len(lead) > 2 and lead[0].lower() in {"the", "our", "nearby", "local", "visit", "explore", "see", "view"}:      # 'The Johan Cruijff ArenA' at the start of a sentence is the ArenA
             lead = lead[1:]
         name = " ".join(lead)
+        if kind == "airport" and set(evidence.fold(name).split()) <= {"international", "intl", "airport", "regional", "domestic", "the", "city"}:
+            continue                      # 'International Airport' on its own is the tail of a name already found ('Charles de Gaulle International Airport'), not a place
         if not _ok_name(name, kind, hotel) or _own_name_run(text, m.start(), name, hotel):
             continue
         # the full capitalised run in front of the keyword must not be a menu strip
@@ -173,16 +175,31 @@ def sentences(text):
     return [s for s in re.split(r"(?<=[.!?])\s+|\n+", text or "") if s.strip()]
 
 
+# a street or square named after a person an airport is also named after: 'Place Charles de Gaulle' (the Etoile, in Paris) is not Charles de Gaulle Airport (Paris Marriott, Nov 2026)
+_STREET_BEFORE = re.compile(r"\b(?:place|rue|avenue|av\.?|boulevard|bd|square|street|st\.?|road|rd\.?|quai|pont|platz|stra(?:ss|ß)e|via|piazza|plaza|calle|métro|metro|gare)\s+(?:de\s+|du\s+|des\s+|de\s+la\s+)?$", re.I)
+_DIST_LINE = re.compile(r"^[^\n]{0,40}?\b\d+(?:[.,]\d+)?\s*(?:km|kms|kilomet(?:re|er)s?|mi|miles?|m|metres?|meters?|min(?:ute)?s?)\b[^\n]{0,40}$", re.I)
+
+
 def mentions(page_text, kind, hotel="", osm_ctx=None):
     """
-    Every named place of `kind` on a page, each with the distance stated for it in its own sentence: [{name, type, distance, sentence, map}]. Menu strips and generic labels never appear.
+    Every named place of `kind` on a page, each with the distance stated for it in its own sentence, or on the line just below its name ('Charles de Gaulle International Airport' /
+    'Distance From Property: 30.0 KM', as a brand's property details set it out): [{name, type, distance, sentence, map}]. Menu strips and generic labels never appear.
     """
     out = []
-    for s in sentences(page_text):
-        if looks_like_nav(s) or len(s.split()) < 4:
+    ss = sentences(page_text)
+    for k, s in enumerate(ss):
+        if looks_like_nav(s) or (len(s.split()) < 4 and not (kind == "airport" and re.search(r"(?i)airport|a[ée]roport|flughafen", s))):
             continue
+        nxt = ss[k + 1].strip() if k + 1 < len(ss) else ""
         for p in find(s, kind, hotel):
+            i = s.find(p["name"])
+            if kind == "airport" and i > 0 and _STREET_BEFORE.search(s[:i]) and not re.search(r"(?i)airport|a[ée]roport", s[i:i + len(p["name"]) + 30]):
+                continue                  # a street or a square, not the airport
             d = distance_for(s, p)
+            if not d and nxt and _DIST_LINE.search(nxt) and not find(nxt, kind, hotel):
+                d = distance_for(p["name"] + " " + nxt, p)
+                if d:
+                    s = s.rstrip() + " · " + nxt
             if not d and is_origin(s, p["name"]):
                 continue                  # 'connections from cities including London, Manchester, Edinburgh': where guests travel FROM, not a place near the hotel
             out.append({"name": p["name"], "type": p["type"], "distance": d, "sentence": re.sub(r"\s+", " ", s).strip()[:260], "map": match_map(p, osm_ctx)})

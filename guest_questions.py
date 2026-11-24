@@ -376,6 +376,9 @@ def _mark_blocks(root):
         t.append("\n")
     for t in root.find_all(["td", "th"]):
         t.append(" \u00b7 ")
+    for t in root.find_all("li"):
+        if not _ITEM.match(t.get_text(" ") or ""):
+            t.insert(0, "\u2022 ")
     for t in root.find_all(_BLOCK_TAGS):
         t.insert_before("\n")
         t.append("\n")
@@ -608,12 +611,24 @@ def _window_sentences(text, sents, spans):
     idxs = set()
     for s, _e in spans[:MAX_HITS_PER_PAGE]:
         i = max(0, bisect.bisect_right(starts, s) - 1)
-        is_q = _sent(text, sents, i).rstrip().endswith("?")
+        own = _sent(text, sents, i)
+        is_q = own.rstrip().endswith("?")
         lo = i
         if not is_q and i > 0 and _sent(text, sents, i - 1).rstrip().endswith("?"):
             lo = i - 1
-        idxs.update(range(lo, min(len(sents) - 1, i + 2) + 1))
+        hi = min(len(sents) - 1, i + 2)
+        if _is_item(own) and not is_q:
+            hi = i                                   # one item of a list: the next lines are other items, not its details
+        idxs.update(range(lo, hi + 1))
     return sorted(idxs)
+
+
+_ITEM = re.compile(r"^\s*(?:[\u2022\u25aa\u25cf\u2023\u2043\u2219*\-\u2013\u2014]\s+|\d+[.)]\s+)")
+
+
+def _is_item(s):
+    """A list item ('• High-speed Wi-Fi', '- Pool', '3. Spa')."""
+    return bool(_ITEM.match(s or ""))
 
 
 def _eval_question(q, ok_pages):

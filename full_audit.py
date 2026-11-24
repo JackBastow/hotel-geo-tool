@@ -809,6 +809,21 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
 
     own_pages = guest.pop("own_pages", [])     # used by the wider analysis, not stored
 
+    # Where the hotel is, again, now its pages have been read: the first attempt used the few pages our own reader could fetch, and a site that refuses it (a brand, or THE NICI from the host)
+    # left the hotel with no map position, so no comparable hotels, distances or nearby places. The postcode on any page read (FAQ, contact) places it.
+    late_position = False
+    if location is not None and location.get("lat") is None and own_pages:
+        try:
+            import locate
+            if not location.get("postcode"):
+                pc = locate.postcode_from_pages([p.get("text") or "" for p in own_pages if p.get("ok")], city)
+                if pc:
+                    location["postcode"], location["postcode_source"] = pc, "the hotel's own pages"
+            locate.fill_position(location, hotel, city, netguard.get)
+            late_position = location.get("lat") is not None
+        except Exception as e:  # noqa: BLE001
+            steps.failed("Finding the hotel on the map from its pages", e, quiet=True)
+
     # Booking readiness runs in the background from here (a handful of polite requests that can take several seconds on a slow site) and is joined when the report is assembled, so it adds no waiting.
     try:
         _home_links = _page_links(pages_html[0], home_url) if pages_html else []
@@ -858,6 +873,12 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                       "tavily_credits": 0, "reads": {}}
         finally:
             collect_ex.shutdown(wait=False, cancel_futures=True)
+        if late_position and ((corpus.get("sources") or {}).get("osm_context") or {}).get("status") != "ok":
+            say("Looking up the places around the hotel, now its position is known...")
+            try:
+                corpus.setdefault("sources", {})["osm_context"] = sources.osm_context(location["lat"], location["lon"], hotel)      # it ran without a position
+            except Exception as e:  # noqa: BLE001
+                steps.failed("Places around the hotel, after finding it on the map", e, quiet=True)
     places_nearby_info = {"calls": 0}
 
     def _with_places(ctx):
@@ -1307,7 +1328,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                              "articles": [], "opportunities": [], "rivals": [], "comparison": None, "observations": {}, "limits": ai_gap.LIMITS, "cost_usd": 0.0}
 
     # The consultant layer reads pages the crawl already fetched - no further requests (except the few polite ones of the competitor look, below).
-    say("Working out what AI systems can read't understand about the hotel...")
+    say("Working out what AI systems can and can't understand about the hotel...")
     competitors_result = None
     try:
         osm_item = ((corpus.get("sources") or {}).get("osm_context") or {})
