@@ -92,7 +92,7 @@ def run(params, cfg, progress=None):
     import depth as _depth
     depth_name = _depth.clean(params.get("depth") or cfg.ai_depth)
     use_tripadvisor = cfg.tripadvisor if (cfg.tripadvisor and _within_quota("tripadvisor", 3)) else None
-    use_firecrawl = cfg.firecrawl if (cfg.firecrawl and _within_quota("firecrawl", 12)) else None
+    use_firecrawl = cfg.firecrawl if (cfg.firecrawl and _within_quota("firecrawl", 30)) else None          # a brand's website is read through Firecrawl first: up to ~30 pages
     use_places = cfg.google_places if (cfg.google_places and _within_quota("google_places", 3)) else None
     use_anthropic = cfg.anthropic if (cfg.anthropic and _within_quota("claude", max(CLAUDE_MILLIDOLLARS_PER_AUDIT, _depth.limits(depth_name)["reserve_millidollars"]))) else None
     benchmark = []
@@ -138,7 +138,8 @@ def run(params, cfg, progress=None):
     if spent:
         store.record_usage(0, audits=1, service="claude")      # one more audit that used Claude (the spend itself is already metered)
     fc = (fa_res.get("guest_questions") or {}).get("firecrawl") or {}
-    fc_credits = int(fc.get("credits") or 0) + int((fa_res.get("firecrawl_other") or {}).get("credits") or 0)
+    fc_credits = (int(fc.get("credits") or 0) + int((fa_res.get("firecrawl_other") or {}).get("credits") or 0)
+                  + int(((fa_res.get("guest_questions") or {}).get("firecrawl_pages") or {}).get("credits") or 0))      # pages read through Firecrawl one by one, or first on a brand's site
     if fa_res.get("tripadvisor_calls"):
         store.record_usage(int(fa_res["tripadvisor_calls"]), service="tripadvisor")
     if fc_credits:

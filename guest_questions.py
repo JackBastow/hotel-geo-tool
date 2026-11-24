@@ -211,7 +211,7 @@ QUESTIONS = [
                   r"\btube\b", r"\btaxi\b", r"shuttle"),
             _fact("road", "road directions (junction, postcode, sat-nav)",
                   r"junction", r"\bM\d{1,3}\b", r"\bA\d{1,3}\b", r"sat[\s\-]?nav",
-                  r"postcode", r"by car", r"driving"),
+                  r"postcode", r"by car", r"driving", required=False),        # a city-centre hotel with no parking needs no driving directions (Paris Marriott): good to have, not a gap
             _fact("distance", "distances or journey times",
                   r"\b\d+(?:\.\d+)?\s?(?:miles?|mi|km|minutes?|mins?)\b", required=False),
         ],
@@ -494,7 +494,13 @@ _SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9£€\"“'‘(])")
 # stop being relevant and shouldn't be demanded.
 _REFUSAL = _rx(r"unfortunately", r"can[’']?t accommodate", r"cannot accommodate",
                r"unable to accommodate", r"not (?:allowed|permitted|accepted|available)",
-               r"\bno (?:dogs|pets)\b", r"do not (?:allow|accept)", r"don[’']?t (?:allow|accept)")
+               r"\bno (?:dogs|pets)\b", r"do not (?:allow|accept)", r"don[’']?t (?:allow|accept)",
+               # how hotels say they do not have something (Marriott: 'does not have electric vehicle charging stations', 'There is no on-site parking'); 'there is no charge'
+               # or 'no extra cost' is a price, not a refusal
+               r"(?:does|do|did)\s+not\s+(?:have|offer|provide)", r"(?:doesn|don|didn)[’']?t\s+(?:have|offer|provide)",
+               r"\bthere (?:is|are) no (?!(?:extra |additional |added )?(?:charge|fee|cost|need|minimum|surcharge))",
+               r"\bno (?:on-?site |private |dedicated |hotel )?(?:parking|car park|ev charging|electric (?:vehicle|car) charging|charging points?|charging stations?)\b",
+               r"\bnot (?:offered|provided|on offer)\b", r"\bunavailable\b")
 
 
 def _sentences(text):
@@ -667,8 +673,8 @@ def _eval_question(q, ok_pages):
     result["_found_keys"] = found_keys
 
     any_relevant = any(pp["relevant"] for pp in per_page) or refused
-    if not result["missing"] and any_relevant:
-        result["state"] = "answered"
+    if not result["missing"] and (any_relevant or (required and all(f["key"] in found_keys for f in required))):
+        result["state"] = "answered"            # every fact it needs is stated, in the hotel's own words, on whichever page (Marriott: check-in times on the overview page)
     elif any_relevant:
         result["state"] = "partial"
     else:
@@ -902,7 +908,7 @@ def _second_reader_worth_it(p):
 
 
 def run(site, base, hotel="", location=None, progress=None,
-        max_pages=MAX_PAGES, budget_s=TIME_BUDGET_S, fallback=None):
+        max_pages=MAX_PAGES, budget_s=TIME_BUDGET_S, fallback=None, prefer_fallback=False):
     """
     Crawl a bounded set of the hotel's own pages and answer the guest
     questions from them. `site` is site_check.run_site_check()'s output.
@@ -921,9 +927,22 @@ def run(site, base, hotel="", location=None, progress=None,
     say(f"Reading up to {len(targets)} pages to see what guests can learn...")
     pages = [home]
     rest = [u for u in targets if u != start]
-    ex = ThreadPoolExecutor(max_workers=6)
+    def read(u):
+        """With prefer_fallback (a brand's website, or the host says so), the second reader, which renders pages as a browser does, reads first; ours only if it fails."""
+        if prefer_fallback and fallback:
+            try:
+                pg = fallback(u)
+            except Exception:  # noqa: BLE001
+                pg = None
+            if pg and pg.get("ok"):
+                return {**pg, "via_second_reader": True}
+        return fetch_page(u)
+
+    if prefer_fallback and fallback:
+        budget_s = max(budget_s, 240)                  # a rendering reader is slower; the pages are worth the wait
+    ex = ThreadPoolExecutor(max_workers=4 if prefer_fallback else 6)
     try:
-        futs = {ex.submit(fetch_page, u): u for u in rest}
+        futs = {ex.submit(read, u): u for u in rest}
         done, not_done = wait(futs, timeout=max(5, budget_s - (time.time() - t0)))
         for f in done:
             try:

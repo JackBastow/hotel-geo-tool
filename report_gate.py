@@ -262,11 +262,47 @@ def check(rep):
             gate["ai_diagnosis"] = diag
         done("ai_zero_diagnosis", asked, 1 if (diag and named == 0) else 0, "when the hotel was named in none of the answers, what that does and does not show")
         check_more(rep, gate, done)
+        not_found_wording(rep, gate)
     except Exception as e:  # noqa: BLE001 - the report must never fail because of its own check
         gate["error"] = f"{type(e).__name__}: {e}"
     gate["summary"] = f"{len(gate['checks'])} consistency checks ran across the report; {len([x for x in gate['changes'] if x['check'] != 'ai_zero_diagnosis'])} contradiction(s) or misleading item(s) were settled."
     rep["gate"] = gate
     return rep
+
+
+# ----------------------------------------------------------------------------- 'not found' is not 'missing' (Paris Marriott review, Nov 2026)
+
+import re as _re_ms
+
+_MS_SOURCES = {"questions", "traveller", "facility", "location"}
+_MS_TITLE = [(_re_ms.compile(r"^Answer this clearly:\s*", _re_ms.I), "Make sure your website answers: "),
+             (_re_ms.compile(r"^Fill the gaps on [^:]+:\s*", _re_ms.I), "Make sure your website covers: "),
+             (_re_ms.compile(r"^If this is a target segment, complete the details:\s*", _re_ms.I), "Make sure your website gives the details of: "),
+             (_re_ms.compile(r"^([A-Z][\w &/-]{2,40}):\s*complete (\d+) things travellers need", _re_ms.I), r"\1: make sure your website covers \2 things travellers need"),
+             (_re_ms.compile(r"^([A-Z][\w &/-]{2,40}):\s*state ", _re_ms.I), r"\1: make sure your website states ")]
+_MS_NOTE = (" We could not find this on the pages we read. If your website already says it, check it is on the page a guest would look at (the FAQ, location or facilities page), "
+            "in plain words, and linked from the menu, so guests and AI assistants find it; if it does not, add it.")
+
+
+def not_found_wording(rep, gate):
+    """Every finding that rests on not finding something on the hotel's pages (guest questions, traveller needs, facility details, distances) is worded as a check, not as a fault:
+    'Make sure your website answers: ...', with what to look for. A finding the check CONFIRMED (the right page was read, fully) keeps its wording."""
+    n = 0
+    for r in ((rep.get("consultant") or {}).get("recommendations") or []):
+        if r.get("source") not in _MS_SOURCES or r.get("confidence_label") == "Confirmed":
+            continue
+        t = r.get("title") or ""
+        for rx, to in _MS_TITLE:
+            if rx.search(t):
+                r["title"] = rx.sub(to, t, count=1)
+                break
+        if _MS_NOTE.strip()[:40] not in (r.get("finding") or ""):
+            r["finding"] = (r.get("finding") or "").rstrip() + _MS_NOTE
+        if r.get("priority") in ("critical", "high"):
+            r["priority"] = "medium"                     # never a high-priority fault on 'we did not find it'
+        n += 1
+    if n:
+        gate["changes"].append({"check": "not_found_wording", "id": "not_found", "what": f"{n} 'not found on the pages read' finding(s) worded as checks ('make sure your website says...'), none above medium priority"})
 
 
 # ----------------------------------------------------------------------------- more checks, from the errors found in real reports (THE NICI Newquay, Nov 2026)

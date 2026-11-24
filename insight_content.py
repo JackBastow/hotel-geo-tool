@@ -320,7 +320,7 @@ EXTENDED = [
          "guest numbers": re.compile(r"\b\d{2,4}\s*(?:day|evening)?\s*guests\b|up to \d{2,4}|capacity", re.I),
          "licensed for civil ceremonies": re.compile(r"licen[cs]ed|civil ceremon|civil partnership", re.I),
          "bedrooms for guests": re.compile(r"\b\d{2,3}\s*(?:bedrooms|rooms|suites)\b|accommodat", re.I),
-         "packages or prices": re.compile(r"package|from £\s?\d|per (?:head|person)|brochure", re.I)},
+         "packages or prices": re.compile(r"package|from (?:[£€$]\s?\d|\b(?:eur|gbp|usd|chf|sek|nok|dkk)\s?\d|\d[\d.,]*\s?(?:€|eur\b|euros?\b|kr\b|sek\b|nok\b|dkk\b|chf\b))|per (?:head|person)|brochure", re.I)},
      "fallback_in": None,
      "example": "Weddings: licensed for civil ceremonies for up to [x] guests, with [x] evening guests. [x] bedrooms "
                 "on site. Packages from [£x] per head - request the brochure or call [phone]."},
@@ -328,7 +328,7 @@ EXTENDED = [
      "applies": ("feature", "spa"), "slugs": ("spa", "wellness", "treatments"), "fallback": "a Spa page",
      "facts": {
          "opening hours": _TIMERANGE,
-         "prices": re.compile(r"£\s?\d|from £|per person", re.I),
+         "prices": re.compile(r"(?:[£€$]\s?\d|\b(?:eur|gbp|usd|chf|sek|nok|dkk)\s?\d|\d[\d.,]*\s?(?:€|eur\b|euros?\b|kr\b|sek\b|nok\b|dkk\b|chf\b))|from (?:£|€|\$|eur\b)|per person", re.I),
          "age or booking rules": re.compile(r"over 1[68]|under 1[68]|age|minimum age|book(?:ing)? (?:in advance|is essential)|pre-?book", re.I)},
      "example": "Spa open daily [9am-8pm]. Day guest passes from [£x]. Guests must be [16+]. Book ahead on [phone/link]."},
     {"id": "pool_detail", "q": "Is the pool heated, indoor or outdoor, and when is it open?",
@@ -991,9 +991,9 @@ def consistency(site, guest, today=None):
     # --- opposing amenity statements
     OPP = {
         "Parking": (re.compile(r"free (?:on-?site )?(?:car )?parking|complimentary (?:car )?parking|parking is free", re.I),
-                    re.compile(r"parking[^.\n]{0,40}£\s?\d|£\s?\d[^.\n]{0,30}parking|chargeable parking|parking (?:is )?chargeable|parking (?:charge|fee)s?", re.I), "free", "charged"),
+                    re.compile(r"parking[^.\n]{0,40}(?:[£€$]\s?\d|\b(?:eur|gbp|usd|chf|sek|nok|dkk)\s?\d|\d[\d.,]*\s?(?:€|eur\b|euros?\b|kr\b|sek\b|nok\b|dkk\b|chf\b))|(?:[£€$]\s?\d|\b(?:eur|gbp|usd|chf|sek|nok|dkk)\s?\d|\d[\d.,]*\s?(?:€|eur\b|euros?\b|kr\b|sek\b|nok\b|dkk\b|chf\b))[^.\n]{0,30}parking|chargeable parking|parking (?:is )?chargeable|parking (?:charge|fee)s?", re.I), "free", "charged"),
         "Wi-Fi": (re.compile(r"free (?:high[- ]speed )?wi-?fi|complimentary wi-?fi", re.I),
-                  re.compile(r"wi-?fi[^.\n]{0,30}(?:£\s?\d|chargeable|charge|fee)", re.I), "free", "charged"),
+                  re.compile(r"wi-?fi[^.\n]{0,30}(?:(?:[£€$]\s?\d|\b(?:eur|gbp|usd|chf|sek|nok|dkk)\s?\d|\d[\d.,]*\s?(?:€|eur\b|euros?\b|kr\b|sek\b|nok\b|dkk\b|chf\b))|chargeable|charge|fee)", re.I), "free", "charged"),
         "Breakfast": (re.compile(r"breakfast (?:is )?included|including breakfast|complimentary breakfast", re.I),
                       re.compile(r"breakfast (?:is )?(?:available )?(?:at an additional|extra|optional)|additional (?:cost for )?breakfast", re.I), "included", "extra cost"),
         "Pets": (re.compile(r"dogs? (?:are )?welcome|pets? (?:are )?welcome|dog[- ]friendly|pet[- ]friendly", re.I),

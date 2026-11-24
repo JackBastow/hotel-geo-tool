@@ -758,7 +758,13 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             res = firecrawl_reader.scrape(u, firecrawl_api_key)
             return firecrawl_reader.build_page(u, res) if res.get("ok") else None
     try:
-        guest = guest_questions.run(site, base, hotel, location=location, progress=say, fallback=_second)
+        _brand_site = bool((site.get("meta") or {}).get("scope"))            # a hotel's section of a brand's website: these block or script-build their pages
+        _fc_primary = bool(_second) and (_brand_site or (os.environ.get("FIRECRAWL_PRIMARY") or "").strip().lower() in ("1", "true", "yes", "all"))
+        if _fc_primary:
+            say("Reading the hotel's pages with Firecrawl (renders pages as a browser does)...")
+        guest = guest_questions.run(site, base, hotel, location=location, progress=say, fallback=_second, prefer_fallback=_fc_primary)
+        if _fc_primary:
+            guest["read_via"] = guest.get("read_via") or "firecrawl_primary"
         if _second is not None and _second_used:
             guest["firecrawl_pages"] = {"credits": len(_second_used), "pages": _second_used[:10]}
     except Exception as e:  # noqa: BLE001

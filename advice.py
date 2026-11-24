@@ -1221,8 +1221,9 @@ def build(*, questions, location, consistency, hidden, structured, machine, inte
     limited_note = None
     if coverage.get("limited"):
         # Findings of the form "X isn't on the site" are weaker when part of the site wasn't read.
-        limited_note = (f" (Only {coverage['pages_read']} of {coverage['pages_attempted']} pages could be read, so this may be "
-                        "stated on a page we didn't read.)")
+        limited_note = ((f" (Only {coverage['pages_read']} pages of the site were read, so this may be " if coverage.get("pages_read") == coverage.get("pages_attempted") else
+                         f" (Only {coverage['pages_read']} of {coverage['pages_attempted']} pages could be read, so this may be ")
+                        + "stated on a page we didn't read.)")
         for r in recs:
             if r["source"] in ("questions", "location", "hidden"):
                 r["confidence"] = INFER

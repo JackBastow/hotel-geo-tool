@@ -99,6 +99,30 @@ check("a page that still fails is replaced by the next-best page in reserve", by
 fin = gq._finish(pages, pages[0], time.time(), {"sitemap": {}}, "https://h.example/", "H", None, [])
 check("a replaced page is not counted as a gap: every page attempted was read", fin["pages_attempted"] == fin["pages_ok"] and not fin["pages_failed"], (fin["pages_attempted"], fin["pages_ok"], fin["pages_failed"]))
 
+print("3b. Firecrawl as the first reader (a brand's website)")
+_calls = {"fc": [], "own": []}
+_orig2 = gq.fetch_page
+
+
+def _own(url, timeout=gq.FETCH_TIMEOUT):
+    _calls["own"].append(url)
+    return page(url)
+
+
+def _fc(url):
+    _calls["fc"].append(url)
+    return None if url.endswith("/broken/") else page(url)
+
+
+gq.fetch_page = _own
+try:
+    _site = {"meta": {"home_url": "https://h.example/"}, "sitemap_urls": ["https://h.example/rooms/", "https://h.example/dining/", "https://h.example/broken/"]}
+    _res = gq.run(_site, "https://h.example/", "H", fallback=_fc, prefer_fallback=True, max_pages=4)
+finally:
+    gq.fetch_page = _orig2
+check("each page is read by Firecrawl first", set(_calls["fc"]) >= {"https://h.example/rooms/", "https://h.example/dining/"}, _calls)
+check("a page Firecrawl cannot read falls back to our own reader", "https://h.example/broken/" in _calls["own"], _calls["own"])
+
 print("4. a site in another language")
 import consultant
 _B = "https://www.eriksberg.example/"
