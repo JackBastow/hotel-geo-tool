@@ -373,6 +373,13 @@ _zi = {i["place"]: i for i in ic.location(_zs, {"stations": [{"name": "Opfikon",
                                                 "attractions": [], "venues": []})["items"]}
 check("a map entry with a generic name ('Hotel') is no place to measure from; the real airport is used (Hilton Zurich Airport: 'Distance to Hotel')", "Hotel" not in _zi and _zi.get("Zurich Airport", {}).get("state") == "stated", list(_zi))
 check("a town's name in a breadcrumb ('Opfikon Hotels/') is not a mention of its station", _zi.get("Opfikon station", {}).get("state") == "not_mentioned", _zi.get("Opfikon station"))
+_cg = {q["id"]: q for q in gq.evaluate([{"url": "https://www.chewtonglen.com/visit/getting-here/", "ok": True, "title": "Getting here", "h1": [],
+                                         "text": "By car By train By air\nChewton Glen has 12 EV charge points across the estate, 9 in the main car park and 4 in the car park for the Treehouses."}])}
+check("'12 EV charge points' answers the EV question (Chewton Glen: 'make sure your website covers EV charging')", _cg["ev"]["state"] == "answered", _cg["ev"]["state"])
+_CGB = "https://www.chewtonglen.com/"
+_cgs = ic.Site([{"url": _CGB + "visit/getting-here/", "ok": True, "title": "Getting here", "h1": [], "text": "By car By train By air\nChewton Glen sits on Christchurch Road in New Milton."}], _CGB, "Chewton Glen", "New Milton")
+check("a station is not 'not stated' when the page's 'By train' tab was not in the text read (Chewton Glen)",
+      not [i for i in ic.location(_cgs, {"stations": [{"name": "New Milton", "km": 2.0}], "airports": [], "attractions": [], "venues": []})["items"] if i["category"] == "transport"])
 import locate
 check("the postcode on a page read as plain text places the hotel (THE NICI: its site refused our reader, so it had no map position and no comparable hotels)",
       locate.postcode_from_pages(["FAQs\nWhere is THE NICI Newquay?\nEnter East Street, Newquay, Cornwall, TR7 1DB into your sat nav."], "Newquay") == "TR7 1DB")
@@ -410,6 +417,14 @@ check("a shorter name must find a place to stay with that name, not anything sim
 check("a hotel listed on the map without its brand, or with the local word for hotel, is found (Rome: 'Hotel Ambasciatori Palace'; Eriksberg: 'Eriksberg Vilt och Natur')",
       anchors._same_name("Hotel Ambasciatori Palace", "InterContinental Rome Ambasciatori Palace", "Rome") and anchors._same_name("Eriksberg Vilt och Natur", "Eriksberg Hotel & Nature Reserve", "Karlshamn")
       and "ambasciatori palace, Rome" in anchors._queries("InterContinental Rome Ambasciatori Palace", "Rome") and "eriksberg hotell, Karlshamn" in anchors._queries("Eriksberg Hotel & Nature Reserve", "Karlshamn"))
+import external_check as _exc
+_orig_osm = _exc._osm_search
+_exc._osm_search = lambda *a, **k: ([], None)
+try:
+    _oe = _exc.check_openstreetmap("Eriksberg Hotel & Nature Reserve", "Karlshamn", lat=56.18, lon=15.0, known={"name": "Eriksberg Vilt och Natur", "url": "https://www.openstreetmap.org/way/1"})
+finally:
+    _exc._osm_search = _orig_osm
+check("the map entry the hotel was found by is its OpenStreetMap entry: no 'our search found no entry' (Eriksberg)", _oe["found"] and _oe["match_confident"] is True and "Eriksberg Vilt och Natur" in _oe["match_reason"])
 check("but never another hotel in the same town", not anchors._same_name("Hotel Splendide Royal", "InterContinental Rome Ambasciatori Palace", "Rome"))
 _facts = [{"text": t} for t in ("price level: upscale", "kind of hotel: business", "close to Louvre Museum (15 minutes)", "offers restaurant (strong evidence on its own pages)",
                                  "its kind and pages support: meetings and events")]

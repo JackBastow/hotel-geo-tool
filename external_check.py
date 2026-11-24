@@ -359,7 +359,7 @@ def _osm_search(hotel, city, lat=None, lon=None):
     return [], (None if any_ok else first_err)
 
 
-def check_openstreetmap(hotel, city="", postcode="", lat=None, lon=None):
+def check_openstreetmap(hotel, city="", postcode="", lat=None, lon=None, known=None):
     """
     Look the hotel up in OpenStreetMap via Nominatim. No key needed.
 
@@ -376,6 +376,13 @@ def check_openstreetmap(hotel, city="", postcode="", lat=None, lon=None):
     hits, err = _osm_search(hotel, city, lat, lon)
     if err:
         out["error"] = err
+        return out
+    if not hits and known and known.get("name"):
+        # the map lookup found the hotel's own entry under a shorter or local name (Eriksberg: 'Eriksberg Vilt och Natur'); report it, not 'no entry found'
+        out.update(found=True, match_confident=True, match_reason=f"mapped as '{known['name']}', a place to stay in the hotel's town found by its name", url=known.get("url") or "",
+                   display_name=known.get("display_name") or "", facts={"name": known["name"]})
+        if lat is not None and lon is not None:
+            out["lat"], out["lon"] = lat, lon
         return out
     if not hits:
         out["note"] = (
@@ -629,7 +636,7 @@ def run_external_check(urls, own_lodging_node, progress=None, hotel="", city="",
         entities.append(check_openstreetmap(
             hotel, city or loc.get("city", ""),
             postcode=loc.get("postcode", ""),
-            lat=loc.get("lat"), lon=loc.get("lon"),
+            lat=loc.get("lat"), lon=loc.get("lon"), known=loc.get("osm_entry"),
         ))
         time.sleep(1.1)  # Nominatim asks for max 1 request/second - respect it
         if not entities[-1].get("found"):

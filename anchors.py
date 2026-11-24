@@ -110,7 +110,7 @@ def _same_name(found, hotel, city):
     return bool(mine & theirs)
 
 
-def geocode(hotel, city, fetch, with_country=False, sleep=None):
+def geocode(hotel, city, fetch, with_country=False, sleep=None, found=None):
     """
     (lat, lon) for the hotel from a Nominatim search, accepted only if the result is in the hotel's town; with_country also returns the two-letter country code. None when it cannot be found or placed.
     The full name is searched first, then its shorter forms (hotelname.variants, without 'Hotel'); a result for a shorter form must be a place to stay whose name the hotel's name matches.
@@ -135,6 +135,9 @@ def geocode(hotel, city, fetch, with_country=False, sleep=None):
                 continue                                      # a shorter name must find this hotel, not another place with a similar name
             try:
                 xy = float(row["lat"]), float(row["lon"])
+                if isinstance(found, dict):                    # which entry it was: the OpenStreetMap check uses it (Eriksberg: mapped as 'Eriksberg Vilt och Natur')
+                    found.update(name=(row.get("display_name") or "").split(",")[0], display_name=row.get("display_name") or "", type=row.get("type"),
+                                 url=f"https://www.openstreetmap.org/{row['osm_type']}/{row['osm_id']}" if row.get("osm_type") and row.get("osm_id") else "", query=q)
                 return (xy + ((a.get("country_code") or "").upper() or None,)) if with_country else xy
             except (KeyError, ValueError):
                 continue

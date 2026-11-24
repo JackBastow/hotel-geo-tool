@@ -77,7 +77,10 @@ def fill_position(location, hotel, city, fetch):
     if hotel and city:
         try:
             import anchors
-            xy = anchors.geocode(hotel, city, fetch)
+            hit = {}
+            xy = anchors.geocode(hotel, city, fetch, found=hit)
+            if xy and hit:
+                location["osm_entry"] = hit
         except Exception:  # noqa: BLE001
             xy = None
         if xy:

@@ -232,11 +232,11 @@ QUESTIONS = [
         "id": "ev", "short": "EV charging", "high_value": False, "refusal": True, "refusal_keep": (),
         "label": "Is there EV charging, and what does it cost?",
         "slugs": ["ev", "electric", "charging", "parking", "getting here", "faq", "facilities"],
-        "mention": _rx(r"\bEV\b", r"electric (?:vehicle|car)", r"charging (?:point|station|port)s?",
+        "mention": _rx(r"\bEV\b", r"electric (?:vehicle|car)", r"charg(?:e|ing) (?:point|station|port)s?",
                        r"\bchargers?\b", r"\btesla\b"),
         "facts": [
             _fact("availability", "how many points and what type",
-                  r"\b\d+\s*(?:x\s*)?(?:ev )?(?:charging )?(?:points?|chargers?|bays?|ports?)\b",
+                  r"\b\d+\s*(?:x\s*)?(?:ev |electric (?:vehicle |car )?)?(?:charg(?:e|ing) )?(?:points?|chargers?|bays?|ports?|stations?)\b",      # '12 EV charge points' (Chewton Glen)
                   r"\bkw\b", r"type 2", r"\brapid\b", r"fast[\s\-]charg", r"destination charg"),
             _fact("cost", "cost or how to pay",
                   r"\bfree\b", r"complimentary", PRICE, r"per\s?kwh",

@@ -645,6 +645,9 @@ def location(site, osm_ctx):
             evd = [{"url": use[0]["url"], "snippet": evidence.clip(use[1], 0, 240)}]
         else:
             state, evd = "not_mentioned", []
+            hid = hidden_travel_tab(site, "train" if cat == "transport" else "air") if cat in ("transport", "airports") else None
+            if hid is not None:
+                continue                                      # the page has a 'By train' tab whose text was not read: not stated cannot be said (Chewton Glen)
         km_txt = f"about {km} km" if km is not None else None
         hint = (f"Open map data puts it {km_txt} away in a straight line - check the real route and time before publishing."
                 if km_txt else "")
@@ -737,6 +740,20 @@ def _norm_phone(s):
 
 
 _COLLAPSED = re.compile(r"\b(?:amenities|things to know|room details|room features|features|facilities|what'?s included|good to know)\s+(?:share this page|take a tour|book now|find out more|book a stay|reviews?)\b", re.I)
+
+
+# travel tabs ('By car  By train  By air', Chewton Glen's getting-here page): only the open tab's text is on the page as read
+_TRAVEL_TABS = re.compile(r"\bby (?:car|road)\b[\s|/\u00b7\u2022-]{1,8}by (?:train|rail)\b|\bby (?:train|rail)\b[\s|/\u00b7\u2022-]{1,8}by (?:air|plane|bus|coach|car)\b", re.I)
+
+
+def hidden_travel_tab(site, mode="train"):
+    """A page with travel tabs whose `mode` tab's text was not in the page as read (the tab label is there, the station or airport it would name is not). -> the page or None."""
+    word = {"train": r"station|railway|\btrain (?:from|to|takes|journey)", "air": r"airport|flight"}[mode]
+    for p in site.content_pages:
+        t = p.get("text") or ""
+        if _TRAVEL_TABS.search(t) and not re.search(word, _TRAVEL_TABS.sub(" ", t), re.I):
+            return p
+    return None
 
 
 def collapsed_sections(page):
