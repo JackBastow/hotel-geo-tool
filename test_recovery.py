@@ -122,6 +122,27 @@ finally:
     gq.fetch_page = _orig2
 check("each page is read by Firecrawl first", set(_calls["fc"]) >= {"https://h.example/rooms/", "https://h.example/dining/"}, _calls)
 check("a page Firecrawl cannot read falls back to our own reader", "https://h.example/broken/" in _calls["own"], _calls["own"])
+check("the start page is read by Firecrawl first too: its links decide which pages are read (Paris Marriott: the brand refused ours, so no page was chosen)",
+      "https://h.example/" in _calls["fc"] and "https://h.example/" not in _calls["own"], _calls)
+for _path in ("/photos/", "/reviews/", "/gallery/"):
+    check(f"{_path} is not read: pictures, or guests' words rather than the hotel's own statements", bool(gq._SKIP_PATH.search(_path)))
+import firecrawl_reader as _fcr
+
+
+class _R:
+    def __init__(self, code, headers=None):
+        self.status_code, self.headers = code, headers or {}
+
+    def json(self):
+        return {"data": {"markdown": "# Rooms\n\nOur rooms have king beds and city views. " * 5, "links": [], "metadata": {"title": "Rooms"}}}
+
+
+_seq, _slept = [429, 429, 200], []
+_got = _fcr.scrape("https://h.example/rooms/", "k", post=lambda *a, **k: _R(_seq.pop(0), {"Retry-After": "3"}), sleep=_slept.append)
+check("a 'too many requests' answer from Firecrawl is waited out and asked again, not taken as an unreadable page", _got["ok"] and _slept == [3, 3], (_got.get("reason"), _slept))
+_seq2 = [429] * 10
+_bad = _fcr.scrape("https://h.example/rooms/", "k", post=lambda *a, **k: _R(_seq2.pop(0)), sleep=lambda s: None)
+check("if the rate is still exceeded after waiting, the page says why", not _bad["ok"] and "request rate" in _bad["reason"], _bad.get("reason"))
 
 print("4. a site in another language")
 import consultant

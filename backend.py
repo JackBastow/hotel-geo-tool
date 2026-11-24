@@ -434,6 +434,13 @@ class Store(portal_db.PortalMixin):
         finally:
             conn.close()
 
+    def replace_benchmark(self, hotel_key, prompts):
+        """Renew a hotel's frozen prompts after some were retired because they no longer fit its facts (ai_questions.misfit). The prompts that still fit are kept word for word."""
+        if not hotel_key or not prompts:
+            return False
+        self.clear_benchmark(hotel_key)
+        return self.save_benchmark(hotel_key, prompts)
+
     def save_benchmark(self, hotel_key, prompts):
         """Freeze a hotel's benchmark prompts at its first audit. An existing benchmark is never overwritten: that is what makes later audits comparable."""
         if not hotel_key or not prompts or self.get_benchmark(hotel_key):

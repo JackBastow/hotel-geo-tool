@@ -32,6 +32,7 @@ re-checking the same site does not refetch it.
 """
 
 import bisect
+import os
 import re
 import threading
 import time
@@ -247,6 +248,8 @@ QUESTIONS = [
         "label": "What is the cancellation policy?",
         "slugs": ["cancel", "terms", "conditions", "policies", "policy", "faq", "booking"],
         "mention": _rx(r"cancel+(?:ation|ing|led|s)?\b"),
+        # the policy for a room booking, not for a spa treatment, a table, an event or an activity
+        "not_about": re.compile(r"\b(?:treatments?|spa (?:days?|bookings?|appointments?)|massages?|tables?|restaurant|dinner|lunch|afternoon tea|events?|weddings?|experiences?|classes|class|tours?|courses?|activit(?:y|ies)|tickets?|parking)\b", re.I),
         "facts": [
             _fact("deadline", "the deadline",
                   r"\b\d+\s*(?:hours?|hrs?|days?)\b", r"24 ?h", r"48 ?h",
@@ -315,6 +318,8 @@ _SKIP_PATH = re.compile(
     r"zip|css|js|xml|ico|mp4|mp3)$|"
     # a WordPress page for one image ('/rooms/sea-view-bedroom-jpg/', '/img_2041-2/'): a picture and a caption, nothing to read
     r"[-_](?:jpe?g|png|webp|gif)/?$|/(?:img|dsc|image|photo)[-_]?\d+(?:-\d+)?/?$|"
+    # a photo gallery (pictures, no facts) and a page of guest reviews (what guests say, not what the hotel states: never evidence of the hotel's own facts). Paris Marriott: 2 of 8 pages read
+    r"/(?:photos?|photo-gallery|gallery|galleries|image-gallery|reviews?|guest-reviews|ratings-reviews|testimonials)/?$|"
     # forms and booking tools: a form has almost no text, and a booking widget is built by script (Fistral: 14 of 25 pages; Eriksberg: 5 form pages read as 'built with JavaScript')
     r"/(?:[a-z0-9-]*-)?(?:enquiry|enquire|inquiry|form|formular|newsletter|nyhetsbrev|subscribe|signup|sign-up|rsvp|register|anmalan|book-now|booknow|booking|bookings|reservations?|boka|buchen)/?$", re.I)
 
@@ -337,8 +342,46 @@ def _clean(s):
     return re.sub(r"\s+", " ", _INVISIBLE.sub("", s or "")).strip()
 
 
-def _parse_html(url, html):
-    """Pull readable main text, title, headings, contact links out of a page."""
+def keep_lines(lines=None):
+    """Does the page reader keep the page's lines? `lines` overrides; otherwise READER_LINES on the host (default off until verified on real pages)."""
+    if lines is not None:
+        return bool(lines)
+    return (os.environ.get("READER_LINES") or "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def clean_lines(s):
+    """Page text with its line structure kept: spaces collapsed within a line, blank lines and spaces around line breaks removed."""
+    s = re.sub(r"[^\S\n]+", " ", _INVISIBLE.sub("", s or ""))
+    s = re.sub(r" :(?= |\n|$)", ":", s)                               # 'On-site parking :' (a term's colon came as its own piece)
+    s = re.sub(r"(?: ?·)+ ?(?=\n|$)", "", s)                    # the separator after a row's last cell
+    s = re.sub(r"(?:^|(?<=\n))(?: ?· ?)+", "", s)                # or before its first, when that cell was empty
+    return re.sub(r" ?\n[\n ]*", "\n", s).strip()
+
+
+# elements that start a new line of text; a table cell and a definition term stay on their row's line, with a separator
+_BLOCK_TAGS = ("p", "li", "h1", "h2", "h3", "h4", "h5", "h6", "div", "section", "article", "aside", "tr", "blockquote", "figcaption", "address", "table", "ul", "ol", "dl",
+               "main", "details", "summary", "header", "footer", "caption", "fieldset", "legend", "pre", "hr")
+
+
+def _mark_blocks(root):
+    """Put a line break round every block element, so the text keeps the page's structure (each heading, paragraph, list item, panel and table row on its own line)."""
+    for br in root.find_all("br"):
+        br.replace_with("\n")
+    for t in root.find_all("dt"):                     # 'On-site parking: Not available': a term and its definition on one line
+        t.insert_before("\n")
+        if not _clean(t.get_text(" ")).endswith(":"):
+            t.append(":")
+    for t in root.find_all("dd"):
+        t.append("\n")
+    for t in root.find_all(["td", "th"]):
+        t.append(" \u00b7 ")
+    for t in root.find_all(_BLOCK_TAGS):
+        t.insert_before("\n")
+        t.append("\n")
+
+
+def _parse_html(url, html, lines=None):
+    """Pull readable main text, title, headings, contact links out of a page. With the line-keeping reader (keep_lines), each heading, paragraph, list item and table row is a line of its own."""
     out = {"title": "", "h1": [], "text": "", "footer_text": "",
            "tels": [], "mails": [], "links": [], "signals": {}}
     if BeautifulSoup is None:
@@ -369,10 +412,14 @@ def _parse_html(url, html):
         foot.decompose()
     for tag in soup(["nav", "header", "form"]):
         tag.decompose()
+    tidy = _clean
+    if keep_lines(lines):
+        _mark_blocks(soup)
+        tidy = clean_lines
     root = soup.find("main") or soup.find("article") or soup.body or soup
-    out["text"] = _clean(root.get_text(" "))[:30000]
+    out["text"] = tidy(root.get_text(" "))[:30000]
     if len(out["text"]) < MIN_READABLE_CHARS and root is not (soup.body or soup):
-        out["text"] = _clean((soup.body or soup).get_text(" "))[:30000]          # a site whose <main> holds only a banner: the words are in the rest of the page
+        out["text"] = tidy((soup.body or soup).get_text(" "))[:30000]          # a site whose <main> holds only a banner: the words are in the rest of the page
     # an app shell: almost no text, and a page that is clearly built by scripts (an empty mount point, or scripts and nothing else). Only then is 'built with JavaScript' said.
     out["app_shell"] = bool(len(out["text"]) < MIN_READABLE_CHARS and (re.search(r'<div[^>]+id=["\'](?:root|app|__next|__nuxt|___gatsby|svelte)["\']', html or "", re.I)
                                                                        or len(re.findall(r"<script\b", html or "", re.I)) >= 8)
@@ -488,7 +535,7 @@ def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES, start=None
 
 # ---------------------------------------------------------------- evaluation
 
-_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9£€\"“'‘(])")
+_SENT_SPLIT = re.compile(r"[^\S\n]*\n\s*|(?<=[.!?])[^\S\n]+(?=[A-Z0-9£€\"“'‘(])")
 
 # If the page says this is NOT offered, the follow-up details (a pet fee, say)
 # stop being relevant and shouldn't be demanded.
@@ -504,7 +551,7 @@ _REFUSAL = _rx(r"unfortunately", r"can[’']?t accommodate", r"cannot accommodat
 
 
 def _sentences(text):
-    """[(start, end)] spans. FAQ pages have no line breaks, so split on . ? !"""
+    """[(start, end)] spans: each line of the page (the reader keeps headings, paragraphs, list items and table rows on lines of their own), and within a line, at . ? !"""
     spans, pos = [], 0
     for m in _SENT_SPLIT.finditer(text):
         spans.append((pos, m.start()))
@@ -582,12 +629,19 @@ def _eval_question(q, ok_pages):
             continue
         spans.sort()
         sents = _sentences(text)
+        if q.get("not_about"):
+            starts_ = [a for a, _b in sents]
+            spans = [sp for sp in spans if not q["not_about"].search(_sent(text, sents, max(0, bisect.bisect_right(starts_, sp[0]) - 1)))]
+            if not spans:
+                continue
         win = _window_sentences(text, sents, spans)
 
         sat, neg = {}, {}
         for f in q["facts"]:
             for j in win:
                 sent = _sent(text, sents, j)
+                if q.get("not_about") and q["not_about"].search(sent):
+                    continue                     # a sentence about something else (a treatment's cancellation terms) never answers this question
                 m = next((mm for mm in (rx.search(sent) for rx in f["patterns"]) if mm), None)
                 if m:
                     if is_negated(sent, m.start(), m.end()):
@@ -643,10 +697,12 @@ def _eval_question(q, ok_pages):
     # a fact the pages only DENY ('connecting rooms are not available') is answered, as a negative: it is not found, but it is not missing either
     denied = {k: v for k, v in neg_all.items() if k not in found_keys}
     result_denied = [{"label": f["label"], "snippet": denied[f["key"]][0], "url": denied[f["key"]][1]} for f in q["facts"] if f["key"] in denied]
-    best = max(per_page, key=lambda pp: (len(pp["sat"]), pp["relevant"], pp["hits"]))
+    belongs_ = set(__import__("pagetarget").TOPIC_TYPES.get(q["id"]) or ())
+    best = max(per_page, key=lambda pp: (len(pp["sat"]), pp["page"].get("_ptype") in belongs_, pp["relevant"], pp["hits"]))
     result["found"] = [f["label"] for f in q["facts"] if f["key"] in found_keys]
     snips = {}
-    for pp in per_page:
+    belongs = set(__import__("pagetarget").TOPIC_TYPES.get(q["id"]) or ())
+    for pp in sorted(per_page, key=lambda x: (x["page"].get("_ptype") not in belongs, not x["relevant"])):      # the page this belongs on first, then a page about the topic, then the rest
         for k, sn in pp["sat"].items():
             if k not in snips and not looks_like_nav(sn):
                 snips[k] = {"url": pp["page"]["url"], "snippet": sn}
@@ -682,17 +738,54 @@ def _eval_question(q, ok_pages):
     return result
 
 
+class _PageTypes:
+    """Just enough of a site for pagetarget.classify: the hotel's folder is the part of the address every page read shares, and the start page is typed by its address like any other
+    (a brand's '/overview/' is its hotel-information page; an independent hotel's homepage is 'home')."""
+
+    def __init__(self, pages):
+        paths = [urllib.parse.urlparse(p.get("url") or "").path for p in pages]
+        common = os.path.commonprefix(paths) if paths else "/"
+        self.base = urllib.parse.urljoin((pages[0].get("url") if pages else "") or "", common[: common.rfind("/") + 1] or "/")
+
+    def is_home(self, page):
+        return urllib.parse.urlparse(page.get("url") or "").path.rstrip("/") == urllib.parse.urlparse(self.base).path.rstrip("/")
+
+
+def belongs_read(qid, ok_pages):
+    """
+    Was a page where this answer belongs read? (pagetarget.TOPIC_TYPES: parking on a location, hotel-information, FAQ or policies page; cancellation on a policies, FAQ or hotel-information page...)
+    The same rule the traveller requirements use: an answer is only 'not found' when such a page was read; otherwise it could not be checked, and nothing is recommended
+    (Paris Marriott review: 'not found' on pages that were never read became 'make sure your website says...').
+    -> (bool, the kinds of page it belongs on)
+    """
+    import pagetarget
+    allowed = pagetarget.TOPIC_TYPES.get(qid) or pagetarget.GENERAL
+    shim = _PageTypes(ok_pages)
+    return any(pagetarget.classify(shim, p) in allowed for p in ok_pages), allowed
+
+
 def evaluate(pages, sufficient=True):
     """Pure function over already-fetched pages - the part worth unit-testing."""
     ok_pages = [dict(p, text=textutil.strip_label_runs(p["text"])) for p in pages if p["ok"]]
     bp = textutil.boilerplate(ok_pages, min_pages=4, share=0.6)       # site-wide menus, banners and footers are not what a page says
     if bp:
         ok_pages = [dict(p, text=textutil.strip_boilerplate(p["text"], bp)) for p in ok_pages]
+    import pagetarget
+    shim = _PageTypes(ok_pages)
+    for p in ok_pages:
+        p["_ptype"] = pagetarget.classify(shim, p)
     results = []
     for q in QUESTIONS:
         r = _eval_question(q, ok_pages)
         if r["state"] == "not_found" and not sufficient:
             r["state"] = "couldnt_check"
+            r["not_assessed"] = "too little of the site could be read"
+        elif r["state"] == "not_found":
+            ok_, allowed = belongs_read(q["id"], ok_pages)
+            if not ok_:
+                import pagetarget
+                r["state"] = "couldnt_check"
+                r["not_assessed"] = f"no page this belongs on ({', '.join(pagetarget.LABEL.get(t, t) for t in allowed[:3])}) was among the pages read"
         r["state_label"] = STATE_LABELS[r["state"]]
         results.append(r)
     return results
@@ -907,6 +1000,14 @@ def _second_reader_worth_it(p):
     return not p.get("ok") and not p.get("is_start") and ("JavaScript" in r or "timed out" in r or r.startswith(("error:", "request failed")) or p.get("status") in (401, 403, 429))
 
 
+def _fc_concurrency():
+    """Pages read at once through Firecrawl: its plan's limit on simultaneous requests (2 on the free plan, 5 on Hobby); FIRECRAWL_CONCURRENCY on the host."""
+    try:
+        return max(1, min(8, int(os.environ.get("FIRECRAWL_CONCURRENCY") or 2)))
+    except ValueError:
+        return 2
+
+
 def run(site, base, hotel="", location=None, progress=None,
         max_pages=MAX_PAGES, budget_s=TIME_BUDGET_S, fallback=None, prefer_fallback=False):
     """
@@ -919,7 +1020,17 @@ def run(site, base, hotel="", location=None, progress=None,
     say("Reading the homepage...")
     meta_ = site.get("meta") or {}
     start = meta_.get("home_url") or meta_.get("entry_url") or base      # the address the visitor gave (or a verified page of the same site), never a shortened form
-    home = fetch_page(start)
+    home = None
+    if prefer_fallback and fallback:
+        # the start page through the first reader too: its links decide which pages are read, and a brand's website refuses ours (Paris Marriott trace: the start page was refused,
+        # so no page was chosen and the check fell back to a 12-page rescue read)
+        try:
+            pg = fallback(start)
+        except Exception:  # noqa: BLE001
+            pg = None
+        if pg and pg.get("ok"):
+            home = {**pg, "via_second_reader": True}
+    home = home or fetch_page(start)
     sitemap_urls = site.get("sitemap_urls") or []
     picked = select_pages(base, home.get("links", []), sitemap_urls, max_pages + RESERVE, start=start)
     targets, reserve = picked[:max_pages], picked[max_pages:]
@@ -940,7 +1051,7 @@ def run(site, base, hotel="", location=None, progress=None,
 
     if prefer_fallback and fallback:
         budget_s = max(budget_s, 240)                  # a rendering reader is slower; the pages are worth the wait
-    ex = ThreadPoolExecutor(max_workers=4 if prefer_fallback else 6)
+    ex = ThreadPoolExecutor(max_workers=_fc_concurrency() if prefer_fallback else 6)
     try:
         futs = {ex.submit(read, u): u for u in rest}
         done, not_done = wait(futs, timeout=max(5, budget_s - (time.time() - t0)))
@@ -1083,7 +1194,7 @@ def run_prefetched(site, base, hotel, pages, location=None):
     for p in pages or []:
         for k in ("text", "title", "footer_text"):
             if isinstance(p.get(k), str):
-                p[k] = _clean(p[k]) if k != "text" else _INVISIBLE.sub("", p[k])       # pages from another reader are cleaned the same way
+                p[k] = _clean(p[k]) if k != "text" else (clean_lines(p[k]) if keep_lines() else _clean(p[k]))       # pages from another reader are cleaned the same way
     home = pages[0] if pages else {"ok": False}
     home["is_start"] = True
     return _finish(pages, home, time.time(), site, base, hotel, location, site.get("sitemap_urls") or [])

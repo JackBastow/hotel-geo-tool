@@ -54,16 +54,18 @@ def split_front_matter(text):
     return meta, text
 
 
-def to_page(url, text, title=""):
+def to_page(url, text, title="", lines=None):
     """One fetched document -> the page dict the rest of the audit already understands, flagged text_only."""
     meta, body = split_front_matter(text or "")
     links = _LINK.findall(body)
     h1 = [ln[2:].strip() for ln in body.splitlines() if ln.startswith("# ")][:3]
     plain = _IMG.sub(" ", body)
     plain = _MDLINK.sub(r"\1", plain)
-    plain = re.sub(r"(?m)^[#>*\-\s|:]+", " ", plain)
-    plain = re.sub(r"[|*_`]+", " ", plain)
-    plain = re.sub(r"\s+", " ", textutil.strip_label_runs(plain)).strip()[:30000]
+    plain = re.sub(r"(?m)^[ \t]*(?:[#>]+|[*\-+]|\d+[.)])[ \t]+", "", plain)            # heading, quote and list markers; the line itself is kept
+    plain = re.sub(r"(?m)^[ \t]*\|?[ \t:|-]+\|[ \t:|-]*$", "", plain)                   # a table's |---|---| rule
+    plain = re.sub(r"[ \t]*\|[ \t]*", " \u00b7 ", plain)                                # table cells stay on their row's line
+    plain = re.sub(r"[*_`]+", " ", plain)
+    plain = (guest_questions.clean_lines if guest_questions.keep_lines(lines) else guest_questions._clean)(textutil.strip_label_runs(plain))[:30000]
     ok = len(plain) >= guest_questions.MIN_READABLE_CHARS
     return {"url": url, "ok": ok, "reason": "" if ok else "no readable text", "title": title or meta.get("title", "") or (h1[0] if h1 else ""), "h1": h1,
             "text": plain, "footer_text": "", "tels": [t.strip() for t in _TEL.findall(plain)][:5], "mails": sorted(set(_MAIL.findall(plain)))[:5],

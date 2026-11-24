@@ -970,9 +970,11 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             except Exception as _step_e:  # noqa: BLE001
                 steps.failed('Checking Amadeus review sentiment / _qclient', _step_e)
                 _qclient = None
-            built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]), features=_feats0, benchmark=benchmark, depth=ai_depth, pages=own_pages, profile=profile)
+            built = ai_questions.build(prof, hotel, city, _anch["anchors"], client=_qclient, base_repeats=(anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]), features=_feats0, benchmark=benchmark, depth=ai_depth, pages=own_pages, profile=profile,
+                                       location=location, fetch=netguard.get)
             nqs = built["questions"]
-            benchmark_info = {"prompts": built["benchmark_prompts"] or [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why")} for b in (benchmark or [])], "reused": built["benchmark_reused"]}
+            benchmark_info = {"prompts": built["benchmark_prompts"] or [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why")} for b in (benchmark or [])], "reused": built["benchmark_reused"],
+                              "retired": built.get("benchmark_retired") or []}
             question_plan = {"facts": built["facts"], "rejected": built["rejected"], "anchors": _anch["anchors"][:6], "coords_source": _anch["coords_source"], "cost_usd": built["cost_usd"],
                              "questions": [{"id": q["id"], "text": q["text"], "angle": q.get("angle"), "why": q.get("why"), "priority": q.get("priority"), "style": q.get("style"), "kind": q.get("kind"),
                                             "source": q.get("source")} for q in built["questions"]]}

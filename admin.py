@@ -360,6 +360,17 @@ def register(app, cfg):
             return Response(body, mimetype="text/plain; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{name}.{"html" if raw == "html" else "md"}"'})
         out = {"url": url, "firecrawl": {"ok": res.get("ok"), "reason": res.get("reason"), "title": res.get("title"), "markdown_chars": len(res.get("markdown") or ""), "html_chars": len(res.get("html") or ""),
                                          "links": len(res.get("links") or []), "markdown": (res.get("markdown") or "")[:20000]}}
+        if res.get("ok") and request.args.get("compare"):
+            both = {}
+            for name, flag in (("old", False), ("new", True)):
+                pg = firecrawl_reader.build_page(url, res, lines=flag)
+                qs = gq.evaluate([dict(pg, ok=True)])
+                both[name] = {"lines": (pg.get("text") or "").count("\n") + 1, "text": (pg.get("text") or "")[:12000],
+                              "questions": {q["id"]: {"state": q.get("state"), "missing": q.get("missing"), "not_offered": [n.get("label") for n in q.get("not_offered") or []],
+                                                      "quoted": [[f.get("label"), (f.get("snippet") or "")[:240]] for f in q.get("fact_snippets") or []]} for q in qs}}
+            out["compare"] = both
+            out["firecrawl"].pop("markdown", None)
+            return Response(json.dumps(out, indent=1, ensure_ascii=False), mimetype="application/json")
         if res.get("ok"):
             page = firecrawl_reader.build_page(url, res)
             out["page"] = {"built_from": "html" if page.get("html_via") else "markdown", "text_chars": len(page.get("text") or ""), "lines": (page.get("text") or "").count("\n") + 1,

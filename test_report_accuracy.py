@@ -317,5 +317,89 @@ _ids = [r["id"] for r in _gr["consultant"]["recommendations"]]
 check("airport and station advice from several checks becomes one recommendation that names every place", _ids.count("T1") == 1 and "T2" not in _ids and "T3" not in _ids and "M1" in _ids
       and "Gare Saint-Lazare" in next(r for r in _gr["consultant"]["recommendations"] if r["id"] == "T1")["action"], _ids)
 
+print("16. the page reader keeps the page's structure (Paris Marriott trace, Nov 2026: a page read as one line quoted a breakfast sentence as transport and the pet fee as parking)")
+_MHTML = ("<html><head><title>Overview</title></head><body><main><h2>Amenities</h2>"
+          "<div><h3>Fitness Center</h3><ul><li>Treadmill(s)</li><li>Free Weights</li></ul><div>Fee</div><div>Complimentary</div></div>"
+          "<div><h3>Parking</h3><dl><dt>On-site parking</dt><dd>Not available</dd><dt>Nearby parking</dt><dd>Indigo Haussmann, daily rate EUR 35</dd></dl></div>"
+          "<div><h3>Pets</h3><p>Pets welcome. Non-refundable pet fee per stay: EUR 50.00</p></div>"
+          "<div><h3>Getting here</h3><table><tr><th>Charles de Gaulle Airport</th><td>30 km</td></tr><tr><th>Auber RER station</th><td>200 m</td></tr></table></div>"
+          "<div><h3>Breakfast at Sixtine</h3><p>Breakfast is served daily from 6:30 to 10:30.</p></div>"
+          "<div><h3>Sixtine restaurant</h3><p>Mon-Fri 12:00 PM-2:30 PM, 5:30 PM-10:00 PM</p></div></main></body></html>")
+_flat = gq._parse_html(_MB + "overview/", _MHTML, lines=False)
+_kept = gq._parse_html(_MB + "overview/", _MHTML, lines=True)
+check("each heading, list item, definition and table row is a line of its own", _kept["text"].count("\n") >= 12 and "On-site parking: Not available" in _kept["text"] and "Charles de Gaulle Airport · 30 km" in _kept["text"],
+      _kept["text"][:300])
+check("the old reader made it one line (what went wrong)", "\n" not in _flat["text"])
+_kq = {q["id"]: q for q in gq.evaluate([dict(_kept, url=_MB + "overview/", ok=True)])}
+_quotes = {f["label"]: f["snippet"] for q in _kq.values() for f in q.get("fact_snippets") or []}
+check("no quote runs from one panel into the next", all(not ("Pet" in s and "parking" in s.lower()) and not ("Treadmill" in s) for s in _quotes.values()), _quotes)
+check("the parking answer is the parking panel ('Not available' on site, a nearby car park at EUR 35)", _kq["parking"]["state"] in ("answered", "partial")
+      and all("pet" not in (f["snippet"] or "").lower() for f in _kq["parking"].get("fact_snippets") or []), _kq["parking"].get("fact_snippets"))
+check("breakfast times are the breakfast line, not the restaurant's lunch hours", any("6:30" in (f["snippet"] or "") for f in _kq["breakfast"].get("fact_snippets") or [])
+      and all("12:00 PM" not in (f["snippet"] or "") for f in _kq["breakfast"].get("fact_snippets") or []), _kq["breakfast"].get("fact_snippets"))
+_NB = "https://thenici.com/newquay/"
+_home = {"url": _NB, "ok": True, "is_start": True, "title": "THE NICI Newquay", "h1": [], "text": "Stay with us\nWith complimentary parking and dogs staying free, all the little details are taken care of.\nBook our spa break today."}
+_faq = {"url": _NB + "faqs/", "ok": True, "title": "FAQs", "h1": ["FAQs"], "text": "Do you have parking at the hotel?\nYes, we do have parking available for our guests. Parking is charged at £27 per night.\n"
+        "What is your cancellation policy?\nShould you wish to cancel treatment, we kindly request 48 hours' notice to avoid a cancellation charge. Cancellations made within 24 hours of arrival for any spa day, "
+        "experience, or treatment will be charged in full.\nWhat time is check-in?\nCheck-in is from 3:00pm. Check-out is 11:00am."}
+_nq = {q["id"]: q for q in gq.evaluate([_home, _faq])}
+check("the price is quoted from the page where it belongs (the FAQ's '27 per night'), not a homepage package's 'complimentary parking'",
+      any("27" in f["snippet"] for f in _nq["parking"].get("fact_snippets") or [] if f["label"] == "the price"), _nq["parking"].get("fact_snippets"))
+check("a spa treatment's cancellation terms do not answer the room cancellation question (THE NICI: it was 'answered')", _nq["cancellation"]["state"] != "answered"
+      and not _nq["cancellation"].get("fact_snippets"), (_nq["cancellation"]["state"], _nq["cancellation"].get("fact_snippets")))
+_only_home = {q["id"]: q for q in gq.evaluate([dict(_home, text=_home["text"] + " Our rooms have sea views.")])}
+check("with no FAQ, policies or information page read, an unanswered question is 'could not check', not 'not found' (so nothing is recommended)",
+      _only_home["cancellation"]["state"] == "couldnt_check" and "no page this belongs on" in (_only_home["cancellation"].get("not_assessed") or ""), _only_home["cancellation"]["state"])
+check("with the FAQ read, an unanswered question is a real gap", _nq["wifi"]["state"] == "not_found", _nq["wifi"]["state"])
+import claude_reader
+_md = claude_reader.to_page(_MB, "# Overview\n\n## Parking\n\n- On-site parking: not available\n- Nearby: EUR 35 a day\n\n## Pets\n\nPet fee EUR 50", lines=True)
+check("a page that came as markdown keeps its lines too", "On-site parking: not available\nNearby: EUR 35 a day" in _md["text"], _md["text"])
+
+print("17. where the hotel is, and prompts that fit it (Paris Marriott trace: no map position, so no comparable hotels; prompts frozen in October about a spa and the Eiffel Tower)")
+import anchors
+import ai_questions
+
+
+class _NR:
+    def __init__(self, rows):
+        self.status_code, self._rows = 200, rows
+
+    def json(self):
+        return self._rows
+
+
+_asked = []
+
+
+def _nom(url, **kw):
+    _asked.append(url)
+    if url.lower().split("q=")[1].startswith("marriott+opera+ambassador%2c+paris"):        # OpenStreetMap knows it only by its shorter name
+        return _NR([{"lat": "48.8727", "lon": "2.3367", "type": "hotel", "display_name": "Marriott Opera Ambassador, Boulevard Haussmann, Paris 9e Arrondissement, Paris, France",
+                     "address": {"city": "Paris", "country_code": "fr"}}])
+    return _NR([])
+
+
+check("the hotel is found on the map under the shorter name it is known by", anchors.geocode(_MH, "Paris", _nom, sleep=lambda s: None) == (48.8727, 2.3367), _asked)
+check("a shorter name must find a place to stay with that name, not anything similar", anchors.geocode("Opera Ambassador Hotel", "Paris", lambda u, **k: _NR([{"lat": "1", "lon": "1", "type": "attraction",
+      "display_name": "Opera Ambassador Theatre, Paris", "address": {"city": "Paris"}}]) if "Hotel" not in u else _NR([]), sleep=lambda s: None) is None)
+_facts = [{"text": t} for t in ("price level: upscale", "kind of hotel: business", "close to Louvre Museum (15 minutes)", "offers restaurant (strong evidence on its own pages)",
+                                 "its kind and pages support: meetings and events")]
+check("a frozen prompt about a facility the hotel does not have no longer fits", "spa" in (ai_questions.misfit("Are there hotels in Paris with a spa where we could unwind together?", _facts, "upscale", "Paris") or ""))
+_eiffel = lambda u, **k: _NR([{"lat": "48.8584", "lon": "2.2945"}])      # noqa: E731
+check("nor one asking for hotels near a place measured to be far from it (the Eiffel Tower, 3.5 km)", "3.5 km" in (ai_questions.misfit("An upscale hotel in Paris within walking distance of the Eiffel Tower?", _facts, "upscale", "Paris",
+      location={"lat": 48.8727, "lon": 2.3367}, fetch=_eiffel) or ""))
+check("a place that cannot be measured is no reason to retire a prompt (the places found nearby differ from check to check)",
+      ai_questions.misfit("An upscale hotel in Paris within walking distance of the Eiffel Tower?", _facts, "upscale", "Paris") is None)
+check("a prompt that rests on the hotel's facts still fits", ai_questions.misfit("Which upscale hotels near Louvre Museum are best for a business trip, with meeting space?", _facts, "upscale", "Paris") is None)
+_bench = [{"text": "Which upscale hotels near Louvre Museum give the best quality for the price?"}, {"text": "Are there hotels in Paris with a spa where we could unwind together?"}]
+_built = ai_questions.build({"tier": {"key": "upscale", "label": "Upscale", "why": "brand"}, "classes": ["business", "city_centre"], "strong_features": ["restaurant", "meeting_rooms"]}, _MH, "Paris",
+                            [{"name": "Louvre Museum", "kind": "attraction", "distance": "15 minutes", "source": "the hotel's own pages"}], benchmark=_bench)
+check("the prompt that no longer fits is retired with its reason; the others are asked again word for word", [r["text"] for r in _built["benchmark_retired"]] == [_bench[1]["text"]]
+      and any(q["text"] == _bench[0]["text"] and q["source"] == "benchmark" for q in _built["questions"]) and not any(q["text"] == _bench[1]["text"] for q in _built["questions"]), _built["benchmark_retired"])
+check("and the renewed set is saved in its place", _bench[0]["text"] in [b["text"] for b in _built["benchmark_prompts"]] and _bench[1]["text"] not in [b["text"] for b in _built["benchmark_prompts"]]
+      and not _built["benchmark_reused"])
+_mine = ai_questions.build({"tier": {"key": "upscale", "label": "Upscale", "why": "brand"}, "classes": []}, _MH, "Paris", [], benchmark=[dict(_bench[1], confirmed=True)])
+check("a prompt the hotel confirmed itself is its choice, and is never retired automatically", not _mine["benchmark_retired"] and any(q["text"] == _bench[1]["text"] for q in _mine["questions"]))
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

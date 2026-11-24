@@ -78,7 +78,10 @@ class Reports:
                 self.ids[token] = db.save_run(report, token=token)
                 progress.on_run_saved(db, report, self.ids[token])          # a registered hotel's action list is brought up to date from every audit of its website
                 bm = report.get("benchmark") or {}
-                if bm.get("prompts") and not bm.get("reused"):
+                if bm.get("prompts") and bm.get("retired"):
+                    import backend
+                    db.replace_benchmark(backend.hotel_key(report), bm["prompts"])       # prompts that no longer fit the hotel's facts were retired (the report says which and why)
+                elif bm.get("prompts") and not bm.get("reused"):
                     import backend
                     db.save_benchmark(backend.hotel_key(report), bm["prompts"])          # frozen at the hotel's first audit; never overwritten
         except Exception:  # noqa: BLE001 - saving must never break an audit

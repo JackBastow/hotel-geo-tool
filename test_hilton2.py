@@ -47,8 +47,8 @@ print("3. so it cannot be quoted, or confirm a fact")
 HOME = {"url": BASE, "title": "Hilton Zurich Airport", "h1": [], "ok": True, "tels": [], "mails": [], "links": [], "signals": {}, "footer_text": "",
         "text": "Welcome to Hilton Zurich Airport. " + STRIP + " The hotel stands next to the terminal and welcomes guests all year round. " * 3}
 qs = {q["id"]: q for q in gq.evaluate([HOME])}
-check("parking is not found on the strength of the strip", qs["parking"]["state"] in ("not_found", "needs_checking") and not qs["parking"].get("fact_snippets"), qs["parking"]["state"])
-check("Wi-Fi is not found on the strength of the strip", qs["wifi"]["state"] in ("not_found", "needs_checking"), qs["wifi"]["state"])
+check("parking is not found on the strength of the strip", qs["parking"]["state"] in ("not_found", "needs_checking", "couldnt_check") and not qs["parking"].get("fact_snippets"), qs["parking"]["state"])
+check("Wi-Fi is not found on the strength of the strip", qs["wifi"]["state"] in ("not_found", "needs_checking", "couldnt_check"), qs["wifi"]["state"])
 site = ic.Site([HOME], BASE, HOTEL, "Zurich")
 check("no check reads the strip from the site view either", all("Cribs" not in p["text"] for p in site.pages))
 

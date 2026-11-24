@@ -102,7 +102,8 @@ def run(params, cfg, progress=None):
             import urlscope
             db = backend.open_store(cfg.database_url)
             _key = backend.hotel_key({"meta": {"base": urlscope.normalise(params["website"], params.get("hotel", ""), params.get("city", ""))[0]}})
-            benchmark = (db.confirmed_prompts_for_key(_key) or db.get_benchmark(_key)) if db else []      # the prompts the hotel confirmed come first; otherwise the ones frozen at its first audit
+            _conf = db.confirmed_prompts_for_key(_key) if db else []
+            benchmark = ([dict(b, confirmed=True) for b in _conf] if _conf else db.get_benchmark(_key)) if db else []      # the prompts the hotel confirmed come first; otherwise the ones frozen at its first audit
             import placenames
             if benchmark and not db.confirmed_prompts_for_key(_key) and any(placenames.has_scrap(b.get("text")) for b in benchmark):
                 db.clear_benchmark(_key)          # frozen prompts built on a scrap of page text ('Airports Rhine Park') are thrown away: this audit writes a clean set

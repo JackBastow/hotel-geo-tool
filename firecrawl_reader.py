@@ -13,6 +13,8 @@ No key -> 'not configured'. It never raises.
 """
 
 import os
+import threading
+import time
 import urllib.parse
 
 import requests
@@ -33,8 +35,47 @@ def has_key(api_key=None):
     return bool(api_key or os.environ.get("FIRECRAWL_API_KEY"))
 
 
-def scrape(url, api_key, post=requests.post, timeout=45):
-    """One page -> {"ok", "markdown", "links", "title", "reason"}. Tries the current API, then the older one."""
+# The plan's request rate (the free plan allows about 10 page reads a minute, Hobby 20): requests are paced to it, and a 429 ('too many requests') is waited out and asked again, never
+# taken as an unreadable page (Paris Marriott trace, Nov 2026: pages read in quick succession came back empty). FIRECRAWL_RPM on the host when the plan allows more.
+_PACE = {"lock": threading.Lock(), "times": []}
+RETRIES_429 = 3
+
+
+def _rpm():
+    try:
+        return max(1, int(os.environ.get("FIRECRAWL_RPM") or 10))
+    except ValueError:
+        return 10
+
+
+def _wait_turn(sleep=time.sleep, now=time.monotonic):
+    """Block until one more request fits in the last minute's allowance."""
+    while True:
+        with _PACE["lock"]:
+            t = now()
+            _PACE["times"] = [x for x in _PACE["times"] if t - x < 60]
+            if len(_PACE["times"]) < _rpm():
+                _PACE["times"].append(t)
+                return
+            wait = 60 - (t - _PACE["times"][0]) + 0.1
+        sleep(min(max(wait, 0.2), 60))
+
+
+def scrape(url, api_key, post=requests.post, timeout=45, sleep=time.sleep):
+    """One page -> {"ok", "markdown", "links", "title", "reason"}. Tries the current API, then the older one. Paced to the plan's rate; a 429 is waited out (Retry-After) and asked again."""
+    for attempt in range(RETRIES_429 + 1):
+        if post is requests.post:
+            _wait_turn(sleep=sleep)
+        res = _scrape_once(url, api_key, post, timeout)
+        if res.get("reason") != "HTTP 429" or attempt == RETRIES_429:
+            if res.get("reason") == "HTTP 429":
+                res["reason"] = "Firecrawl's request rate for this plan was exceeded and the page could not be read after waiting"
+            return res
+        sleep(min(30, max(2, int(res.get("retry_after") or 0) or 6 * (attempt + 1))))
+    return res
+
+
+def _scrape_once(url, api_key, post, timeout):
     last = ""
     for ep in API:
         try:
@@ -46,7 +87,8 @@ def scrape(url, api_key, post=requests.post, timeout=45):
             last = "endpoint not found"
             continue
         if r.status_code != 200:
-            return {"ok": False, "markdown": "", "links": [], "title": "", "reason": f"HTTP {r.status_code}"}
+            ra = (getattr(r, "headers", None) or {}).get("Retry-After") if r.status_code == 429 else None
+            return {"ok": False, "markdown": "", "links": [], "title": "", "reason": f"HTTP {r.status_code}", "retry_after": ra if str(ra or "").isdigit() else None}
         try:
             data = (r.json() or {}).get("data") or {}
         except ValueError:
@@ -57,7 +99,7 @@ def scrape(url, api_key, post=requests.post, timeout=45):
     return {"ok": False, "markdown": "", "html": "", "links": [], "title": "", "reason": last or "no answer"}
 
 
-def build_page(url, res):
+def build_page(url, res, lines=None):
     """
     One scraped page -> the page dict the audit uses. With the page's HTML it is parsed exactly as a page this tool fetched itself (title, headings, markup, structured data, images, canonical), so the
     technical checks can run on it; if the HTML has too little text (a script-built page) the markdown is used and the page stays text-only. Pages built from HTML carry html_via='firecrawl'.
@@ -66,14 +108,14 @@ def build_page(url, res):
     html = res.get("html") or ""
     if html.strip():
         try:
-            parsed = guest_questions._parse_html(url, html)
+            parsed = guest_questions._parse_html(url, html, lines=lines)
         except Exception:  # noqa: BLE001
             parsed = None
         if parsed and parsed.get("signals") and len(parsed.get("text") or "") >= guest_questions.MIN_READABLE_CHARS:
             parsed["links"] = list(dict.fromkeys(parsed["links"] + [l for l in res.get("links") or [] if l]))[:150]
             parsed.update(url=url, ok=True, reason="", status=200, final_url=url, text_only=False, html_via="firecrawl")
             return parsed
-    pg = claude_reader.to_page(url, res.get("markdown") or "", res.get("title") or "")
+    pg = claude_reader.to_page(url, res.get("markdown") or "", res.get("title") or "", lines=lines)
     pg["links"] = ([l for l in res.get("links") or [] if l] or pg["links"])[:150]
     return pg
 

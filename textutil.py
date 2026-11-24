@@ -159,7 +159,7 @@ def is_generic_label(text):
 
 # -------------------------------------------------------------------- boilerplate
 
-_SPLIT = re.compile(r"(?<=[.!?])\s+|\s{2,}|\s[|•·]\s")
+_SPLIT = re.compile(r"[^\S\n]*\n\s*|(?<=[.!?])[^\S\n]+|[^\S\n]{2,}|[^\S\n][|•·][^\S\n]")
 
 
 def _all_units(text):
@@ -193,4 +193,4 @@ def strip_boilerplate(text, bp):
     if not bp or not text:
         return text
     keep = [u for u in _all_units(text) if u.lower() not in bp]
-    return " ".join(keep) if keep else text
+    return "\n".join(keep) if keep else text

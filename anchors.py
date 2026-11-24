@@ -68,19 +68,44 @@ def from_pages(own_pages, hotel, osm_ctx=None, max_km=2.5):
     return out
 
 
-def geocode(hotel, city, fetch, with_country=False):
-    """(lat, lon) for the hotel from one Nominatim search, accepted only if the result is in the hotel's town; with_country also returns the two-letter country code. None when it cannot be found or placed."""
-    q = f"{hotel}, {city}".strip(", ")
-    try:
-        r = fetch(NOMINATIM + "?" + urllib.parse.urlencode({"q": q, "format": "json", "limit": 3, "addressdetails": 1}), headers={"User-Agent": UA}, timeout=10)
-        rows = r.json() if r.status_code == 200 else []
-    except Exception:  # noqa: BLE001
-        return None
+_LODGING_TAIL = re.compile(r"\s+(?:hotel|hotels|resort|inn|lodge|suites|& spa|and spa|spa)$", re.I)
+
+
+def _queries(hotel, city):
+    """The full name first, then the shorter forms the hotel is also known by (OpenStreetMap has 'Marriott Opera Ambassador', not 'Paris Marriott Opera Ambassador Hotel'). At most four searches."""
+    import hotelname
+    out = [f"{hotel}, {city}".strip(", ")]
+    for v in hotelname.variants(hotel, city):
+        for form in (v, _LODGING_TAIL.sub("", v)):
+            q = f"{form}, {city}".strip(", ")
+            if len(form) >= 4 and evidence.fold(q) not in {evidence.fold(x) for x in out}:
+                out.append(q)
+    return out[:4]
+
+
+def geocode(hotel, city, fetch, with_country=False, sleep=None):
+    """
+    (lat, lon) for the hotel from a Nominatim search, accepted only if the result is in the hotel's town; with_country also returns the two-letter country code. None when it cannot be found or placed.
+    The full name is searched first, then its shorter forms (hotelname.variants, without 'Hotel'); a result for a shorter form must be a place to stay whose name the hotel's name matches.
+    """
+    import time as _time
+    import hotelname
     town = evidence.fold((city or "").split(",")[0])
-    for row in rows or []:
-        a = row.get("address") or {}
-        where = evidence.fold(" ".join(str(a.get(k, "")) for k in ("city", "town", "village", "municipality", "suburb", "county")) + " " + row.get("display_name", ""))
-        if town and town in where:
+    for n, q in enumerate(_queries(hotel, city)):
+        if n:
+            (sleep or _time.sleep)(1.1)                      # Nominatim's usage policy: one request a second
+        try:
+            r = fetch(NOMINATIM + "?" + urllib.parse.urlencode({"q": q, "format": "json", "limit": 3, "addressdetails": 1}), headers={"User-Agent": UA}, timeout=10)
+            rows = r.json() if r.status_code == 200 else []
+        except Exception:  # noqa: BLE001
+            continue
+        for row in rows or []:
+            a = row.get("address") or {}
+            where = evidence.fold(" ".join(str(a.get(k, "")) for k in ("city", "town", "village", "municipality", "suburb", "county")) + " " + row.get("display_name", ""))
+            if not (town and town in where):
+                continue
+            if n and not (row.get("type") in ("hotel", "guest_house", "hostel", "motel", "apartment", "resort") and hotelname.mentioned(row.get("display_name", "").split(",")[0], hotel, city)):
+                continue                                      # a shorter name must find this hotel, not another place with a similar name
             try:
                 xy = float(row["lat"]), float(row["lon"])
                 return (xy + ((a.get("country_code") or "").upper() or None,)) if with_country else xy

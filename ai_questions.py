@@ -298,6 +298,55 @@ BASELINE = [
 MIN_POOL = 10               # fewer niche questions than this and the baseline ones are added
 
 
+_NAMED_PLACE = re.compile(r"\b(?:near|by|next to|close to|walking distance (?:of|to|from)|minutes? from|of)\s+(?:the\s+)?((?:[A-Z][\w'\u2019\u00c0-\u024f-]+\s?){1,4})")
+
+
+FAR_KM = 2.5            # a place this far from the hotel is not 'near' it in a city (Paris Marriott Opera: the Eiffel Tower is about 3.5 km away)
+
+
+def place_km(place, city, location, fetch):
+    """Measured distance (km) from the hotel to a named place (one OpenStreetMap search, in the hotel's town), or None when either cannot be placed."""
+    if not (location and location.get("lat") is not None and location.get("lon") is not None and fetch):
+        return None
+    import urllib.parse
+    import anchors
+    import sources
+    try:
+        r = fetch(anchors.NOMINATIM + "?" + urllib.parse.urlencode({"q": f"{place}, {city}", "format": "json", "limit": 1}), headers={"User-Agent": anchors.UA}, timeout=10)
+        rows = r.json() if r.status_code == 200 else []
+        return round(sources.haversine_km(location["lat"], location["lon"], float(rows[0]["lat"]), float(rows[0]["lon"])), 1) if rows else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def misfit(text, facts, tier_key, city="", location=None, fetch=None):
+    """
+    Why a prompt no longer fits the hotel, or None. The tests a new prompt must pass (validate): no facility or kind of traveller the facts do not support, no luxury wording for a hotel that is not luxury
+    (or budget wording for one that is), and a place it names must be one the facts put near the hotel. Used on prompts frozen at an early check, which may rest on what was believed then
+    (Paris Marriott: 'hotels with a spa' from a spa that was never there; 'walking distance of the Eiffel Tower').
+    A place is judged only by MEASURING it: the places found near a hotel differ from check to check, so a place missing from today's list is no evidence it is far away.
+    """
+    t = text or ""
+    known = " ".join(str(f.get("text") or "") for f in facts or []).lower()
+    for needs, licence in LICENCE.items():
+        m = re.search(needs, t, re.I)
+        if m and not re.search(licence, known, re.I):
+            return f"it asks about {m.group(0).lower()}, which the hotel's facts do not support"
+    if tier_key and tier_key != "luxury" and LUXURY_WORDS.search(t):
+        return "luxury wording for a hotel that is not luxury"
+    if tier_key == "luxury" and BUDGET_WORDS.search(t):
+        return "budget wording for a luxury hotel"
+    town = evidence.fold((city or "").split(",")[0])
+    for m in _NAMED_PLACE.finditer(t):
+        place = m.group(1).strip()
+        words = [w for w in evidence.fold(place).split() if len(w) > 3 and w not in ("hotel", "hotels", "paris", "london", "city", "centre", "center")]
+        if words and evidence.fold(place) != town and not any(w in evidence.fold(known) for w in words):
+            km = place_km(place, city, location, fetch)
+            if km is not None and km > FAR_KM:
+                return f"it asks for hotels near {place}, which is {km:g} km from the hotel"
+    return None
+
+
 def baseline(hotel, city, have=()):
     """Plain traveller questions about the hotel's town that rest on no particular fact (so they suit any hotel there): the floor under the question set when the facts are thin. Never names the hotel."""
     place = (city or "").split(",")[0].split("/")[0].strip()
@@ -343,7 +392,7 @@ def style_variants(prof, hotel, city, anchor_list, core, n):
     return [q for q in out if ai_niche._safe(q["text"] if q["text"].endswith("?") else q["text"] + "?", hotel)][:n]
 
 
-def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repeats=2, features=None, benchmark=None, depth="standard", pages=None, profile=None):
+def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repeats=2, features=None, benchmark=None, depth="standard", pages=None, profile=None, location=None, fetch=None):
     """
     -> {"questions": [...], "facts": [...], "rejected": [...], "cost_usd": float}. Core questions are asked base_repeats + 1 times (at most 4), secondary ones base_repeats times; every question carries
     its priority, its repeat count and why it was asked. Never empty when ai_niche can write at least one question.
@@ -392,6 +441,16 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
     core = [q for q in out if q["priority"] == "core"][:lim["core"]]
     sec = ([q for q in out if q["priority"] != "core" and q.get("source") != "baseline"] + [q for q in out if q.get("source") == "baseline"])[:lim["secondary"]]      # the town questions only fill spare places
     bench_out = []
+    retired = []
+    if benchmark:
+        keep = []
+        for b in benchmark:
+            why_not = None if b.get("confirmed") else misfit(b.get("text"), facts, ((prof or {}).get("tier") or {}).get("key"), city, location=location, fetch=fetch)
+            if why_not:
+                retired.append({"text": b.get("text"), "why": why_not})
+            else:
+                keep.append(b)
+        benchmark = keep
     if benchmark:
         frozen = [{"id": f"niche_bench{i}", "kind": "niche", "angle": b.get("angle") or "Benchmark", "text": b["text"], "priority": "core", "source": "benchmark",
                    "why": ((b.get("why") or "").rstrip(".") + ". " if b.get("why") else "") + "A benchmark prompt kept from this hotel's first audit and asked again word for word, so the results can be compared over time."} for i, b in enumerate(benchmark[:max(lim["core"], TRACKED_MAX)], 1) if b.get("text")]
@@ -399,6 +458,11 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
         for q in fresh:
             q["priority"], q["source"] = "secondary", q.get("source") or "new"
         core, sec = frozen, fresh[:lim["secondary"] + 2]
+        if retired:                                                # the set is renewed: what still fits, word for word, and fresh prompts from today's facts in place of those retired
+            new = [q for q in sec if q.get("source") not in ("baseline", "style") and not any(_similar(q["text"], f["text"], 0.8) for f in frozen)][:len(retired)]
+            for q in new:
+                q["priority"], q["source"] = "core", "benchmark_new"
+            bench_out = [{"text": b["text"], "angle": b.get("angle"), "why": b.get("why")} for b in benchmark] + [{"text": q["text"], "angle": q["angle"], "why": q["why"]} for q in new]
     else:
         bench_out = [{"text": q["text"], "angle": q["angle"], "why": q["why"]} for q in core]
     seen_text = {q["text"] for q in core + sec}
@@ -407,4 +471,5 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
         q["repeats"] = min(lim["core_cap"], base_repeats + lim["core_extra"])
     for q in sec:
         q["repeats"] = base_repeats
-    return {"questions": core + sec, "facts": facts, "rejected": rejected, "cost_usd": round(cost, 5), "benchmark_prompts": bench_out, "benchmark_reused": bool(benchmark)}
+    return {"questions": core + sec, "facts": facts, "rejected": rejected, "cost_usd": round(cost, 5), "benchmark_prompts": bench_out, "benchmark_reused": bool(benchmark) and not retired,
+            "benchmark_retired": retired}

@@ -27,7 +27,7 @@ import phones
 import textutil
 import urlscope
 
-SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
+SENT_SPLIT = re.compile(r"[^\S\n]*\n\s*|(?<=[.!?])[^\S\n]+")          # a line of the page is a sentence of its own
 
 
 # ------------------------------------------------------------------- the site
