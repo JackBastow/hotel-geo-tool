@@ -105,7 +105,7 @@ for _ in range(50):
         break
     time.sleep(0.1)
 W.run_fn = real_run
-check("the first time a login is set up for a hotel that has never been checked, its first check starts by itself, at the manual depth (standard unless AI_DEPTH is set)", len(first_calls) == 1 and first_calls[0]["website"] == "hotel-a.com" and first_calls[0]["depth"] == "standard", first_calls)
+check("the first time a login is set up for a hotel that has never been checked, its first check starts by itself, with the deep test (a hotel's baseline is always deep)", len(first_calls) == 1 and first_calls[0]["website"] == "hotel-a.com" and first_calls[0]["depth"] == "deep", first_calls)
 check("its progress is visible while it runs (and the reason if it fails)", W.hotel_state(ha["id"])["state"] == "error" and "Reading the website..." in W.hotel_state(ha["id"])["messages"])
 db.set_hotel(ha["id"], last_attempt="", last_error="")
 W.live.clear()

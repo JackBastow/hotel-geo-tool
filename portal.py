@@ -57,8 +57,9 @@ def register(app, cfg):
         if not uid or d is None:
             return None, []
         u = d.user_by_id(uid)
-        if not u or not u["active"]:
-            session.pop("uid", None)
+        if not u or not u["active"] or int(u.get("session_ver") or 0) != int(session.get("sv") or 0):
+            session.pop("uid", None)                       # switched off, or the password was changed / everyone signed out since this sign-in
+            session.pop("sv", None)
             return None, []
         return u, d.hotels_for_user(uid)
 
@@ -102,6 +103,7 @@ def register(app, cfg):
             session.clear()
             session.update(keep)
             session["uid"] = u["id"]
+            session["sv"] = int((d.user_by_id(u["id"]) or {}).get("session_ver") or 0)      # this sign-in belongs to the login as it is now
             session.permanent = True
             d.touch_login(u["id"])
             return redirect("/portal")
@@ -148,6 +150,7 @@ def register(app, cfg):
                 session.clear()
                 session.update(keep)
                 session["uid"] = existing["id"]
+                session["sv"] = int((d.user_by_id(existing["id"]) or {}).get("session_ver") or 0)      # this sign-in belongs to the login as it is now
                 session.permanent = True
                 d.touch_login(existing["id"])
                 return redirect("/portal")
@@ -187,6 +190,7 @@ def register(app, cfg):
             session.clear()
             session.update(keep)
             session["uid"] = uid
+            session["sv"] = int((d.user_by_id(uid) or {}).get("session_ver") or 0)      # this sign-in belongs to the login as it is now
             session.permanent = True
             d.touch_login(uid)
             return redirect("/portal")

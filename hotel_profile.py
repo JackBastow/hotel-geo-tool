@@ -516,19 +516,20 @@ def for_report(profile):
 
 # ------------------------------------------------------------------------- set-up status
 
-def status(db, hotel):
-    """(key, label) of where the hotel is in setting up: not_invited, invited, profile, prompts, checked; or legacy hotels: running (with or without a reviewed profile)."""
+def status(db, hotel, runs=None, has_users=None, has_invites=None):
+    """(key, label) of where the hotel is in setting up: not_invited, invited, profile, prompts, checked; or legacy hotels: running (with or without a reviewed profile).
+    `runs`, `has_users`, `has_invites`: already fetched for many hotels at once (the list page), so no query is made per hotel."""
     prof = load(hotel)
     if hotel.get("setup") != "pending" and hotel.get("setup") != "done":
         return ("running", "Running (set up before profiles)" + ("; profile confirmed" if prof and prof.get("status") == "confirmed" else "; profile to review"))
-    runs = db.hotel_runs(hotel["hotel_key"])
+    runs = runs if runs is not None else db.hotel_runs(hotel["hotel_key"])
     if hotel.get("setup") == "done":
         return ("checked", "First check done") if runs else ("prompts", "Prompts confirmed: first check running or due")
     if prof and prof.get("status") == "confirmed":
         return ("profile", "Profile done: prompts to confirm")
-    if db.users_for_hotel(hotel["id"]):
+    if (has_users if has_users is not None else db.users_for_hotel(hotel["id"])):
         return ("invited", "Signed in: profile to complete")
-    if db.open_invites(hotel["id"]):
+    if (has_invites if has_invites is not None else db.open_invites(hotel["id"])):
         return ("invited", "Invited")
     return ("not_invited", "Not invited yet")
 

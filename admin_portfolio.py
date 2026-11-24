@@ -105,8 +105,10 @@ def register_scope(app, sc):
             return sc.shell(sc.groups[0], sc.title(sc.groups[0]), f'<div class="alert warning">{esc(msg)}</div>'), None
         return None, s
 
-    def setup_cell(s, h):
-        key, label = hotel_profile.status(s, h)
+    def setup_cell(s, h, runs=None, people=None):
+        users, invites = people or (None, None)
+        key, label = hotel_profile.status(s, h, runs=runs, has_users=(users or {}).get(h["id"], 0) if users is not None else None,
+                                          has_invites=(invites or {}).get(h["id"], 0) if invites is not None else None)
         colour = {"not_invited": "#b42318", "invited": "#b54708", "profile": "#3730a3", "prompts": "#3730a3", "checked": "#067647"}.get(key, "inherit")
         return f'<span style="color:{colour}">{esc(label)}</span>'
 
@@ -137,6 +139,7 @@ def register_scope(app, sc):
             return sc.shell(grp, title, f'<div class="alert warning">{esc(msg)}</div>')
         data = progress.portfolio_data(s, grp)
         rows, tot = progress.portfolio_summary(s, data)
+        people = s.people_for_hotels([h["id"] for h in data["hotels"]])          # logins and open invites for every hotel in two queries (it was up to three queries a hotel)
         intro = ""
         across = "the portfolio" if grp == "portfolio" else "these hotels"
         if tot["measured"]:
@@ -168,7 +171,7 @@ def register_scope(app, sc):
             f'<tr><td><a href="{HB}/{r["hotel"]["id"]}">{esc(r["hotel"]["name"])}</a><br><span class="hk-muted">{esc(r["hotel"]["city"] or "")}</span></td><td>{esc(uk_date(r["last_run_at"])) or "not yet"}</td><td>{r["runs"]}</td>'
             f'<td>{"-" if r["first_score"] is None else format(r["first_score"], "g")}</td><td>{"-" if r["latest_score"] is None else format(r["latest_score"], "g")}</td><td>{delta_cell(r["delta"])}</td>'
             f'<td>{r["actions"]["completed"]}</td><td>{r["actions"]["working"]}</td><td>{r["actions"]["todo"] + r["actions"]["still_flagged"]}</td><td>{"weekly" if r["hotel"]["weekly"] else "off"}</td>'
-            f'<td>{status_cell(r["hotel"]["id"])}</td><td>{setup_cell(s, r["hotel"])}</td><td>{esc(uk_time(r["hotel"]["last_attempt"])) or "-"}</td><td>{esc(r["hotel"]["last_error"] or "")}{_setup_flag(r["hotel"])}</td></tr>' for r in rows)
+            f'<td>{status_cell(r["hotel"]["id"])}</td><td>{setup_cell(s, r["hotel"], list(reversed(data["hist"].get(r["hotel"]["hotel_key"], []))), people)}</td><td>{esc(uk_time(r["hotel"]["last_attempt"])) or "-"}</td><td>{esc(r["hotel"]["last_error"] or "")}{_setup_flag(r["hotel"])}</td></tr>' for r in rows)
         empty = "No individual hotels yet: add one below." if grp == "individual" else "No hotels registered yet."
         table = ('<div class="table-wrap"><table class="table"><thead><tr><th>Hotel</th><th>Last check</th><th>Checks</th><th>First score</th><th>Latest score</th><th>Change</th><th>Actions done</th>'
                  '<th>Working on</th><th>To do</th><th>Weekly</th><th>Right now</th><th>Set-up</th><th>Last attempt (UK time)</th><th>Last problem</th></tr></thead><tbody>' + (body or f'<tr><td colspan="14">{empty}</td></tr>') + "</tbody></table></div>")
@@ -249,6 +252,10 @@ def register_scope(app, sc):
         if request.args.get("msg") == "exists" and not notice:
             notice = '<div class="alert warning">That website is already registered, as this hotel. Nothing new was added.</div>'
         where = f'<p><a href="{sc.list_urls[grp]}">&larr; All hotels</a></p>'
+        n_deep = sum(1 for r in runs if r.get("ai_depth") == "deep")
+        last_deep = next((r for r in runs if r.get("ai_depth") == "deep"), None)
+        depth_line = (f'<p class="caption"><b>Deep AI test:</b> {"last on " + esc(uk_time(last_deep["run_at"])) if last_deep else "none on record, so the next check will be a deep one (the hotel&rsquo;s baseline)"}. '
+                      "Every other check uses the standard test.</p>")
         prof = hotel_profile.load(h)
         skey, slabel = hotel_profile.status(s, h)
         mp = hotel_profile.map_link(prof)
@@ -258,7 +265,7 @@ def register_scope(app, sc):
                        + (f'<p class="caption">{esc(", ".join(dict(hotel_profile.KINDS).get(k, k) for k in prof["kinds"]))}{" &middot; " if prof["kinds"] else ""}town {esc(prof["town"] or "-")}, region {esc(prof["region"] or "-")}, area {esc(prof["area"] or "-")}'
                           + (f' &middot; competitors: {esc(", ".join(prof["competitors"]))}' if prof["competitors"] else "") + '</p>' if prof else "")
                        + ('<p class="caption">Not checked weekly until its prompts are confirmed (by the hotel or by you on the Prompts tab below).</p>' if h.get("setup") == "pending" else ""))
-        panel = (f'<section class="panel"><h4>Manage this hotel</h4>{notice}{where}{profile_box}'
+        panel = (f'<section class="panel"><h4>Manage this hotel</h4>{notice}{where}{profile_box}{depth_line}'
                  f'<p><form method="post" action="{HB}/{hid}/run" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn primary" type="submit">Run a check now</button></form> '
                  f'<a class="btn" href="{HB}/{hid}/settings">Settings: profile, prompts, history</a> '
                  f'<form method="post" action="{HB}/{hid}/reset-prompts" style="display:inline"><input type="hidden" name="csrf" value="{c}"><button class="btn" type="submit">Reset its automatic prompts</button></form> '
@@ -272,8 +279,9 @@ def register_scope(app, sc):
                  'Changing it makes fresh recommended prompts at the next check; a set the hotel has confirmed is left alone.</p>'
                  + (('<details class="details"><summary>Delete a check</summary><div class="details-body"><p class="caption">For a check that should never have counted (for example one run with the wrong town). '
                      'It is removed for good, with the recommendations it alone raised; the hotel&rsquo;s other checks, and anything the hotel has marked done or is working on, stay.</p><ul>'
-                     + "".join(f'<li>{esc(uk_time(r["run_at"]))}, town {esc(r.get("city") or "-")}, score {"-" if r.get("headline_score") is None else format(r["headline_score"], "g")} '
-                               f'<form method="post" action="{HB}/{hid}/delete-run/{r["id"]}" style="display:inline" data-confirm="{esc("Delete the check of " + uk_time(r["run_at"]) + " for good?", quote=True)}">'
+                     + "".join(f'<li>{esc(uk_time(r["run_at"]))}, town {esc(r.get("city") or "-")}, score {"-" if r.get("headline_score") is None else format(r["headline_score"], "g")}'
+                               + (" &middot; <b>deep AI test</b>" + (" (the hotel&rsquo;s only one: its next check will be deep again)" if n_deep == 1 else "") if r.get("ai_depth") == "deep" else "") + " "
+                               f'<form method="post" action="{HB}/{hid}/delete-run/{r["id"]}" style="display:inline" data-confirm="{esc("Delete the check of " + uk_time(r["run_at"]) + " for good?" + (" It is the hotel's only deep check; the next check will be deep again." if r.get("ai_depth") == "deep" and n_deep == 1 else ""), quote=True)}">'
                                f'<input type="hidden" name="csrf" value="{c}"><button class="btn small" type="submit">Delete this check</button></form></li>' for r in runs[:20])
                      + '</ul></div></details>') if runs else "")
                  + f'<h5>People who can sign in ({len(users)})</h5>' + (f'<div class="table-wrap"><table class="table"><thead><tr><th>Email</th><th>Name</th><th>Last sign-in (UK time)</th><th></th><th></th></tr></thead><tbody>{ut}</tbody></table></div>' if users else '<p class="caption">Nobody has a login yet.</p>')

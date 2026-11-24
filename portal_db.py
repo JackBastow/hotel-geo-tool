@@ -39,6 +39,7 @@ class PortalMixin:
             self._run(conn, sql)
         self._ensure_columns(conn, "hotels", {"grp": "TEXT", "profile_json": "TEXT", "setup": "TEXT", "strategy_json": "TEXT"})
         self._ensure_columns(conn, "actions", {"steps_done": "TEXT"})
+        self._ensure_columns(conn, "users", {"session_ver": "INTEGER"})
         self._dedupe_actions(conn)          # which steps of an action the hotel has ticked off          # older databases: every hotel already there is in the portfolio
 
     def _exec(self, sql, params=()):
@@ -98,10 +99,18 @@ class PortalMixin:
         return r[0] if r else None
 
     def set_password(self, uid, pw_hash):
-        self._exec("UPDATE users SET pw_hash = ? WHERE id = ?", (pw_hash, uid))
+        """A new password also ends every sign-in made with the old one (on any device)."""
+        self._exec("UPDATE users SET pw_hash = ?, session_ver = COALESCE(session_ver, 0) + 1 WHERE id = ?", (pw_hash, uid))
 
     def set_user_active(self, uid, active):
-        self._exec("UPDATE users SET active = ? WHERE id = ?", (int(bool(active)), uid))
+        if active:
+            self._exec("UPDATE users SET active = ? WHERE id = ?", (1, uid))
+        else:
+            self._exec("UPDATE users SET active = ?, session_ver = COALESCE(session_ver, 0) + 1 WHERE id = ?", (0, uid))     # switched off: every sign-in ends
+
+    def end_sessions(self, uid):
+        """Sign this person out everywhere."""
+        self._exec("UPDATE users SET session_ver = COALESCE(session_ver, 0) + 1 WHERE id = ?", (uid,))
 
     def touch_login(self, uid):
         self._exec("UPDATE users SET last_login = ? WHERE id = ?", (now_iso(), uid))
@@ -304,7 +313,7 @@ class PortalMixin:
     # runs, as the portal needs them ---------------------------------------------
     def hotel_runs(self, key):
         """The hotel's saved audits, newest first: id, run time, the link token, the score and the AI coverage."""
-        return self._rows("SELECT id, run_at, city, access_token, headline_score, headline_status, coverage_pct, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked, ai_named, ai_asked, ai_tracked_named, ai_tracked_asked, ai_tracked_fp, cat_scores, recs_total "
+        return self._rows("SELECT id, run_at, city, access_token, headline_score, headline_status, coverage_pct, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked, ai_named, ai_asked, ai_tracked_named, ai_tracked_asked, ai_tracked_fp, cat_scores, ai_depth, recs_total "
                           "FROM runs WHERE hotel_key = ? ORDER BY run_at DESC, id DESC", (key,))
 
     LIGHT = "id, hotel_key, run_at, headline_score, ai_generic_named, ai_generic_asked, ai_niche_named, ai_niche_asked, ai_named, ai_asked, ai_tracked_named, ai_tracked_asked, ai_tracked_fp, cat_scores"
@@ -318,6 +327,17 @@ class PortalMixin:
         for r in self._rows(f"SELECT {self.LIGHT} FROM runs WHERE hotel_key IN ({', '.join('?' for _ in keys)}) ORDER BY run_at ASC, id ASC", tuple(keys)):
             out.setdefault(r["hotel_key"], []).append(r)
         return out
+
+    def people_for_hotels(self, ids):
+        """({hotel_id: number of logins}, {hotel_id: number of open invites}) for many hotels in two queries."""
+        ids = list(ids)
+        if not ids:
+            return {}, {}
+        q = ", ".join("?" for _ in ids)
+        users = {r["hotel_id"]: r["n"] for r in self._rows(f"SELECT hotel_id, COUNT(*) AS n FROM hotel_users WHERE hotel_id IN ({q}) GROUP BY hotel_id", tuple(ids))}
+        invites = {r["hotel_id"]: r["n"] for r in self._rows(f"SELECT hotel_id, COUNT(*) AS n FROM invites WHERE hotel_id IN ({q}) AND (used IS NULL OR used = '') AND expires > ? GROUP BY hotel_id",
+                                                               tuple(ids) + (now_iso(),))}
+        return users, invites
 
     def actions_for_hotels(self, ids):
         """Every action of the given hotels in ONE query: {hotel_id: [actions]}."""

@@ -302,12 +302,18 @@ def research_box(res, running, post_url, csrf, can_run=True):
     return f'<div class="research-box"><span>{msg}</span>{btn}</div>'
 
 
+def depth_label(r):
+    """'Deep' / 'Standard' / '' for one check's row."""
+    return {"deep": "Deep", "standard": "Standard"}.get((r or {}).get("ai_depth") or "", "")
+
+
 def history_table(runs):
     if not runs:
         return ""
     rows = "".join(f'<tr><td>{esc(uk_time(r["run_at"]))}</td><td>{"-" if r["headline_score"] is None else format(r["headline_score"], "g")}</td>'
+                   f'<td>{chip("Deep", "brand") if r.get("ai_depth") == "deep" else esc(depth_label(r))}</td>'
                    f'<td>{esc(str(r["recs_total"]) if r["recs_total"] is not None else "-")}</td><td>' + (f'<a href="/r/{r["access_token"]}">Detailed analysis</a>' if r.get("access_token") else "") + '</td></tr>' for r in runs[:30])
-    return ('<div class="table-wrap"><table class="table"><thead><tr><th>Checked (UK time)</th><th>Readiness</th><th>Actions</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>")
+    return ('<div class="table-wrap"><table class="table"><thead><tr><th>Checked (UK time)</th><th>Readiness</th><th>AI test</th><th>Actions</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>")
 
 
 def live_panel(state, url):

@@ -66,6 +66,18 @@ def ai_moved(before, now):
     return "same"
 
 
+def depth_of(rep):
+    """'deep', 'standard' or '' (no AI test). Recorded on checks since Nov 2026; older ones are recognised by their repeats (a deep test asks its core prompts 5 times)."""
+    d = ((rep or {}).get("meta") or {}).get("ai_depth")
+    if d in ("deep", "standard"):
+        return d
+    ai = (rep or {}).get("ai_sample") or {}
+    if ai.get("status") != "ok":
+        return ""
+    most = max([int(i.get("repeats") or 1) for i in ai.get("items") or []] or [1])
+    return "deep" if most >= 5 else "standard"
+
+
 def score_basis(rep):
     """The areas the readiness score measured, as one string: two scores are comparable only when they measured the same areas."""
     cats = ((rep or {}).get("scorecard") or {}).get("categories") or []

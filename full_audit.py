@@ -1318,6 +1318,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "meta": {
             "hotel": hotel,
             "city": city,
+            "ai_depth": ai_depth,                 # how thorough the AI test was (deep: a hotel's baseline; standard: the weekly checks)
             "profile": (__import__("hotel_profile").for_report(profile) if profile else None),        # the profile the hotel confirmed, as this check used it
             "website": website,
             "base": base,

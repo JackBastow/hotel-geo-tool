@@ -54,5 +54,18 @@ w = scheduler.Weekly(type("C", (), {"database_url": None})(), None, None)
 due = [h["id"] for h in w.due(db=db, now=now)]
 check("the weekly list includes a cut-off check even inside the 12-hour retry window, and not a hotel checked yesterday", due == [1], due)
 
+print("deep at the start, standard after")
+cfg2 = type("C", (), {"database_url": None, "weekly_ai_depth": "standard", "ai_depth": "standard"})()
+w2 = scheduler.Weekly(cfg2, None, None)
+hh = {"id": 9, "hotel_key": "k", "website": "k.example", "name": "K", "city": "X", "tier": None, "audiences": "", "profile_json": None}
+check("a hotel with no checks gets a deep one (its baseline)", w2.params_for(hh, db=DB([], {"k": []}))["depth"] == "deep")
+check("a hotel whose deep check was deleted gets a deep one again", w2.params_for(hh, db=DB([], {"k": [{"run_at": iso(week_ago), "ai_depth": "standard"}]}))["depth"] == "deep")
+check("a hotel with a deep check on record gets the standard one, by hand or weekly",
+      w2.params_for(hh, manual=True, db=DB([], {"k": [{"run_at": iso(week_ago), "ai_depth": "deep"}]}))["depth"] == "standard"
+      and w2.params_for(hh, db=DB([], {"k": [{"run_at": iso(week_ago), "ai_depth": "deep"}]}))["depth"] == "standard")
+import report_model
+check("an older check without a recorded depth is recognised by its repeats (core prompts asked 5 times: deep)",
+      report_model.depth_of({"ai_sample": {"status": "ok", "items": [{"repeats": 5}]}}) == "deep" and report_model.depth_of({"ai_sample": {"status": "ok", "items": [{"repeats": 3}]}}) == "standard")
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

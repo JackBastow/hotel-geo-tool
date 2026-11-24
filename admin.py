@@ -24,10 +24,10 @@ from htmlst import st
 
 ADMIN_HOURS = 8
 NAV = [("overview", "Overview"), ("portfolio", "Portfolio"), ("audit", "Quick audit"), ("runs", "Runs"), ("hotels", "Hotels"), ("markets", "Markets"), ("usage", "Usage"), ("speed", "Speed"), ("feedback", "Feedback"), ("export", "Export")]
-PUB_COLS = ["id", "run_at", "hotel", "city", "headline_status", "headline_score", "coverage_pct", "ai_generic_named", "ai_generic_asked", "ai_niche_named", "ai_niche_asked",
+PUB_COLS = ["id", "run_at", "hotel", "city", "ai_depth", "headline_status", "headline_score", "coverage_pct", "ai_generic_named", "ai_generic_asked", "ai_niche_named", "ai_niche_asked",
             "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_rank_in_table", "ai_top_competitor", "reviews_replied", "reviews_examined", "pack_reviews", "pack_reply_rate", "pagespeed_perf",
             "recs_total", "ai_cost_usd"]
-NICE = {"run_at": "Run", "hotel": "Hotel", "city": "City", "headline_status": "Headline", "headline_score": "Readiness", "coverage_pct": "Readiness coverage %", "ai_generic_named": "Named (town)",
+NICE = {"run_at": "Run", "hotel": "Hotel", "city": "City", "ai_depth": "AI test", "headline_status": "Headline", "headline_score": "Readiness", "coverage_pct": "Readiness coverage %", "ai_generic_named": "Named (town)",
         "ai_generic_asked": "of", "ai_niche_named": "Named (niche)", "ai_niche_asked": "of ", "ai_share": "Share of names %", "ai_coverage_pct": "Coverage %", "ai_sentiment": "Net sentiment",
         "ai_rank_in_table": "Place in table", "ai_top_competitor": "Top competitor", "reviews_replied": "Replies seen", "reviews_examined": "Reviews examined", "pack_reviews": "Reviews in export",
         "pack_reply_rate": "Export reply rate %", "pagespeed_perf": "Mobile speed", "recs_total": "Recommendations", "ai_cost_usd": "AI cost $", "id": "Run id"}

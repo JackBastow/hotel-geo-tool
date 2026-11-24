@@ -64,14 +64,19 @@ class Weekly:
         db = db or self._db()
         now = now or dt.datetime.now(dt.timezone.utc)
         out = []
-        for h in (db.list_hotels(only_active=True) if db else []):
+        hotels = db.list_hotels(only_active=True) if db else []
+        try:
+            light = db.runs_light([h["hotel_key"] for h in hotels]) if hasattr(db, "runs_light") else None      # every hotel's checks in one query
+        except Exception:  # noqa: BLE001
+            light = None
+        for h in hotels:
             if force_ids is not None:
                 if h["id"] in force_ids:
                     out.append(h)
                 continue
             if not h["weekly"] or h.get("setup") == "pending":
                 continue                       # a new hotel is not checked until its profile and prompts are confirmed (confirming the prompts starts its first check)
-            hist = db.hotel_runs(h["hotel_key"])
+            hist = list(reversed(light.get(h["hotel_key"], []))) if light is not None else db.hotel_runs(h["hotel_key"])
             last = _parse(hist[0]["run_at"]) if hist else None
             tried = _parse(h["last_attempt"]) if h["last_attempt"] else None
             if interrupted(h, last, now):
@@ -94,8 +99,9 @@ class Weekly:
         Begin checks in the background. -> (started, how many hotels were added). A hotel asked for by name (force_ids) joins the queue even while a batch is running, unless it is already queued or running;
         with no ids it queues every hotel that is due.
         """
+        candidates = self.due(force_ids=force_ids)              # the database work happens before taking the lock the dashboards also need
         with self.lock:
-            hotels = [h for h in self.due(force_ids=force_ids) if not self.active(h["id"])]
+            hotels = [h for h in candidates if not self.active(h["id"])]
             if not hotels:
                 return True, 0
             for h in hotels:
@@ -133,8 +139,15 @@ class Weekly:
                 return {"state": "idle", "messages": [], "elapsed": 0, "error": ""}
             return {"state": s["state"], "messages": list(s["messages"][-8:]), "elapsed": round((s["finished"] or time.time()) - s["started"]), "error": s["error"]}
 
-    def params_for(self, h, manual=False):
-        depth = getattr(self.cfg, "ai_depth", "standard") if manual else getattr(self.cfg, "weekly_ai_depth", "standard")
+    def params_for(self, h, manual=False, db=None):
+        # deep while the hotel has no deep check on record (its baseline: the first check, or the next one after a deep check was deleted); the weekly depth (standard) otherwise
+        depth = getattr(self.cfg, "weekly_ai_depth", "standard")
+        try:
+            db = db or self._db()
+            if db is not None and not any(r.get("ai_depth") == "deep" for r in db.hotel_runs(h["hotel_key"])):
+                depth = "deep"
+        except Exception:  # noqa: BLE001
+            pass
         import hotel_profile
         return {"website": h["website"], "hotel": h["name"], "city": h["city"], "wider": True, "tier": h["tier"] or None,
                 "audiences": [a for a in (h["audiences"] or "").split(",") if a], "depth": depth, "profile": hotel_profile.confirmed(h)}
@@ -168,7 +181,7 @@ class Weekly:
                 st["messages"].append(str(msg)[:200])
                 del st["messages"][:-30]
         try:
-            rep = self.run_fn(self.params_for(h, manual), progress)
+            rep = self.run_fn(self.params_for(h, manual, db), progress)
             res["token"] = self.reports.save(rep)
             res["ok"] = True
             db.set_hotel(hotel_id, last_error="")
