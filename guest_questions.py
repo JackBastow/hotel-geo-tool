@@ -203,12 +203,12 @@ QUESTIONS = [
         "label": "How do guests get there by train, air and road?",
         "slugs": ["getting here", "directions", "transport", "location", "find us",
                   "how to find", "travel", "contact"],
-        "mention": _rx(r"\bstation\b", r"\bairport\b", r"\btrain\b", r"\btaxi\b",
+        "mention": _rx(r"(?<![\w-])station\b", r"\bairport\b", r"\btrain\b", r"\btaxi\b",
                        r"\bjunction\b", r"\bM\d{1,3}\b", r"sat[\s\-]?nav",
                        r"getting here", r"how to find"),
         "facts": [
             _fact("public", "public transport (rail, air, bus)",
-                  r"station", r"\btrain\b", r"\brail\b", r"airport", r"\bbus\b",
+                  r"(?<![\w-])station", r"\btrain\b", r"\brail\b", r"airport", r"\bbus\b",
                   r"\btube\b", r"\btaxi\b", r"shuttle"),
             _fact("road", "road directions (junction, postcode, sat-nav)",
                   r"junction", r"\bM\d{1,3}\b", r"\bA\d{1,3}\b", r"sat[\s\-]?nav",
@@ -343,16 +343,17 @@ def _clean(s):
 
 
 def keep_lines(lines=None):
-    """Does the page reader keep the page's lines? `lines` overrides; otherwise READER_LINES on the host (default off until verified on real pages)."""
+    """Does the page reader keep the page's lines? `lines` overrides; otherwise READER_LINES on the host (on by default; 0 turns it off)."""
     if lines is not None:
         return bool(lines)
-    return (os.environ.get("READER_LINES") or "0").strip().lower() in ("1", "true", "yes", "on")
+    return (os.environ.get("READER_LINES") or "1").strip().lower() in ("1", "true", "yes", "on")          # on: verified on the Marriott and NICI pages (Nov 2026); READER_LINES=0 turns it off
 
 
 def clean_lines(s):
     """Page text with its line structure kept: spaces collapsed within a line, blank lines and spaces around line breaks removed."""
     s = re.sub(r"[^\S\n]+", " ", _INVISIBLE.sub("", s or ""))
     s = re.sub(r" :(?= |\n|$)", ":", s)                               # 'On-site parking :' (a term's colon came as its own piece)
+    s = re.sub(r"(?m)^([^\n:]{2,60}:) ?\n(?=[^\n]{1,80}(?:\n|$))", r"\1 ", s)    # 'Maximum Pet Weight:' then '6.0kgs' on the next line: a label and its value
     s = re.sub(r"(?: ?·)+ ?(?=\n|$)", "", s)                    # the separator after a row's last cell
     s = re.sub(r"(?:^|(?<=\n))(?: ?· ?)+", "", s)                # or before its first, when that cell was empty
     return re.sub(r" ?\n[\n ]*", "\n", s).strip()

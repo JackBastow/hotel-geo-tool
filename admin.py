@@ -370,6 +370,16 @@ def register(app, cfg):
                                                       "quoted": [[f.get("label"), (f.get("snippet") or "")[:240]] for f in q.get("fact_snippets") or []]} for q in qs}}
             out["compare"] = both
             out["firecrawl"].pop("markdown", None)
+            if request.args.get("find"):
+                try:
+                    rx_ = re.compile(request.args["find"], re.I)
+                except re.error:
+                    rx_ = re.compile(re.escape(request.args["find"]), re.I)
+                for name, flag in (("old", False), ("new", True)):
+                    full = firecrawl_reader.build_page(url, res, lines=flag).get("text") or ""
+                    ls = full.split("\n")
+                    out["compare"][name]["found"] = [" | ".join(ls[max(0, i - 2): i + 3])[:600] for i, ln in enumerate(ls) if rx_.search(ln)][:15] if flag else \
+                        [full[max(0, m.start() - 200): m.end() + 200] for m in rx_.finditer(full)][:15]
             return Response(json.dumps(out, indent=1, ensure_ascii=False), mimetype="application/json")
         if res.get("ok"):
             page = firecrawl_reader.build_page(url, res)

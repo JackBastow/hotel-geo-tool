@@ -351,6 +351,13 @@ _only_home = {q["id"]: q for q in gq.evaluate([dict(_home, text=_home["text"] + 
 check("with no FAQ, policies or information page read, an unanswered question is 'could not check', not 'not found' (so nothing is recommended)",
       _only_home["cancellation"]["state"] == "couldnt_check" and "no page this belongs on" in (_only_home["cancellation"].get("not_assessed") or ""), _only_home["cancellation"]["state"])
 check("with the FAQ read, an unanswered question is a real gap", _nq["wifi"]["state"] == "not_found", _nq["wifi"]["state"])
+check("a label on its own line and its value are one line (Marriott: 'Maximum Pet Weight:' then '6.0kgs')", "Maximum Pet Weight: 6.0kgs" in gq.clean_lines("Pet Policy\nMaximum Pet Weight:\n6.0kgs\nCheck-in: 4:00 pm"))
+_eg = {q["id"]: q for q in gq.evaluate([{"url": _MB + "overview/", "ok": True, "title": "Overview", "h1": [], "text": "Breakfast at Sixtine\nFor breakfast, guests will enjoy a full American buffet with a live egg-station."}])}
+check("a breakfast buffet's 'live egg-station' is not a railway station (Marriott overview: transport was answered by it)", not _eg["transport"].get("fact_snippets"), _eg["transport"].get("fact_snippets"))
+_dn = {q["id"]: q for q in gq.evaluate([{"url": _MB + "dining/", "ok": True, "title": "Dining", "h1": [], "text": "Brasserie Sixtine\nMon-Fri 12:00 PM-2:30 PM 5:30 PM-10:00 PM\nSat 5:30 PM-10:00 PM\nSun Closed\n"
+                                          "Breakfast\nEnjoy a generous American-style breakfast buffet.\nBreakfast hours: 6:30 AM-10:30 AM"}])}
+check("breakfast times are the breakfast hours, not the brasserie's lunch and dinner hours (Marriott dining page, the live false finding)",
+      any("6:30 AM" in f["snippet"] for f in _dn["breakfast"].get("fact_snippets") or []) and not any("12:00 PM" in f["snippet"] for f in _dn["breakfast"].get("fact_snippets") or []), _dn["breakfast"].get("fact_snippets"))
 import claude_reader
 _md = claude_reader.to_page(_MB, "# Overview\n\n## Parking\n\n- On-site parking: not available\n- Nearby: EUR 35 a day\n\n## Pets\n\nPet fee EUR 50", lines=True)
 check("a page that came as markdown keeps its lines too", "On-site parking: not available\nNearby: EUR 35 a day" in _md["text"], _md["text"])
