@@ -151,6 +151,12 @@ def start(db_url, hotel_id, cfg):
     """Research in the background (a minute or two), once at a time per hotel. -> True when started."""
     if not (db_url and getattr(cfg, "anthropic", None)):
         return False
+    try:
+        import store
+        if store.quota_status(planned_calls=1, service="claude")[2]:
+            return False                                   # this month's allowance for AI calls is used: no research until it resets
+    except Exception:  # noqa: BLE001
+        pass
     with _lock:
         if hotel_id in _running:
             return False
@@ -176,11 +182,32 @@ def start(db_url, hotel_id, cfg):
     return True
 
 
+def recent(hotel, hours=6):
+    """Was research run (successfully or not) for this hotel within `hours`? Used to stop the hotel's own button running a paid search again and again."""
+    r = load(hotel)
+    if not r or not r.get("at"):
+        return False
+    try:
+        import datetime as dt
+        at = dt.datetime.fromisoformat(str(r["at"]).replace("Z", "+00:00"))
+        return (dt.datetime.now(dt.timezone.utc) - at).total_seconds() < hours * 3600
+    except (TypeError, ValueError):
+        return False
+
+
 def stale(hotel, days=30):
     """No research yet, or older than `days`, or older than the profile it was based on."""
     r = load(hotel)
-    if not r or r.get("status") != "ok":
+    if not r:
         return True
+    if r.get("status") != "ok":
+        # a failed run is tried again a day later, not on every page view (each try is a paid web search; a failure that repeats would otherwise run up the bill all day)
+        try:
+            import datetime as dt
+            at = dt.datetime.fromisoformat(str(r.get("at") or "").replace("Z", "+00:00"))
+            return (dt.datetime.now(dt.timezone.utc) - at).total_seconds() >= 86400
+        except (TypeError, ValueError):
+            return True
     try:
         import datetime as dt
         import hotel_profile

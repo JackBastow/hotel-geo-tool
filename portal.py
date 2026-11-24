@@ -484,6 +484,9 @@ def register(app, cfg):
         if not csrf_ok(request.form.get("csrf")):
             abort(400)
         import strategy_research
+        h = next(x for x in hotels if x["id"] == hotel_id)
+        if strategy_research.recent(h, hours=6):
+            return redirect(f"/portal/hotel/{hotel_id}#actions")          # a hotel's own button runs it at most every 6 hours: each run is a paid web search
         strategy_research.start(cfg.database_url, hotel_id, cfg)
         return redirect(f"/portal/hotel/{hotel_id}#actions")
 
