@@ -27,7 +27,7 @@ import requests
 import ai_sample
 
 ENGINES = {
-    "chatgpt": {"name": "ChatGPT", "maker": "OpenAI", "env": ("OPENAI_API_KEY",), "cap_env": "OPENAI_MONTHLY_CAP_USD", "cap": 60.0},
+    "chatgpt": {"name": "ChatGPT", "maker": "OpenAI", "env": ("OPENAI_API_KEY",), "cap_env": "OPENAI_MONTHLY_CAP_USD", "cap": 20.0},
     "gemini": {"name": "Gemini", "maker": "Google", "env": ("GEMINI_API_KEY", "GEMINI_SEARCH_API_KEY"), "cap_env": "GEMINI_MONTHLY_CAP_USD", "cap": 20.0},
     "perplexity": {"name": "Perplexity", "maker": "Perplexity", "env": ("PERPLEXITY_API_KEY",), "cap_env": "PERPLEXITY_MONTHLY_CAP_USD", "cap": 20.0},
 }

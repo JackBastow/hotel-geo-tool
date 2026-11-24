@@ -47,7 +47,7 @@ SERVICE_CAPS = {
     "google_places": int(os.environ.get("GOOGLE_PLACES_MONTHLY_CAP") or 4000), # calls a month of the cheapest field set; Google's free allowance per SKU is a few thousand: check the pricing page
     "chat": int(os.environ.get("CHAT_MONTHLY_CAP") or 3000),
     # the other AI assistants (assistants.py): spend in thousandths of a dollar; each stops for the month at its cap (set lower on the host if wanted; the providers' own spend limits are the hard stop)
-    "ai_chatgpt_usd": int(float(os.environ.get("OPENAI_MONTHLY_CAP_USD") or 60) * 1000),
+    "ai_chatgpt_usd": int(float(os.environ.get("OPENAI_MONTHLY_CAP_USD") or 20) * 1000),
     "ai_gemini_usd": int(float(os.environ.get("GEMINI_MONTHLY_CAP_USD") or 20) * 1000),
     "ai_perplexity_usd": int(float(os.environ.get("PERPLEXITY_MONTHLY_CAP_USD") or 20) * 1000),     # replies a month from the marketing site's chat assistant (chat.py)
     "gemini_reader": 500,   # calls/month, for gemini_reader.py's free ungrounded
