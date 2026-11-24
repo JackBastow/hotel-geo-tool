@@ -102,6 +102,8 @@ def _same_name(found, hotel, city):
     """Is a place found under a shorter name this hotel? The full name in it (hotelname.mentioned), or a distinctive word of the hotel's name (not 'hotel', 'palace', its brand or its town):
     'Hotel Ambasciatori Palace' for 'InterContinental Rome Ambasciatori Palace', 'Eriksberg Vilt och Natur' for 'Eriksberg Hotel & Nature Reserve'."""
     import hotelname
+    if hotelname.sister_brand(found, hotel):
+        return False                                   # a sister hotel ('... Express ...') is another hotel
     if hotelname.mentioned(found, hotel, city):
         return True
     skip = _COMMON | set(evidence.fold(city or "").split()) | {w for b in hotelname.BRANDS for w in b.split()}

@@ -119,6 +119,25 @@ def _bare_word_with_town(t, word, town):
     return any(re.search(r"\b" + re.escape(word) + r"\b", s) and place in s for s in re.split(r"(?<=[.!?\n])\s+", t))
 
 
+# a sister hotel in the same building or brand family is another hotel: 'Holiday Inn Express Amsterdam Arena Towers' is not 'Holiday Inn Amsterdam - Arena Towers'
+SUB_BRANDS = ("express", "studios", "aparthotel", "extended stay", "garden inn", "home2", "homewood", "residence inn", "staybridge", "candlewood", "element", "aloft", "moxy",
+              "fairfield", "springhill", "towneplace", "tru", "hampton")          # separate brands only: an entry that drops '& Suites' is still the same hotel
+
+
+def sister_brand(a, b):
+    """Do two hotel names differ by a sub-brand word (one is the Express, the Suites, the Garden Inn of the other)? -> the word, or ''."""
+    fa, fb = f" {_fold_name(a)} ", f" {_fold_name(b)} "
+    for w in SUB_BRANDS:
+        if (f" {w} " in fa) != (f" {w} " in fb):
+            return w
+    return ""
+
+
+def _fold_name(s):
+    import evidence
+    return re.sub(r"[^a-z0-9]+", " ", evidence.fold(s or "")).strip()
+
+
 def mentioned(text, hotel, city=""):
     """Is THIS hotel named in `text`? (whole words, its usual shorter forms, never a place or another hotel's longer name)."""
     if not text or not hotel:

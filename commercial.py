@@ -72,6 +72,9 @@ def rival_own_site(a):
     if len(names) > 2 and a.get("lists_hotels") is not False:
         return False
     for n in names:
+        whole = re.sub(r"[^a-z0-9]", "", evidence.fold(n))
+        if len(whole) >= 6 and whole in dom:
+            return True                                # the name run together: 'hotelcasa.nl' is Hotel Casa's own site (Holiday Inn Amsterdam)
         for w in evidence.fold(n).split():
             if len(w) >= 5 and w not in _NAME_STOP and w in dom:
                 return True

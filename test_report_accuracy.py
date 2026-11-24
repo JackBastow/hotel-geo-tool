@@ -425,6 +425,11 @@ try:
 finally:
     _exc._osm_search = _orig_osm
 check("the map entry the hotel was found by is its OpenStreetMap entry: no 'our search found no entry' (Eriksberg)", _oe["found"] and _oe["match_confident"] is True and "Eriksberg Vilt och Natur" in _oe["match_reason"])
+check("the Holiday Inn Express in the same building is another hotel: its map entry is not this hotel's (Holiday Inn Amsterdam - Arena Towers: 'OpenStreetMap links to hiexpress.com')",
+      not _exc._osm_name_ok({"name": "Holiday Inn Express Amsterdam Arena Towers"}, "Holiday Inn Amsterdam - Arena Towers", "Amsterdam")
+      and _exc._osm_name_ok({"name": "Holiday Inn Amsterdam Arena Towers"}, "Holiday Inn Amsterdam - Arena Towers", "Amsterdam")
+      and not anchors._same_name("Holiday Inn Express Amsterdam Arena Towers", "Holiday Inn Amsterdam - Arena Towers", "Amsterdam"))
+check("an entry that leaves out '& Suites' is still the same hotel", not __import__("hotelname").sister_brand("Brooklands Hotel", "Brooklands Hotel & Suites"))
 check("but never another hotel in the same town", not anchors._same_name("Hotel Splendide Royal", "InterContinental Rome Ambasciatori Palace", "Rome"))
 _facts = [{"text": t} for t in ("price level: upscale", "kind of hotel: business", "close to Louvre Museum (15 minutes)", "offers restaurant (strong evidence on its own pages)",
                                  "its kind and pages support: meetings and events")]

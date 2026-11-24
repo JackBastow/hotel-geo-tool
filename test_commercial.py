@@ -124,7 +124,7 @@ check("a baseline town question ('Which hotels in Paris are best for a weekend a
 check("and its 'Not named when asked' finding is low priority", next(r for r in _r2 if r["id"] == "AG-niche_base2")["priority"] == "low")
 
 check("a rival hotel's own website is not a page to 'get onto' (Eriksberg: bestwestern.se naming only Best Western Hotell Karlshamn)",
-      commercial.rival_own_site({"domain": "bestwestern.se", "rivals_in": ["Best Western Hotell Karlshamn"]}) and commercial.rival_own_site({"domain": "hotelcarlshamn.se", "rivals_in": ["Home Hotel Carlshamn"]}))
+      commercial.rival_own_site({"domain": "bestwestern.se", "rivals_in": ["Best Western Hotell Karlshamn"]}) and commercial.rival_own_site({"domain": "hotelcarlshamn.se", "rivals_in": ["Home Hotel Carlshamn"]}) and commercial.rival_own_site({"domain": "hotelcasa.nl", "rivals_in": ["Hotel Casa", "Joy Hotel"]}))
 check("a town's tourism site naming several hotels, or an editorial site, still is", not commercial.rival_own_site({"domain": "visitkarlshamn.se", "rivals_in": ["Hotel Carlshamn", "Best Western Hotell Karlshamn", "Villa Vegatorp"]})
       and not commercial.rival_own_site({"domain": "oyster.com", "rivals_in": ["Sofitel Le Scribe Paris Opéra"]}))
 

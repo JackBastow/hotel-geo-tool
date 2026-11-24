@@ -329,7 +329,11 @@ def _osm_name_ok(h, hotel, city):
     import evidence
     town = set(evidence.fold((city or "").split(",")[0]).split())
     want = {t for t in evidence.distinctive_tokens(hotel) if t not in town}
-    got = set(evidence.fold(h.get("name") or (h.get("display_name", "").split(",")[0])).split())
+    nm = h.get("name") or (h.get("display_name", "").split(",")[0])
+    got = set(evidence.fold(nm).split())
+    import hotelname
+    if hotelname.sister_brand(nm, hotel):
+        return False                                   # the Holiday Inn Express in the same building is another hotel (Holiday Inn Amsterdam - Arena Towers)
     return len(want & got) >= min(2, len(want)) if want else False
 
 
