@@ -192,12 +192,15 @@ def verify(rows, pages):
 def headline(relations):
     """
     The one answer the rest of the report needs ('does the hotel itself have it?'), from every relationship the pages state. -> {"status", "quote", "url", "note", "conflict"}.
-    At the hotel and not offered both stated is a conflict: no headline (the word rules decide, and the operator sees it), never a guess either way.
+    At the hotel AND not offered both stated is the hotel having it with exceptions ('cots, but no interconnecting rooms'): at the hotel, with exceptions=True.
     Otherwise: at the hotel, else not offered, else through a partner, else nearby. Brooks: parking not offered AND a public car park nearby -> not offered, with the car park kept.
     """
     sts = {r["status"] for r in relations}
     if ON_SITE in sts and NOT_OFFERED in sts:
-        return {"status": None, "quote": "", "url": "", "note": "", "conflict": True}
+        # 'cots and extra beds' AND 'no interconnecting rooms' (THE NICI), 'dogs welcome in two rooms' AND 'no dogs in the restaurant': the hotel has it, with exceptions. Both stay in
+        # the relations, so a section that needs the exception can show it.
+        r = next(x for x in relations if x["status"] == ON_SITE)
+        return {"status": ON_SITE, "quote": r["quote"], "url": r["url"], "note": r["note"], "conflict": False, "exceptions": True}
     for s in (ON_SITE, NOT_OFFERED, PARTNER, NEARBY):
         if s in sts:
             r = next(x for x in relations if x["status"] == s)
@@ -272,6 +275,12 @@ def reconcile_questions(questions, profile):
             q["state"], q["missing"], q["nice_to_have"] = "answered", [], []
             q["not_offered"] = [{"label": q.get("short") or q["id"], "snippet": p["quote"], "url": p["url"]}]
             q["snippet"], q["source_url"] = p["quote"], p["url"]
+            changed.append(q["id"])
+        elif p["status"] == NOT_OFFERED and q.get("state") == "answered" and not q.get("not_offered"):
+            # the pages say both (Brooks Guesthouse: 'we only accept Guide dogs' in the FAQ, 'Dog-Friendly Stays' as a heading): neither is taken; the hotel is shown both to settle it
+            q["state"] = "needs_checking"
+            q["note"] = f"the pages say two things: “{(q.get('snippet') or '')[:120]}” and “{p['quote'][:160]}”. Worth making them agree."
+            q["contradiction"] = {"says_offered": q.get("snippet") or "", "says_not": p["quote"], "url": p["url"]}
             changed.append(q["id"])
         if q["id"] in changed:
             try:

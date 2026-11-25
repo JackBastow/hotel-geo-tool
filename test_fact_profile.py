@@ -84,7 +84,7 @@ check("a facility keeps every relationship the pages state: parking not offered 
 check("what was read is recorded (pages sent, cut short, left out)", prof["pages_sent"] == 3 and "pages_truncated" in prof and "pages_failed" in prof)
 check("'not stated' says what it rests on", fact_profile.not_stated_basis(dict(prof, pages_failed=2)) == "not stated on the 3 pages read (2 could not be read)", fact_profile.not_stated_basis(dict(prof, pages_failed=2)))
 _c = fact_profile.headline([{"status": "on_site", "quote": "a", "url": "u", "note": ""}, {"status": "not_offered", "quote": "b", "url": "u", "note": ""}])
-check("'has it' and 'does not have it' both stated is a conflict: no answer is taken from the AI", _c["conflict"] and _c["status"] is None)
+check("'has it' and a specific 'not offered' is the hotel having it with exceptions (THE NICI: cots, but no interconnecting rooms)", _c["status"] == "on_site" and _c.get("exceptions") and not _c["conflict"], _c)
 check("the drops are counted, with reasons", prof["rejected"] == 4 and "quotation not found in the page" in prof["reasons"], prof["reasons"])
 _cl = _Client(REPLY)
 fact_profile.build(PAGES, client=_cl)
@@ -156,8 +156,14 @@ _ch = fact_profile.reconcile_questions(_qs, {"facilities": {"pets": {"status": "
                                                              "parking": {"status": "not_offered", "quote": "We do not have car parking.", "url": "u2"}}})
 check("a restriction ('not allowed in restaurant outlets') is not 'no pets' when the profile says dogs are welcome", not _qs[0]["not_offered"] and _qs[0]["state"] == "partial" and "pets" in _ch)
 check("a question the rules could not answer takes the profile's 'not offered', with its quotation", _qs[1]["state"] == "answered" and _qs[1]["not_offered"][0]["snippet"] == "We do not have car parking.")
+_q3 = [{"id": "pets", "short": "Pets", "state": "answered", "found": ["whether pets are allowed"], "snippet": "Dog-Friendly Stays"}]
+fact_profile.reconcile_questions(_q3, {"facilities": {"pets": {"status": "not_offered", "quote": "No sorry we only accept Guide dogs.", "url": "u"}}})
+check("pages that say both ('Dog-Friendly Stays' and 'we only accept Guide dogs': Brooks) are 'needs checking' with both quotations, never one taken silently",
+      _q3[0]["state"] == "needs_checking" and _q3[0]["contradiction"]["says_not"].startswith("No sorry"))
+check("and the operator sees it", any("contradict themselves about pets" in x["what"] for x in run_health.issues({"meta": {"location": {"lat": 1}}, "ai_sample": {"status": "ok"},
+                                                                                                                       "fact_profile": {"status": "ok"}, "guest_questions": {"questions": _q3}})))
 import ai_questions
-_b = ai_questions.build({"tier": {"key": "midscale", "label": "Mid-range", "why": "x"}, "classes": ["city_centre", "business"], "strong_features": ["wifi"], "features": ["wifi"]},
+_b =ai_questions.build({"tier": {"key": "midscale", "label": "Mid-range", "why": "x"}, "classes": ["city_centre", "business"], "strong_features": ["wifi"], "features": ["wifi"]},
                         "Brooks Guesthouse", "Bath", [{"name": "Victoria Park", "kind": "attraction", "distance": "350 meters", "km": 0.35, "source": "the hotel's own pages"}])
 check("no written question asks about meeting space or parking the hotel's facts do not give it (Brooks Guesthouse)",
       not any(re.search(r"meeting|parking", q["text"], re.I) for q in _b["questions"]), [q["text"] for q in _b["questions"] if re.search(r"meeting|parking", q["text"], re.I)])

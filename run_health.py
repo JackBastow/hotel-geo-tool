@@ -77,6 +77,10 @@ def issues(rep):
     elif fp:
         if fp.get("rejected", 0) >= max(3, fp.get("kept", 0)):
             add("minor", f"{fp['rejected']} of the AI reading's answers failed the quotation check", "; ".join(f"{k}: {v}" for k, v in (fp.get("reasons") or {}).items()))
+        said_both = [q["id"] for q in (gq.get("questions") or []) if q.get("contradiction")]
+        if said_both:
+            add("minor", "The hotel's pages contradict themselves about " + ", ".join(said_both), "Shown to the hotel as 'needs checking' with both quotations: "
+                + "; ".join(f"“{q['contradiction']['says_offered'][:60]}” vs “{q['contradiction']['says_not'][:60]}”" for q in gq["questions"] if q.get("contradiction")))
         clash = [k for k, v in (fp.get("facilities") or {}).items() if v.get("conflict")]
         if clash:
             add("minor", "The pages contradict themselves about " + ", ".join(clash), "One page says the hotel has it, another that it does not. The word rules decided; worth checking on the site.")
