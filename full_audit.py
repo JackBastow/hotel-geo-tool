@@ -1270,7 +1270,9 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         external_result = external_presence.build((_ie.get("identity") or {}).get("footprint"), ext["entities"], ext["consistency"], listing_checks, _ie.get("media"), hotel, city, base,
                                                   [{"url": l["url"], "domain": evidence.domain_of(l["url"])} for l in _home_links],
                                                   own={"postcode": location.get("postcode"), "lat": location.get("lat"), "lon": location.get("lon"),
-                                                       "phone": (guest.get("own_facts_node") or {}).get("telephone") or (((guest.get("fact_sheet") or {}) if isinstance(guest.get("fact_sheet"), dict) else {}).get("telephone"))})
+                                                       "phone": (guest.get("own_facts_node") or {}).get("telephone") or (((guest.get("fact_sheet") or {}) if isinstance(guest.get("fact_sheet"), dict) else {}).get("telephone")),
+                                                       "phones": [t for p in (own_pages or []) for t in (p.get("tels") or [])]
+                                                       + [m.group() for p in (own_pages or []) for m in __import__("insight_content")._PHONE.finditer((p.get("footer_text") or "") + " " + (p.get("text") or "")[:3000])]})
     except Exception as _step_e:  # noqa: BLE001
         steps.failed('Analysing coverage, traveller fit and recommendations / _ie', _step_e)
         external_result = None

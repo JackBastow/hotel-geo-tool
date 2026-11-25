@@ -137,6 +137,8 @@ QUESTIONS = [
         "slugs": ["check in", "check out", "arrival", "faq", "policies", "policy",
                   "terms", "information", "guest", "hotel info"],
         "mention": _rx(r"check[\s\-]?in\b", r"check[\s\-]?out\b"),      # not 'checking' (a cookie policy's 'checking to see ... the cookie': Carbis Bay)
+        # an online shop's checkout ('use discount code CARBISBAY50 at check out': Carbis Bay's voucher page) is not the hotel's
+        "not_about": re.compile(r"\b(?:discount|promo(?:tion(?:al)?)?|voucher|coupon)\s+codes?\b|\b(?:basket|cart|online shop|gift vouchers?)\b", re.I),
         "facts": [
             _fact("checkin", "the check-in time", *_CI),
             _fact("checkout", "the check-out time", *_CO),

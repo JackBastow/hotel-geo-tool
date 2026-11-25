@@ -149,8 +149,12 @@ def feature_questions(prof, hotel, city, anchor_list):
     return [q for q in out if ai_niche._safe(q["text"], hotel)]
 
 
+_NOT_A_PLACE_TO_VISIT = re.compile(r"\b(?:hotels?|resorts?|inns?|lodges?|guest\s?houses?|b\s?&\s?b|hostels?|aparthotels?)\b|\b(?:line|railway|route|road|street|way|trail)$", re.I)
+
+
 def an_best(anchor_list, n):
-    return [a for a in anchor_list or [] if a.get("kind") in ("attraction", "venue")][:n]
+    """The places to build questions around. Never another hotel ('closest to Tregenna Castle Resort' asks for Carbis Bay's rivals' neighbours) or a railway line or road ('St Ives Bay Line')."""
+    return [a for a in anchor_list or [] if a.get("kind") in ("attraction", "venue") and not _NOT_A_PLACE_TO_VISIT.search(a.get("name") or "")][:n]
 
 
 # --------------------------------------------------------------- proposals
@@ -341,6 +345,10 @@ def misfit(text, facts, tier_key, city="", location=None, fetch=None):
         m = re.search(needs, t, re.I)
         if m and not re.search(licence, known, re.I):
             return f"it asks about {m.group(0).lower()}, which the hotel's facts do not support"
+    town = (city or "").split(",")[0].strip()
+    m = re.search(r"\b(?:near|closest to|walking distance of)\s+(?:the\s+)?([A-Z][^?,]*?)(?:\s+(?:give|have|has|are|is|can|with|for|in|that)\b|[?,]|$)", t)
+    if town and m and evidence.fold(town) not in evidence.fold(t):
+        return f"it asks about {m.group(1)} without saying the town, so an assistant may answer about another {m.group(1)}"
     if tier_key and tier_key != "luxury" and LUXURY_WORDS.search(t):
         return "luxury wording for a hotel that is not luxury"
     if tier_key == "luxury" and BUDGET_WORDS.search(t):

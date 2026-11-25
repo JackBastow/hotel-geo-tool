@@ -293,6 +293,21 @@ def fill_missing(recs):
         r.setdefault("example", "")
         r.setdefault("topics", [])
         r.setdefault("question_ids", [])
+        # the fields the report page's cards read directly (THE NICI: the former-name warning had no 'technical', and the whole report page failed with a server error)
+        r.setdefault("technical", "")
+        r.setdefault("short_title", r["title"])
+        r.setdefault("summary", "")
+        r.setdefault("page", "")
+        r.setdefault("additions", [])
+        r.setdefault("absence_based", False)
+        r.setdefault("brand_run", False)
+        r.setdefault("disputed", False)
+        r.setdefault("owner", r.get("team") or "marketing")
+        r.setdefault("expected_outcome", r.get("success_check") or "")
+        r.setdefault("factors", {})
+        r.setdefault("steps", [])
+        r.setdefault("success_check", "")
+        r.setdefault("confidence", {"Confirmed": "Verified on the hotel's own pages", "Verified": "Verified on the hotel's own pages"}.get(r["confidence_label"], r["confidence_label"]))
     return recs
 
 

@@ -439,8 +439,8 @@ check("nor one asking for hotels near a place measured to be far from it (the Ei
       location={"lat": 48.8727, "lon": 2.3367}, fetch=_eiffel) or ""))
 check("a place that cannot be measured is no reason to retire a prompt (the places found nearby differ from check to check)",
       ai_questions.misfit("An upscale hotel in Paris within walking distance of the Eiffel Tower?", _facts, "upscale", "Paris") is None)
-check("a prompt that rests on the hotel's facts still fits", ai_questions.misfit("Which upscale hotels near Louvre Museum are best for a business trip, with meeting space?", _facts, "upscale", "Paris") is None)
-_bench = [{"text": "Which upscale hotels near Louvre Museum give the best quality for the price?"}, {"text": "Are there hotels in Paris with a spa where we could unwind together?"}]
+check("a prompt that rests on the hotel's facts still fits", ai_questions.misfit("Which upscale hotels near Louvre Museum, Paris are best for a business trip, with meeting space?", _facts, "upscale", "Paris") is None)
+_bench = [{"text": "Which upscale hotels near Louvre Museum, Paris give the best quality for the price?"}, {"text": "Are there hotels in Paris with a spa where we could unwind together?"}]
 _built = ai_questions.build({"tier": {"key": "upscale", "label": "Upscale", "why": "brand"}, "classes": ["business", "city_centre"], "strong_features": ["restaurant", "meeting_rooms"]}, _MH, "Paris",
                             [{"name": "Louvre Museum", "kind": "attraction", "distance": "15 minutes", "source": "the hotel's own pages"}], benchmark=_bench)
 check("the prompt that no longer fits is retired with its reason; the others are asked again word for word", [r["text"] for r in _built["benchmark_retired"]] == [_bench[1]["text"]]
@@ -538,6 +538,33 @@ for _t, _h, _pl, _want in [("Hotel Emma at Pearl on the Riverwalk - Booking.com"
     check(f"listing title {_t[:45]!r} reads as {_want}", _v == _want, _v)
 check("a form's thank-you page is not read (Hotel Emma)", not _gq._SKIP_PATH.search("/rooms/") and bool(_gq._SKIP_PATH.search("/contact-us/thank-you/")))
 check("a zoo's miniature train is not a station to give a distance to (Hotel Emma)", bool(ic._TOY_RAILWAY.search("San Antonio Zoo Eagle Train")) and not ic._TOY_RAILWAY.search("San Antonio station"))
+
+print("21. re-runs of Hotel Emma, Brooks Guesthouse and Carbis Bay")
+import external_presence as _ep
+check("a reused prompt that names a place without the town is retired ('near Pabst Brewing Company' was answered for Milwaukee)",
+      bool(_aq.misfit("Which luxury hotels near Pabst Brewing Company give the best quality for the price?", [], "luxury", "San Antonio"))
+      and _aq.misfit("Which luxury hotels in San Antonio give the best quality for the price?", [], "luxury", "San Antonio") is None)
+check("another hotel or a railway line is never a place to build questions around (Carbis Bay: Tregenna Castle Resort, St Ives Bay Line)",
+      [x["name"] for x in _aq.an_best([{"name": n, "kind": "attraction"} for n in ["Tregenna Castle Resort", "St Ives Bay Line", "Thermae Bath Spa", "Tate St Ives"]], 5)] == ["Thermae Bath Spa", "Tate St Ives"])
+_ids = _ep.identifiers({"display_name": "Hotel Emma", "facts": {"telephone": "+1-210-448-8300"}}, "Hotel Emma", {"phone": "(844) 845-7384", "phones": ["210-448-8300"]}, "thehotelemma.com")
+check("OpenStreetMap's telephone agrees when the website gives that number anywhere (Hotel Emma: 'Open map data disagrees', high)", "telephone" in _ids["matched"], _ids)
+check("an online shop's 'discount code ... at check out' is not check-in (Carbis Bay)",
+      bool(_cq["checkin_out"]["not_about"].search("For 50% OFF stay vouchers use discount code CARBISBAY50 at check out.")) and not _cq["checkin_out"]["not_about"].search("Check-in is from 3pm."))
+
+print("22. a warning added after the ranking never takes the report page down (THE NICI: the former-name warning, server error 500)")
+import json as _json
+import former_names as _fn
+import ranking as _rk
+import report_view as _rv
+_srep = _json.load(open("tests_data/sample_report.json", encoding="utf8"))
+_srep["consultant"]["recommendations"].insert(0, _fn.recommendation([{"name": "Hotel Victoria", "url": "https://thenici.com/newquay/", "quote": "previously known as Hotel Victoria"}], "THE NICI"))
+_rk.fill_report(_srep)
+try:
+    _rv.render(_srep, token="t" * 32)
+    _ok, _err = True, ""
+except Exception as _e:  # noqa: BLE001
+    _ok, _err = False, repr(_e)
+check("the report page renders with the former-name warning in it", _ok, _err)
 
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

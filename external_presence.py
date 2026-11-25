@@ -96,7 +96,8 @@ def identifiers(e, hotel, own, own_domain):
     tel = (e.get("facts") or {}).get("telephone")
     if tel and own.get("phone"):
         checked.append("telephone")
-        (matched if _digits(tel)[-9:] == _digits(own["phone"])[-9:] else conflicts).append("telephone")
+        mine = [own["phone"]] + list(own.get("phones") or [])
+        (matched if any(_digits(tel)[-9:] == _digits(x)[-9:] for x in mine if x) else conflicts).append("telephone")      # any number the website gives (Hotel Emma: the local line beside the freephone one)
     return {"matched": matched, "conflicts": conflicts, "checked": checked}
 
 
