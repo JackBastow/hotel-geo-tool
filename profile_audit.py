@@ -92,6 +92,22 @@ def audit(rep):
         fac = qk.get(q.get("id"))
         if fac in den and den[fac] == "not_offered" and q.get("state") == "answered" and not q.get("not_offered"):
             bad("guest question", fac, f"answered as offered: {q.get('snippet', '')[:120]}")
+    # who the hotel is for: a kind of guest shown as strong or some must be one the profile confirms, and never one the pages say the hotel is not for
+    pos = ((rep.get("fact_profile") or {}).get("positioning"))
+    if isinstance(pos, dict):
+        checked.append("who the hotel is for (consultant.intents vs the profile's positioning)")
+        for i in c.get("intents") or []:
+            k, lv = i.get("key"), i.get("level")
+            if lv not in ("some", "strong"):
+                continue
+            ps = (pos.get(k) or {}).get("status")
+            if ps == "not_for" or (ps is None and k not in _INTENT_FAC):
+                v.append({"section": "kinds of guest", "facility": k, "profile": ps or "not confirmed", "says": f"{i.get('label')}: {lv}"})
+        checked.append("kind of hotel vs positioning (airport, family)")
+        for cls, k in (("airport", "airport"), ("family_focused", "family")):
+            ps = (pos.get(k) or {}).get("status")
+            if cls in ((c.get("hotel_class") or {}).get("keys") or []) and ps in (None, "not_for") and not re.search(r"airport", (rep.get("meta") or {}).get("hotel") or "", re.I):
+                v.append({"section": "kind of hotel", "facility": k, "profile": ps or "not confirmed", "says": cls})
     checked.append("recommendations (title, action, example)")
     for r in c.get("recommendations") or []:
         text = " ".join(str(r.get(k) or "") for k in ("title", "action", "example"))

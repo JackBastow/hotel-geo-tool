@@ -78,14 +78,32 @@ SYSTEM = ("You read the text of a hotel's own web pages and say, for each facili
           "thing: 'we do not have parking but there is a public car park behind us' is TWO entries for parking, not_offered (quoting the denial) and nearby (quoting the public car park). "
           "Read the whole sentence. A word in a menu, a cookie notice, a voucher shop, a list of things to do in "
           "the area or a description of another business is NOT the hotel's facility. Give the exact words copied from the page (one or two sentences, character for character, no ellipsis) "
-          "and the page URL. If the pages do not say, leave the facility out: never guess. Reply with JSON only.")
-SCHEMA = '{"facilities":[{"key":"<facility key (may repeat)>","status":"on_site"|"nearby"|"partner"|"not_offered","quote":"<exact words from the page>","url":"<page url>","note":"<a few words, optional>"}]}'
+          "and the page URL. If the pages do not say, leave the facility out: never guess.")
+SCHEMA = ('{"facilities":[{"key":"<facility key (may repeat)>","status":"on_site"|"nearby"|"partner"|"not_offered","quote":"<exact words from the page>","url":"<page url>","note":"<a few words, optional>"}],'
+          '"positioning":[{"key":"<guest type key>","status":"core"|"secondary"|"not_for","quote":"<exact words from the page>","url":"<page url>"}]}')
+
+# who the hotel is for: the guest types every part of the report uses (lexicon.INTENTS' keys)
+POSITION_MEANING = {
+    "luxury": "the hotel presents itself as luxury or five-star", "budget": "the hotel presents itself as budget, affordable or good value",
+    "business": "the hotel is aimed at business travellers or corporate stays", "family": "the hotel is aimed at families with children",
+    "couples": "the hotel is aimed at couples or romantic breaks", "groups": "the hotel takes group bookings", "meetings": "the hotel hosts meetings and events",
+    "weddings": "the hotel hosts weddings", "spa": "the hotel is a place for spa or wellness breaks", "food": "the hotel is a destination for food and dining",
+    "beach": "the hotel is by the beach or the sea, and sells itself on it", "airport": "the hotel is an airport hotel, for flights and stopovers (NOT merely a hotel that says how far the airport is)",
+    "city_break": "the hotel is aimed at city breaks and sightseeing", "pet": "the hotel welcomes dogs or pets as a selling point", "sustainable": "the hotel sells itself on sustainability",
+    "accessible": "the hotel is set up for guests with disabilities", "long_stay": "the hotel is aimed at long or extended stays (apartments, kitchens, weekly rates)",
+}
+POSITION_STATUSES = ("core", "secondary", "not_for")
+POSITION_SYSTEM = (" ALSO, for each guest type below, say who the hotel presents itself as being for: 'core' (the pages clearly sell the hotel to these guests), 'secondary' (the pages say "
+                   "it suits them, in passing), or 'not_for' (the pages say it is not for them: 'adults only' is not_for family; a page that only says how far the airport is does not make "
+                   "an airport hotel). Quote the words that show it. Leave out a guest type the pages do not address: never guess.")
 
 
 def build_prompt(pages):
     spec = [{"key": k, "means": MEANING.get(k, lexicon.FEATURES[k][0])} for k in lexicon.FEATURES]
+    pos = [{"key": k, "means": v} for k, v in POSITION_MEANING.items() if k in lexicon.INTENTS]
     blocks = [f"=== PAGE {p['url']} ===\n{p['text']}\n=== END PAGE ===" for p in pages]
-    return ("Facilities:\n" + json.dumps(spec, ensure_ascii=False) + "\n\nReply with JSON of this shape and nothing else:\n" + SCHEMA + "\n\nPAGES:\n" + "\n\n".join(blocks))
+    return ("Facilities:\n" + json.dumps(spec, ensure_ascii=False) + "\n\nGuest types:\n" + json.dumps(pos, ensure_ascii=False)
+            + "\n\nReply with JSON of this shape and nothing else:\n" + SCHEMA + "\n\nPAGES:\n" + "\n\n".join(blocks))
 
 
 def parse_reply(text):
@@ -97,7 +115,8 @@ def parse_reply(text):
             continue
         rows = d.get("facilities") if isinstance(d, dict) else None
         if isinstance(rows, list):
-            return [x for x in rows if isinstance(x, dict)]
+            pos = d.get("positioning") if isinstance(d.get("positioning"), list) else []
+            return [x for x in rows if isinstance(x, dict)] + [dict(x, _kind="positioning") for x in pos if isinstance(x, dict)]
     return []
 
 
@@ -137,6 +156,61 @@ def _topical(key, quote, page_norm):
         return False
     a, b = textutil._sentence_bounds(page_norm, i, i + len(q))
     return bool(pat.search(page_norm[a:b]))
+
+
+POSITION_TOPIC = {
+    "luxury": r"luxur|five[- ]star|5[- ]star|opulen|exclusive|indulg|refined|elegan",
+    "budget": r"budget|afford|value|cheap|low[- ]cost|economy|best price",
+    "business": r"business|corporate|work|meeting|travell?ers? on business|wi-?fi|desk",
+    "family": r"famil|child|kid|baby|toddler|teen|adults? only|over \d+s?|cots?",
+    "couples": r"couple|romant|honeymoon|anniversar|two of you|for two|adults? only",
+    "groups": r"group|party|parties|coach|team",
+    "meetings": r"meeting|conference|event|delegate|boardroom|workshop",
+    "weddings": r"wedding|marr|ceremon|bride",
+    "spa": r"spa|wellness|treatment|massage|relax|retreat",
+    "food": r"restaurant|dining|dine|chef|menu|food|cuisine|michelin|rosette|tasting",
+    "beach": r"beach|sea|coast|bay|ocean|shore|surf|harbour",
+    "airport": r"airport|flight|terminal|stopover|layover|transit",
+    "city_break": r"city|sightsee|explore|attraction|landmark|weekend|break|centre|center",
+    "pet": r"dog|pet|pooch|four[- ]legged|paw",
+    "sustainable": r"sustainab|eco|green|carbon|environment|plastic|renewable",
+    "accessible": r"access|wheelchair|disab|mobility|step[- ]free",
+    "long_stay": r"long[- ]stay|extended|weekly|monthly|apartment|kitchen",
+}
+
+
+def verify_positioning(rows, pages):
+    """Keep only the positioning answers the pages back up: guest type and status known, the quotation word for word on the page named, and about that guest type. -> ({key: {...}}, stats)"""
+    texts = {p["url"]: ai_extract._norm(p["text"]) for p in pages}
+    kept, n_ok, n_bad, reasons = {}, 0, 0, {}
+
+    def reject(why):
+        nonlocal n_bad
+        n_bad += 1
+        reasons[why] = reasons.get(why, 0) + 1
+
+    for r in rows:
+        key, status = r.get("key"), r.get("status")
+        quote, url = re.sub(r"\s+", " ", str(r.get("quote") or "")).strip(), str(r.get("url") or "")
+        if key not in lexicon.INTENTS or status not in POSITION_STATUSES:
+            reject("unknown guest type or status")
+            continue
+        if not (10 <= len(quote) <= ai_extract.MAX_QUOTE) or "…" in quote or "..." in quote or textutil.looks_like_nav(quote):
+            reject("quotation too short, too long, abridged or a menu strip")
+            continue
+        src = next((u for u in texts if ai_extract._same_url(u, url)), None)
+        if src is None or ai_extract._norm(quote) not in texts[src]:
+            reject("quotation not found in the page")
+            continue
+        if not re.search(POSITION_TOPIC.get(key, r"$^"), quote, re.I) and not lexicon.INTENTS[key][1].search(quote):
+            reject("quotation is not about that kind of guest")
+            continue
+        n_ok += 1
+        prev = kept.get(key)
+        rank = {"not_for": 3, "core": 2, "secondary": 1}
+        if prev is None or rank[status] > rank[prev["status"]]:
+            kept[key] = {"status": status, "quote": quote, "url": src}
+    return kept, {"kept": n_ok, "rejected": n_bad, "reasons": reasons}
 
 
 def verify(rows, pages):
@@ -226,6 +300,10 @@ def merge(prof, more):
             if not any(x["status"] == r["status"] and x["quote"] == r["quote"] for x in rels):
                 rels.append(r)
         facs[k].update(headline(rels))
+    for k, v in (more.get("positioning") or {}).items():
+        rank = {"not_for": 3, "core": 2, "secondary": 1}
+        if k not in prof.setdefault("positioning", {}) or rank[v["status"]] > rank[prof["positioning"][k]["status"]]:
+            prof["positioning"][k] = v
     for k in ("cost_usd", "kept", "rejected", "pages_sent", "pages_truncated", "pages_left_out"):
         prof[k] = round((prof.get(k) or 0) + (more.get(k) or 0), 5) if k == "cost_usd" else (prof.get(k) or 0) + (more.get(k) or 0)
     for r, n in (more.get("reasons") or {}).items():
@@ -260,14 +338,15 @@ def build(own_pages, *, api_key=None, model=None, client=None, failed_pages=0):
             return _envelope("unavailable", f"The Anthropic library could not be started ({type(e).__name__}).", **basis)
     extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
     try:
-        resp = client.messages.create(model=model, max_tokens=MAX_TOKENS, system=SYSTEM, messages=[{"role": "user", "content": build_prompt(pages)}], **extra)
+        resp = client.messages.create(model=model, max_tokens=MAX_TOKENS, system=SYSTEM + POSITION_SYSTEM + " Reply with JSON only.", messages=[{"role": "user", "content": build_prompt(pages)}], **extra)
         text, _d, _s, tin, tout = ai_sample.parse_response(resp)
     except Exception as e:  # noqa: BLE001 - never fail the audit
         return _envelope("unavailable", ai_sample._reason_for(e).replace("the sampled AI answers were not run", "the facilities were judged by the word rules alone"), pages_sent=len(pages), **basis)
     rows = parse_reply(text)
-    kept, stats = verify(rows, pages)
-    return _envelope("ok", "" if rows else "The reply could not be read, so the word rules stand alone.", facilities=kept, cost_usd=round(ai_sample.cost_usd(model, tin, tout, 0), 5),
-                     model=model, pages_sent=len(pages), **basis, **stats)
+    kept, stats = verify([r for r in rows if r.get("_kind") != "positioning"], pages)
+    pos, pstats = verify_positioning([r for r in rows if r.get("_kind") == "positioning"], pages)
+    return _envelope("ok", "" if rows else "The reply could not be read, so the word rules stand alone.", facilities=kept, positioning=pos, positioning_stats=pstats,
+                     cost_usd=round(ai_sample.cost_usd(model, tin, tout, 0), 5), model=model, pages_sent=len(pages), **basis, **stats)
 
 
 # words in example wording that name a facility (wider than the word rules, as hotels write)
@@ -361,6 +440,8 @@ def reconcile_questions(questions, profile):
 
 _LOCK = threading.Lock()
 _PROFILES = OrderedDict()            # site key -> facilities; a few audits run at once, each on its own hotel
+_POSITIONS = {}                      # site key -> positioning (who the hotel is for)
+_HAS = {}                            # site key -> True when a verified profile was built
 _MAX = 32
 
 
@@ -382,6 +463,8 @@ def use(base, profile):
         return
     with _LOCK:
         _PROFILES[_key(base)] = (profile or {}).get("facilities") or {}
+        _POSITIONS[_key(base)] = (profile or {}).get("positioning") or {}
+        _HAS[_key(base)] = (profile or {}).get("status") == "ok"
         _PROFILES.move_to_end(_key(base))
         while len(_PROFILES) > _MAX:
             _PROFILES.popitem(last=False)
@@ -403,6 +486,17 @@ def for_site(site):
         host = _key(base).split("|")[0]
         hits = [v for k, v in _PROFILES.items() if k.split("|")[0] == host and k.split("|")[1] and _key(base).split("|")[1].startswith(k.split("|")[1])]
     return hits[0] if len(hits) == 1 else None
+
+
+def positioning_for(site):
+    """{guest type: {status, quote, url}} for a Site on the hotel's own pages, or None when there is no verified profile (a rival's site, or no AI reading)."""
+    k = _key(getattr(site, "base", "") or "")
+    with _LOCK:
+        if _HAS.get(k):
+            return _POSITIONS.get(k) or {}
+        host = k.split("|")[0]
+        hits = [kk for kk in _HAS if _HAS[kk] and kk.split("|")[0] == host and kk.split("|")[1] and k.split("|")[1].startswith(kk.split("|")[1])]
+        return (_POSITIONS.get(hits[0]) or {}) if len(hits) == 1 else None
 
 
 def status_of(site, key):

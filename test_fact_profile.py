@@ -206,5 +206,43 @@ _good = {"fact_profile": _fp, "consultant": {"features": [{"key": "parking", "le
 check("a report that agrees with its profile has no violations", profile_audit.audit(_good)["violations"] == [])
 check("without a profile the audit says so instead of passing", profile_audit.audit({})["status"] == "no_profile")
 
+print("9. who the hotel is for (positioning), from the same reading")
+N = "https://thenici.com/newquay/"
+NP = [{"url": N, "ok": True, "title": "THE NICI", "h1": ["THE NICI"], "text":
+       "A boutique hotel on the Cornish coast for couples and families, with sea views over Great Western Beach. Newquay Airport is a 15 minute drive away. "
+       "Our spa and pool are open to all guests. Airport transfers can be arranged. Families are welcome: cots and extra beds on request. Airport airport airport. " * 2},
+      {"url": N + "getting-here/", "ok": True, "title": "Getting here", "h1": [], "text": "By air: Newquay Airport is 15 minutes away by taxi. By train: Newquay station is a 10 minute walk. " * 3}]
+NREPLY = {"facilities": [{"key": "spa", "status": "on_site", "quote": "Our spa and pool are open to all guests.", "url": N}],
+          "positioning": [{"key": "couples", "status": "core", "quote": "A boutique hotel on the Cornish coast for couples and families, with sea views over Great Western Beach.", "url": N},
+                          {"key": "family", "status": "core", "quote": "Families are welcome: cots and extra beds on request.", "url": N},
+                          {"key": "beach", "status": "core", "quote": "with sea views over Great Western Beach", "url": N},
+                          {"key": "luxury", "status": "core", "quote": "The most luxurious hotel in Cornwall.", "url": N},
+                          {"key": "airport", "status": "secondary", "quote": "Our spa and pool are open to all guests.", "url": N}]}
+np_ = fact_profile.build(NP, client=_Client(NREPLY))
+pos = np_["positioning"]
+check("who the hotel is for is read in the same call, each answer quoted", set(pos) == {"couples", "family", "beach"}, pos)
+check("an invented quotation is dropped (a luxury claim the pages never make)", "luxury" not in pos)
+check("a quotation about something else is dropped (the spa sentence given as 'airport')", "airport" not in pos and np_["positioning_stats"]["rejected"] == 2, np_["positioning_stats"])
+fact_profile.use(N, np_)
+_ns = ic.Site(NP, N, "THE NICI", "Newquay")
+_ni = {i["key"]: i["level"] for i in ic.intents(_ns)}
+check("THE NICI is not 'Airport stays' because its pages say how far the airport is (the word appears often, the profile does not confirm it)", _ni["airport"] in ("weak", "none"), _ni["airport"])
+check("couples, families and the beach are strong, from the profile's quotations", _ni["couples"] == "strong" and _ni["family"] == "strong" and _ni["beach"] == "strong", _ni)
+_nc = hotel_class.classify(_ns, ic.features(_ns), ic.intents(_ns), osm_ctx={"airports": [{"name": "Newquay Airport", "km": 7.4}]}, hotel="THE NICI")["keys"]
+check("an airport 7 km away on the map does not make THE NICI an airport hotel", "airport" not in _nc, _nc)
+check("a hotel named for the airport still is one", "airport" in hotel_class.classify(ic.Site(NP, "https://hiltonairport.example/", "Hilton Zurich Airport", "Zurich"), [], [],
+      osm_ctx={"airports": [{"name": "Zurich Airport", "km": 1.2}]}, hotel="Hilton Zurich Airport")["keys"])
+AO = "https://adults.example/"
+fact_profile.use(AO, {"status": "ok", "facilities": {}, "positioning": {"family": {"status": "not_for", "quote": "We are an adults-only hotel for guests over 16.", "url": AO}}})
+_ai = {i["key"]: i for i in ic.intents(ic.Site([{"url": AO, "ok": True, "title": "x", "h1": [], "text": "Family rooms, family suites, family friendly. Kids club. " * 4}], AO, "X", "Y"))}
+check("'adults only' means not for families, whatever the pages' words, with the quotation as the reason", _ai["family"]["level"] == "none" and "adults-only" in _ai["family"]["reason"], _ai["family"])
+import profile_audit as _pa
+_rp = {"fact_profile": {"status": "ok", "facilities": {}, "positioning": {"couples": {"status": "core"}}},
+       "consultant": {"features": [], "intents": [{"key": "airport", "label": "Airport stays", "level": "strong"}, {"key": "couples", "label": "Couples", "level": "strong"}],
+                      "hotel_class": {"keys": ["airport"]}, "understanding": {}, "recommendations": []}, "meta": {"hotel": "THE NICI"}}
+_v = _pa.audit(_rp)["violations"]
+check("the audit flags a kind of guest or hotel type the profile does not confirm ('Airport stays'), and not one it does (couples)",
+      any(x["facility"] == "airport" and x["section"] == "kinds of guest" for x in _v) and any(x["section"] == "kind of hotel" for x in _v) and not any(x["facility"] == "couples" for x in _v), _v)
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

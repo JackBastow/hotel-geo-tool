@@ -164,15 +164,30 @@ def intents(site):
         st = strength(site, found, slugs)
         need = fact_profile.status_of(site, _INTENT_NEEDS[key]) if key in _INTENT_NEEDS else None
         has_profile = bool(fact_profile.for_site(site))
-        if (need and need != fact_profile.ON_SITE) or (has_profile and key in ("spa", "food", "meetings", "weddings") and need != fact_profile.ON_SITE):
+        gated = bool((need and need != fact_profile.ON_SITE) or (has_profile and key in ("spa", "food", "meetings", "weddings") and need != fact_profile.ON_SITE))
+        if gated:
             # with a verified profile, a spa, dining, meetings or weddings stay needs the facility confirmed at the hotel, not the word on a page ('Bath Spa station', 'breakfast room')
             st = "none"                                   # nearby, a partner's, or not offered: not a kind of stay the hotel itself offers
+        pos = fact_profile.positioning_for(site)
+        p = (pos or {}).get(key) if pos is not None else None
+        if pos is not None and not gated:
+            # who the hotel is for, from the verified profile: 'core' is strong, 'secondary' is some, 'not for' is none; a kind of guest the profile does not confirm is at most a passing
+            # mention (THE NICI was 'Airport stays' because its pages say how far Newquay Airport is)
+            st = {"core": "strong", "secondary": "some", "not_for": "none"}[p["status"]] if p else ("weak" if st in ("some", "strong", "weak") else st)
+        if p and p["status"] == "not_for":
+            out.append({"key": key, "label": label, "level": "none", "pages": 0, "reason": f"The hotel's own pages say it is not for these guests: “{p['quote'][:180]}”",
+                        "evidence": [{"url": p["url"], "snippet": p["quote"]}], "basis": "AI reading, quotation checked"})
+            continue
         if st == "none":
             out.append({"key": key, "label": label, "level": "none", "pages": 0, "reason": "",
                         "evidence": []})
             continue
+        if p and not found:                               # the profile's quotation is the evidence when the word rules found nothing
+            found = [{"page": next((pg for pg in site.content_pages if pg.get("url") == p["url"]), {"url": p["url"], "text": p["quote"], "title": ""}), "n": 1, "prominent": False, "snippet": p["quote"]}]
         top = sorted(found, key=lambda f: (-f["prominent"], -f["n"]))[0]
-        if st == "weak":
+        if p:
+            reason = f"The hotel's own pages present it {'as being for' if p['status'] == 'core' else 'as suiting'} these guests: “{p['quote'][:190]}”"
+        elif st == "weak":
             reason = (f"Only one passing mention, on {site.label(top['page'])}: "
                       f"“{top['snippet'][:200]}”")
         else:

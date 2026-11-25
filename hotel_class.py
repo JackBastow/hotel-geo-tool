@@ -48,6 +48,10 @@ def classify(site, features, intents, osm_ctx=None, hotel="", prof=None):
     _needs = {"spa_hotel": "spa", "conference": "meeting_rooms"}
 
     def add(key, strength, reasons):
+        _pp = fact_profile.positioning_for(site)
+        _pk = {"family_focused": "family", "business": "business", "spa_hotel": "spa", "luxury": "luxury", "conference": "meetings"}.get(key)
+        if _pp is not None and _pk and (_pp.get(_pk) or {}).get("status") == "not_for":
+            return                              # the hotel's own pages say it is not for these guests ('adults only': never family-focused)
         st = fact_profile.status_of(site, _needs[key]) if key in _needs else None
         if (st and st != fact_profile.ON_SITE) or (key in _needs and fact_profile.for_site(site) and st != fact_profile.ON_SITE):
             return                              # the verified profile says the spa or the meeting rooms are not the hotel's own: it is not a spa or conference hotel
@@ -73,8 +77,12 @@ def classify(site, features, intents, osm_ctx=None, hotel="", prof=None):
                 named.append(m)
     if named:
         r.append(f"the site states it is {named[0]['distance']} from {named[0]['name']}")
-    if strong or len(r) >= 2:
-        add("airport", "strong" if strong else "some", r)
+    _pos = fact_profile.positioning_for(site)
+    _ap = (_pos or {}).get("airport") if _pos is not None else None
+    if _pos is not None and not re.search(r"airport|flughafen", name, re.I) and not (_ap and _ap["status"] in ("core", "secondary")):
+        pass                                    # with a verified profile, an airport hotel says so (or is named for the airport): a map distance and 'Newquay Airport is 15 minutes away' do not make one (THE NICI)
+    elif strong or len(r) >= 2:
+        add("airport", "strong" if strong else "some", r + ([f"the hotel's own pages: “{_ap['quote'][:120]}”"] if _ap else []))
     # ---- business and conference
     bt = [(p, m.group(0)) for p, t in pages for m in [_BUSINESS_TEXT.search(t)] if m]
     biz_pages = len({p["url"] for p, _ in bt})
