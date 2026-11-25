@@ -566,5 +566,27 @@ except Exception as _e:  # noqa: BLE001
     _ok, _err = False, repr(_e)
 check("the report page renders with the former-name warning in it", _ok, _err)
 
+print("23. THE NICI hand check (Nov 2026)")
+_ag = next(e for e in ic.EXTENDED if e["id"] == "area_guide")
+check("a 'See & Do' page is an area guide page (THE NICI: /newquay/see-do/ read, yet 'things to do nearby: not stated')", "see do" in _ag["slugs"])
+check("surf lessons and the coast path are things to do nearby", bool(_ag["facts"]["things to do nearby"].search("Book surf lessons at Fistral or walk the South West Coast Path.")))
+import advice as _adv
+_sg = _adv._from_source_gaps({}, [{"domain": "headlandhotel.co.uk", "rivals": ["The Headland Hotel & Spa"], "cited": 12, "evidence": [""], "type_label": "x", "route": "r", "action": "a"},
+                                  {"domain": "cornwallholidays.com", "rivals": ["The Headland Hotel & Spa", "Fistral Beach Hotel"], "cited": 11, "evidence": [""], "type_label": "x", "route": "r", "action": "a"}])
+check("a rival hotel's own website is never a source to get listed on (THE NICI: headlandhotel.co.uk)", _sg and "headlandhotel" not in _sg[0]["title"] and "cornwallholidays" in _sg[0]["title"], _sg and _sg[0]["title"])
+
+print("24. Brooks Guesthouse hand check (Nov 2026)")
+import ai_facts as _afx
+check("numbers counted in a row are not telephones (Brooks: '1213141516', '2223242526' on the vouchers page)", ic._counting_run("1213141516") and ic._counting_run("2223242526")
+      and not ic._counting_run("01225425543") and not ic._counting_run("2104488300"))
+_pk = {"parking": {"level": "none", "status": "not_offered", "quote": "No sorry we do not have car parking", "quote_url": "u", "has_nearby": True}}
+_r1 = _afx.compare([{"topic": "parking", "stance": "has", "value": "", "quote": "A public car park is just behind Brooks Guesthouse"}], _pk)
+check("the assistant describing the public car park behind the hotel is right, not misinformation (Brooks)", not _r1["rows"] and _r1["matches"] == 1, _r1)
+_r2 = _afx.compare([{"topic": "parking", "stance": "has", "value": "", "quote": "Brooks Guesthouse offers free on-site parking"}], _pk)
+check("'free on-site parking' for a guesthouse with none is still misinformation", [r["status"] for r in _r2["rows"]] == ["differs"])
+import traveller_ready as _trx
+_dreq = next(r for s_ in _trx.SEGMENTS for r in s_["requirements"] if r["id"] == "dining")
+check("'how to book a table' is only asked of a hotel with a restaurant (Brooks Guesthouse has none)", _dreq.get("gate") == ("features", "restaurant"))
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

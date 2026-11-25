@@ -425,10 +425,12 @@ EXTENDED = [
          "the bed set-up": re.compile(r"\b(?:king|queen|double|twin|single|super[- ]king)[- ](?:size[d]? )?beds?\b|\b\d\s*(?:single|double|twin|queen|king) beds\b|bed(?:s)? (?:configuration|type|set-?up)|sofa[- ]?bed|extra bed|rollaway|z[- ]?bed", re.I)},
      "example": "Classic Double: 1 king bed, sleeps 2. Superior Twin: 2 single beds, sleeps 2. Family Room: 1 double + 1 sofa bed, sleeps up to 4 (2 adults, 2 children). [x] rooms connect: ask when booking."},
     {"id": "area_guide", "q": "Does the site say what is nearby: where to eat, what to do, and what is open late or when it rains?", "applies": None, "core": False, "high_value": False,
-     "slugs": ("local", "area", "explore", "things to do", "around", "guide", "nearby", "neighbourhood", "visit", "attractions"), "fallback": "an Area guide page",
+     "slugs": ("local", "area", "explore", "things to do", "around", "guide", "nearby", "neighbourhood", "visit", "attractions", "see do", "see and do", "discover", "activities",
+               "adventures", "whats on", "have fun", "experiences"), "fallback": "an Area guide page",      # THE NICI's area guide is /see-do/
      "facts": {
          "where to eat nearby": re.compile(r"(?:where to eat|places to eat|local (?:restaurants|pubs|cafes|caf\u00e9s|bars|dining)|nearby (?:restaurants|pubs|cafes|caf\u00e9s|bars)|restaurants? (?:nearby|within|close)|within (?:walking distance|\d+\s*(?:minutes?|mins?|km|miles?)) (?:of|from)[^.\n]{0,40}(?:restaurant|pub|cafe|caf\u00e9|bar))", re.I),
-         "things to do nearby": re.compile(r"things to do|nearby attractions|local attractions|what to do|sights?\b|museums?|galleries|explore (?:the )?(?:area|city|town|local)|places to visit|day trips?", re.I),
+         "things to do nearby": re.compile(r"things to do|nearby attractions|local attractions|what to do|sights?\b|museums?|galleries|explore (?:the )?(?:area|city|town|local|coast)|places to visit|day trips?"
+                                           r"|see (?:&|and) do|surf(?:ing)? (?:lessons?|school)|coast(?:al)? path|coastal walks?|walking routes?|cycle (?:trails?|routes?)|zoo\b|aquarium|castle|national trust|boat trips?", re.I),
          "evening or wet-weather options": re.compile(r"open late|late[- ]night|in the evening|evening (?:entertainment|options)|rainy day|wet weather|when it rains|on a rainy|indoor (?:activities|attractions)", re.I)},
      "example": "Eating nearby: [Restaurant] (10 min walk, open until 11pm, good on a Tuesday night), [Cafe] (3 min walk, from 7am). When it rains: [museum] (8 min walk), [indoor market]. Walking times are from our front door."},
     {"id": "connecting_rooms", "q": "Does the hotel have connecting or family rooms, and how many people do they sleep?",
@@ -834,10 +836,21 @@ def _phone_label(blob, start):
     return best
 
 
+def _counting_run(d):
+    """Digits that are numbers counted in a row ('1213141516' = 12, 13, 14, 15, 16; '0123456789'): never a telephone number."""
+    for w in (1, 2):
+        parts = [int(d[i:i + w]) for i in range(0, len(d) - len(d) % w, w)]
+        if len(parts) >= 4 and all(b - a == 1 for a, b in zip(parts, parts[1:])):
+            return True
+    return False
+
+
 def _phone_key(raw, region):
     """-> (key, info). A real number is keyed by its international form; text that looks international but is not a valid number (a booking reference, an id, digits run together) is not a telephone number at all
     (None); a national-format number on a site whose country is unknown keeps the old digits key."""
     s = str(raw or "").strip()
+    if _counting_run(_digits(s)):
+        return None, None                 # '1213141516', '2223242526': numbers counted in a row (a slider or a voucher page's labels), not a telephone (Brooks Guesthouse)
     info = phones.parse(s, region)
     if info:
         return info["e164"], info

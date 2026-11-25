@@ -94,6 +94,10 @@ def issues(rep):
                 "; ".join(f"{x['section']}: {x['facility']} ({x['profile']}) - {x['says'][:60]}" for x in au["violations"][:5]))
     except Exception:  # noqa: BLE001
         pass
+    rg = [q for q in (gq.get("questions") or []) if q.get("retrieval_gap")]
+    if rg:
+        add("big", "Retrieval failure: the site answers " + ", ".join(q["id"] for q in rg) + " on a page we did not read",
+            "Shown to the hotel as 'couldn't check', not as missing from its website. " + "; ".join(f"“{(q.get('snippet') or '')[:90]}”" for q in rg[:2]))
     ax = gq.get("ai_extract") or {}
     if ax and ax.get("status") not in ("ok", None):
         add("minor", "The AI reading of the guest questions did not run", str(ax.get("reason") or ax.get("status"))[:300])

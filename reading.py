@@ -30,7 +30,7 @@ TOPIC_PAGES = {
     "parking": (r"parking|car-?park|getting-?here|directions|find-?us|how-?to-?find-?us", r"location|travel|arrival|contact|faqs?"),
     "breakfast": (r"breakfast", r"dining|restaurant|food|eat|menus?"),
     "checkin_out": (r"check-?in|check-?out|arrival|policies|policy|good-?to-?know|need-?to-?know|hotel-?info(?:rmation)?|guest-?info(?:rmation)?", r"faqs?|terms|information"),
-    "cancellation": (r"terms|conditions|cancellation|cancel|booking-?(?:policy|terms|conditions)|policies|policy", r"faqs?"),
+    "cancellation": (r"(?:booking-)?terms(?:-and)?-conditions(?:-of-booking)?|terms-conditions-of-booking|booking-?(?:policy|terms|conditions)|cancellation(?:-policy)?|cancel|conditions|terms|policies|policy", r"faqs?"),
     "pets": (r"dogs?|pets?|dog-?friendly|pet-?friendly|pooches?", r"faqs?|policies|policy"),
     "accessibility": (r"accessib(?:le|ility)|disabled|mobility", r"faqs?|policies|policy"),
     "family": (r"famil(?:y|ies)|kids|children|child", r"faqs?|rooms?"),
@@ -47,7 +47,8 @@ TOPIC_PAGES = {
     "room_service": (r"room-?service|in-?room-?dining", r"dining|faqs?"),
 }
 # pages a follow-up is never worth: a shop, offers and vouchers, news and blogs, jobs, one event or one menu item
-NOT_FOR_FOLLOW_UP = re.compile(r"(?:^|[/_-])(?:shop|store|gift|vouchers?|offers?|special|deals?|promo|news|blog|press|careers?|jobs?|whats-?on|event-?\d|gallery|photos?|reviews?)(?:$|[/_.-])", re.I)
+NOT_FOR_FOLLOW_UP = re.compile(r"(?:^|[/_-])(?:shop|store|gift|vouchers?|offers?|special|deals?|promo|news|blog|press|careers?|jobs?|whats-?on|event-?\d|gallery|photos?|reviews?"
+                               r"|privacy|cookies?|gdpr|terms-?of-?(?:use|service|website)|website-?terms|legal|modern-?slavery|accessibility-?statement)(?:$|[/_.-])", re.I)      # the privacy policy is not the booking terms (THE NICI)
 
 
 def _words_in(url, title=""):
@@ -59,6 +60,32 @@ def _words_in(url, title=""):
 
 def _match(rx, words):
     return re.search(r"-(?:" + rx + r")-", words) is not None
+
+
+# a page that answers by pointing elsewhere: 'Please see our terms and conditions page on our website' (THE NICI's FAQ on cancellation)
+POINTS_ELSEWHERE = re.compile(r"\b(?:please )?(?:see|refer to|read|visit|view|check|consult|found (?:in|on))\b[^.\n]{0,40}\b(?:terms|conditions|t&cs?|policy|policies|faq|booking (?:terms|conditions)|website|page|link)\b"
+                              r"|\b(?:terms|conditions|policy) (?:page|section)\b|\bset out in (?:our|the)\b", re.I)
+
+
+def retrieval_gaps(guest, read_urls):
+    """
+    Questions the pages answered only by pointing to another page, when that page was not read: a retrieval failure on our side, not a gap in the hotel's website. They become
+    'couldn't check' with the reason, and are returned for the operator. -> [question id]
+    """
+    out = []
+    for q in (guest or {}).get("questions") or []:
+        if q.get("state") in ("partial", "not_found", "needs_checking") and not q.get("found") and POINTS_ELSEWHERE.search(q.get("snippet") or ""):
+            q["state"] = "couldnt_check"
+            q["missing"], q["nice_to_have"] = [], []
+            q["retrieval_gap"] = True
+            q["note"] = (f"The site answers this on another page (“{(q.get('snippet') or '')[:140]}”), which we could not read; this is a limit of our check, not a gap in the website.")
+            try:
+                import guest_questions
+                q["state_label"] = guest_questions.STATE_LABELS["couldnt_check"]
+            except Exception:  # noqa: BLE001
+                pass
+            out.append(q["id"])
+    return out
 
 
 def unverified(guest, profile, features=None):
@@ -87,8 +114,16 @@ def follow_up(candidates, read_urls, topics, room):
     one, a shorter address before a longer), never a shop, offer, news or one-event page. At most `room`.
     candidates: [{"url", "title"}] in priority order. -> ([url], {url: [topics it is read for]})
     """
-    done = {u.rstrip("/").lower() for u in read_urls}
-    pool = [c for c in candidates if c["url"].rstrip("/").lower() not in done and not NOT_FOR_FOLLOW_UP.search(urllib.parse.urlparse(c["url"]).path)]
+    def _k(u):
+        return u.split("#")[0].rstrip("/").lower()                # 'faqs/#main-content' is the FAQ already read
+    done = {_k(u) for u in read_urls}
+    seen, pool = set(), []
+    for c in candidates:
+        k = _k(c["url"])
+        if k in done or k in seen or NOT_FOR_FOLLOW_UP.search(urllib.parse.urlparse(c["url"]).path):
+            continue
+        seen.add(k)
+        pool.append(dict(c, url=c["url"].split("#")[0]))
     picked, why = [], {}
     for t in topics:
         if len(picked) >= room or t not in TOPIC_PAGES:
@@ -98,6 +133,8 @@ def follow_up(candidates, read_urls, topics, room):
         for i, c in enumerate(pool):
             w = _words_in(c["url"], c.get("title") or "")
             score = 2 if _match(strong, w) else 1 if _match(weak, w) else 0
+            if score == 2 and t == "cancellation" and re.search(r"-(?:booking|cancel\w*)-", w):
+                score = 3                              # the booking terms before any other policy page
             if score:
                 depth = len([x for x in urllib.parse.urlparse(c["url"]).path.split("/") if x])
                 key = (-score, depth, i)

@@ -126,7 +126,8 @@ def site_facts(own_pages, base, hotel):
             top = f["found"][0] if f["found"] else None
             out[f["key"]] = {"level": f["level"] if f["found"] else "none", "url": top["page"]["url"] if top else "", "snippet": (top or {}).get("snippet", "")[:200] if top else "",
                              "status": f.get("status"), "quote": f.get("quote") or "", "quote_url": f.get("quote_url") or "",
-                             "has_too": any(r.get("status") == "on_site" for r in f.get("relations") or [])}
+                             "has_too": any(r.get("status") == "on_site" for r in f.get("relations") or []),
+                             "has_nearby": any(r.get("status") in ("nearby", "partner") for r in f.get("relations") or [])}
     return out
 
 
@@ -167,7 +168,10 @@ def compare(claims, facts, site_stars=None, answers=0):
         if st and stance in ("has", "lacks"):
             # the verified profile decides, and the report quotes both sides: what the assistant said, and what the hotel's own page says
             told_has, hotel_has = stance == "has", bool(st == "on_site" or f.get("has_too"))
-            if told_has == hotel_has or (stance == "lacks" and st in ("nearby", "partner") and not f.get("has_too")):
+            # the assistant describing the nearby or partner facility as such is right (Brooks: 'a public car park is just behind Brooks Guesthouse' is the profile's 'nearby')
+            says_nearby = (st in ("nearby", "partner") or f.get("has_nearby")) and bool(re.search(r"\b(?:public|nearby|near|behind|next to|close to|across|opposite|around the corner|on-?street|council|pay[- ]and[- ]display|"
+                                                                     r"partner|sister|minutes?'? walk|walk away|short walk|local)\b", says, re.I))
+            if told_has == hotel_has or says_nearby or (stance == "lacks" and st in ("nearby", "partner") and not f.get("has_too")):
                 matches += 1
             else:
                 what = {"not_offered": "says the hotel does not have it", "nearby": "says it is nearby, not the hotel's own", "partner": "says it is through a partner, not the hotel's own",

@@ -50,7 +50,7 @@ SEGMENTS = [
                     "what it includes and costs": _rx(r"includ\w+[^.\n]{0,80}(?:treatment|dinner|breakfast|champagne|prosecco|room|spa|access)|from (?:[£€$]\s?\d|\b(?:eur|gbp|usd|chf|sek|nok|dkk)\s?\d|\d[\d.,]*\s?(?:€|eur\b|euros?\b|kr\b|sek\b|nok\b|dkk\b|chf\b))|(?:[£€$]\s?\d|\b(?:eur|gbp|usd|chf|sek|nok|dkk)\s?\d|\d[\d.,]*\s?(?:€|eur\b|euros?\b|kr\b|sek\b|nok\b|dkk\b|chf\b))[\d.,]*\s*(?:per|pp|a night|each)|price from"),
                     "how to book it": _rx(r"book (?:online|now|your)|enquire|call (?:us|\+?\d)|to book|reservations?\b")},
           "need": 3, "add": ["a couples' or romantic package, if the hotel offers one", "what the package includes and its price", "how to book it"]},
-         {"id": "dining", "label": "Dining facilities", "context": _rx(r"restaurant|dining|bar\b|grill|brasserie|bistro|table|menu|afternoon tea|eat"),
+         {"id": "dining", "label": "Dining facilities", "gate": ("features", "restaurant"), "context": _rx(r"restaurant|dining|bar\b|grill|brasserie|bistro|table|menu|afternoon tea|eat"),
           "facts": {"the restaurant or bar": _rx(r"restaurant|brasserie|\bgrill\b|bistro|dining room|\bbar\b|afternoon tea"),
                     "opening times or how to book a table": _rx(r"opening (?:hours|times)|open (?:daily|from|for|until|every)|\d{1,2}(?:[:.]\d{2})?\s?(?:am|pm)\s?(?:-|–|to|until)|book (?:a )?table|table reservations?|reserve a table")},
           "need": 2, "add": ["the restaurant and bar", "the restaurant's opening times and how to book a table"]},
@@ -416,9 +416,11 @@ def _location_segment(site, location, coverage):
         stated = [i for i in rows if i["state"] == "stated"]
         named = [i for i in rows if i["state"] == "mentioned_no_distance"]
         absent = [i for i in rows if i["state"] == "not_mentioned"]
-        if stated and not named:
-            state = CONFIRMED                      # 'Bath Spa station is a 5-10 minute walk' answers the traveller; a second, smaller station the site never names (Oldfield Park) is not a gap
-            absent = []
+        if stated and (not named or key in ("attractions", "venues")):
+            # 'Bath Spa station is a 5-10 minute walk' answers the traveller; a second, smaller station the site never names (Oldfield Park) is not a gap. Nor is an attraction named in
+            # passing when the site already gives distances to others (THE NICI: 'Trerice House' in a list of estates on the dogs page)
+            state = CONFIRMED
+            absent, named = [], []
         elif stated or named:
             state = PARTIAL
         elif absent and (not coverage.get("limited")):

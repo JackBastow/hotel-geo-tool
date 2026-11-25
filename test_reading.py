@@ -46,6 +46,10 @@ check("a gift shop is never read for parking ('car' in 'carbis'), nor special of
 check("a group's terms page outside the hotel's own section is a policy page; another hotel's is not",
       bool(reading.POLICY_PAGE.search("/terms-and-conditions/")) and bool(reading.OTHER_PROPERTY.search("/en-us/hotels/parlu-le-parisien/policies/")))
 
+_nc = [{"url": u} for u in ["https://thenici.com/privacy-policy/", "https://thenici.com/newquay/faqs/#main-content", "https://thenici.com/terms-of-use/", "https://thenici.com/terms-conditions-of-booking/"]]
+_nu, _ = reading.follow_up(_nc, ["https://thenici.com/newquay/faqs/"], ["cancellation"], 10)
+check("THE NICI's cancellation: the booking terms, never the privacy policy or the terms of use, and never the FAQ again under another '#'", _nu == ["https://thenici.com/terms-conditions-of-booking/"], _nu)
+
 print("3. the page ledger")
 led = reading.ledger([{"url": "https://h.com/", "ok": True}, {"url": "https://h.com/spa/", "ok": True}, {"url": "https://h.com/menu/", "ok": False, "reason": "HTTP 404"}],
                      ["https://h.com/spa/", "https://h.com/weddings/"], {"https://h.com/spa/": ["spa"]})
@@ -80,6 +84,16 @@ fact_profile.merge(p1, p2)
 check("relationships from both reads are kept, and a new facility is added", [r["status"] for r in p1["facilities"]["parking"]["relations"]] == ["not_offered", "nearby"]
       and p1["facilities"]["spa"]["status"] == "on_site", p1["facilities"])
 check("costs and counts add up", p1["cost_usd"] == 0.07 and p1["pages_sent"] == 25 and p1["kept"] == 5)
+
+print("6. a page that points elsewhere is a retrieval failure, not a gap in the website")
+_g = {"questions": [{"id": "cancellation", "state": "partial", "found": [], "missing": ["the deadline"], "snippet": "What is your cancellation policy? Please see our terms and conditions page on our website."},
+                    {"id": "parking", "state": "partial", "found": [], "missing": ["the price"], "snippet": "There is a car park opposite the hotel."}]}
+_rg = reading.retrieval_gaps(_g, [])
+check("THE NICI: 'Please see our terms and conditions page' unread is couldn't check, with the reason, not 'make sure your website covers cancellation'",
+      _rg == ["cancellation"] and _g["questions"][0]["state"] == "couldnt_check" and "not a gap in the website" in _g["questions"][0]["note"] and _g["questions"][0]["retrieval_gap"], _g["questions"][0])
+check("a question the page simply answers in part stays partly answered", _g["questions"][1]["state"] == "partial")
+import run_health
+check("the operator sees it as a retrieval failure", any("Retrieval failure" in x["what"] for x in run_health.issues({"meta": {"location": {"lat": 1}}, "ai_sample": {"status": "ok"}, "guest_questions": _g})))
 
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

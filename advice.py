@@ -650,6 +650,11 @@ def _from_source_gaps(ins, actions=None):
     pages, so the hotel can check whether it is listed there and how it is described. It says nothing about HOW to get coverage beyond the honest routes: claim or update a listing, or ask the site how hotels are included.
     """
     if actions:
+        import commercial
+        # a rival hotel's own website is not a source the hotel can get onto (THE NICI: headlandhotel.co.uk, The Headland's own site, was listed as a 'travel publisher or blog')
+        actions = [a for a in actions if not commercial.rival_own_site({"domain": a.get("domain"), "rivals_in": a.get("rivals") or []})
+                   and commercial._site_type({"domain": a.get("domain")}) not in ("hotel_group", "own_website")]
+    if actions:
         top = actions[:5]
         ev = [{"url": (a["evidence"] or [""])[0], "snippet": f"{a['domain']} ({a['type_label'].lower()}), used {a['cited']} time(s)" + (f", naming {', '.join(a['rivals'])}" if a["rivals"] else "") + f". Route: {a['route']}."} for a in top]
         names = ", ".join(a["domain"] for a in top[:3])
@@ -761,7 +766,10 @@ def _from_ai_insights(ins):
             "listings the assistant used (see the source table), so every place a traveller or assistant might read agrees.",
             "medium", "low", confidence=INFER, team="web", source="ai", tag="AI3", summary="Assistant's statement differs from the hotel's record"))
     out += _from_facts_check(ins.get("facts_check"))
-    gaps = [s for s in (ins.get("sources") or []) if s["hotel_evidenced"] is False and s["kind"] in ("Booking and comparison site", "Review site")][:4]
+    # the big booking and review sites list nearly every hotel: not meeting the hotel's listing in one sample of answers says nothing (THE NICI: 'not found on booking.com, kayak, agoda')
+    _major = re.compile(r"(?:^|\.)(?:booking|expedia|hotels|agoda|kayak|trip|tripadvisor|trivago|lastminute|priceline|orbitz|travelocity|hotelscombined|google)\.", re.I)
+    gaps = [s for s in (ins.get("sources") or []) if s["hotel_evidenced"] is False and s["kind"] in ("Booking and comparison site", "Review site")
+            and not _major.search("." + str(s.get("domain") or ""))][:4]
     if gaps:
         out.append(_rec(
             "AI2", "authority", "The assistant leaned on sites where the hotel was not found",

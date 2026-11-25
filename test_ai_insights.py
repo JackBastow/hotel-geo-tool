@@ -177,7 +177,7 @@ check("no sample, no analysis", ins.run(None, ctx)["status"] == "unavailable")
 print("9. what it adds to the plan")
 INS = {"status": "ok", "accuracy": {"rows": [{"claim": "Parking", "assistant_says": "free parking", "our_record": "the hotel's page mentions a parking charge", "status": "differs",
                                              "source": "the hotel's own pages"}], "unchecked": 0},
-       "sources": [{"domain": "trip.com", "kind": "Booking and comparison site", "answers": 3, "hotel_evidenced": False},
+       "sources": [{"domain": "smallbookingsite.example", "kind": "Booking and comparison site", "answers": 3, "hotel_evidenced": False},
                    {"domain": "tripadvisor.com", "kind": "Review site", "answers": 4, "hotel_evidenced": True}]}
 recs = advice._from_ai_insights(INS)
 byid = {x["id"]: x for x in recs}

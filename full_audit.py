@@ -837,7 +837,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         steps.failed("Fact profile / reconcile_questions", e)
 
     # Adaptive reading: more of the hotel's own pages, only for what is still unverified after the first read, up to reading.LIMIT pages in all (reading.py)
-    _followed = {}
+    _followed, _cands = {}, []
     fact_prof["follow_up"] = {"mode": reading_mode, "topics": [], "pages_read": 0}
     if reading_mode == "adaptive" and anthropic_api_key and fact_prof.get("status") == "ok":
         try:
@@ -904,8 +904,13 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                         fact_profile.reconcile_questions(guest.get("questions"), fact_prof)
         except Exception as e:  # noqa: BLE001 - the first read stands
             steps.failed("Adaptive reading / follow-up", e)
+    try:
+        # a question the site answers only by pointing to a page we did not read is a retrieval failure on our side, never a gap in the hotel's website (THE NICI's cancellation)
+        fact_prof["follow_up"]["retrieval_gaps"] = _reading.retrieval_gaps(guest, [p.get("url", "") for p in own_pages])
+    except Exception as e:  # noqa: BLE001
+        steps.failed("Adaptive reading / retrieval gaps", e)
     guest["page_ledger"] = _reading.ledger([dict(p, ok=p.get("ok", True)) for p in own_pages] + [p for p in (guest.get("pages_meta") or []) if not p.get("ok")],
-                                           guest.get("page_candidates"), _followed)
+                                           list(guest.get("page_candidates") or []) + [c["url"] for c in _cands], _followed)      # every page considered, read or not
 
     # Where the hotel is, again, now its pages have been read: the first attempt used the few pages our own reader could fetch, and a site that refuses it (a brand, or THE NICI from the host)
     # left the hotel with no map position, so no comparable hotels, distances or nearby places. The postcode on any page read (FAQ, contact) places it.
