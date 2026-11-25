@@ -230,6 +230,7 @@ QUESTIONS = [
     },
     {
         "id": "ev", "short": "EV charging", "high_value": False, "refusal": True, "refusal_keep": (),
+        "not_about": re.compile(r"\b(?:phone|mobile|usb|laptop|device|wireless|plug)s?\s+(?:and\s+\w+\s+)?charg|charg(?:er|ing) (?:for|of) (?:your )?(?:phone|devices?)", re.I),      # a room's phone charger (The Hoxton)
         "label": "Is there EV charging, and what does it cost?",
         "slugs": ["ev", "electric", "charging", "parking", "getting here", "faq", "facilities"],
         "mention": _rx(r"\bEV\b", r"electric (?:vehicle|car)", r"charg(?:e|ing) (?:point|station|port)s?",
@@ -249,7 +250,8 @@ QUESTIONS = [
         "slugs": ["cancel", "terms", "conditions", "policies", "policy", "faq", "booking"],
         "mention": _rx(r"cancel+(?:ation|ing|led|s)?\b"),
         # the policy for a room booking, not for a spa treatment, a table, an event or an activity
-        "not_about": re.compile(r"\b(?:treatments?|spa (?:days?|bookings?|appointments?)|massages?|tables?|restaurant|dinner|lunch|afternoon tea|events?|weddings?|experiences?|classes|class|tours?|courses?|activit(?:y|ies)|tickets?|parking)\b", re.I),
+        "not_about": re.compile(r"\b(?:treatments?|spa (?:days?|bookings?|appointments?)|massages?|tables?|restaurant|dinner|lunch|afternoon tea|events?|weddings?|experiences?|classes|class|tours?|courses?|activit(?:y|ies)|tickets?|parking)\b"
+                               r"|\b(?:escape|esc) (?:key )?(?:will|to) (?:cancel|close)|close the (?:window|dialog)|cancel and close", re.I),      # a pop-up's 'Escape will cancel and close the window' (Hotel Arts, ritzcarlton.com)
         "facts": [
             _fact("deadline", "the deadline",
                   r"\b\d+\s*(?:hours?|hrs?|days?)\b", r"24 ?h", r"48 ?h",
@@ -502,6 +504,9 @@ def _lang_of(path):
 _LANGS = {"en", "it", "de", "fr", "es", "nl", "sv", "da", "no", "nb", "fi", "pt", "pl", "cs", "ru", "ja", "zh", "ko", "tr", "el", "hu", "ro", "ar", "he"}
 
 
+_CONTAINER_FOLDERS = {"pages", "page", "content", "site", "html", "web", "www", "en", "home"}
+
+
 def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES, start=None):
     """
     Choose which pages to read: the homepage, then the pages whose addresses
@@ -551,13 +556,29 @@ def select_pages(base, home_links, sitemap_urls, max_pages=MAX_PAGES, start=None
         return s - 0.1 * depth, depth
 
     cands = [u for u in cands if u.rstrip("/").lower() != home_key and _pk(u) not in home_keys]
-    base_path = urllib.parse.urlparse(base).path.rstrip("/")
+
+    def _parts(u):
+        return [x.lower() for x in urllib.parse.urlparse(u).path.split("/") if x]
+    # the folder most of the site's pages share is the site, not a section: /pages/accommodation.html (Gainsborough Bath Spa), /en/hotels/bcnrz-hotel-arts-barcelona/rooms/ (Hotel Arts on
+    # ritzcarlton.com). Counted as a section, it capped the whole site at four pages.
+    shared = []
+    while cands:
+        below = [_parts(u) for u in cands if len(_parts(u)) > len(shared) + 1 and _parts(u)[:len(shared)] == shared]
+        tally = {}
+        for ps in below:
+            tally[ps[len(shared)]] = tally.get(ps[len(shared)], 0) + 1
+        top = max(tally.items(), key=lambda kv: kv[1]) if tally else None
+        if not top or top[1] < 0.6 * len(cands):
+            break
+        sp = _parts(start)
+        if not (len(sp) > len(shared) and sp[len(shared)] == top[0]) and top[0] not in _CONTAINER_FOLDERS:
+            break                                      # a big real section ('/whats-on/' at The Hoxton) stays a section: only the start page's own folders, or a plain container, are the site
+        shared.append(top[0])
 
     def section(u):
-        rest_ = urllib.parse.urlparse(u).path
-        rest_ = rest_[len(base_path):] if base_path and rest_.lower().startswith(base_path.lower()) else rest_
-        parts = [x for x in rest_.split("/") if x]
-        return parts[0].lower() if len(parts) > 1 else ""          # '/accommodation/garden-rooms/' is in 'accommodation'; a top-level page is its own
+        parts = _parts(u)
+        rest_ = parts[len(shared):] if parts[:len(shared)] == shared else parts
+        return rest_[0] if len(rest_) > 1 else ""          # '/accommodation/garden-rooms/' is in 'accommodation'; a top-level page is its own
 
     per = {}
 
@@ -1088,7 +1109,9 @@ def run(site, base, hotel="", location=None, progress=None,
             home = {**pg, "via_second_reader": True}
     home = home or fetch_page(start)
     sitemap_urls = site.get("sitemap_urls") or []
-    picked = select_pages(base, home.get("links", []), sitemap_urls, max_pages + RESERVE, start=start)
+    landed = home.get("final_url") or start
+    sel_base = landed if _bare(urllib.parse.urlparse(landed).netloc) != _bare(urllib.parse.urlparse(base).netloc) else base
+    picked = select_pages(sel_base, home.get("links", []), sitemap_urls, max_pages + RESERVE, start=start)
     targets, reserve = picked[:max_pages], picked[max_pages:]
 
     say(f"Reading up to {len(targets)} pages to see what guests can learn...")
@@ -1238,7 +1261,7 @@ def _finish(pages, home, t0, site, base, hotel, location, sitemap_urls):
         "own_pages": [{"url": p["url"], "title": p.get("title", ""),
                        "text": (p.get("text") or "")[:9000], "h1": p.get("h1", []),
                        "tels": p.get("tels", []), "mails": p.get("mails", []),
-                       "links": p.get("links", [])[:150], "signals": p.get("signals", {}),
+                       "links": p.get("links", [])[:500], "signals": p.get("signals", {}),
                        "footer_text": (p.get("footer_text") or "")[:600]} for p in ok_pages],
         # one compact row per page tried (kept in the saved report): what a crawler found
         "pages_meta": [_page_row(p) for p in pages],

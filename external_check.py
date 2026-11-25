@@ -334,7 +334,21 @@ def _osm_name_ok(h, hotel, city):
     import hotelname
     if hotelname.sister_brand(nm, hotel):
         return False                                   # the Holiday Inn Express in the same building is another hotel (Holiday Inn Amsterdam - Arena Towers)
+    core = _name_core(hotel)
+    if core and core != hotel:
+        # 'The Hoxton, Shoreditch' is mapped as 'The Hoxton': the part after the comma says where it is. The entry must carry the rest of the name and no other identifying word
+        # ('The Hoxton Holborn' is another hotel).
+        cw = {t for t in evidence.distinctive_tokens(core) if t not in town}
+        extra = {t for t in evidence.distinctive_tokens(nm) if t not in town} - set(evidence.distinctive_tokens(hotel))
+        if cw and cw <= got and not extra:
+            return True
     return len(want & got) >= min(2, len(want)) if want else False
+
+
+def _name_core(hotel):
+    """The hotel's name without a place written after a comma or dash ('The Hoxton, Shoreditch' -> 'The Hoxton'), or the name itself."""
+    import re as _re
+    return _re.split(r",\s|\s[-–—]\s", hotel or "", maxsplit=1)[0].strip()
 
 
 def _osm_search(hotel, city, lat=None, lon=None):
@@ -345,8 +359,10 @@ def _osm_search(hotel, city, lat=None, lon=None):
     queries = [{"q": q} for q in _osm_name_variants(hotel, city)]
     if lat is not None and lon is not None:
         d = 0.006                                       # about 650 m each way
-        queries.append({"q": " ".join(__import__("evidence").distinctive_tokens(hotel)[-2:]) or hotel,
-                        "viewbox": f"{lon - d},{lat + d},{lon + d},{lat - d}", "bounded": 1})
+        box = {"viewbox": f"{lon - d},{lat + d},{lon + d},{lat - d}", "bounded": 1}
+        queries.append({"q": " ".join(__import__("evidence").distinctive_tokens(hotel)[-2:]) or hotel, **box})
+        if _name_core(hotel) != hotel:
+            queries.append({"q": _name_core(hotel), **box})      # 'The Hoxton' next to the hotel's own position (The Hoxton, Shoreditch)
     first_err, any_ok, last_hits = None, False, []
     for n, extra in enumerate(queries):
         if n:

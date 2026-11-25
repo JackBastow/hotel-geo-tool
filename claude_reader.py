@@ -69,7 +69,7 @@ def to_page(url, text, title="", lines=None):
     ok = len(plain) >= guest_questions.MIN_READABLE_CHARS
     return {"url": url, "ok": ok, "reason": "" if ok else "no readable text", "title": title or meta.get("title", "") or (h1[0] if h1 else ""), "h1": h1,
             "text": plain, "footer_text": "", "tels": [t.strip() for t in _TEL.findall(plain)][:5], "mails": sorted(set(_MAIL.findall(plain)))[:5],
-            "links": links[:150], "signals": {}, "status": 200, "final_url": url, "text_only": True}
+            "links": links[:500], "signals": {}, "status": 200, "final_url": url, "text_only": True}
 
 
 def _fetch(client, model, urls):

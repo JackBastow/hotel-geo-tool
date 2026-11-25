@@ -51,10 +51,14 @@ def shown_name(title, hotel="", place=""):
     The hotel's name as a platform's page title shows it. The title is cut at its separators, the piece that is most like the hotel's name is kept, and the platform's own name, prices, years, 'reviews' and the town
     are taken off. When no piece looks like the hotel's name at all (a title such as 'rate per night'), nothing is returned: a name that cannot be read is 'not shown', never a difference.
     """
-    parts = [p for p in re.split(r"\s[-|\u2013\u2014]\s|\s\|\s|:\s|,\s|\s\(", title or "") if p.strip()]
+    t = re.sub(r"[£€$]\s?\d[\d,.]*\.?|\b\d[\d,.]*\s?(?:[£€$]|eur|gbp|usd)\b", " ", title or "", flags=re.I)      # 'Hotel Arts Barcelona £139. Barcelona Hotel Deals' (Kayak): a price ends the name
+    t = re.split(r"(?<=[a-z])\.\s|\s{2,}", t)[0] if re.search(r"(?<=[a-z])\.\s", t) else t
+    parts = [p for p in re.split(r"\s[-|\u2013\u2014]\s|\s\|\s|:\s|,\s|\s\(", t) if p.strip()]
+    # 'The Hoxton, Shoreditch, London (...)' (Booking.com): the name itself has a comma, so two pieces read together are a candidate too
+    parts = parts[:4] + [f"{a}, {b}" for a, b in zip(parts[:3], parts[1:4])]
     want = set(evidence.distinctive_tokens(hotel)) if hotel else set()
     best, best_score = None, 0
-    for p in parts[:4]:
+    for p in parts:
         cleaned = " ".join(_TITLE_NOISE.sub(" ", p).split()).strip(" -|:,&")
         cleaned = re.sub(r"\b20\d\d\b", " ", cleaned)
         words = _words(cleaned)
@@ -90,7 +94,8 @@ def name_verdict(shown, hotel, place=""):
         return "same", ""
     if sa == sb:
         return "same", ""
-    ca, cb = {w for w in sa if w not in GENERIC_NAME}, {w for w in sb if w not in GENERIC_NAME}
+    qual = set(_words(re.split(r",|\s[-\u2013\u2014]\s", hotel, maxsplit=1)[1])) if re.search(r",|\s[-\u2013\u2014]\s", hotel) else set()      # 'Shoreditch' in 'The Hoxton, Shoreditch'
+    ca, cb = {w for w in sa if w not in GENERIC_NAME and w not in qual}, {w for w in sb if w not in GENERIC_NAME and w not in qual}
     only_site, only_listing = [w for w in sa if w not in sb], [w for w in sb if w not in sa]
     bits = (["the listing adds " + ", ".join(only_listing)] if only_listing else []) + (["the listing leaves out " + ", ".join(only_site)] if only_site else [])
     why = "; ".join(bits) or "the words are in a different order"
@@ -196,7 +201,7 @@ def compare(listings, site):
                 continue
             if fact == "name":
                 verdict, why = name_verdict(lv, sv, site.get("place", ""))
-                rows.append({"platform": plat, "fact": LABEL[fact], "listing_says": lv, "site_says": sv, "status": "matches" if verdict == "same" else "differs", "level": verdict, "note": why,
+                rows.append({"platform": plat, "fact": LABEL[fact], "listing_says": lv, "site_says": sv, "status": "differs" if verdict == "differs" else "matches", "level": verdict, "note": why,
                              "url": l["url"], "passage": l["quotes"].get(fact, "")})
                 continue
             if fact == "phone":

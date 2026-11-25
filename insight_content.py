@@ -796,6 +796,11 @@ def _phone_key(raw, region):
     return _norm_phone(s), None
 
 
+# a postcode written for another place the guest may use: a car park, a station, an airport, an office
+_OTHER_PLACE = re.compile(r"\b(?:car[\s-]?park|parking|garage|NCP|multi[\s-]?storey|park\s*(?:and|&)\s*ride|station|airport|terminal|head office|registered office|church|cathedral)\b[^.!?\n]{0,90}$", re.I)
+_OUTLET_PAGE = re.compile(r"restaurant|brasserie|bistro|/bar[s/-]|-bar/|rooftop|/spa/|cafe|kitchen", re.I)
+
+
 def _phone_analysis(site):
     """-> (issues, notes). A second number is not an inconsistency when it is labelled as a department's line (events, spa, restaurant...) or appears only on that department's own page;
     only unexplained, different numbers are raised. The explained ones are returned as notes, with the text that labels them."""
@@ -934,6 +939,7 @@ def consistency(site, guest, today=None):
     streets = defaultdict(set)
     own_words = {w for w in evidence.fold((site.city or "").split(",")[0]).split() if len(w) > 2} | {w for w in evidence.fold(site.hotel or "").split() if len(w) > 3 and w not in ("hotel", "hotels", "resort", "spa", "the")}
     attributed = defaultdict(lambda: {"own": False, "seen": False})
+    outlet_pcs = defaultdict(set)
     for p in site.content_pages:
         blob = p.get("footer_text", "") + " " + p["text"]
         for m in _POSTCODE.finditer(blob):
@@ -942,6 +948,13 @@ def consistency(site, guest, today=None):
             before = blob[max(0, m.start() - 160): m.start()]
             if re.search(r"(?:sat[\s-]?nav|satnav|gps|navigation|for directions|directions use|use (?:the )?postcode|postcode for (?:your )?sat)[^.]{0,25}$", before, re.I):
                 continue                                  # 'Sat nav postcode: BH23 5QL' is deliberately different from the postal address
+            if _OTHER_PLACE.search(before[-110:]):
+                pcs[k].discard(p["url"])
+                if not pcs[k]:
+                    pcs.pop(k)
+                continue                                  # 'Southgate Car Park (12 Southgate Street, Bath, BA1 1AQ)' (Gainsborough Bath Spa): another place's address, written to help the guest
+            if _OUTLET_PAGE.search(p["url"]) and not (p.get("footer_text") and m.start() < len(p.get("footer_text", ""))):
+                outlet_pcs[k].add(p["url"])               # the restaurant's own entrance on its own page (Llama Inn, Willow Street, at The Hoxton Shoreditch)
             corporate = bool(_CORPORATE.search(before[-130:]))
             near = evidence.fold(before[-60:])                # the words just before the postcode: '..., Newquay, TR7 1DB' or '..., Bournemouth, BH2 5EJ'
             attributed[k]["seen"] = True
@@ -963,6 +976,10 @@ def consistency(site, guest, today=None):
     if own_words and any(a["own"] for a in attributed.values()):
         pcs = {k: u for k, u in pcs.items() if attributed[k]["own"]}
         streets = {s: u for s, u in streets.items() if attributed[s[2]]["own"]}
+    for k, u in outlet_pcs.items():
+        if k in pcs and pcs[k] <= u and len(pcs) > 1:
+            pcs.pop(k)                                    # seen only on a restaurant, bar or spa page: that outlet's own entrance, not a second address for the hotel
+            streets = {s_: v for s_, v in streets.items() if s_[2] != k}
     streets = {(s[0], s[1]): u for s, u in streets.items()}
     if len(pcs) > 1:
         out.append({"type": "postcode", "title": "More than one postcode appears on the site", "severity": "medium",

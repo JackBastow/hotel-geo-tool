@@ -157,6 +157,9 @@ def build_intel(*, hotel, city, base_url, location, site, discovery, guest, own_
         local = any(t in c["domain"] for t in area_toks if t)
         national = any(t in c["domain"] for t in ("visitbritain", "visitengland", "visitscotland",
                                                   "visitwales", "enjoyengland", "discoverbritain"))
+        said = set(evidence.fold(f"{c.get('title', '')} {c.get('snippet', '')}").split())
+        if not (local or national or (area_toks - {""}) & said):
+            continue                                   # a tourism site for somewhere else (Gainsborough Bath Spa: visitsylvanlake.ca, in Canada) is not the area's
         body = {"name": c["label"] or c["domain"], "domain": c["domain"],
                 "url": f"https://{c['domain']}/",
                 "scope": "national" if national else ("local" if local else "local or regional")}

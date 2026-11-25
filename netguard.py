@@ -11,6 +11,7 @@ the exposure small. Set ALLOW_PRIVATE_FETCH=1 to switch the check off on a priva
 
 import ipaddress
 import os
+import re
 import socket
 import urllib.parse
 
@@ -57,6 +58,23 @@ def url_ok(url):
     return host_ok(p.hostname)
 
 
+_META_CHARSET = re.compile(rb"""<meta[^>]+charset=["']?([\w-]+)""", re.I)
+
+
+def _fix_encoding(r, stream):
+    """A server that sends 'text/html' with no charset makes requests read the page as ISO-8859-1, so a UTF-8 '£40' became 'Â£40' (The Gainsborough Bath Spa).
+    The page's own <meta charset> decides then."""
+    try:
+        ct = (r.headers.get("Content-Type") or "").lower()
+        if stream or "html" not in ct or "charset" in ct:
+            return
+        m = _META_CHARSET.search(r.content[:4096])
+        if m:
+            r.encoding = m.group(1).decode("ascii", "ignore")
+    except Exception:  # noqa: BLE001 - only a better guess at the text; the response stays usable
+        pass
+
+
 def get(url, headers=None, timeout=25, stream=False, max_redirects=5, **kw):
     """requests.get that checks every hop. Same return value as requests.get."""
     cur = url
@@ -69,5 +87,6 @@ def get(url, headers=None, timeout=25, stream=False, max_redirects=5, **kw):
             cur = urllib.parse.urljoin(cur, loc)
             r.close()
             continue
+        _fix_encoding(r, stream)
         return r
     raise requests.TooManyRedirects("too many redirects")

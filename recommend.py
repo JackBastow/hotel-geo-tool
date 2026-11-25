@@ -144,8 +144,12 @@ def build(ctx):
                 "UK CAP Code rules expect advertising claims to be substantiated."))
     # --------------------------------------------------------------- identity
     ident = ctx["identity"]
-    if len(ident["name_variants"]) > 1:
-        v = [x["variant"] for x in ident["name_variants"][:3]]
+    import evidence
+    _forms = {}
+    for x in ident["name_variants"]:
+        _forms.setdefault(frozenset(evidence.distinctive_tokens(x["variant"])), x["variant"])
+    if len(_forms) > 1:
+        v = list(_forms.values())[:3]
         recs.append(_rec(
             "I1", "identity", "The hotel appears under more than one name",
             "Sources use different forms of the name: " + "; ".join(f"'{x}'" for x in v) + ".",

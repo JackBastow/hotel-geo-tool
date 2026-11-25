@@ -455,5 +455,38 @@ check("a 2-star guest house is not comparable with it", _cmp.comparable(_own4, {
 _mine = ai_questions.build({"tier": {"key": "upscale", "label": "Upscale", "why": "brand"}, "classes": []}, _MH, "Paris", [], benchmark=[dict(_bench[1], confirmed=True)])
 check("a prompt the hotel confirmed itself is its choice, and is never retired automatically", not _mine["benchmark_retired"] and any(q["text"] == _bench[1]["text"] for q in _mine["questions"]))
 
+print("18. three new hotels (Nov 2026 wider test): pages chosen, names on listings, other places' postcodes")
+import guest_questions as _gq
+import listing_facts as _lf
+_rz = "https://www.ritzcarlton.com/en/hotels/bcnrz-hotel-arts-barcelona/overview/"
+_rzl = [_rz.replace("overview/", x) for x in ["rooms/", "dining/", "spa/", "events/", "weddings/", "experiences/", "hotel-information/", "explore/", "rooms/a/", "rooms/b/"]]
+check("a hotel whose pages all sit under one brand folder is not capped at four pages (Hotel Arts on ritzcarlton.com)", len(_gq.select_pages(_rz, _rzl, [], 25, start=_rz)) >= 10,
+      _gq.select_pages(_rz, _rzl, [], 25, start=_rz))
+_gb = "https://www.thegainsboroughbathspa.co.uk/"
+_gbl = [_gb + "pages/%s.html" % x for x in "accommodation dining contact-us spa-village-bath faq the-gainsborough-story events-celebrations special-offers festive press awards".split()]
+check("a site that keeps every page in /pages/ is not capped at four (The Gainsborough Bath Spa: 5 of 65 pages read)", len(_gq.select_pages(_gb, _gbl, [], 25)) == 12)
+_hx = "https://thehoxton.com/london/shoreditch/"
+_hxl = [_hx + "whats-on/%s/" % i for i in range(8)] + [_hx + "faqs/", _hx + "rooms/"]
+check("a real section is still capped (The Hoxton: eight 'what's on' pages)", sum("whats-on" in u for u in _gq.select_pages(_hx, _hxl, [], 25)) == 4)
+for _t, _h, _pl, _want in [("The Hoxton, Shoreditch, London (aktualisierte Preise für ...", "The Hoxton, Shoreditch", "London", "same"),
+                           ("THE HOXTON, SHOREDITCH - 2026 Reviews (London, England)", "The Hoxton, Shoreditch", "London", "same"),
+                           ("Hotel The Gainsborough Bath Spa, United Kingdom - www.trivago.co.uk", "The Gainsborough Bath Spa", "Bath", "close"),
+                           ("Hotel Arts Barcelona £139. Barcelona Hotel Deals & Reviews - KAYAK", "Hotel Arts Barcelona", "Barcelona", "close"),
+                           ("Brooklands Country Club Hotel - Booking.com", "Brooklands Hotel", "Weybridge", "differs")]:
+    _v = _lf.name_verdict(_lf.shown_name(_t, _h, _pl), _h, _pl)[0]
+    check(f"listing title {_t[:45]!r} reads as {_want}", _v == _want, _v)
+_pc = ic.Site([{"url": _gb + "pages/contact-us.html", "ok": True, "title": "Contact Us", "h1": [], "text":
+               "The Gainsborough Bath Spa\nBeau Street, Bath BA1 1QY, England\nParking\nAlternative parking is available in the Southgate Car Park (12 Southgate Street, Bath, BA1 1AQ) or "
+               "Avon Street Car Park (Avon Street, Bath, BA1 1UF). Both are approximately 5 minutes' walk to the hotel."}], _gb, "The Gainsborough Bath Spa", "Bath")
+_pco = ic.consistency(_pc, {"conflicts": []})
+check("a car park's postcode, given to help the guest, is not a second address (Gainsborough: 'More than one postcode', high priority)", not any(o["type"] in ("postcode", "address") for o in _pco),
+      [o["title"] for o in _pco])
+_ho = ic.Site([{"url": _hx, "ok": True, "title": "The Hoxton, Shoreditch", "h1": [], "text": "The Hoxton, 81 Great Eastern Street, London EC2A 3HU"},
+               {"url": _hx + "llama-inn-restaurant/", "ok": True, "title": "Llama Inn", "h1": [], "text": "Llama Inn, 1 Willow Street, London EC2A 4BH. Rooftop Peruvian restaurant."}], _hx, "The Hoxton, Shoreditch", "London")
+check("a restaurant's own entrance on its own page is not a second hotel address (The Hoxton: Llama Inn, Willow Street)", not any(o["type"] == "postcode" for o in ic.consistency(_ho, {"conflicts": []})))
+_two = ic.Site([{"url": _hx, "ok": True, "title": "Home", "h1": [], "text": "The Hoxton, 81 Great Eastern Street, London EC2A 3HU"},
+                {"url": _hx + "contact/", "ok": True, "title": "Contact", "h1": [], "text": "The Hoxton, 2 Old Street, London EC1V 9AA"}], _hx, "The Hoxton, Shoreditch", "London")
+check("two different hotel addresses are still reported", any(o["type"] == "postcode" for o in ic.consistency(_two, {"conflicts": []})))
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

@@ -112,11 +112,11 @@ def build_page(url, res, lines=None):
         except Exception:  # noqa: BLE001
             parsed = None
         if parsed and parsed.get("signals") and len(parsed.get("text") or "") >= guest_questions.MIN_READABLE_CHARS:
-            parsed["links"] = list(dict.fromkeys(parsed["links"] + [l for l in res.get("links") or [] if l]))[:150]
+            parsed["links"] = list(dict.fromkeys(parsed["links"] + [l for l in res.get("links") or [] if l]))[:500]
             parsed.update(url=url, ok=True, reason="", status=200, final_url=url, text_only=False, html_via="firecrawl")
             return parsed
     pg = claude_reader.to_page(url, res.get("markdown") or "", res.get("title") or "", lines=lines)
-    pg["links"] = ([l for l in res.get("links") or [] if l] or pg["links"])[:150]
+    pg["links"] = ([l for l in res.get("links") or [] if l] or pg["links"])[:500]
     return pg
 
 
