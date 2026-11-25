@@ -76,15 +76,15 @@ class Manager:
             while dq and now - dq[0] > 3600:
                 dq.popleft()
 
-    def submit(self, params, visitor="?"):
-        """-> (job or None, reason). Refuses when this visitor has had their share this hour, or when too many audits are waiting."""
+    def submit(self, params, visitor="?", unlimited=False):
+        """-> (job or None, reason). Refuses when this visitor has had their share this hour (not the signed-in operator), or when too many audits are waiting."""
         with self.lock:
             self._purge()
             waiting = sum(1 for j in self.jobs.values() if j.status in ("queued", "running"))
             if waiting >= self.max_queue:
                 return None, "busy"
             dq = self.by_visitor[visitor]
-            if len(dq) >= self.per_hour:
+            if len(dq) >= self.per_hour and not unlimited:
                 return None, "limit"
             dq.append(time.time())
             job = Job(params)

@@ -404,7 +404,8 @@ def create_app(cfg=None, run_fn=None):
                   "tier": (d.get("tier") or None) if (d.get("tier") or "") in audit_service.TIERS else None, "audiences": [a for a in (aud if isinstance(aud, list) else [])][:8], "prompts": prompts}
         if rows:
             params["review_rows"], params["review_mapping"] = rows, mapping        # held in memory for the job only; dropped when it finishes
-        job, why = manager.submit(params, visitor_id())
+        _op = session.get("admin_ok") is True and (session.get("admin_until") or 0) > time.time()      # the signed-in operator testing hotels is not held to the visitor limit
+        job, why = manager.submit(params, visitor_id(), unlimited=_op)
         if job is None:
             msg = ("The service is busy with other audits. Please try again in a few minutes." if why == "busy"
                    else f"This service runs up to {cfg.audits_per_hour} audits an hour for each visitor. Please try again later.")
