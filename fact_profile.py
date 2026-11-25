@@ -101,10 +101,35 @@ def parse_reply(text):
     return []
 
 
+# the words a hotel uses for each facility, wider than the word rules' own patterns ('pooches are welcome', 'dine with us', 'four-legged guests'): the check is that a quotation is ABOUT the
+# facility, not that it uses the rules' wording (The Hoxton: 7 of 14 answers were refused for wording, among them its dogs)
+TOPIC = {
+    "restaurant": r"restaurant|brasserie|bistro|grill|dining|dine|dinner|lunch|menu|chef|kitchen|eat|food|cuisine|trattoria|osteria",
+    "bar": r"\bbar\b|bars\b|lounge|cocktail|drink|wine|beer|gin|whisk(?:e)?y|pub\b|taproom",
+    "afternoon_tea": r"afternoon tea|high tea|cream tea",
+    "spa": r"\bspa\b|treatment|massage|sauna|steam|hammam|wellness|facial|therap",
+    "pool": r"pool|swim|lido",
+    "gym": r"\bgym\b|fitness|workout|exercise|peloton|weights|training",
+    "meeting_rooms": r"meeting|conference|boardroom|function|event|delegate|workshop|seminar|business",
+    "weddings": r"wedding|marr|ceremon|bride|celebration|nuptial",
+    "parking": r"park|car|valet|garage|vehicle",
+    "ev": r"\bev\b|electric|charg|tesla|plug",
+    "pets": r"\bdogs?\b|\bpets?\b|pooch|pup|puppy|canine|four[- ]legged|furry|paw|cat\b",
+    "family": r"famil|child|kid|cot\b|cots\b|baby|babies|infant|toddler|connecting|interconnecting|extra bed|teen",
+    "accessible": r"access|wheelchair|disab|mobility|step[- ]free|\blift\b|elevator|hearing|ramp",
+    "wifi": r"wi-?fi|internet|wireless|broadband|connectivity",
+    "garden": r"garden|grounds|terrace|lawn|courtyard|park\b|patio|orchard",
+    "airport_transfer": r"airport|shuttle|transfer|pick[- ]?up",
+    "room_service": r"room service|in-room dining|in room dining|delivered to your room",
+    "reception_24h": r"24|reception|front desk|concierge|around the clock|night porter",
+    "heritage": r"histor|listed|built|century|heritage|georgian|victorian|regency|medieval|grade",
+}
+
+
 def _topical(key, quote, page_norm):
-    """The quotation, or the page sentence it sits in, names the facility (the word rules' own pattern, so a quote about something else is never taken as this facility)."""
+    """The quotation, or the page sentence it sits in, is about the facility (its word-rule pattern, or the wider words hotels use for it), so a quote about something else is never taken."""
     pat = lexicon.FEATURES[key][1]
-    if pat.search(quote):
+    if pat.search(quote) or (key in TOPIC and re.search(TOPIC[key], quote, re.I)):
         return True
     q = ai_extract._norm(quote)
     i = page_norm.find(q)
@@ -220,6 +245,41 @@ def build(own_pages, *, api_key=None, model=None, client=None, failed_pages=0):
     kept, stats = verify(rows, pages)
     return _envelope("ok", "" if rows else "The reply could not be read, so the word rules stand alone.", facilities=kept, cost_usd=round(ai_sample.cost_usd(model, tin, tout, 0), 5),
                      model=model, pages_sent=len(pages), **basis, **stats)
+
+
+_QUESTION_KEY = {"parking": "parking", "pets": "pets", "ev": "ev", "wifi": "wifi", "accessibility": "accessible", "family": "family"}
+
+
+def reconcile_questions(questions, profile):
+    """
+    The guest questions follow the profile too. A question the word rules marked 'not offered' from a restriction ('Dogs are not allowed in restaurant outlets': The Hoxton, whose
+    rooms welcome dogs) loses that denial when the profile says the hotel has it; a question with no answer gets the profile's 'not offered' with its quotation. -> [question ids changed]
+    """
+    facs = (profile or {}).get("facilities") or {}
+    changed = []
+    for q in questions or []:
+        p = facs.get(_QUESTION_KEY.get(q.get("id"), ""))
+        if not p or not p.get("status"):
+            continue
+        if p["status"] == ON_SITE and q.get("not_offered"):
+            q["not_offered"] = []
+            if q.get("state") == "answered" and not q.get("found"):
+                q["state"] = "partial"
+                q["missing"] = q.get("missing") or []
+            q["note"] = ("the pages say the hotel has it: “" + p["quote"][:160] + "”. ") + (q.get("note") or "")
+            changed.append(q["id"])
+        elif p["status"] == NOT_OFFERED and q.get("state") in ("not_found", "couldnt_check", "partial") and not q.get("found"):
+            q["state"], q["missing"], q["nice_to_have"] = "answered", [], []
+            q["not_offered"] = [{"label": q.get("short") or q["id"], "snippet": p["quote"], "url": p["url"]}]
+            q["snippet"], q["source_url"] = p["quote"], p["url"]
+            changed.append(q["id"])
+        if q["id"] in changed:
+            try:
+                import guest_questions
+                q["state_label"] = guest_questions.STATE_LABELS[q["state"]]
+            except Exception:  # noqa: BLE001
+                pass
+    return changed
 
 
 # ------------------------------------------------------------------ one profile for every part of the report

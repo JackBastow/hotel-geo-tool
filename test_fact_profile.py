@@ -5,6 +5,7 @@ a spa at a sister hotel; a quotation that is not on the page.
 Run: python test_fact_profile.py
 """
 import json
+import re
 import sys
 import warnings
 
@@ -144,6 +145,22 @@ _big = [x["what"] for x in _iss if x["level"] == "big"]
 check("the operator sees the big problems first: few pages read, no map position, the AI test not run",
       any("pages could be read" in w for w in _big) and any("map" in w for w in _big) and any("AI assistant test" in w for w in _big) and _iss[0]["level"] == "big", _iss)
 check("the admin panel says nothing went wrong when nothing did", "Nothing went wrong" in run_health.panel_html({"meta": {"location": {"lat": 1}}, "ai_sample": {"status": "ok"}}))
+
+print("6. from the first live runs (Brooks, The Hoxton)")
+_hx = [{"url": "https://thehoxton.com/london/shoreditch/", "text": "Bring your pooch! Our four-legged friends are welcome in all rooms, with a bed and a bowl waiting. " * 3}]
+_k, _ = fact_profile.verify([{"key": "pets", "status": "on_site", "quote": "Our four-legged friends are welcome in all rooms, with a bed and a bowl waiting.", "url": _hx[0]["url"]}], _hx)
+check("a quotation in the hotel's own words is about the facility ('four-legged friends are welcome': The Hoxton's dogs were refused)", _k.get("pets", {}).get("status") == "on_site", _k)
+_qs = [{"id": "pets", "short": "Pets", "state": "answered", "found": [], "not_offered": [{"label": "Pets", "snippet": "Dogs are not allowed in restaurant outlets.", "url": "u"}]},
+       {"id": "parking", "short": "Parking", "state": "not_found", "found": []}]
+_ch = fact_profile.reconcile_questions(_qs, {"facilities": {"pets": {"status": "on_site", "quote": "Our four-legged friends are welcome in all rooms.", "url": "u"},
+                                                             "parking": {"status": "not_offered", "quote": "We do not have car parking.", "url": "u2"}}})
+check("a restriction ('not allowed in restaurant outlets') is not 'no pets' when the profile says dogs are welcome", not _qs[0]["not_offered"] and _qs[0]["state"] == "partial" and "pets" in _ch)
+check("a question the rules could not answer takes the profile's 'not offered', with its quotation", _qs[1]["state"] == "answered" and _qs[1]["not_offered"][0]["snippet"] == "We do not have car parking.")
+import ai_questions
+_b = ai_questions.build({"tier": {"key": "midscale", "label": "Mid-range", "why": "x"}, "classes": ["city_centre", "business"], "strong_features": ["wifi"], "features": ["wifi"]},
+                        "Brooks Guesthouse", "Bath", [{"name": "Victoria Park", "kind": "attraction", "distance": "350 meters", "km": 0.35, "source": "the hotel's own pages"}])
+check("no written question asks about meeting space or parking the hotel's facts do not give it (Brooks Guesthouse)",
+      not any(re.search(r"meeting|parking", q["text"], re.I) for q in _b["questions"]), [q["text"] for q in _b["questions"] if re.search(r"meeting|parking", q["text"], re.I)])
 
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

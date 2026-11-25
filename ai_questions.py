@@ -46,8 +46,9 @@ BUDGET_WORDS = re.compile(r"\b(?:cheap|budget|bargain|hostel)\b", re.I)
 # a facility or audience a proposal may only mention when a fact supports it: word -> the fact words that license it
 LICENCE = {r"\bspa\b|wellness|massage|treatment": r"spa|wellness", r"\bpool\b|swim": r"pool", r"wedding": r"wedding", r"famil|kids|child|toddler": r"famil|kid|child",
            r"romantic|couple|honeymoon|anniversary": r"romantic|couple|spa|boutique", r"\bpets?\b|\bdogs?\b": r"pet|dog", r"\bev\b|electric|charging": r"\bev\b|electric|charging",
-           r"wheelchair|accessible|mobility": r"accessib|wheelchair", r"\bairport\b|flight|layover|stopover": r"airport|flight", r"conference|meeting|workshop|offsite|off-site": r"meeting|conference|business",
-           r"michelin|fine dining|restaurant": r"restaurant|dining|michelin|food"}
+           r"wheelchair|accessible|mobility": r"accessib|wheelchair", r"\bairport\b|flight|layover|stopover": r"airport|flight", r"conference|meeting|workshop|offsite|off-site": r"meeting|conference",
+           r"michelin|fine dining|restaurant": r"restaurant|dining|michelin|food",
+           r"\bparking\b|car park": r"parking|car park", r"\bgym\b|fitness": r"\bgym\b|fitness"}      # Brooks Guesthouse: 'which hotels have parking' for a guesthouse with none
 
 
 def _tokens(s):
@@ -434,6 +435,15 @@ def build(prof, hotel, city, anchor_list, *, client=None, model=None, base_repea
     feat = feature_questions(prof, hotel, city, anchor_list or [])
     pool = anch + feat + tmpl
     cost, rejected = 0.0, []
+    # the written templates pass the same test as the AI's proposals and the saved prompts: no facility the verified facts do not give the hotel
+    # (Brooks Guesthouse: 'with reliable Wi-Fi and meeting space' for a guesthouse with no meeting room)
+    _known = " ".join(str(f.get("text") or "") for f in facts).lower()
+    for q in list(pool):
+        for needs, licence in LICENCE.items():
+            if re.search(needs, q["text"], re.I) and not re.search(licence, _known, re.I):
+                pool.remove(q)
+                rejected.append({"text": q["text"], "why": f"it asks about {re.search(needs, q['text'], re.I).group(0).lower()}, which the hotel's facts do not support"})
+                break
     places = [a["name"] for a in an_best(anchor_list, 3)]
     if profile:
         import hotel_profile

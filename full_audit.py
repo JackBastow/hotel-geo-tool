@@ -828,6 +828,10 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     _start = ((site.get("meta") or {}).get("home_url") or (site.get("meta") or {}).get("entry_url") or base)
     for _b in {base, _start}:
         fact_profile.use(_b, fact_prof)                 # always set, even empty: a previous audit's answers for this hotel are never reused
+    try:
+        fact_prof["questions_changed"] = fact_profile.reconcile_questions(guest.get("questions"), fact_prof)      # the guest questions follow the same answers
+    except Exception as e:  # noqa: BLE001
+        steps.failed("Fact profile / reconcile_questions", e)
 
     # Where the hotel is, again, now its pages have been read: the first attempt used the few pages our own reader could fetch, and a site that refuses it (a brand, or THE NICI from the host)
     # left the hotel with no map position, so no comparable hotels, distances or nearby places. The postcode on any page read (FAQ, contact) places it.
@@ -1028,7 +1032,9 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             question_plan = {"error": f"{type(_pe).__name__}: {str(_pe)[:200]}", "questions": [], "facts": [], "anchors": []}
             say(f"Planning the hotel's questions's tracked prompts are still asked.")
         # the hotel's tracked prompts (confirmed, or frozen at its first check) are asked in EVERY check, whatever happened above: without them the trend means nothing
-        if benchmark and not any(q.get("source") == "benchmark" for q in nqs):
+        _retired = {r.get("text") for r in ((benchmark_info or {}).get("retired") or [])}
+        benchmark = [b for b in (benchmark or []) if b.get("text") not in _retired]       # a prompt retired above is never put back (Brooks: 'near Victoria Park have parking' was asked again)
+        if benchmark and not any(q.get("source") in ("benchmark", "benchmark_new") for q in nqs):
             _rp = min(_depth_mod.limits(ai_depth)["core_cap"], (anthropic_repeats or _depth_mod.limits(ai_depth)["repeats"]) + _depth_mod.limits(ai_depth)["core_extra"])
             _fr = [{"id": f"niche_bench{i}", "kind": "niche", "angle": b.get("angle") or "Tracked prompt", "text": b["text"], "priority": "core", "source": "benchmark", "repeats": _rp,
                     "why": "One of the hotel's tracked prompts, asked in every check so the results can be compared over time."} for i, b in enumerate(benchmark[:ai_questions.TRACKED_MAX], 1) if b.get("text")]
