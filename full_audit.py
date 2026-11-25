@@ -844,15 +844,27 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             _feats = ic_mod.features(ic_mod.Site(own_pages, base, hotel, city))
             _topics = _reading.unverified(guest, fact_prof, _feats)
             _room = _reading.LIMIT - len([p for p in own_pages if p.get("ok", True)])
-            _cands = [{"url": u} for u in (guest.get("page_candidates") or [])]
+            # candidates: the first read's leftovers, the links on EVERY page read (THE NICI's FAQ links its terms page; the homepage does not), and Firecrawl's map of the site
+            # when it has no sitemap; always inside the hotel's own section of the site
+            _home_url = ((site.get("meta") or {}).get("home_url") or (site.get("meta") or {}).get("entry_url") or base)
+            _links = [l for p in own_pages for l in (p.get("links") or [])]
+            if not (site.get("sitemap_urls") or []) and firecrawl_api_key and _topics:
+                _mapped = _reading.firecrawl_map(_home_url, firecrawl_api_key)
+                fact_prof["follow_up"]["firecrawl_map"] = len(_mapped)
+                _links += [m["url"] for m in _mapped]
+            _ranked = guest_questions.select_pages(_home_url, _links, site.get("sitemap_urls") or [], _reading.LIMIT * 3, start=_home_url)
+            _cands = [{"url": u} for u in list(dict.fromkeys(list(guest.get("page_candidates") or []) + _ranked))]
             _urls, _followed = _reading.follow_up(_cands, [p.get("url", "") for p in own_pages], _topics, max(0, _room))
             fact_prof["follow_up"].update(topics=_topics, candidates=len(_cands))
             if _urls:
                 say(f"Reading {len(_urls)} more page(s) for what is still unverified ({', '.join(_topics[:5])})...")
 
+                _fc_used = []
+
                 def _read_more(u):
-                    if _fc_primary and _second:
+                    if _second and (_fc_primary or guest.get("read_via") in ("firecrawl", "firecrawl_primary")):       # a site that refuses our reader is read the way its first pages were
                         try:
+                            _fc_used.append(u)
                             pg = _second(u)
                             if pg and pg.get("ok"):
                                 return {**pg, "via_second_reader": True}
@@ -863,7 +875,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 with _TPE2(max_workers=4) as _ex:
                     _new = list(_ex.map(_read_more, _urls))
                 _ok_new = [p for p in _new if p.get("ok")]
-                fact_prof["follow_up"].update(pages_read=len(_ok_new), pages_failed=len(_new) - len(_ok_new))
+                fact_prof["follow_up"].update(pages_read=len(_ok_new), pages_failed=len(_new) - len(_ok_new), firecrawl_credits=len(_fc_used) + (1 if fact_prof["follow_up"].get("firecrawl_map") is not None else 0),
+                                              urls=_urls)
                 if _ok_new:
                     _more = fact_profile.build(_ok_new, api_key=anthropic_api_key, model=os.environ.get("ANTHROPIC_EXTRACT_MODEL") or None)
                     _before = {k for k, v in (fact_prof.get("facilities") or {}).items() if v.get("status")}

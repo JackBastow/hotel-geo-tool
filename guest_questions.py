@@ -1283,7 +1283,7 @@ def _finish(pages, home, t0, site, base, hotel, location, sitemap_urls):
         # positioning). The caller uses it and removes it before saving the
         # report, so it never bloats the downloaded JSON.
         "own_pages": [{"url": p["url"], "title": p.get("title", ""),
-                       "text": (p.get("text") or "")[:9000], "h1": p.get("h1", []),
+                       "text": (p.get("text") or "")[:__import__("reading").PAGE_CHARS], "h1": p.get("h1", []),
                        "tels": p.get("tels", []), "mails": p.get("mails", []),
                        "links": p.get("links", [])[:500], "signals": p.get("signals", {}),
                        "footer_text": (p.get("footer_text") or "")[:600]} for p in ok_pages],

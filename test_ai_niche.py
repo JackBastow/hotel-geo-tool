@@ -36,13 +36,16 @@ check("the neighbourhood comes from the map, and is ignored when it is just the 
 check("the nearest named airport on the map is used when the pages say nothing", nz.airport_from_map({"airports": [{"name": "Far", "km": 24}, {"name": "Ciampino Airport", "km": 9.2}]}) == ("Ciampino Airport", 9.2))
 
 print("2. what kind of hotel it is, and the questions that follow")
-feat = [{"key": "spa", "level": "strong"}, {"key": "restaurant", "level": "strong"}, {"key": "wifi", "level": "strong"}, {"key": "pets", "level": "some"}, {"key": "meeting_rooms", "level": "strong"}]
+feat = [{"key": "spa", "level": "strong"}, {"key": "restaurant", "level": "strong"}, {"key": "wifi", "level": "strong"}, {"key": "pets", "level": "some"}, {"key": "meeting_rooms", "level": "strong"}, {"key": "weddings", "level": "strong"}]
 intents = [{"key": "weddings", "label": "Weddings", "level": "strong"}, {"key": "business", "label": "Business travel", "level": "strong"}, {"key": "family", "label": "Families", "level": "some"}]
 prof = nz.profile("Hotel Santa Maria", "Rome", ents, None, [{"text": "A 4-star hotel in Trastevere. Fiumicino Airport is 30 minutes by train, 18 km from Fiumicino Airport."}], feat, intents, domain="santamaria.it")
 check("the profile reads the price level (4-star from its own pages), the neighbourhood and the airport, and is not an airport hotel at 18 km",
       prof["tier"]["key"] == "upscale" and prof["tier"]["source"] == "pages" and prof["district"] == "Trastevere" and prof["airport"]["name"] == "Fiumicino Airport" and not prof["airport_hotel"], prof["tier"])
 check("audiences come with their evidence, strongest first, in a fixed order (business before spa before weddings)",
       [a["key"] for a in prof["audiences"]][:4] == ["business", "meetings", "wellness", "weddings"] and all(a["why"] for a in prof["audiences"]), [a["key"] for a in prof["audiences"]])
+_nowed = nz.profile("Hotel Santa Maria", "Rome", ents, None, [{"text": "A 4-star hotel in Trastevere."}], [f for f in feat if f["key"] != "weddings"], intents, domain="santamaria.it")
+check("a weddings market needs the hotel to host weddings, not the word on a page (the facility must be confirmed)", "weddings" not in [a["key"] for a in _nowed["audiences"]],
+      [a["key"] for a in _nowed["audiences"]])
 qs = nz.questions(prof, "Hotel Santa Maria", "Rome", n=6)
 check("six questions: the price level first, then the neighbourhood, then the audiences", [q["angle"] for q in qs][:3] == ["Price level", "Neighbourhood", "Business travel"] and len(qs) == 6, [q["angle"] for q in qs])
 check("every question is a niche-kind item with a reason drawn from a fact we hold", all(q["kind"] == "niche" and q["id"].startswith("niche_") and q["why"] for q in qs))

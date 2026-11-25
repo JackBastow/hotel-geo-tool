@@ -49,7 +49,7 @@ def classify(site, features, intents, osm_ctx=None, hotel="", prof=None):
 
     def add(key, strength, reasons):
         st = fact_profile.status_of(site, _needs[key]) if key in _needs else None
-        if st and st != fact_profile.ON_SITE:
+        if (st and st != fact_profile.ON_SITE) or (key in _needs and fact_profile.for_site(site) and st != fact_profile.ON_SITE):
             return                              # the verified profile says the spa or the meeting rooms are not the hotel's own: it is not a spa or conference hotel
         out.append({"key": key, "label": LABELS[key], "strength": strength, "reasons": reasons[:4]})
 

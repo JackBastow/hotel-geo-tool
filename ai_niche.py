@@ -214,7 +214,7 @@ AUDIENCES = [
     ("long_stay", "Long stays", ("long_stay",), ()),
     ("groups", "Groups", ("groups",), ()),
     ("pets", "Pet owners", ("pet",), ("pets",)),
-    ("food", "Food and dining", ("food",), ("restaurant", "afternoon_tea")),
+    ("food", "Food and dining", ("food",), ("restaurant",)),
     ("city_break", "City breaks", ("city_break",), ()),
     ("heritage", "Character and heritage", (), ("heritage",)),
     ("value", "Value for money", ("budget",), ()),
@@ -232,6 +232,7 @@ NEEDS_CLASS = {
     "couples": {"spa_hotel", "boutique", "luxury", "resort"}, "weddings": {"resort", "luxury", "boutique", "spa_hotel"}, "food": {"luxury", "boutique", "resort", "spa_hotel"}, "city_break": {"city_centre"},
 }
 NEEDS_STRONG = {"pets", "ev", "accessible", "long_stay", "groups"}
+FACILITY_REQUIRED = {"meetings": ("meeting_rooms",), "wellness": ("spa", "pool"), "weddings": ("weddings",), "food": ("restaurant",), "pets": ("pets",), "accessible": ("accessible",), "ev": ("ev",)}
 GATE_WHY = {
     "wellness": "the pages mention a spa or pool, but nothing shows a spa hotel (treatments, sauna, steam room): a gym or a pool does not make one",
     "family": "the pages offer family rooms, but nothing shows a hotel built around families (kids' club, play area)",
@@ -267,6 +268,11 @@ def audiences(prof, level, flevel, stated=None):
                     continue
         elif key not in (stated or []) and lv:
             tkey = (prof.get("tier") or {}).get("key")
+            need = FACILITY_REQUIRED.get(key)
+            if need and not any((flevel or {}).get(f) in ("some", "strong") for f in need):
+                # a market that rests on a facility needs the facility, confirmed at the hotel (Brooks Guesthouse: 'Food and dining' from cream teas, with no restaurant)
+                prof.setdefault("skipped", []).append({"key": key, "label": label, "why": "the hotel's own pages do not confirm it has " + " or ".join(need).replace("_", " ")})
+                continue
             if key == "luxury" and tkey != "luxury":
                 prof.setdefault("skipped", []).append({"key": key, "label": label, "why": f"the hotel is {(prof.get('tier') or {}).get('label', 'not luxury')}, so a luxury question would be answered by palace hotels that are not its competitors"})
                 continue

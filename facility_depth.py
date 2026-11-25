@@ -102,6 +102,8 @@ def analyse(site):
     own = {"events": "meeting_rooms", "spa": "spa", "restaurant": "restaurant"}
     for key, f in FACILITIES.items():
         st = fact_profile.status_of(site, own[key]) if key in own else None
+        if key in own and fact_profile.for_site(site) and st != fact_profile.ON_SITE:
+            continue                            # with a verified profile, the facility must be confirmed at the hotel (Chewton Glen: meeting-room detail asked with no meeting room confirmed)
         if st and st != fact_profile.ON_SITE:
             continue                            # the verified profile says the hotel does not have it itself (nearby, a partner's, or not offered): nothing to describe more fully
         trig = re.compile(f["trigger"], I)
