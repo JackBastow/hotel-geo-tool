@@ -70,7 +70,7 @@ SEGMENTS = [
           "need": 1, "add": ["which room types are family rooms and how many people they sleep"]},
          {"id": "occupancy", "label": "Maximum room occupancy", "context": _rx(r"famil|room|suite|sleeps"),
           "facts": {"how many adults and children a room takes": _rx(r"sleeps? (?:up to )?\d|(?:up to|max(?:imum)?\.?(?: occupancy)?(?: of)?)\s*\d\s*(?:guests|people|adults|persons)|occupancy[: ]+\d|\d\s*adults?\s*(?:and|\+|&)\s*\d\s*child|\b\d\s*adults?,?\s*\d\s*child")},
-          "need": 1, "add": ["the maximum number of adults and children for each family room category"]},
+          "need": 1, "add": ["how many adults and children each room type sleeps"]},
          {"id": "children_policy", "label": "Children's policies", "context": _rx(r"child|kid|famil|cot|infant|baby|under[- ]\d|aged"),
           "facts": {"the ages and charges for children": _rx(r"children (?:under|aged|of all ages|are welcome|stay free|up to)|child(?:ren)?'?s? (?:policy|rate|price)|under[- ]\d+s?\b|(?:aged?|ages?) \d|stay free"),
                     "cots, extra beds or what is provided for children": _rx(r"\bcots?\b|travel cot|extra bed|rollaway|z[- ]?bed|high chairs?|baby (?:bath|monitor)|child supplement")},

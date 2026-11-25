@@ -32,9 +32,9 @@ import textutil
 SOURCE = "AI reading of the hotel's own pages, quotations checked (one profile for the whole report)"
 MODEL_DEFAULT = "claude-sonnet-5-5"
 MAX_TOKENS = 5000
-MAX_PAGES = 25
-PAGE_CHARS = 12000          # a long FAQ or policies page fits whole; the guest-question reading's 5,000 cut them short
-TOTAL_CHARS = 150000         # about 40,000 tokens: roughly $0.10 a check on Sonnet
+MAX_PAGES = __import__("reading").LIMIT          # one limit for every stage (reading.py)
+PAGE_CHARS = __import__("reading").PAGE_CHARS          # a long FAQ or policies page fits whole; the guest-question reading's 5,000 cut them short
+TOTAL_CHARS = __import__("reading").PROFILE_CHARS         # about 40,000 tokens: roughly $0.10 a check on Sonnet
 
 
 def choose_pages(pages):
@@ -213,6 +213,26 @@ def _envelope(status, reason="", **kw):
             "pages_left_out": 0, "pages_failed": 0, **kw}
 
 
+def merge(prof, more):
+    """The profile after a follow-up read: every relationship from both reads, the headline worked out again, costs and counts added. -> prof (changed in place)."""
+    if not more or more.get("status") != "ok":
+        return prof
+    if prof.get("status") != "ok":
+        prof.update({k: v for k, v in more.items() if k != "facilities"}, facilities={})
+    facs = prof.setdefault("facilities", {})
+    for k, v in (more.get("facilities") or {}).items():
+        rels = facs.setdefault(k, {"relations": []})["relations"]
+        for r in v.get("relations") or []:
+            if not any(x["status"] == r["status"] and x["quote"] == r["quote"] for x in rels):
+                rels.append(r)
+        facs[k].update(headline(rels))
+    for k in ("cost_usd", "kept", "rejected", "pages_sent", "pages_truncated", "pages_left_out"):
+        prof[k] = round((prof.get(k) or 0) + (more.get(k) or 0), 5) if k == "cost_usd" else (prof.get(k) or 0) + (more.get(k) or 0)
+    for r, n in (more.get("reasons") or {}).items():
+        prof.setdefault("reasons", {})[r] = prof.get("reasons", {}).get(r, 0) + n
+    return prof
+
+
 def not_stated_basis(prof):
     """What 'not stated' rests on, in plain words: 'not stated on the 22 pages read (2 could not be read)'."""
     p = prof or {}
@@ -248,6 +268,52 @@ def build(own_pages, *, api_key=None, model=None, client=None, failed_pages=0):
     kept, stats = verify(rows, pages)
     return _envelope("ok", "" if rows else "The reply could not be read, so the word rules stand alone.", facilities=kept, cost_usd=round(ai_sample.cost_usd(model, tin, tout, 0), 5),
                      model=model, pages_sent=len(pages), **basis, **stats)
+
+
+# words in example wording that name a facility (wider than the word rules, as hotels write)
+_EXAMPLE_FACILITY = {"gym": r"\bgym\b|fitness", "pool": r"\bpool\b|swimming", "spa": r"\bspa\b|treatments?|sauna", "parking": r"\bparking\b|car park",
+                     "restaurant": r"\brestaurant\b|dinner|lunch\b", "ev": r"\bev\b|charg(?:e|ing) points?", "pets": r"\bdogs?\b|\bpets?\b", "room_service": r"room service",
+                     "meeting_rooms": r"meeting rooms?|boardroom|conference", "weddings": r"wedding|civil ceremon", "airport_transfer": r"airport transfer|shuttle",
+                     "bar": r"\bbar\b|cocktail", "afternoon_tea": r"afternoon tea"}
+_CURRENCY = {"GB": "£", "US": "$", "IE": "€", "FR": "€", "ES": "€", "IT": "€", "DE": "€", "NL": "€", "AT": "€", "BE": "€", "PT": "€", "CH": "CHF ", "SE": "SEK ", "DK": "DKK ", "NO": "NOK "}
+
+
+def ground_example(text, statuses, country=None):
+    """
+    Example wording that rests only on the hotel's facts: an item of a list, or a sentence, that names a facility the hotel does not have at the hotel (not offered, nearby, a partner's,
+    or not shown at all when there is a verified profile) is taken out, and prices are in the hotel's own currency. statuses: {facility key: status or None}; country: 'GB', 'US'...
+    (Brooks Guesthouse: 'Included in every rate: [Wi-Fi, water, access to the gym]... Breakfast, parking, cancellation...' for a guesthouse with no gym and no parking; a city tax in euros.)
+    """
+    if not text or not isinstance(text, str):
+        return text
+    bad = [rx for k, rx in _EXAMPLE_FACILITY.items() if statuses and statuses.get(k) != ON_SITE]
+    if not bad:
+        out = text
+    else:
+        def lacks(s):
+            return any(re.search(rx, s, re.I) for rx in bad)
+
+        def clean_list(m):
+            items = [x for x in re.split(r",\s*|\s+and\s+", m.group(1)) if x.strip() and not lacks(x)]
+            return "[" + ", ".join(items) + "]" if items else ""
+
+        out = re.sub(r"\[([^\[\]]*,[^\[\]]*)\]", clean_list, text)                                   # '[Wi-Fi, water, access to the gym]' -> '[Wi-Fi, water]'
+        parts = re.split(r"(?<=[.!?])\s+", out)
+        kept = []
+        for p in parts:
+            if not lacks(p):
+                kept.append(p)
+                continue
+            items = re.split(r",\s*", p)
+            if len(items) > 2:                                                                        # 'Breakfast, parking, cancellation and late check-out depend on...'
+                kept.append(", ".join(x for x in items if not lacks(x)))
+        out = " ".join(x for x in kept if x.strip())
+    if (country or "").upper() in ("GB", "US", "IE"):
+        out = re.sub(r"\[city tax of [^\]]*\]", "[anything every guest pays on top, if there is anything]", out)      # no city tax for most hotels there: never suggest one
+    cur = _CURRENCY.get((country or "").upper())
+    if cur:
+        out = re.sub(r"[£€$](?=\[|\s?\d|\[x\])", cur.strip() if len(cur) == 1 else cur, out)
+    return out
 
 
 _QUESTION_KEY = {"parking": "parking", "pets": "pets", "ev": "ev", "wifi": "wifi", "accessibility": "accessible", "family": "family"}

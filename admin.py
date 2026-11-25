@@ -209,6 +209,20 @@ def register(app, cfg):
             abort(404)
         if part == "data" and ext == "json":
             return Response(json.dumps(rep, indent=1, default=str), mimetype="application/json", headers={"Content-Disposition": f'attachment; filename="run-{run_id}.json"'})
+        if part == "profile-audit" and ext == "json":
+            # does every part of this report agree with its verified fact profile? (operator only; used by the 10-hotel regression)
+            import profile_audit
+            import run_health
+            fp = rep.get("fact_profile") or {}
+            body = {"run": run_id, "hotel": (rep.get("meta") or {}).get("hotel"), "audit": profile_audit.audit(rep), "health": run_health.issues(rep),
+                    "profile": {k: {"status": v.get("status"), "relations": [r.get("status") for r in v.get("relations") or []]} for k, v in (fp.get("facilities") or {}).items()},
+                    "reading": {k: fp.get(k) for k in ("pages_sent", "pages_truncated", "pages_left_out", "pages_failed", "kept", "rejected", "cost_usd")},
+                    "pages": {"ok": (rep.get("guest_questions") or {}).get("pages_ok"), "attempted": (rep.get("guest_questions") or {}).get("pages_attempted")},
+                    "follow_up": fp.get("follow_up"), "discovery": (rep.get("guest_questions") or {}).get("discovery"),
+                    "ledger": {st: sum(1 for x in (rep.get("guest_questions") or {}).get("page_ledger") or [] if x.get("status") == st) for st in ("read", "failed", "not read")},
+                    "guest_states": {q.get("id"): q.get("state") for q in (rep.get("guest_questions") or {}).get("questions") or []},
+                    "cost_usd": __import__("costs").report_usd(rep)}
+            return Response(json.dumps(body, indent=1, default=str), mimetype="application/json")
         if part in ("management", "appendix") and ext == "pdf":
             import report_pdf
             return Response(report_pdf.build_pdf(rep, part), mimetype="application/pdf", headers={"Content-Disposition": f'attachment; filename="run-{run_id}-{part}.pdf"'})

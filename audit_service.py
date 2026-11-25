@@ -92,7 +92,7 @@ def run(params, cfg, progress=None):
     import depth as _depth
     depth_name = _depth.clean(params.get("depth") or cfg.ai_depth)
     use_tripadvisor = cfg.tripadvisor if (cfg.tripadvisor and _within_quota("tripadvisor", 3)) else None
-    use_firecrawl = cfg.firecrawl if (cfg.firecrawl and _within_quota("firecrawl", 30)) else None          # a brand's website is read through Firecrawl first: up to ~30 pages
+    use_firecrawl = cfg.firecrawl if (cfg.firecrawl and _within_quota("firecrawl", __import__("reading").LIMIT + 2)) else None          # a brand's website is read through Firecrawl first: up to reading.LIMIT pages and the site map
     use_places = cfg.google_places if (cfg.google_places and _within_quota("google_places", 3)) else None
     use_anthropic = cfg.anthropic if (cfg.anthropic and _within_quota("claude", max(CLAUDE_MILLIDOLLARS_PER_AUDIT, _depth.limits(depth_name)["reserve_millidollars"]))) else None
     benchmark = []
@@ -116,7 +116,8 @@ def run(params, cfg, progress=None):
         tavily_api_key=use_tavily, amadeus_api_key=use_amadeus, amadeus_api_secret=cfg.amadeus_secret if use_amadeus else None,
         gemini_reader_key=use_gemini_reader, youtube_api_key=cfg.youtube, wider=bool(params.get("wider", True)), pagespeed_api_key=cfg.pagespeed,
         anthropic_api_key=use_anthropic, anthropic_model=cfg.anthropic_model, anthropic_repeats=cfg.repeats, custom_prompts=params.get("prompts") or None, benchmark=benchmark or None, ai_depth=depth_name, firecrawl_api_key=use_firecrawl, places_nearby_key=use_places, tripadvisor_api_key=use_tripadvisor,
-        market_hint={"tier": TIERS.get(params.get("tier")), "audiences": [a for a in params.get("audiences") or [] if a in valid_aud]}, profile=params.get("profile"))
+        market_hint={"tier": TIERS.get(params.get("tier")), "audiences": [a for a in params.get("audiences") or [] if a in valid_aud]}, profile=params.get("profile"),
+        reading_mode=params.get("reading") if params.get("reading") in ("adaptive", "standard") else "adaptive")
     if params.get("review_rows"):
         fa_res = _with_review_export(fa_res, params["review_rows"], params.get("review_mapping") or {})
     # usage against the shared monthly allowances

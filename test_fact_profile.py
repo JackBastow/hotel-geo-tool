@@ -99,7 +99,7 @@ rows = {r["key"]: r for r in ic.features(ic.Site(PAGES, B, "Brooks Guesthouse", 
 check("with the profile, parking is not a facility of the hotel, however often the word appears", rows["parking"]["level"] == "none" and rows["parking"]["status"] == "not_offered", rows["parking"])
 check("a partner's spa is not the hotel's", rows["spa"]["level"] == "none")
 check("dogs welcome is at least 'some', with the quotation as its evidence", rows["pets"]["level"] in ("some", "strong") and rows["pets"]["basis"].startswith("AI reading"))
-check("where the profile says nothing, the word rules still decide (the garden)", rows["garden"]["basis"] == "word rules")
+check("where the profile says nothing, the word rules can only make it a mention, never a strength (the garden)", rows["garden"]["basis"].startswith("word rules") and rows["garden"]["level"] in ("weak", "none"), rows["garden"])
 check("a Site built on a page inside the hotel's site reads the same profile", ic.features(ic.Site(PAGES, B + "faq/", "Brooks Guesthouse", "Bath"))[8]["level"] == "none")
 check("a rival's website is never affected", fact_profile.for_site(ic.Site(PAGES, "https://www.thequeensberry.co.uk/", "The Queensberry", "Bath")) is None)
 cls = set(hotel_class.classify(ic.Site(PAGES, B, "Brooks Guesthouse", "Bath"), list(rows.values()), [], hotel="Brooks Guesthouse")["keys"])
@@ -167,6 +167,44 @@ _b =ai_questions.build({"tier": {"key": "midscale", "label": "Mid-range", "why":
                         "Brooks Guesthouse", "Bath", [{"name": "Victoria Park", "kind": "attraction", "distance": "350 meters", "km": 0.35, "source": "the hotel's own pages"}])
 check("no written question asks about meeting space or parking the hotel's facts do not give it (Brooks Guesthouse)",
       not any(re.search(r"meeting|parking", q["text"], re.I) for q in _b["questions"]), [q["text"] for q in _b["questions"] if re.search(r"meeting|parking", q["text"], re.I)])
+
+print("7. the Brooks report review: misinformation, strengths, examples, awards, kinds of site")
+import ai_facts
+import sourcetypes
+import source_actions
+_cmp = ai_facts.compare([{"topic": "parking", "stance": "has", "value": "", "quote": "Brooks Guesthouse offers free on-site parking"}],
+                        {"parking": {"level": "none", "status": "not_offered", "quote": "No sorry we do not have car parking", "quote_url": B + "faq/"}})
+check("the assistant saying 'free parking' when the site says none is reported as misinformation, quoting both", _cmp["rows"] and _cmp["rows"][0]["status"] == "differs"
+      and "No sorry we do not have car parking" in _cmp["rows"][0]["our_record"] and _cmp["rows"][0]["says"].startswith("Brooks"), _cmp)
+_ok = ai_facts.compare([{"topic": "pets", "stance": "lacks", "value": "", "quote": "does not allow dogs"}], {"pets": {"level": "none", "status": "not_offered", "quote": "Pets Not Allowed", "quote_url": "u"}})
+check("the assistant agreeing with the site is not misinformation", not _ok["rows"] and _ok["matches"] == 1)
+fact_profile.use(B, prof)
+_int = {i["key"]: i["level"] for i in ic.intents(ic.Site(PAGES + [{"url": B + "spa-break/", "ok": True, "title": "Spa breaks in Bath", "h1": [], "text":
+        "Spa breaks in Bath: our guests love the spa, treatments and wellness of the city. Spa spa spa. Dining in our breakfast room. Fine dining restaurants nearby."}], B, "Brooks Guesthouse", "Bath"))}
+check("'Spa and wellness' and 'Food and dining' are not strengths of a guesthouse whose spa is a partner's and which has no restaurant (Brooks)", _int["spa"] == "none" and _int["food"] == "none", _int)
+ex = "Included in every rate: [Wi-Fi, water, access to the gym]. Charged on top for everyone: [city tax of €[x] per person per night]. Breakfast, parking, cancellation and late check-out depend on the rate you choose."
+g = fact_profile.ground_example(ex, {"wifi": "on_site", "parking": "not_offered"}, "GB")
+check("example wording names no facility the hotel lacks (gym, parking) and no city tax in the UK", "gym" not in g and "parking" not in g and "city tax" not in g and "Wi-Fi" in g and "Breakfast" in g, g)
+check("prices in examples are in the hotel's currency", "£" in fact_profile.ground_example("Day passes from €[x].", {}, "GB"))
+for d, want in [("destinationwellknown.com", "blog"), ("diytravelagent.blog", "blog"), ("visitbath.co.uk", "tourism"), ("timeout.com", "editorial"), ("oyster.com", "review"),
+                ("tripadvisor.co.uk", "review"), ("booking.com", "ota"), ("lonelyplanet.com", "editorial"), ("goatsontheroad.com", "blog"), ("random-hotels-site.com", "")]:
+    check(f"{d} is {want or 'not identified'}", sourcetypes.web_kind(d) == want, sourcetypes.web_kind(d))
+check("an unidentified site is never presented as an editorial publisher or a tourism body", source_actions.LABEL[source_actions.classify("random-hotels-site.com")].endswith("(not identified)"))
+print("8. the audit that proves every section agrees with the profile")
+import profile_audit
+_fp = {"status": "ok", "facilities": {"parking": {"status": "not_offered"}, "spa": {"status": "partner"}, "wifi": {"status": "on_site"}}}
+_bad = {"fact_profile": _fp, "consultant": {"features": [{"key": "parking", "level": "strong"}, {"key": "wifi", "level": "strong"}],
+        "intents": [{"key": "spa", "label": "Spa and wellness", "level": "strong"}], "understanding": {"strong_signals": ["Spa and wellness"]},
+        "recommendations": [{"id": "X1", "title": "Promote your parking", "action": "Highlight the parking on the homepage."}]},
+        "question_plan": {"questions": [{"text": "Which hotels in Bath have parking for guests?"}]}}
+_au = profile_audit.audit(_bad)
+check("the audit finds a facility, a kind of guest, a strong signal, a prompt and a recommendation that disagree with the profile",
+      {x["section"] for x in _au["violations"]} >= {"facilities", "kinds of guest", "strong signals", "AI test question", "recommendation"}, _au["violations"])
+check("Wi-Fi, which the hotel has, is never a violation", not any(x["facility"] == "wifi" for x in _au["violations"]))
+_good = {"fact_profile": _fp, "consultant": {"features": [{"key": "parking", "level": "none"}, {"key": "wifi", "level": "strong"}], "intents": [], "understanding": {}, "recommendations": []},
+         "question_plan": {"questions": [{"text": "Which hotels in Bath have fast Wi-Fi?"}]}}
+check("a report that agrees with its profile has no violations", profile_audit.audit(_good)["violations"] == [])
+check("without a profile the audit says so instead of passing", profile_audit.audit({})["status"] == "no_profile")
 
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

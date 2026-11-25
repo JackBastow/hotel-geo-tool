@@ -52,7 +52,7 @@ try:
 except ImportError:  # pragma: no cover
     BeautifulSoup = None
 
-MAX_PAGES = 25
+MAX_PAGES = __import__("reading").STANDARD          # the first read; reading.py decides how many more
 FETCH_TIMEOUT = 12
 TIME_BUDGET_S = 100
 CACHE_TTL_S = 6 * 3600
@@ -1116,8 +1116,24 @@ def run(site, base, hotel="", location=None, progress=None,
     sitemap_urls = site.get("sitemap_urls") or []
     landed = home.get("final_url") or start
     sel_base = landed if _bare(urllib.parse.urlparse(landed).netloc) != _bare(urllib.parse.urlparse(base).netloc) else base
-    picked = select_pages(sel_base, home.get("links", []), sitemap_urls, max_pages + RESERVE, start=start)
-    targets, reserve = picked[:max_pages], picked[max_pages:]
+    import reading
+    picked = select_pages(sel_base, home.get("links", []), sitemap_urls, reading.LIMIT + RESERVE, start=start)
+    discovery = {"sitemap": len(sitemap_urls), "links": len(home.get("links") or []), "firecrawl_map": 0, "in_scope": len(picked)}
+    if len(picked) < reading.FEW_PAGES:
+        # few of the hotel's own pages found in its sitemap and links (Brooks Guesthouse: no sitemap, 8 pages): Firecrawl's map of the site, kept to the hotel's own pages
+        try:
+            import firecrawl_reader
+            key = os.environ.get("FIRECRAWL_API_KEY", "").strip()
+            if key and firecrawl_reader.has_key(key):
+                mapped = reading.firecrawl_map(landed, key)
+                discovery["firecrawl_map"] = len(mapped)
+                if mapped:
+                    picked = select_pages(sel_base, home.get("links", []), list(sitemap_urls) + [m["url"] for m in mapped], reading.LIMIT + RESERVE, start=start)
+                    discovery["in_scope"] = len(picked)
+        except Exception:  # noqa: BLE001 - discovery is an extra
+            pass
+    targets, reserve = picked[:max_pages], picked[max_pages:max_pages + RESERVE]
+    candidates = picked[max_pages:]
 
     say(f"Reading up to {len(targets)} pages to see what guests can learn...")
     pages = [home]
@@ -1157,7 +1173,10 @@ def run(site, base, hotel="", location=None, progress=None,
     home["is_start"] = True
     _retest_errors(pages, t0, budget_s)
     _recover_failed(pages, reserve, t0, budget_s, fallback, say)
-    return _finish(pages, home, t0, site, base, hotel, location, sitemap_urls)
+    res = _finish(pages, home, t0, site, base, hotel, location, sitemap_urls)
+    res["page_candidates"] = [u for u in candidates if not any(p.get("url") == u for p in pages)]       # in priority order: what an adaptive follow-up may read
+    res["discovery"] = discovery
+    return res
 
 
 def _recover_failed(pages, reserve, t0, budget_s, fallback, say):

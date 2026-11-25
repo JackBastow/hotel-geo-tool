@@ -27,6 +27,8 @@ ACTION = {
     "publisher": "Investigate genuine editorial opportunities: does the publication cover hotels like this one, who writes about them, and does the hotel have something distinctive worth their readers' attention? Do not pay for undisclosed coverage.",
     "comparison": "Verify the amenities and description published about the hotel are accurate and complete.",
     "attraction": "Explore a genuine partnership or a 'where to stay nearby' mention, if the attraction publishes accommodation information.",
+    "other_site": "Look at the site first: who runs it, whether it is current, and whether it covers hotels like this one; approach only a genuine, independent publication.",
+    "blog": "A travel blog is one writer's view: check it is current and genuinely independent, and offer facts or a visit only on the blogger's own terms, never payment for undisclosed coverage.",
     "review": "Improve the accuracy of the listing and answer genuine guest concerns; do not ask guests for reviews in return for anything.",
 }
 LIKELY_TYPE = {"Booking and comparison site": "comparison", "Review site": "review", "Travel media": "publisher", "Tourism board": "tourism", "Social and forum": "publisher"}
@@ -34,14 +36,18 @@ LIKELY_TYPE = {"Booking and comparison site": "comparison", "Review site": "revi
 
 def classify(domain, kind=""):
     d = (domain or "").lower()
+    import sourcetypes
+    wk = sourcetypes.web_kind(d)
+    if wk:
+        return {"ota": "comparison", "review": "review", "tourism": "tourism", "editorial": "publisher", "blog": "blog"}[wk]
     for key, label, rx in TYPES:
-        if re.search(rx, d):
+        if key != "tourism" and re.search(rx, d):
             return key
-    return LIKELY_TYPE.get(kind) or "publisher"
+    return LIKELY_TYPE.get(kind) or "other_site"          # not identified: never presented as an editorial publisher or a tourism body
 
 
 LABEL = {"tourism": "Official destination tourism website", "conference": "Conference or venue directory", "attraction": "Local attraction website", "comparison": "Hotel comparison website",
-         "review": "Review platform", "publisher": "Travel publisher or blog"}
+         "review": "Review platform", "publisher": "Independent editorial publisher", "blog": "Travel blog", "other_site": "Travel publisher or blog (not identified)"}
 
 
 def listing_presence(rep, domain):

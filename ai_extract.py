@@ -22,7 +22,7 @@ import textutil
 
 SOURCE = "AI reading of the hotel's own pages (quotations verified)"
 MODEL_DEFAULT = "claude-sonnet-5-5"
-MAX_PAGES = 14
+MAX_PAGES = __import__("reading").LIMIT          # one limit for every stage (reading.py); the character budget below still caps the cost
 PAGE_CHARS = 5000
 TOTAL_CHARS = 60000
 MAX_TOKENS = 4000

@@ -86,6 +86,14 @@ def issues(rep):
             add("minor", "The pages contradict themselves about " + ", ".join(clash), "One page says the hotel has it, another that it does not. The word rules decided; worth checking on the site.")
         if fp.get("pages_truncated"):
             add("minor", f"{fp['pages_truncated']} long page(s) were cut short for the AI reading", "Facilities described late on a long page may be 'not stated'.")
+    try:
+        import profile_audit
+        au = profile_audit.audit(rep)
+        if au["violations"]:
+            add("big", f"{len(au['violations'])} place(s) in the report disagree with the verified facts",
+                "; ".join(f"{x['section']}: {x['facility']} ({x['profile']}) - {x['says'][:60]}" for x in au["violations"][:5]))
+    except Exception:  # noqa: BLE001
+        pass
     ax = gq.get("ai_extract") or {}
     if ax and ax.get("status") not in ("ok", None):
         add("minor", "The AI reading of the guest questions did not run", str(ax.get("reason") or ax.get("status"))[:300])

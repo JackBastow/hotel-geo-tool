@@ -50,7 +50,13 @@ def source_kind(domain, own_domain="", brand_domains=()):
         return "The hotel's own website"
     if any(d == b or d.endswith("." + b) for b in brand_domains):
         return "The hotel's brand website"
+    import sourcetypes
+    wk = sourcetypes.web_kind(d)                       # one definition of each kind of site for the whole report (destinationwellknown.com is a blog, not a tourism body)
+    if wk:
+        return {"ota": "Booking and comparison site", "review": "Review site", "tourism": "Tourism board", "editorial": "Travel media", "blog": "Travel blog"}[wk]
     for kind, pats in _DOMAIN_KINDS:
+        if kind == "Tourism board":
+            continue                                   # 'visit' or 'tourist' anywhere in a name is not a tourism body: web_kind decides
         if any(p in d for p in pats):
             return kind
     return "Other"

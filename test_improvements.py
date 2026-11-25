@@ -140,7 +140,7 @@ res_l = tr.run(ic.Site([home, spa_page, rooms_page], BASE, HOTEL, CITY), ic.feat
 check("with only 3 of 20 pages read, nothing is claimed Missing", all(r["state"] != "missing" for s in res_l["segments"] for r in s["requirements"]))
 recs_t = advice._from_traveller(res, cov_ok)
 fam_rec = next(r for r in recs_t if r["id"] == "TR-families")
-check("the recommendation names exactly what to add, on which existing page, with evidence and an owner", "maximum number of adults and children" in " ".join(fam_rec["additions"]) and fam_rec["page"]["url"].endswith("/rooms/family/") and fam_rec["evidence"] and fam_rec["team"] == "operations")
+check("the recommendation names exactly what to add, on which existing page, with evidence and an owner", "how many adults and children each room type sleeps" in " ".join(fam_rec["additions"]) and fam_rec["page"]["url"].endswith("/rooms/family/") and fam_rec["evidence"] and fam_rec["team"] == "operations")
 check("no recommendation is made for Unknown requirements", all("couples" not in " ".join(r["additions"]).lower() for r in recs_t))
 journey = [{"category": "attractions", "label": "Attractions", "place": "Royal Armouries", "state": "stated", "open_data_km": 3.0, "evidence": [{"url": BASE, "snippet": "Royal Armouries is a 5 minute walk from the hotel"}]}]
 jc = tr._journey_checks(journey)

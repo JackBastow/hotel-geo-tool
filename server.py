@@ -405,6 +405,8 @@ def create_app(cfg=None, run_fn=None):
         if rows:
             params["review_rows"], params["review_mapping"] = rows, mapping        # held in memory for the job only; dropped when it finishes
         _op = session.get("admin_ok") is True and (session.get("admin_until") or 0) > time.time()      # the signed-in operator testing hotels is not held to the visitor limit
+        if _op and d.get("reading") in ("adaptive", "standard"):
+            params["reading"] = d.get("reading")           # the operator comparing reading modes (the 10-hotel test); everyone else gets the default
         job, why = manager.submit(params, visitor_id(), unlimited=_op)
         if job is None:
             msg = ("The service is busy with other audits. Please try again in a few minutes." if why == "busy"

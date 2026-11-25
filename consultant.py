@@ -9,6 +9,7 @@ collected, so it adds no requests and little time.
 """
 
 import re
+import urllib.parse
 
 import evidence
 import advice
@@ -235,6 +236,19 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
         if "rate_inclusions" in (r.get("question_ids") or []) and RATE_NOTE.strip() not in r.get("action", ""):
             r["action"] = r["action"].rstrip() + RATE_NOTE
         r["track"] = advice.track_of(r)
+    # every example the hotel is shown rests on its own facts: no facility it does not have, prices in its own currency
+    try:
+        import fact_profile
+        import phones
+        import ai_sample as _as
+        _country = phones.region_from_host(urllib.parse.urlparse(base).netloc) or _as.country_from_location(location) or (ai or {}).get("search_country")
+        _st = {f["key"]: f.get("status") or ("on_site" if f["level"] in ("some", "strong") else None) for f in feats} if fact_profile.for_site(s) else {}
+        for r in recs:
+            for k in ("example", "action"):
+                if isinstance(r.get(k), str) and (k == "example" or "[" in r[k]):
+                    r[k] = fact_profile.ground_example(r[k], _st, _country)
+    except Exception:  # noqa: BLE001 - wording only; never stops the report
+        pass
     ranking.fill_missing(recs)                          # warnings added after the ranking (wrong website, former name) get the fields every later step sorts by
     top = advice.top_actions(recs)
     quick = advice.quick_wins(recs, exclude_ids={r["id"] for r in top})

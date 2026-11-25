@@ -114,17 +114,19 @@ def build(ctx):
             "PR", "medium", "Preparation that makes every later approach stronger.",
             "Each angle has its missing items ticked off and a named internal owner.", "observation"))
     # ---------------------------------------------------------------- awards
+    named_issuers = [a["issuer"] for a in ctx["awards"] if a["issuer"] != "(issuer not named)" and a["claims"]]
     for a in ctx["awards"]:
-        if a["issuer"] == "(issuer not named)" and a["claims"]:
+        if a["issuer"] == "(issuer not named)" and a["claims"] and not named_issuers:
+            # only when no award is named on any page read: an 'award-winning' beside a named award (or a badge, or an awards page not read) is not an unverifiable claim
+            # (Brooks Guesthouse was told to name its award 'or remove the wording')
             recs.append(_rec(
-                "A1", "media", "Award wording that names no issuer cannot be verified",
-                "The website uses award wording (e.g. 'award-winning') without naming who gave it or when.",
+                "A1", "media", "Say which award 'award-winning' refers to",
+                "The pages read call the hotel award-winning but do not say which award, from whom or when. The award may be shown as a badge or on a page that was not read.",
                 [c["id"] for c in a["claims"]][:2],
-                "Unverifiable claims are weaker than named, dated, linked ones, and UK advertising rules "
-                "expect claims to be substantiated.",
-                "Name the award, issuer and year, and link to the issuer's page - or remove the wording.",
-                "marketing", "medium", "Quick to fix and removes a credibility risk.",
-                "Each award statement names its issuer, year and a link.",
+                "A named, dated award is something guests, journalists and AI assistants can check and repeat; 'award-winning' on its own carries little weight.",
+                "Next to 'award-winning', name the award, who gave it and the year, with a link to the issuer's page.",
+                "marketing", "low", "Quick to do.",
+                "Each 'award-winning' names the award, issuer and year.",
                 "documented guidance", "UK CAP Code rules on substantiating advertising claims."))
         elif a["claims"] and not a["issuer_confirmed"] and a["issuer"] != "(issuer not named)":
             recs.append(_rec(

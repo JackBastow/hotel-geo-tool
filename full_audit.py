@@ -57,6 +57,8 @@ import argparse
 import threading
 
 import steps
+import reading as _reading
+import insight_content as ic_mod
 import datetime as dt
 import html as html_lib
 import json
@@ -613,7 +615,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
                    youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None,
-                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None, ai_depth="standard", firecrawl_api_key=None, places_nearby_key=None, tripadvisor_api_key=None, profile=None):
+                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None, ai_depth="standard", firecrawl_api_key=None, places_nearby_key=None, tripadvisor_api_key=None, profile=None, reading_mode="adaptive"):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -762,7 +764,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         _fc_primary = bool(_second) and (_brand_site or (os.environ.get("FIRECRAWL_PRIMARY") or "").strip().lower() in ("1", "true", "yes", "all"))
         if _fc_primary:
             say("Reading the hotel's pages with Firecrawl (renders pages as a browser does)...")
-        guest = guest_questions.run(site, base, hotel, location=location, progress=say, fallback=_second, prefer_fallback=_fc_primary)
+        guest = guest_questions.run(site, base, hotel, location=location, progress=say, fallback=_second, prefer_fallback=_fc_primary,
+                                     max_pages=(_reading.FIRST_BATCH if reading_mode == "adaptive" else _reading.STANDARD))
         if _fc_primary:
             guest["read_via"] = guest.get("read_via") or "firecrawl_primary"
         if _second is not None and _second_used:
@@ -832,6 +835,59 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         fact_prof["questions_changed"] = fact_profile.reconcile_questions(guest.get("questions"), fact_prof)      # the guest questions follow the same answers
     except Exception as e:  # noqa: BLE001
         steps.failed("Fact profile / reconcile_questions", e)
+
+    # Adaptive reading: more of the hotel's own pages, only for what is still unverified after the first read, up to reading.LIMIT pages in all (reading.py)
+    _followed = {}
+    fact_prof["follow_up"] = {"mode": reading_mode, "topics": [], "pages_read": 0}
+    if reading_mode == "adaptive" and anthropic_api_key and fact_prof.get("status") == "ok":
+        try:
+            _feats = ic_mod.features(ic_mod.Site(own_pages, base, hotel, city))
+            _topics = _reading.unverified(guest, fact_prof, _feats)
+            _room = _reading.LIMIT - len([p for p in own_pages if p.get("ok", True)])
+            _cands = [{"url": u} for u in (guest.get("page_candidates") or [])]
+            _urls, _followed = _reading.follow_up(_cands, [p.get("url", "") for p in own_pages], _topics, max(0, _room))
+            fact_prof["follow_up"].update(topics=_topics, candidates=len(_cands))
+            if _urls:
+                say(f"Reading {len(_urls)} more page(s) for what is still unverified ({', '.join(_topics[:5])})...")
+
+                def _read_more(u):
+                    if _fc_primary and _second:
+                        try:
+                            pg = _second(u)
+                            if pg and pg.get("ok"):
+                                return {**pg, "via_second_reader": True}
+                        except Exception:  # noqa: BLE001
+                            pass
+                    return guest_questions.fetch_page(u)
+                from concurrent.futures import ThreadPoolExecutor as _TPE2
+                with _TPE2(max_workers=4) as _ex:
+                    _new = list(_ex.map(_read_more, _urls))
+                _ok_new = [p for p in _new if p.get("ok")]
+                fact_prof["follow_up"].update(pages_read=len(_ok_new), pages_failed=len(_new) - len(_ok_new))
+                if _ok_new:
+                    _more = fact_profile.build(_ok_new, api_key=anthropic_api_key, model=os.environ.get("ANTHROPIC_EXTRACT_MODEL") or None)
+                    _before = {k for k, v in (fact_prof.get("facilities") or {}).items() if v.get("status")}
+                    fact_profile.merge(fact_prof, _more)
+                    fact_prof["follow_up"]["newly_verified"] = sorted({k for k, v in fact_prof["facilities"].items() if v.get("status")} - _before)
+                    # the guest questions again, on every page now read; what the first reading added is kept
+                    _keep = {k: guest.get(k) for k in ("ai_extract", "read_via", "firecrawl", "own_reader_refused", "page_reader_note", "fc_note", "discovery", "page_candidates") if k in guest}
+                    _all = [dict(p, ok=p.get("ok", True)) for p in own_pages] + _ok_new
+                    guest = guest_questions.run_prefetched(site, base, hotel, _all, location=location)
+                    guest.update(_keep)
+                    own_pages = guest.pop("own_pages", []) or _all
+                    for _b in {base, _start}:
+                        fact_profile.use(_b, fact_prof)
+                    fact_prof["questions_changed"] = fact_profile.reconcile_questions(guest.get("questions"), fact_prof)
+                    if anthropic_api_key:
+                        try:
+                            ai_extract.run(guest, own_pages, api_key=anthropic_api_key, model=os.environ.get("ANTHROPIC_EXTRACT_MODEL") or None)
+                        except Exception:  # noqa: BLE001
+                            pass
+                        fact_profile.reconcile_questions(guest.get("questions"), fact_prof)
+        except Exception as e:  # noqa: BLE001 - the first read stands
+            steps.failed("Adaptive reading / follow-up", e)
+    guest["page_ledger"] = _reading.ledger([dict(p, ok=p.get("ok", True)) for p in own_pages] + [p for p in (guest.get("pages_meta") or []) if not p.get("ok")],
+                                           guest.get("page_candidates"), _followed)
 
     # Where the hotel is, again, now its pages have been read: the first attempt used the few pages our own reader could fetch, and a site that refuses it (a brand, or THE NICI from the host)
     # left the hotel with no map position, so no comparable hotels, distances or nearby places. The postcode on any page read (FAQ, contact) places it.

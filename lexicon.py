@@ -27,7 +27,7 @@ FEATURES = {
     "parking": ("Parking", rx(r"\bparking\b|car[- ]park")),
     "ev": ("EV charging", rx(r"\bEV\b|electric vehicle|charging points?|charge points?|chargers?")),
     "pets": ("Dog / pet friendly", rx(r"dog[- ]friendly|pet[- ]friendly|dogs? (?:are )?(?:welcome|allowed)|pets? (?:are )?(?:welcome|allowed)|bring your dog")),
-    "family": ("Family rooms", rx(r"family (?:rooms?|suites?|friendly)|connecting rooms?|interconnecting|adjoining rooms?|\bcots?\b|travel cots?|children'?s menu|kids")),
+    "family": ("Family-friendly (cots, extra beds or family rooms)", rx(r"family (?:rooms?|suites?|friendly)|connecting rooms?|interconnecting|adjoining rooms?|\bcots?\b|travel cots?|children'?s menu|kids")),
     "accessible": ("Accessible rooms", rx(r"wheelchair|accessible (?:rooms?|bedrooms?|bathrooms?)|step[- ]free|hearing loop|mobility|lift access|disabled")),
     "wifi": ("Wi-Fi", rx(r"wi-?fi|wireless internet")),
     "garden": ("Gardens / grounds", rx(r"\bgardens?\b|grounds|terrace|parkland")),

@@ -122,6 +122,47 @@ def _group_of(domain):
     return None
 
 
+# ---------------------------------------------------------------- the kinds of outside site, one definition for every part of the report
+# An official tourism organisation is named for its place ('visitbath', 'barcelonaturisme') or is a government body: a domain that merely contains 'destination' is not one
+# (destinationwellknown.com, a travel blog, was called 'Official destination tourism website' for Brooks Guesthouse).
+OFFICIAL_TOURISM = re.compile(r"^(?:www\.)?(?:visit|discover|enjoy|experience)[a-z0-9-]{2,}\.|tourism|tourisme|turismo|turisme|turismus|touristboard|tourist-?board|"
+                              r"tourist-?info|\.gov\.|\.gov$|\.gouv\.|parisjetaime|londonandpartners|iamsterdam|visitbritain|visitengland|visitscotland|visitwales|enjoyengland|ontourism", re.I)
+NOT_TOURISM_BODY = ("lonelyplanet", "roughguides", "goasklocal", "goaskalocal", "visitsylvan")          # guidebooks and look-alikes: editorial, not official bodies
+EDITORIAL = ("timeout.", "cntraveller", "cntraveler", "condenast", "telegraph.", "theguardian.", "guardian.co", "independent.co", "thetimes.", "ft.com", "forbes.", "nytimes.",
+             "washingtonpost.", "lonelyplanet.", "roughguides.", "fodors.", "frommers.", "travelandleisure.", "afar.com", "robbreport.", "luxurytravelmag", "mrandmrssmith.",
+             "sawdays.", "theluxuryeditor.", "standard.co.uk", "eveningstandard.", "bbc.", "cnn.", "usatoday.", "thrillist.", "eater.com", "suitcasemag", "wallpaper.", "monocle.",
+             "tatler.", "vogue.", "harpersbazaar.", "esquire.", "gq.", "nationalgeographic.", "travelweekly.", "ricksteves.", "smithsonianmag.", "theculturetrip.", "culturetrip.",
+             "telegraph.co.uk", "dailymail.", "mirror.co.uk", "metro.co.uk", "huffpost.", "businessinsider.", "insider.com", "theeveningstandard", "countryliving.", "goodhousekeeping.",
+             "which.co.uk", "theaa.com", "michelin.", "wanderlust.co.uk", "nomadicmatt.", "matadornetwork.", "thepointsguy.", "tripsavvy.", "atlasobscura.")
+REVIEW_SITES = ("tripadvisor.", "trustpilot.", "yelp.", "holidaycheck.", "oyster.com", "zoover.", "google.com/maps", "reviewcentre.", "tripadvisor.co")
+BLOG = re.compile(r"\.blog$|blog|travels?(?:ers?)?\b|travelling|traveling|wander|nomad|adventur|abroad|backpack|journeys?|diar(?:y|ies)|trotter|explor|globe|roam|jetset|"
+                  r"wanderlust|passport|suitcase|itchyfeet|onthemove|onherjourney|ontheroad|ofthe?world|bucketlist|getaways?|escapes|inbetween|destination|travelogue", re.I)
+
+
+def web_kind(domain):
+    """
+    What kind of outside site a domain is, one definition for every part of the report. -> one of 'ota' (booking or comparison site), 'review' (review site), 'tourism' (official
+    tourism organisation), 'editorial' (independent editorial publisher), 'blog' (travel blog), or '' (not identified: the caller keeps its own default).
+    """
+    d = (domain or "").lower()
+    d = d[4:] if d.startswith("www.") else d
+    if any(p in d for p in REVIEW_SITES):
+        return "review"                                # before the booking sites: Tripadvisor is listed among them for its booking links
+    if any(p in d for p in BOOKING_PLATFORMS) or any(p in d for p in ("kayak.", "trivago.", "hotelscombined.", "momondo.", "skyscanner.", "bluepillow", "cozycozy.", "travelmyth.")):
+        return "ota"
+    if OFFICIAL_TOURISM.search(d) and not any(p in d for p in NOT_TOURISM_BODY):
+        return "tourism"
+    if any(p in d for p in EDITORIAL):
+        return "editorial"
+    if BLOG.search(d.split(".")[0]) or d.endswith(".blog"):
+        return "blog"
+    return ""
+
+
+WEB_KIND_LABEL = {"ota": "Booking or comparison site", "review": "Review site", "tourism": "Official tourism organisation", "editorial": "Independent editorial publisher",
+                  "blog": "Travel blog"}
+
+
 def classify_domain(url, own_url=""):
     """
     -> (source_type, label). source_type is one of evidence.SOURCE_TYPES.
@@ -150,8 +191,13 @@ def classify_domain(url, own_url=""):
     for pat in GOV_REGISTERS:
         if pat in dom and "visit" not in dom:
             return "government_register", dom
-    if TOURISM_RE.search(dom) or ".gov.uk" in dom or "tourism" in dom:
+    wk = web_kind(dom)
+    if wk == "tourism":
         return "destination_body", dom
+    if wk == "editorial":
+        return "news_or_magazine", dom
+    if wk == "blog":
+        return "blog", dom
     for pat in AWARDS_BODIES:
         if pat in low:
             return "awards_body", dom

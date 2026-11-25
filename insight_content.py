@@ -151,11 +151,22 @@ def _where(site, found, limit=3):
 
 # ------------------------------------------------------------------- intents
 
+# the kinds of guest that rest on a facility: the verified profile decides whether the hotel offers it (Brooks Guesthouse was 'Spa and wellness' and 'Food and dining' from a sister
+# hotel's spa and a breakfast room)
+_INTENT_NEEDS = {"spa": "spa", "food": "restaurant", "meetings": "meeting_rooms", "weddings": "weddings", "pet": "pets", "accessible": "accessible"}
+
+
 def intents(site):
+    import fact_profile
     out = []
     for key, (label, pat, slugs) in lexicon.INTENTS.items():
         found = site.find(pat)
         st = strength(site, found, slugs)
+        need = fact_profile.status_of(site, _INTENT_NEEDS[key]) if key in _INTENT_NEEDS else None
+        has_profile = bool(fact_profile.for_site(site))
+        if (need and need != fact_profile.ON_SITE) or (has_profile and key in ("spa", "food", "meetings", "weddings") and need != fact_profile.ON_SITE):
+            # with a verified profile, a spa, dining, meetings or weddings stay needs the facility confirmed at the hotel, not the word on a page ('Bath Spa station', 'breakfast room')
+            st = "none"                                   # nearby, a partner's, or not offered: not a kind of stay the hotel itself offers
         if st == "none":
             out.append({"key": key, "label": label, "level": "none", "pages": 0, "reason": "",
                         "evidence": []})
@@ -283,6 +294,10 @@ def features(site):
                 row["level"] = level if level in ("strong", "some") else "some"
             else:
                 row.update(level="none", found=[], pages=0)        # nearby, partner or not offered: never the hotel's own facility
+        elif prof and row["level"] in ("some", "strong"):
+            # the profile was asked about this facility and did not confirm the hotel has it: the words alone ('restaurants nearby', 'our breakfast room') make it at most a mention,
+            # never a strength, a prompt or a comparison point (Brooks Guesthouse: 'restaurant: some' from the restaurants around it)
+            row.update(level="weak", basis="word rules, not confirmed by the AI reading")
         out.append(row)
     return out
 

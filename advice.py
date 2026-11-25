@@ -716,9 +716,16 @@ def _from_facts_check(fc):
         times = f" ({r['times']} answers)" if r.get("times", 1) > 1 else ""
         if r["status"] == "differs":
             title = f"AI tells travellers something wrong about the hotel: {r['label'].lower()}"
+            if r.get("site_quote"):
+                title = f"AI misinformation: the assistant tells travellers something about {r['label'].lower()} that the hotel's website contradicts"
             finding = f"The assistant said: \"{r['says']}\"{times}. {r['our_record']}"
-            action = ("Say it plainly near the top of the page about it on the hotel's site, in words an assistant can quote (for example 'Free on-site parking for 60 cars'), and check the same detail on the main "
-                      "booking and review listings, since assistants often repeat what those say.")
+            if r.get("site_quote"):
+                # the action and its example come from the hotel's own words, never a stock example (Brooks: 'Free on-site parking for 60 cars' for a guesthouse with none)
+                action = (f"Make the hotel's own statement easy to find and quote, near the top of the page guests read about {r['label'].lower()}: “{r['site_quote'][:160]}”. "
+                          "Then check the same detail on the main booking and review listings, since assistants often repeat what those say, and correct any that disagree.")
+            else:
+                action = ("Say it plainly near the top of the page about it on the hotel's site, in words an assistant can quote, and check the same detail on the main "
+                          "booking and review listings, since assistants often repeat what those say.")
             pri, conf = "high", INFER
         else:
             closed = r["topic"] == "status"
@@ -730,7 +737,8 @@ def _from_facts_check(fc):
             pri, conf = ("high" if closed else "medium"), EXPER
         out.append(_rec(f"AF-{r['topic']}", "authority", title, finding,
                         "Travellers believe what an assistant tells them about a hotel. This is one assistant on one day, so it is worth checking rather than proof.",
-                        [{"url": r.get("url") or "", "snippet": f"Assistant: \"{r['says']}\". {r['our_record']}"}], action, pri, "low", confidence=conf, team="marketing", source="ai_facts", tag="AF",
+                        ([{"url": "", "snippet": f"The assistant said: “{r['says']}”"}, {"url": r.get("url") or "", "snippet": f"The hotel's website says: “{r['site_quote']}”"}] if r.get("site_quote") else
+                         [{"url": r.get("url") or "", "snippet": f"Assistant: \"{r['says']}\". {r['our_record']}"}]), action, pri, "low", confidence=conf, team="marketing", source="ai_facts", tag="AF",
                         short_title=title, summary=f"{r['label']}: what the assistant said vs the website"))
     return out
 

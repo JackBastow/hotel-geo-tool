@@ -124,7 +124,9 @@ def site_facts(own_pages, base, hotel):
     for f in ic.features(site):
         if f["key"] in LABEL:
             top = f["found"][0] if f["found"] else None
-            out[f["key"]] = {"level": f["level"] if f["found"] else "none", "url": top["page"]["url"] if top else "", "snippet": (top or {}).get("snippet", "")[:200] if top else ""}
+            out[f["key"]] = {"level": f["level"] if f["found"] else "none", "url": top["page"]["url"] if top else "", "snippet": (top or {}).get("snippet", "")[:200] if top else "",
+                             "status": f.get("status"), "quote": f.get("quote") or "", "quote_url": f.get("quote_url") or "",
+                             "has_too": any(r.get("status") == "on_site" for r in f.get("relations") or [])}
     return out
 
 
@@ -161,6 +163,18 @@ def compare(claims, facts, site_stars=None, answers=0):
             unjudged += 1
             continue
         mentioned = f.get("level") in ("strong", "some", "weak")
+        st = f.get("status")
+        if st and stance in ("has", "lacks"):
+            # the verified profile decides, and the report quotes both sides: what the assistant said, and what the hotel's own page says
+            told_has, hotel_has = stance == "has", bool(st == "on_site" or f.get("has_too"))
+            if told_has == hotel_has or (stance == "lacks" and st in ("nearby", "partner") and not f.get("has_too")):
+                matches += 1
+            else:
+                what = {"not_offered": "says the hotel does not have it", "nearby": "says it is nearby, not the hotel's own", "partner": "says it is through a partner, not the hotel's own",
+                        "on_site": "says the hotel has it"}[st]
+                rows.append({"topic": topic, "label": LABEL[topic], "status": "differs", "says": says, "times": n, "url": f.get("quote_url", ""), "site_quote": f.get("quote", ""),
+                             "our_record": f"The hotel's own website {what}: “{f.get('quote', '')[:200]}”"})
+            continue
         if stance == "lacks" and _SITE_DENIES.search(f.get("snippet") or ""):
             matches += 1                              # the site says so too: 'We don't have designated hotel parking' (The Hoxton) agrees with 'not guaranteed parking for guests'
             continue
