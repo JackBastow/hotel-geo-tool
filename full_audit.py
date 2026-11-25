@@ -801,6 +801,13 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         else:
             guest["page_reader_note"] = fb.get("reason", "")
 
+    # The verified fact profile: one answer per facility (at the hotel / nearby / through a partner / not offered), read by every part of the report (fact_profile.py). Read alongside
+    # the guest-question reading below; until it is ready, nothing has asked what the hotel has.
+    import fact_profile
+    from concurrent.futures import ThreadPoolExecutor as _TPE
+    _fp_pool = _TPE(max_workers=1)
+    _fp_future = _fp_pool.submit(fact_profile.build, list(guest.get("own_pages") or []), api_key=anthropic_api_key,
+                                 model=os.environ.get("ANTHROPIC_EXTRACT_MODEL") or None, failed_pages=len(guest.get("pages_failed") or [])) if anthropic_api_key else None
     # AI reading of the hotel's own pages for what the rule-based check missed. Only quotations that appear word for word on the page are kept (see ai_extract).
     if anthropic_api_key and guest.get("questions"):
         say("Reading the hotel's pages with AI for facts the rules missed (quotations are checked)...")
@@ -811,6 +818,16 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             guest["ai_extract"] = {"source": ai_extract.SOURCE, "status": "unavailable", "reason": f"The AI reading did not finish ({type(e).__name__}).", "cost_usd": 0.0}
 
     own_pages = guest.pop("own_pages", [])     # used by the wider analysis, not stored
+
+    try:
+        fact_prof = _fp_future.result(timeout=180) if _fp_future else fact_profile._envelope("not_configured", "No Anthropic API key is configured, so facilities were judged by the word rules alone.")
+    except Exception as e:  # noqa: BLE001 - never fail the audit; the word rules stand alone
+        steps.failed('Fact profile / fact_profile.build', e)
+        fact_prof = fact_profile._envelope("unavailable", f"The AI reading of the facilities did not finish ({type(e).__name__}).")
+    _fp_pool.shutdown(wait=False)
+    _start = ((site.get("meta") or {}).get("home_url") or (site.get("meta") or {}).get("entry_url") or base)
+    for _b in {base, _start}:
+        fact_profile.use(_b, fact_prof)                 # always set, even empty: a previous audit's answers for this hotel are never reused
 
     # Where the hotel is, again, now its pages have been read: the first attempt used the few pages our own reader could fetch, and a site that refuses it (a brand, or THE NICI from the host)
     # left the hotel with no map position, so no comparable hotels, distances or nearby places. The postcode on any page read (FAQ, contact) places it.
@@ -1416,6 +1433,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "blocked_sources": ext["blocked_sources"],
         "reputation": ext["reputation"],
         "guest_questions": guest,
+        "fact_profile": fact_prof,
         "own_facts_source": own_facts_source,
         "intel": intel_result,
         "consultant": consult_result,

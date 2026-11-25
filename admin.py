@@ -169,6 +169,12 @@ def register(app, cfg):
             st.write(f"Headline: {h.get('status', '-')} {'' if h.get('score') is None else str(h['score']) + '/100'} (coverage {h.get('coverage_pct', '-')}%)")
             for r in tops:
                 st.markdown(f"- **{ui_theme_safe(r['title'])}** ({r['priority']}, {ui_theme_safe(r['team'])})")
+            import run_health
+            probs = run_health.issues(rep)
+            if probs:
+                st.markdown("**What did not work in this check** (only you see this)")
+                for x in probs:
+                    st.markdown(f"- {'**' if x['level'] == 'big' else ''}{ui_theme_safe(x['what'])}{'**' if x['level'] == 'big' else ''}: {ui_theme_safe(x['detail'])}")
         links = (f'<p><a class="btn" href="/admin/run/{run_id}/report">Open the full report</a> <a class="btn" href="/admin/run/{run_id}/data.json">Report data (.json)</a> '
                  f'<a class="btn" href="/admin/run/{run_id}/management.pdf">Management report (PDF)</a> <a class="btn" href="/admin/run/{run_id}/appendix.pdf">Technical appendix (PDF)</a></p>')
         delete = (f'<details class="details"><summary>Delete this run</summary><div class="details-body"><p class="caption">Removes the run and its market rows permanently.</p>'

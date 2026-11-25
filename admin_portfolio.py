@@ -294,6 +294,9 @@ def register_scope(app, sc):
                                      research_html=(app.extensions["research_html"](h, f"{HB}/{hid}/research") if "research_html" in app.extensions else ""),
                                      live=app.extensions["weekly"].hotel_state(hid), live_url=f"{HB}/{hid}/status")
         import quality_view
+        import run_health
+        if rep:
+            panel += '<section class="panel"><h4>What did not work in the latest check</h4>' + (_safe(run_health.panel_html, rep) or "") + "</section>"
         panel += _safe(quality_view.panel, rep, h) or ""
         if rep and runs:
             import manual_checks

@@ -42,6 +42,7 @@ import scheduler
 import report_pdf
 import report_view
 import review_pack
+import run_health
 import store
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -101,6 +102,8 @@ class Reports:
             if db:
                 rid, rep = db.get_report_by_token(token)
                 if rep:
+                    import ranking
+                    ranking.fill_report(rep)          # a report saved before a field existed (THE NICI: the former-name warning) still opens
                     with self.lock:
                         self.mem[token] = (time.time(), rep)
                         self.ids[token] = rid
@@ -478,7 +481,7 @@ def create_app(cfg=None, run_fn=None):
         if hit and hit[0] == sig and not private:
             body = hit[1]
         else:
-            body = report_view.render(rep, token=token, prev=reports.previous(token), private=private, prev_full=reports.previous_full(token))
+            body = report_view.render(run_health.scrub(rep), token=token, prev=reports.previous(token), private=private, prev_full=reports.previous_full(token))
             if not private:
                 reports.html[token] = (sig, body)
         meta = rep["meta"]
@@ -486,8 +489,6 @@ def create_app(cfg=None, run_fn=None):
         chips = [f"Run {meta['run_at'][:16].replace('T', ' ')} UTC", f"Name {meta.get('hotel_name_source', '')}"]
         if loc.get("source"):
             chips.append(("Location " + str(loc["source"])) if str(loc["source"]).startswith(("provided", "inferred")) else ("Location from " + str(loc["source"])))
-        if (rep.get("guest_questions") or {}).get("read_via"):
-            chips.append("Read through a fallback reader")
         back_url, back_label = back_to(token)
         return render_template("report.html", rep=rep, meta=meta, chips=chips, body=body, token=token, saved=bool(cfg.database_url), portal_user=bool(session.get("uid")) and session.get("site_ok") is not True,
                                title=(meta.get("hotel") or meta.get("website") or "Report"), back_url=back_url, back_label=back_label)
@@ -521,7 +522,7 @@ def create_app(cfg=None, run_fn=None):
         data = reports.pdfs.get(key)
         if data is None:
             try:
-                data = report_pdf.build_pdf(rep, part)
+                data = report_pdf.build_pdf(run_health.scrub(rep), part)
             except Exception:  # noqa: BLE001
                 abort(500)
             reports.pdfs[key] = data
@@ -532,7 +533,7 @@ def create_app(cfg=None, run_fn=None):
     def report_json(token):
         rep = _report_or_404(token)
         name = f"{store.slug(rep['meta'].get('hotel') or rep['meta'].get('website'))}-audit-{str(rep['meta']['run_at'])[:10]}.json"
-        return Response(json.dumps(rep, indent=2, default=str), mimetype="application/json", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+        return Response(json.dumps(run_health.scrub(rep), indent=2, default=str), mimetype="application/json", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     # ------------------------------------------------------------- uploads
     @app.post("/api/r/<token>/review-pack")

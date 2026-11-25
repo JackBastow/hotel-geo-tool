@@ -255,6 +255,13 @@ def _real_mention(key, pat, text):
 
 
 def features(site):
+    """
+    The hotel's facilities: [{key, label, level, found, pages, status, basis}]. On the hotel's own site, the verified fact profile (fact_profile.py) decides first: a facility the pages say
+    the hotel has is at least 'some'; one that is only nearby, through a partner, or not offered is 'none' whatever words the pages use, so no part of the report can treat it as the
+    hotel's. Where the profile does not say, the word rules decide, as before. A rival's site has no profile and always uses the word rules.
+    """
+    import fact_profile
+    prof = fact_profile.for_site(site) or {}
     out = []
     for key, (label, pat) in lexicon.FEATURES.items():
         found = []
@@ -262,8 +269,21 @@ def features(site):
             if not _real_mention(key, pat, f["page"]["text"]):
                 continue
             found.append(f)
-        out.append({"key": key, "label": label, "level": strength(site, found), "found": found,
-                    "pages": len(found)})
+        level, p = strength(site, found), prof.get(key)
+        row = {"key": key, "label": label, "level": level, "found": found, "pages": len(found), "status": None, "basis": "word rules"}
+        if p and p.get("conflict"):
+            row.update(conflict=True, relations=p.get("relations") or [])      # the pages say both: the word rules decide, and the operator sees the conflict
+        elif p and p.get("status"):
+            row.update(status=p["status"], basis="AI reading, quotation checked", quote=p["quote"], quote_url=p["url"], relations=p.get("relations") or [])
+            if p["status"] == fact_profile.ON_SITE:
+                if not found:
+                    page = next((pg for pg in site.content_pages if pg.get("url") == p["url"]), {"url": p["url"], "text": p["quote"], "title": ""})
+                    row["found"] = [{"page": page, "n": 1, "prominent": False, "snippet": p["quote"]}]
+                    row["pages"] = 1
+                row["level"] = level if level in ("strong", "some") else "some"
+            else:
+                row.update(level="none", found=[], pages=0)        # nearby, partner or not offered: never the hotel's own facility
+        out.append(row)
     return out
 
 

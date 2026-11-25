@@ -245,7 +245,7 @@ def analyse(*, own_pages, pages_meta, base, hotel, city, location, guest, site, 
     return {
         "version": 1, "pages_read": len(s.pages), "coverage": cov, "understanding": understanding,
         "intents": [{k: v for k, v in r.items()} for r in intents],
-        "features": [{"key": f["key"], "label": f["label"], "level": f["level"], "pages": f["pages"]} for f in feats],
+        "features": [{"key": f["key"], "label": f["label"], "level": f["level"], "pages": f["pages"], "status": f.get("status"), "basis": f.get("basis", "word rules")} for f in feats],
         "questions": questions, "location": loc, "consistency": cons, "consistency_notes": cons_notes, "traveller": travel, "hotel_class": hclass, "booking": booking, "external": external, "competitors": competitors, "dropped_recommendations": dropped, "could_not_confirm": suppressed, "hidden": hidden,
         "structured": {k: v for k, v in sd.items() if k != "best"}, "machine": machine, "profile": profile,
         "recommendations": recs, "top_actions": [r["id"] for r in top], "quick_wins": [r["id"] for r in quick],

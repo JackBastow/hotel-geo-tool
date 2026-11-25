@@ -98,7 +98,12 @@ def analyse(site):
     out = []
     pages = [(p["url"], _norm(p.get("text") or "")) for p in getattr(site, "content_pages", []) if p.get("text")]
     by_url = {p["url"]: p for p in getattr(site, "content_pages", [])}
+    import fact_profile
+    own = {"events": "meeting_rooms", "spa": "spa", "restaurant": "restaurant"}
     for key, f in FACILITIES.items():
+        st = fact_profile.status_of(site, own[key]) if key in own else None
+        if st and st != fact_profile.ON_SITE:
+            continue                            # the verified profile says the hotel does not have it itself (nearby, a partner's, or not offered): nothing to describe more fully
         trig = re.compile(f["trigger"], I)
         pth = re.compile(f["path"], I)
         hits = []

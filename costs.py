@@ -76,7 +76,7 @@ def metered(client):
 
 
 SECTIONS = (("ai_sample",), ("review_snapshot",), ("ai_insights",), ("ai_gap",), ("forums",), ("listing_lookup",), ("reddit",), ("question_plan",),
-            ("guest_questions", "ai_extract"))
+            ("guest_questions", "ai_extract"), ("fact_profile",))
 
 
 def report_usd(rep):

@@ -51,7 +51,8 @@ def _ledger(c, coverage):
         spec = lexicon.FEATURES.get(key)
         if not spec:
             continue
-        led[key] = {"label": spec[0], "level": f.get("level"), "pages": f.get("pages") or 0, "pattern": spec[1]}
+        led[key] = {"label": spec[0], "level": f.get("level"), "pages": f.get("pages") or 0, "pattern": spec[1],
+                    "denied": f.get("status") in ("not_offered", "nearby", "partner"), "status": f.get("status")}
     judged_absence_ok = not (coverage.get("limited") or coverage.get("text_only")) and (coverage.get("pages_read") or c.get("pages_read") or 0) >= 3
     return led, judged_absence_ok
 
@@ -80,6 +81,8 @@ def _check_text_vs_ledger(rec, led, absence_ok):
                     return "dispute", t, s
                 if absence_ok and row["level"] in (None, "none") and row["pages"] == 0 and PROMOTE.search(s) and not CONDITIONAL.search(s) and not CONDITIONAL.search(rec.get("title") or ""):
                     return "drop", t, s
+                if row.get("denied") and PROMOTE.search(s) and not CONDITIONAL.search(s):
+                    return "drop", t, s                # the verified profile: the hotel does not have it itself (Brooks Guesthouse: 'promote your parking' with no car park)
     return None
 
 
@@ -164,7 +167,7 @@ def check(rep):
             keep = []
             for o in rows:
                 row = led.get(str(o.get("key", "")).split(":")[-1])
-                if row and absence_ok and row["level"] in (None, "none") and row["pages"] == 0 and key != "opportunities":
+                if row and ((absence_ok and row["level"] in (None, "none") and row["pages"] == 0 and key != "opportunities") or row.get("denied")):
                     gate["changes"].append({"check": "assumes_offer_not_shown", "id": f"diff:{key}:{o.get('key')}", "topic": row["label"], "what": "removed from the differentiation view"})
                     continue
                 keep.append(o)
