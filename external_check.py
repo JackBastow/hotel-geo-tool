@@ -334,6 +334,8 @@ def _osm_name_ok(h, hotel, city):
     import hotelname
     if hotelname.sister_brand(nm, hotel):
         return False                                   # the Holiday Inn Express in the same building is another hotel (Holiday Inn Amsterdam - Arena Towers)
+    if (h.get("category") or h.get("class")) in ("natural", "place", "highway", "boundary", "railway", "waterway", "landuse", "man_made", "office", "shop"):
+        return False                                   # 'Brooks Hill, Town of Bath, New York' (a hill) is not Brooks Guesthouse in Bath
     core = _name_core(hotel)
     if core and core != hotel:
         # 'The Hoxton, Shoreditch' is mapped as 'The Hoxton': the part after the comma says where it is. The entry must carry the rest of the name and no other identifying word
@@ -617,7 +619,7 @@ def check_wikidata(hotel, city="", place_tokens=None):
 
 
 def run_external_check(urls, own_lodging_node, progress=None, hotel="", city="",
-                       location=None, former_names=()):
+                       location=None, former_names=(), own_phones=()):
     """
     own_lodging_node: the "lodging_node" dict from site_check.py's output
     (the hotel's own JSON-LD Hotel/LodgingBusiness node), or None.
@@ -736,6 +738,9 @@ def run_external_check(urls, own_lodging_node, progress=None, hotel="", city="",
                 if ov is None and nv is None:
                     continue
                 verdict = compare_fact(field, ov, nv)
+                if field == "telephone" and verdict == "significant discrepancy" and any(
+                        re.sub(r"\D", "", str(t))[-9:] == re.sub(r"\D", "", str(nv))[-9:] for t in own_phones or ()):
+                    verdict = "consistent"                     # the website gives that number too (Hotel Emma: OpenStreetMap's local line is on the homepage beside the freephone one)
                 consistency.append({
                     "field": field, "source": src_url, "domain": src_label,
                     "own_site_value": ov or "(not found)",

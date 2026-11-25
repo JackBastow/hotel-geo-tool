@@ -104,6 +104,8 @@ def extract(client, model, snippets, hotel, city):
             continue
         if _fold(quote) not in _fold(by_id[pid]["text"]):
             continue                                  # not the passage's own words: never used
+        if stance == "has" and re.search(r"\b(?:not|no|isn[’']?t|aren[’']?t|doesn[’']?t|don[’']?t|without|lacks?|unsuitable)\b", quote, re.I):
+            stance = "lacks"                          # 'The building is not wheelchair accessible' was read as 'has accessible rooms' (Brooks Guesthouse)
         value = str(c.get("value") or "").strip().lower()[:20]
         if topic == "stars" and not re.fullmatch(r"[1-5](?:\.5)?", value):
             continue
@@ -127,7 +129,7 @@ def site_facts(own_pages, base, hotel):
 
 
 _SITE_DENIES = re.compile(r"\b(?:don[’']?t|do not|does not|doesn[’']?t|cannot|can[’']?t|unable to)\s+(?:currently\s+)?(?:have|offer|provide|allow|accept)\b"
-                          r"|\bno\s+(?:on[- ]?site\s+|designated\s+|hotel\s+|private\s+|guest\s+|dedicated\s+)?(?:parking|car\s?park|pool|spa|gym|restaurant|pets?|dogs?)\b|\bnot\s+(?:available|permitted|allowed)\b", re.I)
+                          r"|\bno\s+(?:on[- ]?site\s+|designated\s+|hotel\s+|private\s+|guest\s+|dedicated\s+)?(?:parking|car\s?park|pool|spa|gym|restaurant|pets?|dogs?)\b|\bnot\s+(?:available|permitted|allowed|suitable|accessible)\b|\bunsuitable\b", re.I)
 
 
 def compare(claims, facts, site_stars=None, answers=0):

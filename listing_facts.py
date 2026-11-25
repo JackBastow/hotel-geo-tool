@@ -61,6 +61,7 @@ def shown_name(title, hotel="", place=""):
     for p in parts:
         cleaned = " ".join(_TITLE_NOISE.sub(" ", p).split()).strip(" -|:,&")
         cleaned = re.sub(r"\b20\d\d\b", " ", cleaned)
+        cleaned = re.sub(r"^\s*\d[\d,.]*\s+(?:verified\s+)?(?:(?:hotel\s+)?reviews?\s+|ratings?\s+)?(?:(?:hotels?|reviews?)\s+of\s+)?", "", cleaned, flags=re.I).strip()      # '583 Verified Hotel of Carbis Bay...' (Booking.com)
         words = _words(cleaned)
         while words and words[-1] in _place_words(place):               # 'Brooklands Hotel Surrey' -> the town or county is not part of the name
             words.pop()
@@ -95,6 +96,9 @@ def name_verdict(shown, hotel, place=""):
     if sa == sb:
         return "same", ""
     qual = set(_words(re.split(r",|\s[-\u2013\u2014]\s", hotel, maxsplit=1)[1])) if re.search(r",|\s[-\u2013\u2014]\s", hotel) else set()      # 'Shoreditch' in 'The Hoxton, Shoreditch'
+    tail = re.search(r"\s(?:at|on|near|by|in)\s(?:the\s)?(.+)$", shown, re.I)
+    if tail and not any(w in sa for w in _words(tail.group(1))):
+        qual |= set(_words(tail.group(0)))         # 'Hotel Emma at Pearl on the Riverwalk' (Booking.com) is the name and where it is
     ca, cb = {w for w in sa if w not in GENERIC_NAME and w not in qual}, {w for w in sb if w not in GENERIC_NAME and w not in qual}
     only_site, only_listing = [w for w in sa if w not in sb], [w for w in sb if w not in sa]
     bits = (["the listing adds " + ", ".join(only_listing)] if only_listing else []) + (["the listing leaves out " + ", ".join(only_site)] if only_site else [])

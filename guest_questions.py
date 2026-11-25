@@ -136,7 +136,7 @@ QUESTIONS = [
         "label": "What are the check-in and check-out times?",
         "slugs": ["check in", "check out", "arrival", "faq", "policies", "policy",
                   "terms", "information", "guest", "hotel info"],
-        "mention": _rx(r"check[\s\-]?in", r"check[\s\-]?out"),
+        "mention": _rx(r"check[\s\-]?in\b", r"check[\s\-]?out\b"),      # not 'checking' (a cookie policy's 'checking to see ... the cookie': Carbis Bay)
         "facts": [
             _fact("checkin", "the check-in time", *_CI),
             _fact("checkout", "the check-out time", *_CO),
@@ -182,7 +182,7 @@ QUESTIONS = [
         "label": "Are there family or connecting rooms, and how many can they sleep?",
         "slugs": ["family", "rooms", "accommodation", "suites", "faq"],
         "mention": _rx(r"family (?:room|suite|bedroom|friendly)", r"connecting (?:room|bedroom)s?",
-                       r"interconnecting", r"\bcots?\b", r"extra beds?", r"\bz[\s\-]?bed",
+                       r"interconnecting (?:room|bedroom|suite)s?", r"\bcots?\b",      # not 'interconnecting railway' (Carbis Bay) r"extra beds?", r"\bz[\s\-]?bed",
                        r"sofa[\s\-]?bed", r"travelling with children"),
         "facts": [
             _fact("roomtype", "the family or connecting room type",
@@ -260,7 +260,8 @@ QUESTIONS = [
             _fact("penalty", "the penalty or refund terms",
                   r"refund", r"penalt", r"non[\s\-]?refundable", r"first night",
                   r"full (?:stay|amount|charge)", r"deposit", r"no charge",
-                  r"free (?:of charge )?cancel", r"\bcharged\b"),
+                  r"free (?:of charge )?cancel", r"\bcharged\b",
+                  r"(?:administration|admin|cancellation|late) fee", r"[£€$]\s?\d+[^.]{0,30}\b(?:fee|charge)\b"),      # '48 hours ... with a £20 administration fee' (Brooks Guesthouse)
         ],
     },
 ]
@@ -322,6 +323,8 @@ _SKIP_PATH = re.compile(
     r"[-_](?:jpe?g|png|webp|gif)/?$|/(?:img|dsc|image|photo)[-_]?\d+(?:-\d+)?/?$|"
     # a photo gallery (pictures, no facts) and a page of guest reviews (what guests say, not what the hotel states: never evidence of the hotel's own facts). Paris Marriott: 2 of 8 pages read
     r"/(?:photos?|photo-gallery|gallery|galleries|image-gallery|reviews?|guest-reviews|ratings-reviews|testimonials)/?$|"
+    # the page a form shows once it is sent (Hotel Emma: /contact-us/thank-you/ was one of 25 pages read)
+    r"/(?:thank-?you|thanks|merci|danke|confirmation|success)(?:[-_/][\w-]*)?/?$|"
     # forms and booking tools: a form has almost no text, and a booking widget is built by script (Fistral: 14 of 25 pages; Eriksberg: 5 form pages read as 'built with JavaScript')
     r"/(?:[a-z0-9-]*-)?(?:enquiry|enquire|inquiry|form|formular|newsletter|nyhetsbrev|subscribe|signup|sign-up|rsvp|register|anmalan|book-now|booknow|booking|bookings|reservations?|boka|buchen)/?$", re.I)
 

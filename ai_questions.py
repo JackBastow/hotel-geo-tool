@@ -89,13 +89,22 @@ def fact_list(prof, anchor_list, features=None):
 
 # --------------------------------------------------------------- templates
 
+def with_town(place, city):
+    """'Victoria Park' -> 'Victoria Park, Bath': a place asked about without its town is answered for the best-known one (Brooks Guesthouse, Bath: the assistant answered about
+    Victoria Park in London, so every hotel it named instead was in Shoreditch). A place whose name already carries the town is left alone."""
+    town = (city or "").split(",")[0].strip()
+    if not town or not place or evidence.fold(town) in evidence.fold(place):
+        return place
+    return f"{place}, {town}"
+
+
 def anchor_questions(prof, hotel, city, anchor_list):
     """Realistic booking intents around the best real anchor. -> [{id, kind, angle, text, why, priority}]."""
     tier = (prof or {}).get("tier")
     tp = ai_niche._tier_phrase(tier, (prof or {}).get("stars"))
     out = []
     for k, a in enumerate(an_best(anchor_list, 2)):
-        name = a["name"]
+        name = with_town(a["name"], city)
         where = f"the hotel's own pages put {name} close ({a['distance']})" if a.get("distance") else f"{name} is {a['km']:g} km from the hotel ({a['source']})"
         classes = set((prof or {}).get("classes") or [])
         if k == 0 and tier:
@@ -110,7 +119,7 @@ def anchor_questions(prof, hotel, city, anchor_list):
             out.append((f"anchor_value{k}", "Price level", f"Which {tp}hotels near {name} give the best quality for the price?", f"Hotel level: {tier['label']} ({tier['why']}); {where}.", "secondary"))
     for st_ in [a for a in anchor_list or [] if a.get("kind") == "station"][:1]:
         if tier:
-            out.append(("station_value", "Near transport", f"Which {tp}hotels within walking distance of {st_['name']} are good value?", f"The hotel's own pages put {st_['name']} close ({st_['distance']}).", "secondary"))
+            out.append(("station_value", "Near transport", f"Which {tp}hotels within walking distance of {with_town(st_['name'], city)} are good value?", f"The hotel's own pages put {st_['name']} close ({st_['distance']}).", "secondary"))
     return [{"id": f"niche_{cid}", "kind": "niche", "angle": ang, "text": text, "why": why, "priority": pr} for cid, ang, text, why, pr in out if ai_niche._safe(text, hotel)]
 
 
@@ -123,7 +132,7 @@ def feature_questions(prof, hotel, city, anchor_list):
     tp = ai_niche._tier_phrase(tier, (prof or {}).get("stars"))
     classes = set((prof or {}).get("classes") or []) if (prof or {}).get("classes") is not None else None
     best = an_best(anchor_list, 1)
-    where = f"near {best[0]['name']}" if best else f"in {(prof or {}).get('district') or (city or '').split(',')[0].strip()}"
+    where = f"near {with_town(best[0]['name'], city)}" if best else f"in {(prof or {}).get('district') or (city or '').split(',')[0].strip()}"
     basis = (f"the hotel's own pages put {best[0]['name']} close ({best[0]['distance']})" if best and best[0].get("distance") else f"{best[0]['name']} is {best[0]['km']:g} km from the hotel ({best[0]['source']})") if best else "the hotel's area"
     out = []
     for key in (prof or {}).get("strong_features") or []:
@@ -379,7 +388,7 @@ def style_variants(prof, hotel, city, anchor_list, core, n):
     tp = ai_niche._tier_phrase((prof or {}).get("tier"), (prof or {}).get("stars"))
     out = []
     for a in an_best(anchor_list, 3):
-        out.append({"id": f"niche_kw{len(out) + 1}", "kind": "niche", "angle": "Short search", "style": "short search", "text": f"best {tp}hotel near {a['name']}", "priority": "secondary", "source": "style",
+        out.append({"id": f"niche_kw{len(out) + 1}", "kind": "niche", "angle": "Short search", "style": "short search", "text": f"best {tp}hotel near {with_town(a['name'], city)}", "priority": "secondary", "source": "style",
                     "why": f"The same market as the longer questions near {a['name']}, written as a short search."})
     for aud in ((prof or {}).get("audiences") or [])[:3]:
         if aud.get("level") in ("strong", "stated"):

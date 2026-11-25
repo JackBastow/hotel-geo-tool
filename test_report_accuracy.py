@@ -508,5 +508,36 @@ check("an assistant denying parking the site states is still reported", [r["stat
 check("a hotel group's own site is not a page to get onto (The Hoxton: imperialhotels.co.uk naming its Royal National Hotel)",
       _cm.rival_own_site({"domain": "imperialhotels.co.uk", "rivals_in": ["Royal National Hotel (Cartwright Room)"]}) and not _cm.rival_own_site({"domain": "timeout.com", "rivals_in": ["Royal National Hotel"]}))
 
+print("20. a US hotel, a B&B and a resort (Hotel Emma, Brooks Guesthouse, Carbis Bay, Nov 2026)")
+import ai_questions as _aq
+import external_check as _ec
+_bq = _aq.anchor_questions({"tier": {"key": "midscale", "label": "Mid-range", "why": "x"}, "classes": ["city_centre", "business"]}, "Brooks Guesthouse", "Bath",
+                           [{"name": "Victoria Park", "kind": "attraction", "distance": "350 meters", "km": 0.35, "source": "the hotel's own pages"}])
+check("a place asked about carries its town ('near Victoria Park, Bath'), so the assistant does not answer about London's (Brooks Guesthouse)",
+      _bq and all("Victoria Park, Bath" in q["text"] for q in _bq), [q["text"] for q in _bq])
+check("a place that already names the town is left alone", _aq.with_town("Bath Abbey", "Bath") == "Bath Abbey")
+check("a hill with the hotel's word in its name is not the hotel's map entry ('Brooks Hill, Town of Bath, New York')",
+      not _ec._osm_name_ok({"name": "Brooks Hill", "category": "natural", "display_name": "Brooks Hill, Town of Bath, Steuben County, New York"}, "Brooks Guesthouse", "Bath"))
+_bk = ic.Site([{"url": "https://www.brooksguesthouse.com/", "ok": True, "title": "Brooks", "h1": [], "text": "Call us on 01225 425543 or +44 1225 425543.", "tels": ["1225425543", "+441225425543"]},
+               {"url": "https://www.brooksguesthouse.com/special-offers/", "ok": True, "title": "Offers", "h1": [], "text": "Book on +44 1225 425543.", "tels": ["+441225425543"]}],
+              "https://www.brooksguesthouse.com/", "Brooks Guesthouse", "Bath")
+check("one number written three ways on a .com site is one number (Brooks Guesthouse: '6 different telephone numbers')", not any(o["type"] == "phone" for o in ic.consistency(_bk, {"conflicts": []})),
+      [o.get("values") for o in ic.consistency(_bk, {"conflicts": []}) if o["type"] == "phone"])
+_em = ic.Site([{"url": "https://thehotelemma.com/", "ok": True, "title": "Hotel Emma", "h1": [], "text": "Reservations (844) 845-7384. Hotel 210-448-8300.", "tels": ["(844) 845-7384", "210-448-8300"]}],
+              "https://thehotelemma.com/", "Hotel Emma", "San Antonio")
+check("a US freephone line beside the local number is not an inconsistency (Hotel Emma)", not any(o["type"] == "phone" for o in ic.consistency(_em, {"conflicts": []})))
+_cq = {x["id"]: x for x in _gq.QUESTIONS}
+check("'48 hours cancellation to 10am with a £20 administration fee' states the penalty (Brooks Guesthouse)",
+      any(r.search("Our cancellation terms are 48 hours cancellation to 10am with a £20 administration fee.") for f in _cq["cancellation"]["facts"] if f["key"] == "penalty" for r in f["patterns"]))
+check("a cookie policy's 'checking to see' is not check-in (Carbis Bay)", not any(r.search("This is done on a repeat visit by checking to see the cookie.") for r in _cq["checkin_out"]["mention"]))
+check("'interconnecting railway' is not interconnecting rooms (Carbis Bay)", not any(r.search("We are accessible via public transport (buses/interconnecting railway).") for r in _cq["family"]["mention"])
+      and any(r.search("Do you have interconnecting rooms?") for r in _cq["family"]["mention"]))
+for _t, _h, _pl, _want in [("Hotel Emma at Pearl on the Riverwalk - Booking.com", "Hotel Emma", "San Antonio", "close"),
+                           ("583 Verified Hotel of Carbis Bay and Spa Hotel - Booking.com", "Carbis Bay Hotel", "St Ives", "close")]:
+    _v = _lf.name_verdict(_lf.shown_name(_t, _h, _pl), _h, _pl)[0]
+    check(f"listing title {_t[:45]!r} reads as {_want}", _v == _want, _v)
+check("a form's thank-you page is not read (Hotel Emma)", not _gq._SKIP_PATH.search("/rooms/") and bool(_gq._SKIP_PATH.search("/contact-us/thank-you/")))
+check("a zoo's miniature train is not a station to give a distance to (Hotel Emma)", bool(ic._TOY_RAILWAY.search("San Antonio Zoo Eagle Train")) and not ic._TOY_RAILWAY.search("San Antonio station"))
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

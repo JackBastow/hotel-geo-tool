@@ -855,6 +855,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     ext = external_check.run_external_check(
         listing_urls, own_facts or None, progress=progress,
         hotel=hotel, city=city, location=location, former_names=[f["name"] for f in former],
+        own_phones=[t for p in (own_pages or []) for t in (p.get("tels") or [])]
+        + [m.group() for p in (own_pages or []) for m in __import__("insight_content")._PHONE.finditer((p.get("footer_text") or "") + " " + (p.get("text") or "")[:3000])],
     )
 
     # ---- join the wider discovery that has been running in the background

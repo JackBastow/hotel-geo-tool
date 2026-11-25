@@ -601,7 +601,7 @@ def location(site, osm_ctx):
     ctx = osm_ctx or {}
     items = []
     named = []   # (category, label, display name, search variants, km)
-    for s in [x for x in ctx.get("stations", []) if not places.is_generic_label(x.get("name") or "")][:2]:
+    for s in [x for x in ctx.get("stations", []) if not places.is_generic_label(x.get("name") or "") and not _TOY_RAILWAY.search(x.get("name") or "")][:2]:
         if s["km"] <= 4:
             base = re.sub(r"\s+(?:railway )?station$", "", s["name"], flags=re.I)
             named.append(("transport", "Rail and public transport", f"{base} station", [s["name"], base], s["km"]))
@@ -801,11 +801,35 @@ _OTHER_PLACE = re.compile(r"\b(?:car[\s-]?park|parking|garage|NCP|multi[\s-]?sto
 _OUTLET_PAGE = re.compile(r"restaurant|brasserie|bistro|/bar[s/-]|-bar/|rooftop|/spa/|cafe|kitchen", re.I)
 
 
+# a miniature or heritage railway's stop is not a way to reach the hotel (Hotel Emma: 'San Antonio Zoo Eagle Train station')
+_TOY_RAILWAY = re.compile(r"\b(?:zoo|miniature|model|heritage|narrow gauge|steam|tourist|park train|eagle train|light railway museum|funfair)\b", re.I)
+
+
+def _region_from_numbers(site):
+    """The country of a .com site's telephone numbers, from the numbers themselves: the one most often written in international form ('+44 1225 425542'), or the US/Canada when every
+    number is a ten-digit North American one. Without it, '+44 1225 425542' and '1225425542' were two numbers (Brooks Guesthouse: '6 different telephone numbers'), and a freephone
+    '(844) 845-7384' was not recognised as one (Hotel Emma). -> 'GB', 'US', ... or None."""
+    seen, raws = {}, []
+    for p in site.content_pages:
+        raws += list(p.get("tels", [])) + [m.group() for m in _PHONE.finditer(p.get("footer_text", "") + " \n " + p["text"][:1500])]
+    for r in raws:
+        if str(r).strip().startswith(("+", "00")):
+            inf = phones.parse(r)
+            if inf and inf.get("region"):
+                seen[inf["region"]] = seen.get(inf["region"], 0) + 1
+    if seen:
+        return max(seen.items(), key=lambda kv: kv[1])[0]
+    ds = [_digits(r)[-10:] for r in raws if len(_digits(r)) in (10, 11)]
+    if ds and all(re.fullmatch(r"[2-9]\d\d[2-9]\d{6}", d) for d in ds):
+        return "US"
+    return None
+
+
 def _phone_analysis(site):
     """-> (issues, notes). A second number is not an inconsistency when it is labelled as a department's line (events, spa, restaurant...) or appears only on that department's own page;
     only unexplained, different numbers are raised. The explained ones are returned as notes, with the text that labels them."""
     nums = defaultdict(lambda: {"pages": [], "labels": set(), "quote": "", "central": False})
-    region = phones.region_from_host(urllib.parse.urlparse(site.base).netloc)
+    region = phones.region_from_host(urllib.parse.urlparse(site.base).netloc) or _region_from_numbers(site)
     for p in site.content_pages:
         for t in p.get("tels", []):
             if len(_digits(t)) >= 9:
