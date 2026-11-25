@@ -853,7 +853,12 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                 fact_prof["follow_up"]["firecrawl_map"] = len(_mapped)
                 _links += [m["url"] for m in _mapped]
             _ranked = guest_questions.select_pages(_home_url, _links, site.get("sitemap_urls") or [], _reading.LIMIT * 3, start=_home_url)
-            _cands = [{"url": u} for u in list(dict.fromkeys(list(guest.get("page_candidates") or []) + _ranked))]
+            # a hotel group's terms, policies and FAQ apply to every hotel in it, even outside the hotel's own section (THE NICI: /terms-and-conditions/ beside /newquay/); never
+            # another hotel's pages, never a different website
+            _host = urllib.parse.urlparse(_home_url).netloc.lower()
+            _policy = [l for l in dict.fromkeys(_links) if urllib.parse.urlparse(l).netloc.lower() == _host and _reading.POLICY_PAGE.search(urllib.parse.urlparse(l).path)
+                       and not _reading.OTHER_PROPERTY.search(urllib.parse.urlparse(l).path)]
+            _cands = [{"url": u} for u in list(dict.fromkeys(list(guest.get("page_candidates") or []) + _ranked + _policy))]
             _urls, _followed = _reading.follow_up(_cands, [p.get("url", "") for p in own_pages], _topics, max(0, _room))
             fact_prof["follow_up"].update(topics=_topics, candidates=len(_cands))
             if _urls:

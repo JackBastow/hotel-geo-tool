@@ -20,7 +20,7 @@ def check(name, ok, detail=""):
 
 
 print("1. one limit for every stage")
-check("40 pages at most, 20 first, the old fixed read kept for comparison", reading.LIMIT == 40 and reading.FIRST_BATCH == 20 and reading.STANDARD == 25)
+check("40 pages at most, 25 first (20 lost facts at The Gainsborough), the old fixed read kept for comparison", reading.LIMIT == 40 and reading.FIRST_BATCH == 25 and reading.STANDARD == 25)
 import ai_extract
 check("the fact profile and the AI reading use the same page limit", fact_profile.MAX_PAGES == reading.LIMIT == ai_extract.MAX_PAGES)
 
@@ -37,6 +37,14 @@ check("the terms page for cancellation, the dogs page for pets, the spa page for
 check("a page already read is never read again", "https://h.com/rooms/deluxe/" not in urls)
 check("at most the room left under the limit", len(reading.follow_up(cands, [], t, 1)[0]) == 1)
 check("each page says what it was read for", why["https://h.com/spa/"] == ["spa"])
+
+_bad = [{"url": u} for u in ["https://www.carbisbayhotel.co.uk/carbis-bay-gift-shop", "https://g.co.uk/pages/special-offers-early-booking.html", "https://www.carbisbayhotel.co.uk/getting-here",
+                              "https://g.co.uk/pages/terms-and-conditions.html"]]
+_u, _w = reading.follow_up(_bad, [], ["parking", "cancellation"], 10)
+check("a gift shop is never read for parking ('car' in 'carbis'), nor special offers for cancellation ('booking'): whole words only, shops and offers never",
+      _u == ["https://www.carbisbayhotel.co.uk/getting-here", "https://g.co.uk/pages/terms-and-conditions.html"], _u)
+check("a group's terms page outside the hotel's own section is a policy page; another hotel's is not",
+      bool(reading.POLICY_PAGE.search("/terms-and-conditions/")) and bool(reading.OTHER_PROPERTY.search("/en-us/hotels/parlu-le-parisien/policies/")))
 
 print("3. the page ledger")
 led = reading.ledger([{"url": "https://h.com/", "ok": True}, {"url": "https://h.com/spa/", "ok": True}, {"url": "https://h.com/menu/", "ok": False, "reason": "HTTP 404"}],

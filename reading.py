@@ -14,33 +14,51 @@ import re
 import urllib.parse
 
 LIMIT = int(os.environ.get("READ_LIMIT") or 40)           # the most pages any check reads
-FIRST_BATCH = int(os.environ.get("READ_FIRST") or 20)     # read first, before the profile says what is still missing
+FIRST_BATCH = int(os.environ.get("READ_FIRST") or 25)     # read first, before the profile says what is still missing (20 lost facts at The Gainsborough)
 STANDARD = 25                                              # the old fixed read, kept for the A/B comparison ('standard' reading)
 PROFILE_CHARS = 200000                                     # what the fact profile may send in all (~50,000 tokens, about $0.10 on Sonnet)
 PAGE_CHARS = 12000
 FEW_PAGES = 15                                             # fewer in-scope pages than this from the sitemap and links: ask Firecrawl for the site's map
 
-# what to look for, per unverified topic: words in a page's address or title
+# a group's own terms, policies and FAQ (they apply to every hotel in it); not a page about one of its other hotels or destinations
+POLICY_PAGE = re.compile(r"terms|conditions|polic(?:y|ies)|faqs?|booking-?info|guest-?info|cancellation", re.I)
+OTHER_PROPERTY = re.compile(r"/(?:hotels?|locations?|destinations?|properties|resorts?)/[^/]+/", re.I)
+
+# what to look for, per unverified topic: WHOLE words in a page's address or title, a strong match (the page is about it) and a weak one (it may say). Substrings misled the first
+# version: 'carbis-bay-gift-shop' matched parking on 'car', 'special-offers-early-booking' matched cancellation on 'booking'.
 TOPIC_PAGES = {
-    "parking": r"park|getting-?here|directions|location|find-?us|travel|arriv|faq|contact|car",
-    "breakfast": r"breakfast|dining|restaurant|food|eat|menu",
-    "checkin_out": r"faq|polic|terms|info|guest-?info|need-?to-?know|check",
-    "cancellation": r"terms|polic|condition|cancel|booking|faq",
-    "pets": r"dog|pet|faq|polic",
-    "accessibility": r"access|disab|faq|polic",
-    "family": r"famil|kid|child|faq",
-    "transport": r"getting-?here|directions|location|find-?us|travel|contact|arriv",
-    "wifi": r"faq|facilit|amenit|room",
-    "ev": r"park|ev-?charg|electric|faq|facilit|getting-?here",
-    "restaurant": r"dining|restaurant|eat|food|menu|bar",
-    "bar": r"bar|lounge|drink|dining",
-    "spa": r"spa|wellness|treatment|relax",
-    "pool": r"pool|spa|leisure|facilit|wellness",
-    "gym": r"gym|fitness|leisure|facilit|wellness",
-    "meeting_rooms": r"meeting|event|conference|business|venue",
-    "weddings": r"wedding|celebrat|event",
-    "room_service": r"room|dining|faq|in-?room",
+    "parking": (r"parking|car-?park|getting-?here|directions|find-?us|how-?to-?find-?us", r"location|travel|arrival|contact|faqs?"),
+    "breakfast": (r"breakfast", r"dining|restaurant|food|eat|menus?"),
+    "checkin_out": (r"check-?in|check-?out|arrival|policies|policy|good-?to-?know|need-?to-?know|hotel-?info(?:rmation)?|guest-?info(?:rmation)?", r"faqs?|terms|information"),
+    "cancellation": (r"terms|conditions|cancellation|cancel|booking-?(?:policy|terms|conditions)|policies|policy", r"faqs?"),
+    "pets": (r"dogs?|pets?|dog-?friendly|pet-?friendly|pooches?", r"faqs?|policies|policy"),
+    "accessibility": (r"accessib(?:le|ility)|disabled|mobility", r"faqs?|policies|policy"),
+    "family": (r"famil(?:y|ies)|kids|children|child", r"faqs?|rooms?"),
+    "transport": (r"getting-?here|directions|find-?us|how-?to-?get-?here|travel|transport", r"location|contact|arrival"),
+    "wifi": (r"wi-?fi|internet|amenities|facilities", r"faqs?|rooms?"),
+    "ev": (r"ev|electric|charging|parking|car-?park", r"facilities|getting-?here|faqs?"),
+    "restaurant": (r"restaurants?|dining|dine|eat|food|menus?|brasserie|bistro|grill", r"bars?"),
+    "bar": (r"bars?|lounge|cocktails?|drinks", r"dining"),
+    "spa": (r"spa|wellness|treatments?|massage", r"relax|leisure"),
+    "pool": (r"pools?|swimming|lido", r"spa|leisure|facilities|wellness"),
+    "gym": (r"gym|fitness|leisure", r"spa|facilities|wellness"),
+    "meeting_rooms": (r"meetings?|conferences?|events?|venues?|business|boardroom", r"private-?dining"),
+    "weddings": (r"weddings?|ceremon(?:y|ies)", r"celebrations?|events?"),
+    "room_service": (r"room-?service|in-?room-?dining", r"dining|faqs?"),
 }
+# pages a follow-up is never worth: a shop, offers and vouchers, news and blogs, jobs, one event or one menu item
+NOT_FOR_FOLLOW_UP = re.compile(r"(?:^|[/_-])(?:shop|store|gift|vouchers?|offers?|special|deals?|promo|news|blog|press|careers?|jobs?|whats-?on|event-?\d|gallery|photos?|reviews?)(?:$|[/_.-])", re.I)
+
+
+def _words_in(url, title=""):
+    """The words of a page's address path and title, joined by '-' so a pattern can match a whole word or a short phrase."""
+    path = urllib.parse.urlparse(url).path.lower()
+    words = re.split(r"[^a-z0-9]+", path + " " + (title or "").lower())
+    return "-" + "-".join(w for w in words if w) + "-"
+
+
+def _match(rx, words):
+    return re.search(r"-(?:" + rx + r")-", words) is not None
 
 
 def unverified(guest, profile, features=None):
@@ -65,23 +83,31 @@ def unverified(guest, profile, features=None):
 
 def follow_up(candidates, read_urls, topics, room):
     """
-    The next pages to read for the unverified topics: unread candidates whose address or title fits a topic, the topics' best pages first, at most `room`.
+    The next pages to read for the unverified topics: for each topic, the unread candidate that is most clearly about it (a strong whole-word match in its address or title before a weak
+    one, a shorter address before a longer), never a shop, offer, news or one-event page. At most `room`.
     candidates: [{"url", "title"}] in priority order. -> ([url], {url: [topics it is read for]})
     """
     done = {u.rstrip("/").lower() for u in read_urls}
+    pool = [c for c in candidates if c["url"].rstrip("/").lower() not in done and not NOT_FOR_FOLLOW_UP.search(urllib.parse.urlparse(c["url"]).path)]
     picked, why = [], {}
     for t in topics:
-        rx = re.compile(TOPIC_PAGES[t], re.I)
-        for c in candidates:
-            u = c["url"]
-            if u.rstrip("/").lower() in done or len(picked) >= room:
-                continue
-            path = urllib.parse.urlparse(u).path
-            if rx.search(path) or rx.search(c.get("title") or ""):
-                if u not in picked:
-                    picked.append(u)
-                why.setdefault(u, []).append(t)
-                break                              # one page per topic per round: the most likely one
+        if len(picked) >= room or t not in TOPIC_PAGES:
+            continue
+        strong, weak = TOPIC_PAGES[t]
+        best = None
+        for i, c in enumerate(pool):
+            w = _words_in(c["url"], c.get("title") or "")
+            score = 2 if _match(strong, w) else 1 if _match(weak, w) else 0
+            if score:
+                depth = len([x for x in urllib.parse.urlparse(c["url"]).path.split("/") if x])
+                key = (-score, depth, i)
+                if best is None or key < best[0]:
+                    best = (key, c["url"])
+        if best:
+            u = best[1]
+            if u not in picked:
+                picked.append(u)
+            why.setdefault(u, []).append(t)
     return picked, why
 
 
