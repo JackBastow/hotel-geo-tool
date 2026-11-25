@@ -416,8 +416,9 @@ def _location_segment(site, location, coverage):
         stated = [i for i in rows if i["state"] == "stated"]
         named = [i for i in rows if i["state"] == "mentioned_no_distance"]
         absent = [i for i in rows if i["state"] == "not_mentioned"]
-        if stated and not named and not absent:
-            state = CONFIRMED
+        if stated and not named:
+            state = CONFIRMED                      # 'Bath Spa station is a 5-10 minute walk' answers the traveller; a second, smaller station the site never names (Oldfield Park) is not a gap
+            absent = []
         elif stated or named:
             state = PARTIAL
         elif absent and (not coverage.get("limited")):

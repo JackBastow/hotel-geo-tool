@@ -78,6 +78,10 @@ def rival_own_site(a):
         for w in evidence.fold(n).split():
             if len(w) >= 5 and w not in _NAME_STOP and w in dom:
                 return True
+    # a hotel group's own site under its group name (The Hoxton: imperialhotels.co.uk, 'Conference Venues | ... | Imperial London Hotels', naming only its Royal National Hotel)
+    label = dom.split(".")[0]
+    if "hotel" in label and names and _site_type(a) not in ("booking_platform", "hotel_directory", "review_platform"):
+        return True
     return False
 
 

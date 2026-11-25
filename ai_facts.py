@@ -126,6 +126,10 @@ def site_facts(own_pages, base, hotel):
     return out
 
 
+_SITE_DENIES = re.compile(r"\b(?:don[’']?t|do not|does not|doesn[’']?t|cannot|can[’']?t|unable to)\s+(?:currently\s+)?(?:have|offer|provide|allow|accept)\b"
+                          r"|\bno\s+(?:on[- ]?site\s+|designated\s+|hotel\s+|private\s+|guest\s+|dedicated\s+)?(?:parking|car\s?park|pool|spa|gym|restaurant|pets?|dogs?)\b|\bnot\s+(?:available|permitted|allowed)\b", re.I)
+
+
 def compare(claims, facts, site_stars=None, answers=0):
     """-> {"rows": [{topic, label, status, says, our_record, url, times}], "matches": n, "unjudged": n}. One row per topic and what was said, most serious first."""
     grouped = {}
@@ -155,6 +159,9 @@ def compare(claims, facts, site_stars=None, answers=0):
             unjudged += 1
             continue
         mentioned = f.get("level") in ("strong", "some", "weak")
+        if stance == "lacks" and _SITE_DENIES.search(f.get("snippet") or ""):
+            matches += 1                              # the site says so too: 'We don't have designated hotel parking' (The Hoxton) agrees with 'not guaranteed parking for guests'
+            continue
         if stance == "lacks" and stated:
             rows.append({"topic": topic, "label": LABEL[topic], "status": "differs", "says": says, "times": n, "url": f.get("url", ""),
                          "our_record": "The hotel's website states it" + (f": \"{f['snippet'][:140]}\"" if f.get("snippet") else ".")})

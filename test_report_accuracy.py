@@ -488,5 +488,25 @@ _two = ic.Site([{"url": _hx, "ok": True, "title": "Home", "h1": [], "text": "The
                 {"url": _hx + "contact/", "ok": True, "title": "Contact", "h1": [], "text": "The Hoxton, 2 Old Street, London EC1V 9AA"}], _hx, "The Hoxton, Shoreditch", "London")
 check("two different hotel addresses are still reported", any(o["type"] == "postcode" for o in ic.consistency(_two, {"conflicts": []})))
 
+print("19. the re-runs of the three new hotels (Nov 2026)")
+import places as _pl
+import ai_facts as _af
+import commercial as _cm
+check("'Edinburgh's fireworks' on an offers page is the city, not Edinburgh Airport (The Hoxton: 'Distance to Edinburgh')",
+      not _pl.mentions("From Brussels' festive markets to cosy London pubs and Edinburgh's fireworks, there's plenty of reasons to make a getaway of it.", "airport", "The Hoxton, Shoreditch"))
+check("'the Bristol to Bath cycle path' is not Bristol Airport (Gainsborough: 'say how far from Bristol')",
+      not _pl.mentions("A number of scenic routes can be enjoyed, including the Bristol to Bath cycle path, and the Kennet and Avon canal path.", "airport", "The Gainsborough Bath Spa"))
+check("'Edinburgh Airport is 25 minutes by tram' is still the airport, with its time", [(m["name"], bool(m["distance"])) for m in _pl.mentions("Edinburgh Airport is 25 minutes by tram.", "airport", "X")] == [("Edinburgh Airport", True)])
+check("'Heathrow - 1 hour' states a travel time (The Hoxton)", [bool(m["distance"]) for m in _pl.mentions("• Heathrow - 1 hour", "airport", "The Hoxton, Shoreditch")] == [True])
+_s = "We're well connected too, with Old Street and Shoreditch High Street stations just a short walk away."
+check("'just a short walk away' is a distance (The Hoxton: Shoreditch High Street station)", bool(_pl.distance_for(_s, {"start": _s.find("Shoreditch High"), "end": _s.find("Shoreditch High") + 22})))
+_cmp = _af.compare([{"topic": "parking", "stance": "lacks", "value": "", "quote": "has public parking, available nearby, so it is not guaranteed parking for guests", "passage": "P1"}],
+                   {"parking": {"level": "strong", "url": "https://thehoxton.com/london/shoreditch/", "snippet": "Where do I park? We don't have designated hotel parking, but our rear entrance on Willow Street has on-street parking"}})
+check("the assistant saying there is no guaranteed parking agrees with 'We don't have designated hotel parking' (The Hoxton: 'AI tells travellers something wrong')", not _cmp["rows"] and _cmp["matches"] == 1, _cmp)
+_cmp2 = _af.compare([{"topic": "parking", "stance": "lacks", "value": "", "quote": "has no parking", "passage": "P1"}], {"parking": {"level": "strong", "url": "u", "snippet": "Free on-site parking for 60 cars."}})
+check("an assistant denying parking the site states is still reported", [r["status"] for r in _cmp2["rows"]] == ["differs"])
+check("a hotel group's own site is not a page to get onto (The Hoxton: imperialhotels.co.uk naming its Royal National Hotel)",
+      _cm.rival_own_site({"domain": "imperialhotels.co.uk", "rivals_in": ["Royal National Hotel (Cartwright Room)"]}) and not _cm.rival_own_site({"domain": "timeout.com", "rivals_in": ["Royal National Hotel"]}))
+
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

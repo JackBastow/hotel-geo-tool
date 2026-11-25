@@ -40,10 +40,14 @@ _ATTRACTION_RX = re.compile(rf"(?P<name>(?:{_TOK}\s+){{1,3}}(?i:Museum|Castle|Ca
                             rf"|(?P<name2>(?:Museum|Palace|Castle|Lake|Mount|Mt\.?|Fort)\s+(?:of\s+)?{_TOK}(?:\s+{_TOK})?)")
 _VENUE_RX = re.compile(rf"(?P<name>(?:{_TOK}\s+){{1,3}}(?:Exhibition Centre|Exhibition Center|Convention Centre|Convention Center|Conference Centre|Congress Centre|Messe|Expo|Arena|Stadium|Business Park))\b")
 
+# airports that share their city's name: named alone, they are the city unless the text is about flying
+CITY_AIRPORTS = {"Edinburgh", "Manchester", "Birmingham", "Bristol", "Southend", "Luton", "Frankfurt", "Munich", "Brussels", "Vienna", "Geneva", "Basel", "Newark", "London City", "Dubai International"}
+
 # '5 drive minutes from Zurich Airport' (Hilton Zurich Airport), '10 walking minutes': the way of travel may stand between the figure and 'minutes'
 _DIST = re.compile(r"\b(\d{1,3}(?:[.,]\d)?)\s?[-–]?\s?(?:(?:drive|driving|walk|walking|taxi|train|tram|bus|car)\s+)?(?:min(?:ute)?s?|mins)\b(?:\s+(?:by|on|via)\s+\w+|\s+(?:walk|drive|ride|journey|away))?"
                    r"|\b(\d+(?:[.,]\d+)?)\s?(?:km|kilomet(?:re|er)s?|miles?|mi)\b|\b(\d{2,4})\s?(?:m|metres?|meters?)\b(?!\w)"
-                   r"|\b(?:walking|driving)\s+distance\b|\bsteps?\s+(?:from|away)\b|\bdirectly\s+(?:at|connected|linked)\b|\bconnected\s+to\b|\bnext\s+to\b|\bopposite\b|\bon\s+site\b", re.I)
+                   r"|\b(?:walking|driving)\s+distance\b|\bsteps?\s+(?:from|away)\b|\bdirectly\s+(?:at|connected|linked)\b|\bconnected\s+to\b|\bnext\s+to\b|\bopposite\b|\bon\s+site\b"
+                   r"|\b\d{1,2}(?:[.,]\d)?\s?(?:hours?|hrs?)\b|\b(?:a\s+)?(?:short|quick|easy|gentle|few minutes')\s+(?:walk|stroll|ride|drive)\b|\bstone'?s\s+throw\b|\baround\s+the\s+corner\b|\bon\s+(?:your|the|our)\s+doorstep\b", re.I)
 
 
 def _own_name_run(text, start, name, hotel):
@@ -111,6 +115,9 @@ def find(text, kind, hotel=""):
         name = " ".join(lead)
         if kind == "airport" and set(evidence.fold(name).split()) <= {"international", "intl", "airport", "regional", "domestic", "the", "city"}:
             continue                      # 'International Airport' on its own is the tail of a name already found ('Charles de Gaulle International Airport'), not a place
+        if kind == "airport" and name in CITY_AIRPORTS and not re.search(r"(?i)^\s*(?:international\s+)?airport", text[m.end():m.end() + 25]) \
+                and not re.search(r"(?i)\b(?:airports?|fl(?:y|ights?|ying)|terminal)\b|\s[-\u2013:]\s*\d", text[max(0, m.start() - 80):m.end() + 40]):
+            continue                      # 'Edinburgh's fireworks' (The Hoxton's offers page) is the city, not its airport; 'Heathrow - 1 hour' or 'fly into Edinburgh' is the airport
         if not _ok_name(name, kind, hotel) or _own_name_run(text, m.start(), name, hotel):
             continue
         # the full capitalised run in front of the keyword must not be a menu strip
