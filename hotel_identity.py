@@ -332,7 +332,7 @@ class Resolver:
                     self._own[n] = is_own(self.ident, n)[0] if self.ident else False
         rest = [(aid, [n for n in ns if not self._own.get(n)]) for aid, ns in by_answer]
         self._group = {}
-        for g in rivals.resolve(rest, self.city):
+        for g in rivals.resolve(rest, self.city, strict=True):
             clean = [n for n in g["names"] if base_name(n) == n.strip()] or g["names"]
             disp = max(clean, key=lambda n: (g["names"].index(n) * -1, -len(n)))
             for n in g["names"]:

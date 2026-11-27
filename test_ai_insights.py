@@ -84,7 +84,8 @@ check("only known claim types are kept, with the tone validated", [c["type"] for
 check("prose instead of JSON gives None, never a guess", ins.extract(Fake([resp("sorry"), resp("sorry")]), "claude-haiku-5-5", ITEMS, HOTEL, CITY)[0] is None)          # tried twice (a one-off unreadable reply is asked again)
 
 print("3. the leaderboard (plain arithmetic)")
-lb = ins.leaderboard(ex, ITEMS, HOTEL)
+import hotel_identity as _hid
+lb = ins.leaderboard(ex, ITEMS, HOTEL, resolver=_hid.resolver_for(HOTEL, CITY, ex["answers"]))     # as the audit does: the resolver knows the hotel's town
 rows = {r["name"]: r for r in lb["rows"]}
 check("Le Royal was named in both generic answers, ranked first both times", rows["Le Royal Hotels & Resorts"]["mentions"] == 2 and rows["Le Royal Hotels & Resorts"]["avg_rank"] == 1.0)
 check("'Park Inn by Radisson' and 'Park Inn by Radisson Luxembourg City' are folded into ONE hotel", sum(1 for n in rows if n.startswith("Park Inn")) == 1 and

@@ -46,11 +46,13 @@ def _different_property(sa, sb):
     return any(t in DISTINGUISH or t.isdigit() for t in d)
 
 
-def resolve(by_answer, city=""):
+def resolve(by_answer, city="", strict=False):
     """
     by_answer: [(answer_id, [hotel names named in that answer])]. -> [{"key", "name", "names", "answers": set, "uncertain": bool}] one per hotel.
     Same distinctive words = same hotel; a name whose words are inside another's ('Crillon' in 'Hôtel de Crillon Paris') joins it; a merge on ONE shared word is kept but flagged; names that
     ever appear together in one answer are never merged.
+    strict=True (what the dashboards use): two names are one hotel only when their distinctive words are the same, or differ only by a facility word ('Carlyon Bay Hotel' / 'Carlyon Bay Hotel, Spa & Golf').
+    A single shared word ('Manor', 'Shoreditch', 'Royal', 'Harbour') never joins two hotels: different hotels are not merged because their names look alike.
     """
     groups = {}
     together = set()
@@ -102,6 +104,18 @@ def resolve(by_answer, city=""):
                 sa, sb = {t for t in a if not t.startswith("#")}, {t for t in b if not t.startswith("#")}
                 if _different_property(sa, sb):
                     continue                          # another kind of property or unit, not the same hotel written two ways
+                if strict:
+                    _ok = hotel_identity.FACILITY_TAIL | {"city", "centre", "center"}
+                    if sa == sb or (sb < sa and (sa - sb) <= _ok) or (sa < sb and (sb - sa) <= _ok):
+                        hi, lo = groups[a], groups.pop(b)
+                        for n, c in lo["names"].items():
+                            hi["names"][n] = hi["names"].get(n, 0) + c
+                        hi["answers"] |= lo["answers"]
+                        hi["members"] |= lo["members"]
+                        hi["flavours"] |= lo["flavours"]
+                        hi["uncertain"] = hi["uncertain"] or lo["uncertain"] or len(hi["flavours"]) > 1
+                        merged = True
+                    continue
                 inside = sb <= sa and (len(sb) >= 2 or (len(sb) == 1 and len(next(iter(sb))) >= 5))
                 shared_one = len(sa & sb) == 1 and len(sa) <= 2 and len(sb) <= 2 and len(next(iter(sa & sb))) >= 5 and not inside
                 if inside or shared_one:

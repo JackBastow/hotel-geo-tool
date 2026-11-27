@@ -82,6 +82,18 @@ check("a group's sister hotel is another hotel ('The Hoxton, Holborn' is not 'Th
 check("a different branch of a hotel brand is another hotel", not hi.is_own(hi.build("Hilton Dusseldorf", "Dusseldorf", ""), "Hampton by Hilton Dusseldorf City Centre")[0]
       and hi.is_own(hi.build("Hilton Dusseldorf", "Dusseldorf", ""), "Hilton Düsseldorf")[0])
 
+# found on the live reports: names that only share one word are different hotels, in different answers too
+_rv = hi.Resolver(hi.build("Saunton Sands Hotel", "Saunton", ""), [(1, ["Northcote Manor, Burrington (near Umberleigh)", "Boundary Shoreditch", "Fistral Beach Hotel & Spa", "The Royal George, Bideford",
+                                                                    "Catalonia Born", "Courtyard by Marriott Amsterdam Arena Atlas", "Premier Inn London Southwark", "Harbour Hotel Christchurch"]),
+                                                          (2, ["Lympstone Manor, East Devon", "The RE Shoreditch", "The Beach at Bude", "The Royal Hotel, Bideford", "Catalonia Ramblas Hotel",
+                                                               "Amsterdam Marriott Hotel", "Premier Inn London Kensington (Earl's Court)", "Southampton Harbour Hotel & Spa"])], "Saunton")
+for _a, _b in [("Northcote Manor, Burrington (near Umberleigh)", "Lympstone Manor, East Devon"), ("Boundary Shoreditch", "The RE Shoreditch"), ("Fistral Beach Hotel & Spa", "The Beach at Bude"),
+               ("The Royal George, Bideford", "The Royal Hotel, Bideford"), ("Catalonia Born", "Catalonia Ramblas Hotel"), ("Courtyard by Marriott Amsterdam Arena Atlas", "Amsterdam Marriott Hotel"),
+               ("Premier Inn London Southwark", "Premier Inn London Kensington (Earl's Court)"), ("Harbour Hotel Christchurch", "Southampton Harbour Hotel & Spa")]:
+    check(f"'{_a}' and '{_b}' share a word but are different hotels", _rv.key(_a) != _rv.key(_b))
+_rw = hi.Resolver(hi.build("Saunton Sands Hotel", "Saunton", ""), [(1, ["Watersmeet Hotel"]), (2, ["Watersmeet Hotel, Woolacombe"]), (3, ["Carlyon Bay Hotel"]), (4, ["Carlyon Bay Hotel, Spa & Golf, St Austell"])], "Saunton")
+check("the same hotel written with its place or a facility tail is still one hotel", _rw.key("Watersmeet Hotel") == _rw.key("Watersmeet Hotel, Woolacombe") and _rw.key("Carlyon Bay Hotel") == _rw.key("Carlyon Bay Hotel, Spa & Golf, St Austell"))
+
 print("4. the rankings: the hotel is one row at its real score, never its own competitor")
 ANS, ITEMS, EXTRACTED, NAMED_IDS = {}, [], {}, set()
 HOTEL_SPELLINGS = ["Saunton Sands Hotel", "Saunton Sands Hotel Source Spa and Wellness", "Saunton Sands Hotel, North Devon", "Saunton Sands Hotel & Source Spa", "Saunton Sands Hotel (Source Spa)"]
