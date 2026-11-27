@@ -35,7 +35,7 @@ RUN_COLS = [
     "read_via", "pages_read", "pages_attempted", "cat_scores", "ai_status", "ai_model", "ai_generic_named", "ai_generic_asked", "ai_niche_named",
     "ai_niche_asked", "ai_named", "ai_asked", "ai_depth", "ai_engines", "ai_tracked_named", "ai_tracked_asked", "ai_tracked_fp", "ai_direct_known", "ai_share", "ai_coverage_pct", "ai_sentiment", "ai_place", "ai_repeats", "ai_rank_in_table", "ai_table_size", "ai_top_competitor", "reviews_status", "reviews_examined",
     "reviews_replied", "reviews_neg_examined", "reviews_neg_replied", "pack_reviews", "pack_reply_rate", "pack_critical_unanswered", "pagespeed_perf", "pagespeed_a11y", "commoncrawl_state", "recs_total",
-    "top_actions", "ai_cost_usd", "schema_version",
+    "top_actions", "ai_cost_usd", "schema_version", "release_state",
 ]
 
 
@@ -101,7 +101,7 @@ def summarise(rep):
         "pack_critical_unanswered": (rep.get("review_pack") or {}).get("critical_unanswered"),
         "pagespeed_perf": ps.get("performance"), "pagespeed_a11y": ps.get("accessibility"), "commoncrawl_state": (web.get("commoncrawl") or {}).get("state") or "",
         "recs_total": len(recs), "top_actions": " | ".join(by_id.get(i, i) for i in (cons.get("top_actions") or []))[:1500],
-        "ai_cost_usd": round(ai_cost, 5), "schema_version": SCHEMA_VERSION,
+        "ai_cost_usd": round(ai_cost, 5), "schema_version": SCHEMA_VERSION, "release_state": (rep.get("release") or {}).get("state") or "",
     }
 
 
@@ -272,7 +272,7 @@ class Store(portal_db.PortalMixin):
     def init(self):
         pk = "INTEGER PRIMARY KEY AUTOINCREMENT" if self.kind == "sqlite" else "BIGSERIAL PRIMARY KEY"
         text_cols = {"run_at", "hotel", "hotel_key", "city", "website", "domain", "hotel_name_source", "headline_status", "read_via", "cat_scores", "ai_status", "ai_model",
-                     "ai_top_competitor", "reviews_status", "commoncrawl_state", "top_actions", "ai_tracked_fp", "ai_depth", "ai_engines"}
+                     "ai_top_competitor", "reviews_status", "commoncrawl_state", "top_actions", "ai_tracked_fp", "ai_depth", "ai_engines", "release_state"}
         real_cols = {"headline_score", "coverage_pct", "ai_cost_usd"}
         ddl = ", ".join(f"{c} " + ("TEXT" if c in text_cols else "DOUBLE PRECISION" if (c in real_cols and self.kind != "sqlite") else "REAL" if c in real_cols else "INTEGER")
                         for c in RUN_COLS)

@@ -652,7 +652,8 @@ def _from_source_gaps(ins, actions=None):
     if actions:
         import commercial
         # a rival hotel's own website is not a source the hotel can get onto (THE NICI: headlandhotel.co.uk, The Headland's own site, was listed as a 'travel publisher or blog')
-        actions = [a for a in actions if not commercial.rival_own_site({"domain": a.get("domain"), "rivals_in": a.get("rivals") or []})
+        import competitor_domains
+        actions = [a for a in actions if not commercial.rival_own_site({"domain": a.get("domain"), "rivals_in": a.get("rivals") or []}) and not competitor_domains.is_chain_site(a.get("domain"))
                    and commercial._site_type({"domain": a.get("domain")}) not in ("hotel_group", "own_website")]
     if actions:
         top = actions[:5]

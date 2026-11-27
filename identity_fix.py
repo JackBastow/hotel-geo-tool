@@ -105,10 +105,11 @@ def reprocess(rep, withdraw=True):
     canonical = ident["canonical"]
     res = hotel_identity.Resolver(ident, hotel_identity.by_answer_of(answers), city)
     # every answer marked again, under the hotel's real name and every verified spelling of it
-    ai_sample.remark(ai["items"], canonical, city)
+    matcher = hotel_identity.matcher_name(ident) or canonical
+    ai_sample.remark(ai["items"], matcher, city)
     for eng in (new.get("ai_engines") or {}).values():
         if isinstance(eng, dict) and eng.get("items"):
-            ai_sample.remark(eng["items"], canonical, city)
+            ai_sample.remark(eng["items"], matcher, city)
     extracted = {"answers": answers, "failed_ids": [i["id"] for i in ai["items"] if i.get("answer") and i.get("kind") != "direct" and i["id"] not in answers]}
     ai_insights.reconcile(ai, extracted, canonical, res)
     ai["summary"] = {**(ai.get("summary") or {}), **ai_sample.summarise(ai["items"])}
@@ -152,6 +153,8 @@ def reprocess(rep, withdraw=True):
     new["identity"] = ident
     after_names = {r.get("name"): bool(r.get("is_target")) for lb in (ins.get("leaderboard"), (ins.get("niche") or {}).get("leaderboard"), ins.get("brand_ranking")) for r in (lb or {}).get("rows", []) + (lb or {}).get("all", [])}
     report_model.apply(new)
+    import report_release
+    report_release.assess(new)
     after = _counts(new)
     own_among_rivals = sorted(n for n in old_names if n and not old_names[n] and res.is_target(n))
     merged = []

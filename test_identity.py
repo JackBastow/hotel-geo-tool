@@ -77,8 +77,8 @@ check("a chain's brand alone never makes two hotels one ('Marriott, Paris Opera'
 check("the same rival across checks has one key", hi.normal_key("Watersmeet Hotel", "Saunton") == hi.normal_key("Watersmeet Hotel, Woolacombe", "Saunton"))
 
 _hx = hi.build("The Hoxton, Shoreditch", "London", "https://thehoxton.com/london/shoreditch/", brand_site=True)
-check("a group's sister hotel is another hotel ('The Hoxton, Holborn' is not 'The Hoxton, Shoreditch'); the hotel itself still is, with or without its place",
-      not hi.is_own(_hx, "The Hoxton, Holborn")[0] and hi.is_own(_hx, "The Hoxton, Shoreditch")[0] and hi.is_own(_hx, "The Hoxton")[0] and hi.is_own(_hx, "The Hoxton, Shoreditch, London")[0])
+check("a group's sister hotel is another hotel ('The Hoxton, Holborn' is not 'The Hoxton, Shoreditch'); the hotel itself is confirmed with its place, and the bare group name is NOT confirmed",
+      not hi.is_own(_hx, "The Hoxton, Holborn")[0] and hi.is_own(_hx, "The Hoxton, Shoreditch")[0] and not hi.is_own(_hx, "The Hoxton")[0] and hi.is_own(_hx, "The Hoxton, Shoreditch, London")[0])
 check("a different branch of a hotel brand is another hotel", not hi.is_own(hi.build("Hilton Dusseldorf", "Dusseldorf", ""), "Hampton by Hilton Dusseldorf City Centre")[0]
       and hi.is_own(hi.build("Hilton Dusseldorf", "Dusseldorf", ""), "Hilton Düsseldorf")[0])
 
@@ -93,6 +93,38 @@ for _a, _b in [("Northcote Manor, Burrington (near Umberleigh)", "Lympstone Mano
     check(f"'{_a}' and '{_b}' share a word but are different hotels", _rv.key(_a) != _rv.key(_b))
 _rw = hi.Resolver(hi.build("Saunton Sands Hotel", "Saunton", ""), [(1, ["Watersmeet Hotel"]), (2, ["Watersmeet Hotel, Woolacombe"]), (3, ["Carlyon Bay Hotel"]), (4, ["Carlyon Bay Hotel, Spa & Golf, St Austell"])], "Saunton")
 check("the same hotel written with its place or a facility tail is still one hotel", _rw.key("Watersmeet Hotel") == _rw.key("Watersmeet Hotel, Woolacombe") and _rw.key("Carlyon Bay Hotel") == _rw.key("Carlyon Bay Hotel, Spa & Golf, St Austell"))
+
+print("3b. a group's name alone is not a confirmed mention (independent review, Nov 2026)")
+import hotelname as hn
+_g = hi.matcher_name(_hx)
+check("a hotel whose name a group shares is matched as a GroupName; a plain hotel is not", hasattr(_g, "qualifier") and not hasattr(hi.matcher_name(hi.build("Saunton Sands Hotel", "Saunton", "")), "qualifier"))
+check("the bare group name is NOT a confirmed mention ('The Hoxton' could be any of its hotels)", not hn.mentioned("1. The Hoxton: trendy rooms and a rooftop bar.", _g, "London")
+      and hn.ambiguous("1. The Hoxton: trendy rooms and a rooftop bar.", _g, "London"))
+check("with its place beside it, it is confirmed", hn.mentioned("Try The Hoxton, Shoreditch for a stylish stay.", _g, "London") and not hn.ambiguous("Try The Hoxton, Shoreditch for a stylish stay.", _g, "London"))
+check("or with the place in the same passage", hn.mentioned("In Shoreditch, The Hoxton is the obvious pick.", _g, "London"))
+check("another hotel of the group is not this one, and not ambiguous either", not hn.mentioned("The Hoxton, Holborn is near Covent Garden.", _g, "London") and not hn.ambiguous("The Hoxton, Holborn is near Covent Garden.", _g, "London")
+      and not hn.mentioned("The Hoxton Holborn has a pool.", _g, "London"))
+check("the same bare name is a mention for a hotel that has no group (the old behaviour is kept)", hn.mentioned("1. Chewton Glen: luxury.", "Chewton Glen, Hampshire", "New Milton"))
+check("ai_sample.remark marks it ambiguous, not mentioned, and the summary counts it apart", True)
+import ai_sample as _as
+_its = [{"id": "a", "kind": "generic", "answer": "1. The Hoxton: trendy.", "mentioned": False, "recommended": False, "position": None, "domains": []},
+        {"id": "b", "kind": "generic", "answer": "1. The Hoxton, Shoreditch: trendy.", "mentioned": False, "recommended": False, "position": None, "domains": []},
+        {"id": "c", "kind": "generic", "answer": "1. The Hoxton, Holborn: central.", "mentioned": False, "recommended": False, "position": None, "domains": []}]
+_as.remark(_its, _g, "London")
+_s = _as.summarise(_its)
+check("only the answer that names Shoreditch counts as named; the bare one is counted apart", [i["mentioned"] for i in _its] == [False, True, False] and [bool(i.get("ambiguous")) for i in _its] == [True, False, False] and _s["generic_named"] == 1 and _s["ambiguous_named"] == 1, (_s, _its))
+_rg = hi.Resolver(_hx_group := hi.build("The Hoxton, Shoreditch", "London", "https://thehoxton.com/london/shoreditch/", brand_site=True), [(1, ["The Hoxton", "Claridge's"]), (2, ["The Hoxton, Holborn"]), (3, ["The Hoxton, Shoreditch"])], "London")
+check("in the rankings: the bare name is neither the hotel nor a rival; Holborn is a rival; Shoreditch is the hotel", _rg.is_ambiguous("The Hoxton") and not _rg.is_target("The Hoxton") and _rg.is_target("The Hoxton, Shoreditch")
+      and not _rg.is_target("The Hoxton, Holborn"))
+_lb = ins_lb = __import__("ai_insights").leaderboard({"answers": {"x": [{"name": "The Hoxton", "rank": 1, "reason": "", "rating": None}, {"name": "Claridge's", "rank": 2, "reason": "", "rating": None}],
+                                                         "y": [{"name": "The Hoxton, Shoreditch", "rank": 1, "reason": "", "rating": None}]}},
+                                                  [{"id": "x", "kind": "generic", "answer": "t"}, {"id": "y", "kind": "generic", "answer": "t"}], "The Hoxton, Shoreditch", resolver=_rg)
+check("the leaderboard: the hotel is named once (answer y), the bare name is reported apart and is not a rival row", [r["mentions"] for r in _lb["rows"] if r["is_target"]] == [1] and _lb["ambiguous_answers"] == 1
+      and not any(r["name"] == "The Hoxton" for r in _lb["rows"]), _lb["rows"])
+_no = hi.build("The Hoxton, Shoreditch", "London", "https://www.hotelshoreditch.com/")
+check("a ', place' name with no group evidence (its own site, no sister hotel seen) keeps counting the short name", not hi.is_ambiguous(_no, "The Hoxton") and hi.is_own(_no, "The Hoxton")[0])
+_sib = hi.build("The Hoxton, Shoreditch", "London", "https://www.hotelshoreditch.com/", observed={"The Hoxton, Holborn": 3})
+check("...until the assistants name a sister hotel: then the short name is ambiguous", hi.is_ambiguous(_sib, "The Hoxton") and bool(_sib.get("group")))
 
 print("4. the rankings: the hotel is one row at its real score, never its own competitor")
 ANS, ITEMS, EXTRACTED, NAMED_IDS = {}, [], {}, set()

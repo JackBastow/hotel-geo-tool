@@ -263,7 +263,7 @@ def panel(db, hotel):
     ch = db.competitor_history(key, 5)
     brand, _me = brand_section(ch)
     try:
-        engines_chart = engines_section(list(reversed(db.hotel_runs(key))))
+        engines_chart = engines_section(list(reversed(db.customer_runs(key) if hasattr(db, "customer_runs") else db.hotel_runs(key))))
     except Exception:  # noqa: BLE001
         engines_chart = ""
     runs = [r["run_id"] for r in ch["runs"]]

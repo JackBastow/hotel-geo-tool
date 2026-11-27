@@ -45,6 +45,10 @@ def review_items(rep, hotel=None):
         out = setup_problems(hotel.get("name"), hotel.get("city"), hotel.get("website") or "") + out
     if g.get("error"):
         out.append(f"The report's own checks stopped part-way ({g['error'][:120]}): some checks did not run. A bug to look at.")
+    rel = (rep or {}).get("release") or {}
+    if rel.get("state") in ("review", "blocked"):
+        out.append(("BLOCKED: the hotel cannot see this report. " if rel["state"] == "blocked" else "WAITING FOR REVIEW: the hotel cannot see this report until it is approved. ")
+                   + " ".join(f"[{x['level']}] {x['what']}" for x in rel.get("reasons") or []))
     ident = (rep or {}).get("identity") or {}
     if ident.get("changed") and ident.get("entered"):
         out.append(f"The hotel is registered as “{ident['entered']}”, but its real name is “{ident['canonical']}” ({ident.get('basis', '')}). Every question and match used the real name. "

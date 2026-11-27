@@ -77,7 +77,7 @@ def ensure_strategy(db, hotel):
     has touched that would not be written today is removed (for example a 'get onto booking.com' from before booking sites were treated properly); anything the hotel has worked on stays. -> number added.
     """
     try:
-        runs = db.hotel_runs(hotel["hotel_key"])
+        runs = db.customer_runs(hotel["hotel_key"]) if hasattr(db, "customer_runs") else db.hotel_runs(hotel["hotel_key"])
         if not runs or (hotel["id"], runs[0]["id"], STRATEGY_VERSION) in _STRATEGY_TRIED:
             return 0
         _STRATEGY_TRIED.add((hotel["id"], runs[0]["id"], STRATEGY_VERSION))     # once per hotel, check and version, so a page view does not rebuild the list every time

@@ -111,7 +111,7 @@ def market_rivals(answer_ids, extracted, hotel, resolver=None, city="", hotel_ti
     rows = {}
     for aid in answer_ids:
         for h in extracted.get(aid) or []:
-            if resolver.is_target(h["name"]):
+            if resolver.is_target(h["name"]) or resolver.is_ambiguous(h["name"]):
                 continue
             key, display, aliases, unc = resolver.key(h["name"]), resolver.display(h["name"]), resolver.aliases(h["name"]), resolver.uncertain(h["name"])
             r = rows.setdefault(key, {"name": display, "aliases": aliases, "uncertain": unc, "answers": set(), "ranks": [], "reasons": [], "ratings": [], "sent": [], "themes": {}, "stars": [], "towns": []})

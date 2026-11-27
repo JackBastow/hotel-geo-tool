@@ -301,6 +301,83 @@ def register(app, cfg):
             done.append({"run_id": rid, "result": "recalculated", "before": d["before"], "after": d["after"], "canonical": d["canonical"], "withdrawn": len(d["withdrawn"])})
         return Response(json.dumps({"done": done}, indent=1, default=str), mimetype="application/json")
 
+    @app.get("/admin/release/scan.json")
+    def admin_release_scan():
+        """Read-only: the release state (ready / review / blocked) every saved check would get, and why. scope=latest or all; offset/limit page through (max 25)."""
+        g = guard()
+        if g:
+            return g
+        s, msg = store_or_msg()
+        if s is None:
+            abort(503)
+        import report_release
+        runs = s.list_runs(limit=5000)
+        if (request.args.get("scope") or "latest") == "latest":
+            seen, latest = set(), []
+            for r in runs:
+                if r["hotel_key"] not in seen:
+                    seen.add(r["hotel_key"])
+                    latest.append(r)
+            runs = latest
+        offset = max(0, int(request.args.get("offset") or 0))
+        limit = min(25, max(1, int(request.args.get("limit") or 12)))
+        rows = []
+        for r in runs[offset: offset + limit]:
+            try:
+                rep = s.get_report(r["id"])
+                rel = report_release.assess(dict(rep), legacy=True)["release"] if rep else {"state": "unreadable", "reasons": []}
+                rows.append({"run_id": r["id"], "hotel": r["hotel"], "run_at": str(r["run_at"])[:16], "stored": (r.get("release_state") or None), "state": rel["state"],
+                             "reasons": [f"{x['level']}: {x['what']}" for x in rel["reasons"]]})
+            except Exception as e:  # noqa: BLE001
+                rows.append({"run_id": r["id"], "hotel": r["hotel"], "state": f"error: {type(e).__name__}: {str(e)[:100]}"})
+        counts = {}
+        for x in rows:
+            counts[x["state"]] = counts.get(x["state"], 0) + 1
+        return Response(json.dumps({"total": len(runs), "offset": offset, "next": offset + limit if offset + limit < len(runs) else None, "counts": counts, "rows": rows}, indent=1, default=str),
+                        mimetype="application/json")
+
+    @app.post("/admin/release/assess")
+    def admin_release_assess():
+        """Work out and SAVE the release state of the named saved checks (checks made before release states existed have none). No assistant is asked."""
+        g = guard()
+        if g:
+            return g
+        if not hmac.compare_digest(request.form.get("csrf", ""), session.get("csrf", "")):
+            abort(400)
+        s, msg = store_or_msg()
+        if s is None:
+            abort(503)
+        import report_release
+        done = []
+        for rid in [int(x) for x in re.findall(r"\d+", request.form.get("run_ids") or "")][:25]:
+            rep = s.get_report(rid)
+            if not rep:
+                continue
+            report_release.assess(rep, legacy=True)
+            s.update_run(rid, rep)
+            done.append({"run_id": rid, "state": rep["release"]["state"], "reasons": [x["code"] for x in rep["release"]["reasons"]]})
+        return Response(json.dumps({"done": done}, indent=1, default=str), mimetype="application/json")
+
+    @app.post("/admin/run/<int:run_id>/release/approve")
+    def admin_release_approve(run_id):
+        """Accept the reasons a report is waiting for review (a blocked report cannot be approved)."""
+        g = guard()
+        if g:
+            return g
+        if not hmac.compare_digest(request.form.get("csrf", ""), session.get("csrf", "")):
+            abort(400)
+        s, msg = store_or_msg()
+        if s is None:
+            abort(503)
+        import report_release
+        rep = s.get_report(run_id)
+        if not rep:
+            abort(404)
+        ok, message = report_release.approve(rep, "admin")
+        if ok:
+            s.update_run(run_id, rep)
+        return Response(json.dumps({"run_id": run_id, "approved": ok, "message": message, "state": (rep.get("release") or {}).get("state")}, indent=1), mimetype="application/json")
+
     @app.post("/admin/run/<int:run_id>/delete")
     def admin_delete(run_id):
         g = guard()

@@ -138,10 +138,61 @@ def _fold_name(s):
     return re.sub(r"[^a-z0-9]+", " ", evidence.fold(s or "")).strip()
 
 
+class GroupName(str):
+    """A hotel whose name is shared by several hotels of one group ('The Hoxton, Shoreditch': The Hoxton also has Holborn, Brooklyn...). It behaves as the plain name everywhere; mentioned() reads
+    `.qualifier` and counts the bare group name ('The Hoxton') as naming THIS hotel only with support in the same passage."""
+
+    def __new__(cls, name, qualifier):
+        o = super().__new__(cls, name)
+        o.qualifier = [str(q) for q in qualifier]
+        return o
+
+
+def _group_state(text, hotel, city=""):
+    """'confirmed' | 'ambiguous' | 'no' for a hotel with a group name. Confirmed: the name with its place ('The Hoxton, Shoreditch'), or the bare group name with the place in the same passage (160
+    characters either side). Another place straight after it ('The Hoxton, Holborn') is another hotel. Otherwise the bare name alone is ambiguous: it may be this hotel or a sister hotel."""
+    raw = str(text)
+    t, idx = evidence.fold_map(raw)
+    qual = [evidence.fold(q) for q in hotel.qualifier if q]
+    plain = str(hotel)
+    bare = evidence.fold(re.split(r"\s*[,|(]\s*|\s+[-\u2013\u2014]\s+|\s*&\s*", plain)[0])
+    bare_forms = {bare, bare[4:] if bare.startswith("the ") else bare}
+    state = "no"
+    for form in variants(plain, city):
+        is_bare = form in bare_forms
+        for pat in _patterns(form):
+            for m in re.finditer(pat, t):
+                if t[max(0, m.start() - 3):m.start()] == "by ":
+                    continue
+                start_raw = idx[m.start()] if m.start() < len(idx) else len(raw)
+                if _prefix_is_name(raw, start_raw):
+                    continue
+                if not is_bare:
+                    return "confirmed"
+                window = t[max(0, m.start() - 160):m.end() + 160]
+                if any(re.search(r"\b" + re.escape(q) + r"\b", window) for q in qual):
+                    return "confirmed"
+                end_raw = (idx[m.end() - 1] + 1) if 0 < m.end() <= len(idx) else len(raw)
+                nxt = re.match(r"[ \t]*(?:,|-|\u2013|\u2014|\()?[ \t]*([A-Z][\w'\u2019\-]*)", raw[end_raw:end_raw + 60])
+                if nxt:
+                    w = evidence.fold(nxt.group(1))
+                    if w and w not in GENERIC and w not in _STARTERS and w not in qual and not re.fullmatch(LODGING, w):
+                        continue                         # 'The Hoxton, Holborn' / 'The Hoxton Holborn': another hotel of the group
+                state = "ambiguous"
+    return state
+
+
+def ambiguous(text, hotel, city=""):
+    """True when the text names the hotel's group but nothing says which of the group's hotels (see GroupName); False for any other hotel."""
+    return bool(text) and bool(getattr(hotel, "qualifier", None)) and _group_state(text, hotel, city) == "ambiguous"
+
+
 def mentioned(text, hotel, city=""):
     """Is THIS hotel named in `text`? (whole words, its usual shorter forms, never a place or another hotel's longer name)."""
     if not text or not hotel:
         return False
+    if getattr(hotel, "qualifier", None):
+        return _group_state(text, hotel, city) == "confirmed"
     raw = str(text)
     t, idx = evidence.fold_map(raw)
     town = _town_tokens(city)

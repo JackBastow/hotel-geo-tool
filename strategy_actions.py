@@ -17,10 +17,11 @@ Nothing promises that being on a source makes an assistant recommend the hotel.
 import re
 import urllib.parse
 
+import competitor_domains
 import evidence
 
-# hotel groups' and brands' own websites: not a place another hotel can be listed
-CHAIN_DOMAINS = ("marriott.com", "hilton.com", "ihg.com", "hyatt.com", "accor.com", "all.accor.com", "wyndhamhotels.com", "choicehotels.com", "bestwestern.com", "radissonhotels.com", "melia.com",
+# hotel groups' and brands' own websites: not a place another hotel can be listed (one list, in competitor_domains.py, for every module)
+_OLD_CHAIN_DOMAINS = ("marriott.com", "hilton.com", "ihg.com", "hyatt.com", "accor.com", "all.accor.com", "wyndhamhotels.com", "choicehotels.com", "bestwestern.com", "radissonhotels.com", "melia.com",
                  "nh-hotels.com", "scandichotels.com", "scandichotels.se", "strawberry.se", "nordicchoicehotels.com", "premierinn.com", "travelodge.co.uk", "kempinski.com", "fourseasons.com",
                  "ritzcarlton.com", "mandarinoriental.com", "shangri-la.com", "peninsula.com", "rosewoodhotels.com", "belmond.com", "minorhotels.com", "barcelo.com", "iberostar.com", "riu.com",
                  "omnihotels.com", "loewshotels.com", "sonesta.com", "ihg.co.uk", "holidayinn.com", "crowneplaza.com", "hamptoninn.com", "doubletree.com", "sheraton.com", "westin.com", "novotel.com",
@@ -39,13 +40,35 @@ def _dom(url_or_domain):
     return d[4:] if d.startswith("www.") else d
 
 
+CHAIN_DOMAINS = competitor_domains.CHAIN_DOMAINS
+
+
 def is_chain_site(domain):
-    d = _dom(domain)
-    return any(d == c or d.endswith("." + c) for c in CHAIN_DOMAINS)
+    return competitor_domains.is_chain_site(domain)
+
+
+class _Rivals:
+    """What `d in rivals` asks in every recommendation module: is this a rival hotel's own website (or a hotel group's)? Answered by competitor_domains for the whole report, not only for the
+    rivals whose address the research happened to find."""
+
+    def __init__(self, rep):
+        self.ex = competitor_domains.excluded(rep)
+
+    def __contains__(self, domain):
+        return bool(self.ex.reason(domain))
+
+    def reason(self, domain, name=""):
+        return self.ex.reason(domain, name)
+
+    def __iter__(self):
+        return iter(self.ex.urls)
+
+    def __len__(self):
+        return len(self.ex.urls)
 
 
 def _rival_domains(rep):
-    return {_dom(r["url"]) for r in ((rep or {}).get("ai_gap") or {}).get("rivals") or [] if r.get("url")}
+    return _Rivals(rep)
 
 
 def _search(q):
@@ -182,7 +205,7 @@ def _from_research(research, profile, hotel, own, rivals, limit=8):
     out = []
     for s in ((research or {}).get("sources") or [])[:limit]:
         d = s["domain"]
-        if d == own or d in rivals or is_chain_site(d) or is_listing_site(d):
+        if d == own or d in rivals or is_chain_site(d) or is_listing_site(d) or (hasattr(rivals, "reason") and rivals.reason(d, s.get("name") or "")):
             continue
         verb = {"tourism_board": "Get listed with", "convention_bureau": "Get listed with", "venue_directory": "Get listed on", "wedding_directory": "Get listed on", "restaurant_guide": "Put the restaurant forward to",
                 "award": "Enter", "publication": "Pitch a story to", "creator": "Invite", "tour_operator": "Get into the trips of", "attraction": "Partner with", "community": "Join"}.get(s["kind"], "Approach")

@@ -360,6 +360,8 @@ def question_rows(items, extracted, resolver=None):
         names, seen = [], set()
         for a in g["answers"]:
             for h in (extracted["answers"].get(a["id"]) or []):
+                if resolver and resolver.is_ambiguous(h["name"]):
+                    continue
                 k = resolver.key(h["name"]) if resolver else canon(h["name"])
                 if k not in seen:
                     seen.add(k)
@@ -383,10 +385,13 @@ def leaderboard(extracted, items, hotel, kinds=("generic",), resolver=None):
     res = _resolver_for(hotel, extracted, resolver)
     failed = set(extracted.get("failed_ids") or [])
     gen_ids = [i["id"] for i in items if i["kind"] in kinds and i.get("answer") and i["id"] not in failed]     # an answer the analysis could not read is not an answer that named nobody
-    rows, total = {}, 0
+    rows, total, amb = {}, 0, set()
     for qid in gen_ids:
         counted, best = set(), {}
         for h in (extracted["answers"].get(qid) or []):
+            if res.is_ambiguous(h["name"]):
+                amb.add(qid)                  # the group's name alone: possibly this hotel, possibly a sister hotel: not counted either way
+                continue
             k = res.key(h["name"])
             r = rows.setdefault(k, {"name": res.display(h["name"]), "key": k, "mentions": 0, "ranks": [], "questions": [], "reasons": [], "ratings": [], "sent": [], "spellings": {}})
             r["spellings"][h["name"]] = r["spellings"].get(h["name"], 0) + 1
@@ -415,7 +420,7 @@ def leaderboard(extracted, items, hotel, kinds=("generic",), resolver=None):
     if not any(r["is_target"] for r in out):
         out.append({"name": (res.ident or {}).get("canonical") or hotel, "key": res.SELF, "is_target": True, "mentions": 0, "of": len(gen_ids), "share": 0, "best_rank": None, "avg_rank": None,
                     "questions": [], "reasons": [], "ratings": [], "coverage_pct": 0, "spellings": [], **sentiment_of([])})
-    return {"rows": out, "questions": len(gen_ids), "total_mentions": total}
+    return {"rows": out, "questions": len(gen_ids), "total_mentions": total, "ambiguous_answers": len(amb)}
 
 
 def reconcile(ai, extracted, hotel, resolver=None):

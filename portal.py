@@ -282,11 +282,11 @@ def register(app, cfg):
         if not hotel_profile.load(hotel) and cfg.database_url:
             hotel_profile.start_draft(cfg.database_url, hotel["id"], cfg)     # a hotel set up before profiles: draft one to review
         acts = progress.actions_for(d, hotel)
-        runs = d.hotel_runs(hotel["hotel_key"])                       # newest first; the same rows give the summary (oldest first) and the history table
+        runs = d.customer_runs(hotel["hotel_key"])                    # newest first; the same rows give the summary (oldest first) and the history table. Only checks that are ready for the hotel.
         sm = progress.hotel_summary(d, hotel, list(reversed(runs)), acts)
         prompt_sets.ensure_from_history(d, hotel)
         pst = prompt_sets.state(d, hotel)
-        rep = _latest(d, d.hotel_runs(hotel["hotel_key"]))
+        rep = _latest(d, runs)
         since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
         body = portal_view.dashboard(sm, acts, runs, editable=True, csrf=csrf(), start=start_here.safe(d, hotel, sm, acts, runs, True, pst), ai=ai_dash.panel(d, hotel),
                                      prompts_alert=bool(pst["draft"] and not pst["active"]), opps=_opps(rep), strategy=_strategy(rep), **extra_tabs(rep, hotel),
@@ -387,7 +387,7 @@ def register(app, cfg):
         d = db()
         prompt_sets.ensure_from_history(d, h)
         pst = prompt_sets.state(d, h)
-        runs = d.hotel_runs(h["hotel_key"])
+        runs = d.customer_runs(h["hotel_key"])
         rep = _latest(d, runs)
         since = sum(1 for r in runs if pst["active"] and r["run_at"] >= pst["active"]["confirmed_at"])
         prompts = prompts_view.panel(pst, h, "/portal/api/prompts/" + str(h["id"]), True, since, _suggestions(rep, pst), _from_results(d, h, pst))

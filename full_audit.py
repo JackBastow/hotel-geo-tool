@@ -674,6 +674,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         ident = hotel_identity.build(hotel, city, website, site_titles=_site_titles, site_names=_site_names, known=known_names, brand_site=bool(site["meta"].get("scope")))
         if ident["changed"] and ident["canonical"]:
             hotel, name_respelled = ident["canonical"], True
+        if ident.get("group"):
+            hotel = hotel_identity.matcher_name(ident)         # the same text, matched so that the group's bare name does not count as this hotel
     except Exception as _ie:  # noqa: BLE001 - the name as given still works; the identity is an improvement, never a requirement
         steps.failed("Working out the hotel's identity", _ie)
         ident = {"canonical": hotel, "entered": hotel, "town": city, "aliases": [{"name": hotel, "basis": "canonical name"}], "related": [], "own_units": [], "own_words": [], "towns": [],
@@ -1571,6 +1573,8 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         report_model.apply(result)                  # rep["model"]: the one source of truth for the figures every screen and PDF shows
         import report_gate
         result = report_gate.check(result)          # one pass over the whole report for contradictions and misleading items; it only downgrades, removes or annotates
+        import report_release
+        report_release.assess(result)               # ready for the hotel, needs a person's review, or blocked: what the validation could not make safe
     except Exception as _step_e:  # noqa: BLE001 - the report must never fail because of its own check
         steps.failed('Report checks', _step_e)
         pass

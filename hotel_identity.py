@@ -212,7 +212,35 @@ def build(entered, city="", website="", *, site_titles=(), site_names=(), entity
             ident["related"].append({"name": n, "why": _why_not(ident, n), "answers": c})
     ident["aliases"] = aliases[:60]
     ident["related"] = ident["related"][:40]
+    # a name a group shares among several hotels ('The Hoxton, Shoreditch'): the bare group name does not say which one
+    cq = _qual(canonical)
+    if cq and not set(cq) <= (set(ident["towns"]) | set(tokens(town))):
+        base_t = [t for t in tokens(base_name(canonical)) if t != "the"]
+        sibs = sorted({n for n in observed if _qual(n) and set(_qual(n)).isdisjoint(cq) and [t for t in tokens(base_name(n)) if t != "the"] == base_t})
+        if brand_site or sibs:
+            ident["group"] = {"qualifier": cq, "base": base_t, "siblings": sibs[:6],
+                              "why": ("the website is the group's, covering several hotels" if brand_site else "") + ("; " if brand_site and sibs else "") + (("the assistants also named " + ", ".join(sibs[:3])) if sibs else "")}
     return ident
+
+
+def matcher_name(ident):
+    """The hotel's name for the text matcher: a GroupName when its name is shared by several hotels of a group, else the plain canonical name."""
+    g = (ident or {}).get("group")
+    name = (ident or {}).get("canonical") or ""
+    return hotelname.GroupName(name, g["qualifier"]) if g and name else name
+
+
+def is_ambiguous(ident, name):
+    """Is this name only the group's name ('The Hoxton'), with nothing saying which of the group's hotels? Never true for a hotel that has no group."""
+    g = (ident or {}).get("group")
+    if not g or not name or _qual(name):
+        return False
+    bt = [t for t in tokens(base_name(name)) if t != "the"]
+    base = g["base"]
+    if bt[:len(base)] != base:
+        return False
+    rem = bt[len(base):]
+    return not (set(rem) & set(g["qualifier"])) and _remainder_ok(rem, ident)
 
 
 def refine(ident, *, observed=None, entity_names=(), known=None, towns=(), city=""):
@@ -254,6 +282,8 @@ def is_own(ident, name):
     f = fold(name)
     if not f or not ident:
         return False, ""
+    if is_ambiguous(ident, name):
+        return False, ""                  # the group's name alone: not confirmed as this hotel (it is not a rival either: see Resolver.is_ambiguous)
     extra_units = unit_words(name) - set(ident.get("own_units") or [])
     if extra_units:
         return False, ""
@@ -326,17 +356,25 @@ class Resolver:
         import rivals
         self.ident, self.city = ident or {}, city or (ident or {}).get("town") or ""
         self._own = {}
+        self._amb = {}
         for _aid, ns in by_answer:
             for n in ns:
                 if n not in self._own:
                     self._own[n] = is_own(self.ident, n)[0] if self.ident else False
-        rest = [(aid, [n for n in ns if not self._own.get(n)]) for aid, ns in by_answer]
+                    self._amb[n] = bool(self.ident) and is_ambiguous(self.ident, n)
+        rest = [(aid, [n for n in ns if not self._own.get(n) and not self._amb.get(n)]) for aid, ns in by_answer]
         self._group = {}
         for g in rivals.resolve(rest, self.city, strict=True):
             clean = [n for n in g["names"] if base_name(n) == n.strip()] or g["names"]
             disp = max(clean, key=lambda n: (g["names"].index(n) * -1, -len(n)))
             for n in g["names"]:
                 self._group[n] = {"key": g["key"], "name": disp, "names": g["names"], "uncertain": g["uncertain"]}
+
+    def is_ambiguous(self, name):
+        """The group's name alone ('The Hoxton'): neither the hotel nor a rival; counted apart as a possible mention."""
+        if name not in self._amb:
+            self._amb[name] = bool(self.ident) and is_ambiguous(self.ident, name)
+        return self._amb[name]
 
     def is_target(self, name):
         if name not in self._own:

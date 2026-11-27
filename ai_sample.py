@@ -125,6 +125,12 @@ def _core_tokens(hotel):
     return [t for t in re.split(r"[^a-z0-9]+", evidence.fold(hotel)) if t and t not in _GENERIC]
 
 
+def ambiguous(text, hotel, city=""):
+    """The text names the hotel's GROUP ('The Hoxton') but nothing says which of the group's hotels: not counted as naming this one (hotelname.ambiguous)."""
+    import hotelname
+    return hotelname.ambiguous(text, hotel, city)
+
+
 def mentioned(text, hotel, city=""):
     """Is THIS hotel named? The one matcher every part of the tool uses (hotelname.py): whole words, the usual shorter forms of the name, never a place of the same name
     ('Fistral Beach') or another hotel's longer name ('Hyde Park Hotel')."""
@@ -376,7 +382,7 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
         if not answer:
             return {**q, "answer": "", "mentioned": None, "position": None, "domains": domains, "searches": searches, "cost_usd": c,
                     "note": "The assistant returned no answer text."}
-        return {**q, "search_country": applied, "names_hotel": _names_hotel(q["text"], hotel, city), "answer": answer, "mentioned": mentioned(answer, hotel, city), "recommended": recommended(answer, hotel, city), "position": list_position(answer, hotel),
+        return {**q, "search_country": applied, "names_hotel": _names_hotel(q["text"], hotel, city), "answer": answer, "mentioned": mentioned(answer, hotel, city), "ambiguous": ambiguous(answer, hotel, city), "recommended": recommended(answer, hotel, city), "position": list_position(answer, hotel),
                 "domains": domains, "pages": parse_sources(resp), "searches": searches, "cost_usd": c,
                 "own_site_cited": bool(own and any(d == own or d.endswith("." + own) for d in domains)),
                 "platform": f"Claude ({model}) with web search", "tested_on": time.strftime("%Y-%m-%d", time.gmtime())}
@@ -423,6 +429,7 @@ def remark(items, hotel, city=""):
         if (m, rec, pos) != (it.get("mentioned"), it.get("recommended"), it.get("position")):
             n += 1
         it["mentioned"], it["recommended"], it["position"] = m, rec, pos
+        it["ambiguous"] = ambiguous(a, hotel, city)
         it.pop("reconciled", None)
     return n
 
@@ -444,6 +451,7 @@ def summarise(items):
             "generic_asked": len(generic), "generic_named": sum(1 for i in generic if i["mentioned"]),
             "niche_asked": len(niche), "niche_named": sum(1 for i in niche if i["mentioned"]),
             "custom_questions": qids(custom), "custom_asked": len(custom), "custom_named": sum(1 for i in custom if i["mentioned"]),
+            "ambiguous_named": sum(1 for i in items if i.get("ambiguous") and not i.get("mentioned")),          # answers that named the hotel's group ('The Hoxton') without saying which hotel: not counted
             "direct_known": None if not direct else bool(direct["mentioned"]),
             "direct_asked": len(directs), "direct_named": sum(1 for i in directs if i["mentioned"]),
             "own_site_cited": any(i.get("own_site_cited") for i in items),

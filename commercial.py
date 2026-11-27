@@ -69,6 +69,9 @@ def rival_own_site(a):
     distinctive word of a rival's name, and the page names one or two hotels (a town's tourism site that happens to share a word with a hotel names many)."""
     dom = evidence.fold(a.get("domain") or "").replace("-", "")
     names = a.get("rivals_in") or []
+    import competitor_domains
+    if any(competitor_domains.name_matches_domain(n, a.get("domain") or "") for n in names):
+        return True                                    # the address IS a rival's name ('northcotemanor.co.uk'), however many hotels the page names
     if len(names) > 2 and a.get("lists_hotels") is not False:
         return False
     for n in names:

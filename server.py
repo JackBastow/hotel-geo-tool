@@ -480,9 +480,19 @@ def create_app(cfg=None, run_fn=None):
             abort(404)
         return rep
 
+    def _customer_report(token):
+        """The report behind a shared link, or a holding page when it is not ready for the hotel (report_release). An admin signed in sees it either way."""
+        rep = _report_or_404(token)
+        import report_release
+        if session.get("admin_ok") is not True and not report_release.customer_ready(rep):
+            abort(Response("<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Report being checked</title>"
+                           "<body style='font-family:system-ui,sans-serif;max-width:34rem;margin:4rem auto;padding:0 1rem;line-height:1.5'>" + report_release.HOLD_TEXT + "</body>",
+                           status=200, mimetype="text/html"))
+        return rep
+
     @app.get("/r/<token>")
     def report_page(token):
-        rep = _report_or_404(token)
+        rep = _customer_report(token)
         sig = signature(rep)
         private = manager.private_for(token)
         hit = reports.html.get(token)
@@ -525,7 +535,7 @@ def create_app(cfg=None, run_fn=None):
     def report_pdf_route(token, part):
         if part not in ("management", "appendix"):
             abort(404)
-        rep = _report_or_404(token)
+        rep = _customer_report(token)
         key = (token, part, signature(rep))
         data = reports.pdfs.get(key)
         if data is None:
@@ -539,7 +549,7 @@ def create_app(cfg=None, run_fn=None):
 
     @app.get("/r/<token>/data.json")
     def report_json(token):
-        rep = _report_or_404(token)
+        rep = _customer_report(token)
         name = f"{store.slug(rep['meta'].get('hotel') or rep['meta'].get('website'))}-audit-{str(rep['meta']['run_at'])[:10]}.json"
         return Response(json.dumps(run_health.scrub(rep), indent=2, default=str), mimetype="application/json", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 

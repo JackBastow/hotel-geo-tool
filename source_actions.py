@@ -130,7 +130,7 @@ def build(rep, limit=6):
     rival_sites = strategy_actions._rival_domains(rep)
     for r in sorted(by.values(), key=lambda r: (-len(r.get("engines") or ()), -r["cited"])):          # a site several assistants use first: it is not one model's habit
         if strategy_actions.is_chain_site(r["domain"]) or strategy_actions._dom(r["domain"]) in rival_sites:
-            continue                                   # another hotel group's own website, or a rival hotel's: not somewhere this hotel can be listed
+            continue                                   # another hotel group's own website, or a rival hotel's (any rival the report names, not only those whose address was found): not somewhere this hotel can be listed
         kind = ai_insights.source_kind(r["domain"])
         t = classify(r["domain"], kind)
         if strategy_actions.is_listing_site(r["domain"]) and t not in ("review", "comparison"):
