@@ -85,7 +85,7 @@
       '<div class="dm-tile warn"><small>Missed recommendations</small><b class="dm-big">' + (TOTAL - n) + "</b><span>answers named rivals only</span></div>" +
       '<div class="dm-tile"><small>Top competitor</small><b class="dm-big">' + COMPETITORS[0][1] + "%</b><span>" + esc(COMPETITORS[0][0]) + "</span></div>" +
       '<div class="dm-tile"><small>Actions done</small>' + ring(Math.round(doneCount() / ACTIONS.length * 100), doneCount() + "/" + ACTIONS.length) + "<span>" + (ACTIONS.length - doneCount()) + " still open</span></div></div>" +
-      '<div class="dm-two"><section class="dm-card"><h4>Named by AI, month by month</h4>' + chart() + '<p class="dm-note">The same questions are asked each month, so changes are comparable. Progress is not proof that one action caused a change.</p></section>' +
+      '<div class="dm-two"><section class="dm-card"><h4>Named by AI, month by month</h4>' + chart() + '<p class="dm-note">The same questions are asked each month, so changes are comparable.</p></section>' +
       '<section class="dm-card"><h4>Who is named instead</h4>' + COMPETITORS.map(function (c) { return '<div class="dm-qb"><span>' + esc(c[0]) + '</span><div class="dm-tr"><i class="rv" style="width:' + c[1] + '%"></i></div><em>' + c[1] + "%</em></div>"; }).join("") + "</section></div>" +
       '<div class="dm-two"><section class="dm-card"><h4>By question (' + MONTHS[5] + ")</h4>" + bars + "</section>" +
       '<section class="dm-card dm-next"><h4>Next best action</h4>' + (nextA ? '<p class="dm-na"><b>' + esc(nextA.t) + "</b><span>" + esc(nextA.why) + '</span></p><button type="button" class="dm-link" data-go="actions">See all actions &rarr;</button>' : '<p class="dm-na"><b>All actions done.</b><span>The same questions are asked again next month, so you can see what moved.</span></p>') + "</section></div>";
@@ -130,7 +130,7 @@
         var st = statusOf(h);
         return '<tr class="dm-hrow' + (h.you ? " you" : "") + '" data-hotel="' + i + '" tabindex="0"><td><b>' + esc(h.name) + "</b>" + (h.you ? '<small>Open the detailed view</small>' : "") + '</td><td class="n">' + h.named + ' of 14</td><td class="dm-sp">' + spark(h.spark) + '</td><td class="n ' + (h.ch > 0 ? "up" : h.ch < 0 ? "down" : "") + '">' + (h.ch > 0 ? "+" : h.ch < 0 ? "−" : "") + Math.abs(h.ch) + '</td><td class="n">' + h.done + " of " + h.of + '</td><td><span class="dm-pill ' + st[0] + '">' + st[1] + "</span></td></tr>";
       }).join("") + "</tbody></table></div></div>" + (S.msg ? '<p class="dm-msg" role="status">' + esc(S.msg) + "</p>" : "") +
-      '<p class="dm-note" style="margin-top:12px">Progress shown is progress, not proof that one action caused a change.</p>';
+      '';
   }
 
   var TABS = { hotel: [["overview", "Overview"], ["questions", "Questions"], ["sources", "Sources"], ["actions", "Actions"], ["reports", "Reports"]], group: [["portfolio", "Portfolio"]] };

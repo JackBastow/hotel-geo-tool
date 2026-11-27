@@ -361,3 +361,7 @@ body.home .story .btn.ghost { border-color: rgba(20,33,58,.3); color: var(--ink)
 .who-more { text-align: center; margin: 22px 0 0; font-size: .96rem; color: var(--muted); } .who-more a { color: var(--gold-d); font-weight: 600; }
 @media (max-width: 860px) { .who-grid { grid-template-columns: 1fr; } .who-card { min-height: 240px; } }
 .who-t { bottom: 72px; } .who-card { min-height: 350px; }
+
+/* very small phones (320px): grids must not be pushed wider than the screen by their contents */
+@media (max-width: 959px) { .story-grid { grid-template-columns: minmax(0, 1fr); } .story-grid > *, .chap, .pn { min-width: 0; } }
+@media (max-width: 360px) { .chap h1 { font-size: 2rem; } .chap .btn, .lp-hero .btn { white-space: normal; } .dsh-tabs button { padding: 6px 8px; } }

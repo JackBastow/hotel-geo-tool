@@ -43,3 +43,11 @@ body { padding-top: var(--promo); }
   .dd-m { display: block; position: static; min-width: 0; padding: 0; background: none; border: 0; box-shadow: none; }
   .dd-m a { padding: 15px 0 15px 16px; border-radius: 0; font-size: 1.05rem; }
 }
+
+/* very small phones (320px) */
+@media (max-width: 760px) { .plans, .plans > * { min-width: 0; } .plans { grid-template-columns: minmax(0, 1fr); } .plan { max-width: 100%; overflow-wrap: anywhere; } }
+@media (max-width: 760px) { .plans3, .kv { grid-template-columns: minmax(0, 1fr); } .plans3 > *, .kv > * { min-width: 0; } .plans3 .plan { padding: 28px 22px; } }
+
+/* phone menu: taller than the screen on short phones, so it scrolls; solid background */
+@media (max-width: 760px) { .links { max-height: calc(100vh - 68px - var(--promo)); max-height: calc(100dvh - 68px - var(--promo)); overflow-y: auto; -webkit-overflow-scrolling: touch; background: #fbf8f1 !important; } .links a { padding-top: 13px; padding-bottom: 13px; } .dd-m a { padding-top: 12px; padding-bottom: 12px; } }
+@media (max-width: 760px) { body:has(.nav.menu-open) .chat-fab { display: none; } }

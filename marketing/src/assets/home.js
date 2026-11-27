@@ -54,7 +54,7 @@
   mode(); window.addEventListener("resize", mode);
 
   // ---- scene 0: a guest asks, the assistant answers, your hotel is missing ----
-  var q = $(".chat-q", stage), qt = $(".t", q), full = q.getAttribute("data-text"), recs = $$(".rec", stage), played = false;
+  var q = $(".chat-q", story), qt = $(".t", q), full = q.getAttribute("data-text"), recs = $$(".rec", story), played = false;
   function playDemo() {
     if (played) return; played = true;
     if (reduce) { qt.textContent = full; recs.forEach(function (r) { r.classList.add("show"); }); var c = $(".caret", q); if (c) c.style.display = "none"; return; }
@@ -77,7 +77,7 @@
     park: { pct: 33, named: "named in 1 of 3 answers", miss: 2,  top: "67%",  topN: "The Lantern House", bars: [["The Lantern House", 67, "2 of 3"], ["The Quayside", 67, "2 of 3"], ["Your hotel", 33, "1 of 3", 1], ["Marlow & Finch", 33, "1 of 3"]] },
     fam:  { pct: 0,  named: "named in 0 of 3 answers", miss: 3,  top: "100%", topN: "The Lantern House", bars: [["The Lantern House", 100, "3 of 3"], ["The Quayside", 67, "2 of 3"], ["Marlow & Finch", 33, "1 of 3"], ["Your hotel", 0, "0 of 3", 1]] }
   };
-  var dRing = $("#dRing"), dPct = $("#dPct"), dNamed = $("#dNamed"), dMiss = $("#dMiss"), dTop = $("#dTop"), dTopN = $("#dTopN"), dBars = $("#dBars"), tabs = $$(".dsh-tabs button", stage);
+  var dRing = $("#dRing"), dPct = $("#dPct"), dNamed = $("#dNamed"), dMiss = $("#dMiss"), dTop = $("#dTop"), dTopN = $("#dTopN"), dBars = $("#dBars"), tabs = $$(".dsh-tabs button", story);
   var shown = 0, dashKey = "all";
   function tween(from, to, ms, fn) {
     if (reduce) { fn(to); return; }
