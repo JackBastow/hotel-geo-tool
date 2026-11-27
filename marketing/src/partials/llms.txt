@@ -30,6 +30,8 @@ Subscribers get a dashboard for their hotel (and a portfolio dashboard across ho
 - {{ url }}/hotel-ai-visibility-checklist.html
 - {{ url }}/ai-travel-planning-statistics.html
 - {{ url }}/ai-visibility-for-hotels.html
+- {{ url }}/for-hotel-groups.html
+- {{ url }}/for-agencies.html
 - {{ url }}/geo-for-hotels.html
 - {{ url }}/how-to-get-your-hotel-recommended-by-chatgpt.html
 - {{ url }}/hotel-ai-visibility-tools.html

@@ -346,3 +346,18 @@ body.home .story .btn.ghost { border-color: rgba(20,33,58,.3); color: var(--ink)
 .eyebrow { white-space: nowrap; }
 
 @media (max-width: 959px) { .stacked .story-grid > .chap.s0 { padding: 104px 0 6px; } .stacked .story-grid > .chap { padding-top: 34px; } .stacked .story-grid > .chap.s0 { padding-top: 104px; } }
+
+/* ---------- who it is for ---------- */
+.whofor { background: var(--paper); padding: 40px 0 70px; }
+.who-h { text-align: center; font-size: clamp(1.6rem, 3vw, 2.4rem); color: var(--ink); margin: 0 auto 30px; max-width: 24em; line-height: 1.15; }
+.who-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.who-card { position: relative; display: block; border-radius: 22px; overflow: hidden; min-height: 330px; text-decoration: none; color: #fff; box-shadow: var(--shadow); isolation: isolate; }
+.who-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; transition: transform 1.1s cubic-bezier(.2,.7,.2,1); }
+.who-card::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(14,22,48,.1) 20%, rgba(14,22,48,.86) 100%); }
+.who-card:hover img { transform: scale(1.07); }
+.who-t { position: absolute; left: 22px; right: 22px; bottom: 58px; display: block; }
+.who-t b { display: block; font: 600 1.55rem/1.15 var(--hd); margin-bottom: 6px; } .who-t i { display: block; font-style: normal; color: rgba(255,255,255,.86); font-size: .98rem; line-height: 1.4; }
+.who-card u { position: absolute; left: 22px; bottom: 22px; text-decoration: none; font-weight: 700; font-size: .9rem; color: #1a1405; background: linear-gradient(135deg, #e0bd78, #c99a43); padding: 8px 14px; border-radius: 99px; }
+.who-more { text-align: center; margin: 22px 0 0; font-size: .96rem; color: var(--muted); } .who-more a { color: var(--gold-d); font-weight: 600; }
+@media (max-width: 860px) { .who-grid { grid-template-columns: 1fr; } .who-card { min-height: 240px; } }
+.who-t { bottom: 72px; } .who-card { min-height: 350px; }
