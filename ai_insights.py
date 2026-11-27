@@ -25,7 +25,7 @@ import review_replies
 SOURCE = "AI answer insights"
 MAX_TOKENS = 6000
 BATCH = 8                                  # answers per extraction call, so a long set (repeats) never overruns the output cap
-EXTRACT_THINKING = None                    # set once a probe shows the model accepts {"type": "disabled"}: its thinking used most of the output allowance, cutting the answer off
+EXTRACT_THINKING = {"type": "disabled"}    # confirmed on a stored lost group (THE NICI, run 123): with thinking on, a thinking block used about 4,500 of the 6,000 output tokens and the answer was cut off; with it off the same group read 8 of 8 in 3,400 tokens
 RETRY_CALLS = 24                           # extra calls a whole check may spend on splitting groups that could not be read: bounded, so a bad day cannot run up the bill
 SENTIMENTS = ("positive", "neutral", "negative")
 
@@ -178,8 +178,16 @@ def _extract_batch(client, model, batch, hotel, city, diag=None, max_tokens=None
     extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
     if thinking or EXTRACT_THINKING:
         extra["thinking"] = thinking or EXTRACT_THINKING
-    resp = client.messages.create(model=model, max_tokens=max_tokens or MAX_TOKENS, system=EXTRACT_SYSTEM, messages=[{"role": "user", "content": EXTRACT_PROMPT.format(
-        hotel=hotel, city=city, about_ids=", ".join(about_ids) or "none", blocks=_blocks(batch), themes=THEMES_TEXT)}], **extra)
+    msg = [{"role": "user", "content": EXTRACT_PROMPT.format(hotel=hotel, city=city, about_ids=", ".join(about_ids) or "none", blocks=_blocks(batch), themes=THEMES_TEXT)}]
+    try:
+        resp = client.messages.create(model=model, max_tokens=max_tokens or MAX_TOKENS, system=EXTRACT_SYSTEM, messages=msg, **extra)
+    except Exception as e:  # noqa: BLE001
+        if "thinking" not in extra or "thinking" not in str(e).lower():
+            raise
+        extra.pop("thinking")                              # a model that does not accept the setting is asked without it
+        if diag is not None:
+            diag["thinking_setting_refused"] = True
+        resp = client.messages.create(model=model, max_tokens=max_tokens or MAX_TOKENS, system=EXTRACT_SYSTEM, messages=msg, **extra)
     text, _d, _s, tin, tout = ai_sample.parse_response(resp)
     data = review_replies.parse_json(text)
     state = "ok" if isinstance(data, dict) else ("empty" if not text else "unreadable")

@@ -180,5 +180,41 @@ old = ranked(0)
 del old["ai_insights"]["extracted_answers"]
 check("a check saved before the analysed answers were kept is not judged: its rankings stand", len(report_model.apply(old)["ai_insights"]["brand_ranking"]["rows"]) == 2)
 
+print("9. the model's thinking is switched off for extraction (it used the output allowance and cut the answers off)")
+calls = []
+
+
+def spy(ids, n):
+    return good(ids)
+
+
+c = Fake(spy)
+orig_create = c.messages.create
+c.messages = NS(create=lambda **kw: (calls.append(kw), orig_create(**kw))[1])
+ai_insights.extract(c, "claude-haiku-5-5", items(3), "Brooklands Hotel", "Weybridge")
+check("the request disables thinking", calls and calls[0].get("thinking") == {"type": "disabled"}, calls and list(calls[0]))
+seen_kw = []
+
+
+def refuses(**kw):
+    seen_kw.append(dict(kw))
+    if "thinking" in kw:
+        raise RuntimeError("thinking is not supported for this model")
+    return good(re.findall(r"^\[([^\]]+)\] \(", kw["messages"][0]["content"], re.M))
+
+
+ex, _u = ai_insights.extract(NS(messages=NS(create=refuses)), "some-model", items(3), "Brooklands Hotel", "Weybridge")
+check("a model that refuses the setting is asked again without it, and its answers are read", ex and len(ex["answers"]) == 3 and "thinking" in seen_kw[0] and "thinking" not in seen_kw[1], [list(k) for k in seen_kw])
+def overloaded(**kw):
+    raise RuntimeError("overloaded")
+
+
+_raised = None
+try:
+    ai_insights.extract(NS(messages=NS(create=overloaded)), "claude-haiku-5-5", items(3), "Brooklands Hotel", "Weybridge")
+except RuntimeError as e:
+    _raised = e
+check("another error is not swallowed by that fallback", _raised is not None and "overloaded" in str(_raised))
+
 print("\nFAILURES:", fails or "none")
 sys.exit(1 if fails else 0)
