@@ -18,6 +18,7 @@ STATES = (READY, REVIEW, BLOCKED)
 
 # validation notes the checks below already say in their own words
 _COVERED = ("The website read may not be the hotel's own", "The hotel's website could not be read", "Only ", "The website analysis crashed", "step(s) of this check failed")
+UNANALYSED_REVIEW = 0.15          # answers the analysis could not read, as a share of all answers: below this the rival figures are a little short, above it they are a different picture
 
 
 def _reasons(rep, legacy=False):
@@ -75,12 +76,16 @@ def _reasons(rep, legacy=False):
         amb = (ai.get("summary") or {}).get("ambiguous_named") or 0
         if amb:
             add(REVIEW, "ambiguous_mentions", f"{amb} answer(s) named the hotel's group without saying which hotel; they are not counted as this hotel. Read them before relying on the figure.")
+    un = (rep.get("ai_insights") or {}).get("unanalysed") or 0
+    if un:
+        share = un / max(1, len([i for i in (ai.get("items") or []) if i.get("answer")]))
+        add(REVIEW if share >= UNANALYSED_REVIEW else NOTE, "unanalysed_answers", f"{un} AI answer(s) ({round(100 * share)}%) could not be analysed for the hotels they name; the rival figures leave them out.")
     if any(x.get("check") == "ai_numbers_agree" for x in gate.get("changes") or []):
         add(REVIEW, "ai_counts_disagree", "The number of AI answers differs between sections of the report.")
 
     for n in gate.get("needs_review") or []:
         text = str(n.get("what") or "")
-        if text and not text.startswith(_COVERED[:4]) and _COVERED[4] not in text:
+        if text and not text.startswith(_COVERED[:4]) and _COVERED[4] not in text and "could not be analysed for the hotels they name" not in text:
             add(REVIEW, "needs_review", text)
     if rep.get("step_errors") and not any(_COVERED[4] in str(n.get("what") or "") for n in gate.get("needs_review") or []):
         add(REVIEW, "steps_failed", f"{len(rep['step_errors'])} step(s) of this check failed and left their part of the report partial.")

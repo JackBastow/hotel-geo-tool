@@ -116,6 +116,15 @@ rr.assess(b)
 ok, msg = rr.approve(b, "admin")
 check("a blocked report cannot be approved", not ok and b["release"]["state"] == "blocked", msg)
 
+r = good()
+r["ai_sample"]["items"] = [{"id": str(i), "kind": "generic", "text": "q", "answer": "a", "mentioned": True} for i in range(100)]
+r["ai_insights"] = {"unanalysed": 8}
+rr.assess(r)
+check("a few answers the analysis could not read (8%) is a note, not a reason to hold the report back", r["release"]["state"] == "ready" and [x["level"] for x in r["release"]["reasons"]] == ["note"], r["release"])
+r["ai_insights"] = {"unanalysed": 38}
+rr.assess(r)
+check("many (38%) is a review reason", r["release"]["state"] == "review" and "unanalysed_answers" in codes(r), r["release"])
+
 print("4. a check made before release states existed is assessed on the spot, never trusted")
 old = good()
 old.pop("gate")
