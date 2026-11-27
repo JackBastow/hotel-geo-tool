@@ -21,6 +21,7 @@ Subscribers get a dashboard for their hotel (and a portfolio dashboard across ho
 ## Pages
 - {{ url }}/what-we-do.html
 - {{ url }}/methodology.html
+- {{ url }}/sample-dashboard.html
 - {{ url }}/sample-report.html
 - {{ url }}/pricing.html
 - {{ url }}/founding.html
