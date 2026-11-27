@@ -55,10 +55,19 @@ def _fold(s):
 
 
 def _facility_state(report, key):
-    fp = (report.get("fact_profile") or {}).get("facilities") or {}
-    v = fp.get(key)
-    st = (v or {}).get("state") if isinstance(v, dict) else v
-    return st
+    """'on_site' | 'nearby' | 'partner' | 'not_offered' | None, as the stored fact profile holds it: {"status": ..., "relations": [{status, quote, url}...]} for each facility."""
+    v = ((report.get("fact_profile") or {}).get("facilities") or {}).get(key)
+    if isinstance(v, dict):
+        st = v.get("status") or v.get("state")
+        if st:
+            return st
+        rels = [r for r in v.get("relations") or [] if isinstance(r, dict) and r.get("status")]
+        if rels:
+            import fact_profile
+            rels = [{"quote": "", "url": "", "note": "", **r} for r in rels]
+            return fact_profile.headline(rels)["status"]
+        return None
+    return v
 
 
 def requirements(text, report):

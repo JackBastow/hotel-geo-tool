@@ -38,6 +38,9 @@ AIR = "I'm flying out of Dusseldorf Airport early tomorrow. Which upscale hotels
 rep = report("Hilton Dusseldorf", "Dusseldorf", [(AIR, ["Sheraton Airport", "Lindner Airport"], 0, {})], facilities={"airport_transfer": {"state": "unknown"}}, tier={"key": "upscale", "why": "brand"})
 r = row(rep, AIR)
 req = {x["key"]: x["state"] for x in r["requires"]}
+STORED = {"spa": {"status": "on_site", "relations": [{"status": "on_site", "quote": "our spa", "url": "u"}]}, "parking": {"relations": [{"status": "not_offered", "quote": "no parking", "url": "u"}]}}
+_rs = {"fact_profile": {"facilities": STORED}}
+check("facilities are read as the stored fact profile holds them: a 'status', or only a list of 'relations'", pa._facility_state(_rs, "spa") == "on_site" and pa._facility_state(_rs, "parking") == "not_offered" and pa._facility_state(_rs, "pool") is None)
 check("the shuttle is not verified, the breakfast cannot be verified by any fact, the upscale level matches", req.get("airport_transfer") == "unverified" and req.get("breakfast") == "unverified" and req.get("tier_upscale") == "verified", req)
 check("the prompt is flagged, with the unverified conditions listed", r["flag"] and "an airport shuttle" in r["unverified"] and "an early breakfast" in r["unverified"], r["unverified"])
 
