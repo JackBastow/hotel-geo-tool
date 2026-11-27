@@ -35,3 +35,6 @@ jobs:
           path: marketing/public
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Tell Bing and other IndexNow search engines the pages have changed
+        continue-on-error: true
+        run: python marketing/indexnow.py

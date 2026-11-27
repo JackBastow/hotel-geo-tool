@@ -1,0 +1,88 @@
+---
+title: How to get your hotel recommended by ChatGPT (and what you can't control) | Presence Pro
+description: Practical steps to make a hotel easier for ChatGPT and other AI assistants to find and recommend, a table of the crawlers to know about, and an honest list of what nobody can promise.
+nav: guides
+---
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+{"@type":"Article","headline":"How to get your hotel recommended by ChatGPT (and what you can't control)","description":"Practical steps to make a hotel easier for AI assistants to find and recommend, and what nobody can promise.","datePublished":"2026-11-27","dateModified":"2026-11-27","author":{"@type":"Organization","name":"Presence Pro","url":"{{ url }}"},"publisher":{"@type":"Organization","name":"Presence Pro","url":"{{ url }}"},"mainEntityOfPage":"{{ url }}/how-to-get-your-hotel-recommended-by-chatgpt.html"},
+{"@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"Can I pay to get my hotel recommended by ChatGPT?","acceptedAnswer":{"@type":"Answer","text":"We know of no reliable way, and we would be cautious about anyone selling one. The assistants do not publish how they choose."}},
+{"@type":"Question","name":"Should I block AI crawlers on my hotel website?","acceptedAnswer":{"@type":"Answer","text":"That is your decision. If you block them, an assistant may rely on other sources for facts about your hotel. Check what your robots.txt says so that what it does is what you meant."}},
+{"@type":"Question","name":"How long does it take for changes to show up in AI answers?","acceptedAnswer":{"@type":"Answer","text":"It varies and nobody can promise a timescale. Assistants that search the web can pick up changed pages quickly once they are crawled, but answers also vary from run to run, so check monthly with the same questions."}},
+{"@type":"Question","name":"Does my hotel need an llms.txt file?","acceptedAnswer":{"@type":"Answer","text":"Not necessarily. llms.txt is an informal proposal rather than a standard, and we have seen no good evidence that it makes an assistant recommend a hotel."}}
+]}
+]}
+</script>
+<section class="page-hero dark">
+  <div class="wrap">
+    <p class="eyebrow">Guide</p>
+    <h1>How to get your hotel recommended by <em>ChatGPT.</em></h1>
+    <p class="lede">Six practical steps that make a hotel easier for AI assistants to find, understand and name, and an honest list of what you can't control.</p>
+    <p class="meta">Updated {{ updated }} &middot; 6 minute read</p>
+  </div>
+</section>
+
+<section class="light">
+  <div class="wrap">
+    <article class="article">
+      <div class="takeaways">
+        <h2>The short version</h2>
+        <ul>
+          <li>Nobody can make ChatGPT recommend a hotel, and nobody outside the AI companies knows the exact recipe.</li>
+          <li>You can remove the reasons an assistant would leave you out or get you wrong: missing facts, disagreeing listings, blocked pages, and no credible mentions.</li>
+          <li>Check first, so you fix real gaps. Ten minutes and five questions will show you who is named instead of you.</li>
+        </ul>
+      </div>
+
+      <h2>Six steps, in order</h2>
+      <div class="table-wrap"><table class="data">
+        <thead><tr><th>Step</th><th>What to do</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td><b>1. Look first</b></td><td>Ask an assistant five realistic guest questions about your area, without your hotel's name. Note whether you are named, who is named instead, and which pages it cited.</td><td>You fix what the assistant actually used, not what you guess. The full test is in <a href="/how-ai-assistants-choose-hotels.html">how assistants choose hotels</a>.</td></tr>
+          <tr><td><b>2. State the facts on your own site</b></td><td>Write parking and its price, breakfast times, check-in and out, cancellation, distances to landmarks and accessibility as plain text on a page a guest would open.</td><td>If a question is not answered in words, the assistant has nothing of yours to quote and may quote a booking site instead.</td></tr>
+          <tr><td><b>3. Make everything agree</b></td><td>Match your name, address, phone number and policies across your site, maps and booking sites.</td><td>Two check-in times give an assistant a reason to be wrong, or to leave you out.</td></tr>
+          <tr><td><b>4. Let the right crawlers in</b></td><td>Read your <code>robots.txt</code> and decide on purpose which crawlers may read your site. See the table below.</td><td>An assistant that cannot read your pages relies on other sources.</td></tr>
+          <tr><td><b>5. Be mentioned by credible sources</b></td><td>Aim to be included, honestly, in local guides, tourism pages and articles that name hotels in your area. Reply properly to reviews.</td><td>Assistants often cite guides and review sites. If those name your rivals and not you, that is the gap.</td></tr>
+          <tr><td><b>6. Check again monthly</b></td><td>Repeat the same questions, word for word, and compare.</td><td>Answers vary run to run, so only repeated checks show whether anything moved.</td></tr>
+        </tbody></table></div>
+
+      <h2>The crawlers to know about</h2>
+      <p>AI assistants and search engines read pages using automated programs, each with its own name that you can allow or block in <code>robots.txt</code>. These names and purposes change, so check each company's own documentation before you change anything.</p>
+      <div class="table-wrap"><table class="data">
+        <thead><tr><th>Crawler</th><th>Run by</th><th>What it is generally for</th></tr></thead>
+        <tbody>
+          <tr><td><code>OAI-SearchBot</code></td><td>OpenAI</td><td>Finding pages to show in ChatGPT's search results.</td></tr>
+          <tr><td><code>GPTBot</code></td><td>OpenAI</td><td>Collecting content that may be used to train OpenAI's models.</td></tr>
+          <tr><td><code>ChatGPT-User</code></td><td>OpenAI</td><td>Visiting a page when a user asks ChatGPT to.</td></tr>
+          <tr><td><code>PerplexityBot</code></td><td>Perplexity</td><td>Finding pages to show in Perplexity's answers.</td></tr>
+          <tr><td><code>Googlebot</code></td><td>Google</td><td>Google Search, which Google's AI features also draw on.</td></tr>
+          <tr><td><code>Google-Extended</code></td><td>Google</td><td>A robots.txt setting for whether your content may be used for Google's Gemini models. It is not a separate crawler and does not change how you appear in Google Search.</td></tr>
+          <tr><td><code>Bingbot</code></td><td>Microsoft</td><td>Bing Search, which also feeds Microsoft's Copilot.</td></tr>
+          <tr><td><code>ClaudeBot</code>, <code>Claude-SearchBot</code></td><td>Anthropic</td><td>Collecting content for Anthropic's models, and finding pages for Claude's search.</td></tr>
+        </tbody></table></div>
+      <p>Blocking training crawlers and allowing search crawlers are separate decisions, and which you choose is up to you.</p>
+
+      <h2>What you can't control</h2>
+      <ul>
+        <li><b>The exact ranking.</b> The assistants do not publish how they choose, and they change often.</li>
+        <li><b>What a booking site or guide says about you.</b> You can correct your own listing, not the article.</li>
+        <li><b>Whether a given answer names you.</b> Answers vary each time, even for the same question.</li>
+      </ul>
+      <p>What isn't proven: that structured data makes an assistant recommend you (see <a href="/hotel-schema-markup-for-ai.html">schema markup for hotels</a>), and that an <code>llms.txt</code> file helps.</p>
+
+      <div class="callout"><h3>Where Presence Pro fits</h3><p>Doing step 1 properly, with more questions, each asked more than once, and the sources checked, is what Presence Pro's dashboard does, then it tracks the actions you take. <a href="/snapshot.html">Request a free one-page snapshot</a> for your hotel.</p></div>
+
+      <h2>Common questions</h2>
+      <h3>Can I pay to get my hotel recommended by ChatGPT?</h3>
+      <p>We know of no reliable way, and we would be cautious about anyone selling one. The assistants do not publish how they choose.</p>
+      <h3>Should I block AI crawlers on my hotel website?</h3>
+      <p>That is your decision. If you block them, an assistant may rely on other sources for facts about your hotel. Check what your <code>robots.txt</code> says so that what it does is what you meant.</p>
+      <h3>How long does it take for changes to show up in AI answers?</h3>
+      <p>It varies and nobody can promise a timescale. Assistants that search the web can pick up changed pages quickly once they are crawled, but answers also vary from run to run, so check monthly with the same questions.</p>
+      <h3>Does my hotel need an llms.txt file?</h3>
+      <p>Not necessarily. <code>llms.txt</code> is an informal proposal rather than a standard, and we have seen no good evidence that it makes an assistant recommend a hotel.</p>
+      <p class="src">Related: <a href="/geo-for-hotels.html">GEO for hotels</a>, <a href="/hotel-ai-visibility-checklist.html">the hotel AI visibility checklist</a>, <a href="/ai-travel-planning-statistics.html">AI and travel planning: the numbers</a>.</p>
+    </article>
+  </div>
+</section>

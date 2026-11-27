@@ -1,0 +1,115 @@
+---
+title: Schema markup for hotels: what to add, and what it won't do | Presence Pro
+description: Which schema.org properties a hotel's structured data should include, with an example you can adapt, how to check it, and an honest note on what structured data has and hasn't been shown to do for AI answers.
+nav: guides
+---
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+{"@type":"Article","headline":"Schema markup for hotels: what to add, and what it won't do","description":"Which schema.org properties a hotel's structured data should include, an example, and what it has and hasn't been shown to do.","datePublished":"2026-11-27","dateModified":"2026-11-27","author":{"@type":"Organization","name":"Presence Pro","url":"{{ url }}"},"publisher":{"@type":"Organization","name":"Presence Pro","url":"{{ url }}"},"mainEntityOfPage":"{{ url }}/hotel-schema-markup-for-ai.html"},
+{"@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"Does schema markup make AI assistants recommend my hotel?","acceptedAnswer":{"@type":"Answer","text":"We have seen no good evidence that it does. Structured data states facts about a hotel in a machine-readable way, which can help accuracy and consistency. It is not a way to be recommended."}},
+{"@type":"Question","name":"Which schema type should a hotel use?","acceptedAnswer":{"@type":"Answer","text":"Hotel, from schema.org, is the most specific type for a hotel. It is a kind of LodgingBusiness. Use the fields that describe real facts about your property and leave out the ones you cannot keep accurate."}},
+{"@type":"Question","name":"How do I check my hotel's structured data?","acceptedAnswer":{"@type":"Answer","text":"Use the Schema Markup Validator at validator.schema.org to check the syntax, and Google's Rich Results Test to see which Google features it supports. Then compare the facts in the markup with the facts written on the page."}}
+]}
+]}
+</script>
+<section class="page-hero dark">
+  <div class="wrap">
+    <p class="eyebrow">Guide</p>
+    <h1>Schema markup for hotels: <em>what to add.</em></h1>
+    <p class="lede">Structured data says the facts about your hotel in a form machines can read. Here is what to include, how to check it, and what it won't do.</p>
+    <p class="meta">Updated {{ updated }} &middot; 6 minute read</p>
+  </div>
+</section>
+
+<section class="light">
+  <div class="wrap">
+    <article class="article">
+      <div class="takeaways">
+        <h2>The short version</h2>
+        <ul>
+          <li><b>Schema markup</b> (structured data) is code on a page that states facts about your hotel in a standard form that search engines and AI systems can read.</li>
+          <li>It can help accuracy and consistency. We have seen no good evidence that it makes an assistant recommend a hotel.</li>
+          <li>Only mark up what is true and visible on the page, and keep it in step with the page. Wrong structured data is worse than none.</li>
+        </ul>
+      </div>
+
+      <h2>The properties worth including</h2>
+      <p>Use the schema.org type <code>Hotel</code>. These are standard fields; include the ones you can keep accurate.</p>
+      <div class="table-wrap"><table class="data">
+        <thead><tr><th>Property</th><th>What it says</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr><td><code>name</code>, <code>url</code>, <code>description</code></td><td>Your hotel's name, its web address and a short, factual description.</td><td>Use the same name everywhere it appears.</td></tr>
+          <tr><td><code>address</code></td><td>A <code>PostalAddress</code>: street, town, postcode, country.</td><td>Must match your map and booking-site listings exactly.</td></tr>
+          <tr><td><code>geo</code></td><td>Latitude and longitude.</td><td>Take them from a map you trust.</td></tr>
+          <tr><td><code>telephone</code>, <code>email</code></td><td>How to reach the hotel.</td><td>One number, the same on every page.</td></tr>
+          <tr><td><code>checkinTime</code>, <code>checkoutTime</code></td><td>Check-in and check-out times.</td><td>Frequent source of disagreement between listings.</td></tr>
+          <tr><td><code>petsAllowed</code></td><td>Whether pets are allowed.</td><td>Say the detail (fees, rules) in text on the page too.</td></tr>
+          <tr><td><code>amenityFeature</code></td><td>Facilities, as a list of named features (parking, pool, spa, EV charging, step-free access).</td><td>List only what exists. Put the detail in text, such as the price of parking.</td></tr>
+          <tr><td><code>starRating</code></td><td>A rating from an official scheme, if you have one.</td><td>Don't invent a rating.</td></tr>
+          <tr><td><code>numberOfRooms</code></td><td>How many rooms.</td><td>Optional.</td></tr>
+          <tr><td><code>priceRange</code></td><td>A rough guide to price.</td><td>Optional. Keep it consistent with what you publish.</td></tr>
+          <tr><td><code>image</code></td><td>One or more photos of the hotel.</td><td>Use images that are on the page.</td></tr>
+          <tr><td><code>sameAs</code></td><td>Links to your official profiles: map listing, social pages, trade registers.</td><td>Only profiles you actually control.</td></tr>
+        </tbody></table></div>
+
+      <h2>An example to adapt</h2>
+      <p>This is a made-up hotel. Replace every value with your own, and delete anything that isn't true for you.</p>
+      <pre><code>&lt;script type="application/ld+json"&gt;
+{
+  "@context": "https://schema.org",
+  "@type": "Hotel",
+  "name": "The Harbour Lane Hotel",
+  "url": "https://www.example.com/",
+  "description": "A 42-room hotel five minutes' walk from the cathedral, with free parking and breakfast from 7am.",
+  "telephone": "+44 1234 567890",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "1 Harbour Lane",
+    "addressLocality": "Brightmouth",
+    "postalCode": "AB1 2CD",
+    "addressCountry": "GB"
+  },
+  "geo": { "@type": "GeoCoordinates", "latitude": 50.0000, "longitude": -1.0000 },
+  "checkinTime": "15:00",
+  "checkoutTime": "11:00",
+  "petsAllowed": true,
+  "numberOfRooms": 42,
+  "amenityFeature": [
+    { "@type": "LocationFeatureSpecification", "name": "Free parking", "value": true },
+    { "@type": "LocationFeatureSpecification", "name": "EV charging", "value": true }
+  ],
+  "sameAs": ["https://www.example.com/contact"]
+}
+&lt;/script&gt;</code></pre>
+
+      <h2>What to avoid</h2>
+      <ul>
+        <li><b>Marking up things that aren't on the page or aren't true.</b> Structured data should describe the page. If it disagrees with the page, the assistant has a reason to doubt both.</li>
+        <li><b>Marking up other people's reviews as your own.</b> Review and rating markup has rules; read the search engine's guidelines before using it.</li>
+        <li><b>Setting it and forgetting it.</b> When prices, times or facilities change, change the markup too.</li>
+      </ul>
+
+      <h2>How to check it</h2>
+      <ol>
+        <li>Paste your page address into the Schema Markup Validator (validator.schema.org) to check the syntax.</li>
+        <li>Use Google's Rich Results Test to see which Google features it supports.</li>
+        <li>Read the page, then read the markup. Does every fact in the markup appear on the page, and agree with it?</li>
+      </ol>
+
+      <h2>What it does and doesn't do</h2>
+      <p>Structured data can reduce errors, because the facts are stated in a form that does not depend on how a sentence was worded. We have seen no good evidence that it makes an assistant recommend a hotel, and nobody outside the AI companies knows how much weight any assistant gives it. Treat it as housekeeping: worth doing properly, not a shortcut. The same is true of <code>llms.txt</code>. For what is known and what is not, read <a href="/how-ai-assistants-choose-hotels.html">how AI assistants choose hotels</a>.</p>
+
+      <div class="callout"><h3>Where Presence Pro fits</h3><p>Presence Pro reads your hotel's website the way an assistant would, including whether structured data is present, and lists the exact page where each missing fact belongs. <a href="/snapshot.html">Request a free one-page snapshot</a> of your hotel.</p></div>
+
+      <h2>Common questions</h2>
+      <h3>Does schema markup make AI assistants recommend my hotel?</h3>
+      <p>We have seen no good evidence that it does. Structured data states facts about a hotel in a machine-readable way, which can help accuracy and consistency. It is not a way to be recommended.</p>
+      <h3>Which schema type should a hotel use?</h3>
+      <p><code>Hotel</code>, from schema.org, is the most specific type for a hotel. It is a kind of <code>LodgingBusiness</code>. Use the fields that describe real facts about your property and leave out the ones you cannot keep accurate.</p>
+      <h3>How do I check my hotel's structured data?</h3>
+      <p>Use the Schema Markup Validator at validator.schema.org to check the syntax, and Google's Rich Results Test to see which Google features it supports. Then compare the facts in the markup with the facts written on the page.</p>
+      <p class="src">Related: <a href="/geo-for-hotels.html">GEO for hotels</a>, <a href="/hotel-ai-visibility-checklist.html">the hotel AI visibility checklist</a>.</p>
+    </article>
+  </div>
+</section>
