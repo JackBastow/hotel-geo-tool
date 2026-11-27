@@ -388,7 +388,9 @@ def register(app, cfg):
         diag = {}
         try:
             client = ai_sample._make_client(cfg.anthropic, timeout=120.0)
-            d, (tin, tout) = ai_insights._extract_batch(client, request.form.get("model") or ai_sample.MODEL_DEFAULT, batch, meta.get("hotel") or "", meta.get("city") or "", diag)
+            _think = {"type": "disabled"} if request.form.get("thinking") == "disabled" else None
+            d, (tin, tout) = ai_insights._extract_batch(client, request.form.get("model") or ai_sample.MODEL_DEFAULT, batch, meta.get("hotel") or "", meta.get("city") or "", diag,
+                                                        max_tokens=int(request.form.get("max_tokens") or 0) or None, thinking=_think)
             result = {"answers_in_reply": len((d or {}).get("answers") or []), "asked": len(batch)}
         except Exception as e:  # noqa: BLE001
             result = {"error": f"{type(e).__name__}: {str(e)[:300]}"}

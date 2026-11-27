@@ -25,6 +25,7 @@ import review_replies
 SOURCE = "AI answer insights"
 MAX_TOKENS = 6000
 BATCH = 8                                  # answers per extraction call, so a long set (repeats) never overruns the output cap
+EXTRACT_THINKING = None                    # set once a probe shows the model accepts {"type": "disabled"}: its thinking used most of the output allowance, cutting the answer off
 RETRY_CALLS = 24                           # extra calls a whole check may spend on splitting groups that could not be read: bounded, so a bad day cannot run up the bill
 SENTIMENTS = ("positive", "neutral", "negative")
 
@@ -170,12 +171,14 @@ def _salvage(text):
     return {"answers": out, "about": {}, "salvaged": True} if out else None
 
 
-def _extract_batch(client, model, batch, hotel, city, diag=None):
+def _extract_batch(client, model, batch, hotel, city, diag=None, max_tokens=None, thinking=None):
     """One call for up to BATCH answers -> (parsed dict | None, (tin, tout)). `diag` (a dict), when given, is filled with why the reply was or was not usable: the stop reason, the tokens,
     the kinds of block it held, and how it parsed (ok / salvaged / unreadable / empty)."""
     about_ids = [i["id"] for i in batch if i["kind"] == "direct"]
     extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
-    resp = client.messages.create(model=model, max_tokens=MAX_TOKENS, system=EXTRACT_SYSTEM, messages=[{"role": "user", "content": EXTRACT_PROMPT.format(
+    if thinking or EXTRACT_THINKING:
+        extra["thinking"] = thinking or EXTRACT_THINKING
+    resp = client.messages.create(model=model, max_tokens=max_tokens or MAX_TOKENS, system=EXTRACT_SYSTEM, messages=[{"role": "user", "content": EXTRACT_PROMPT.format(
         hotel=hotel, city=city, about_ids=", ".join(about_ids) or "none", blocks=_blocks(batch), themes=THEMES_TEXT)}], **extra)
     text, _d, _s, tin, tout = ai_sample.parse_response(resp)
     data = review_replies.parse_json(text)
