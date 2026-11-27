@@ -228,6 +228,79 @@ def register(app, cfg):
             return Response(report_pdf.build_pdf(rep, part), mimetype="application/pdf", headers={"Content-Disposition": f'attachment; filename="run-{run_id}-{part}.pdf"'})
         abort(404)
 
+    # ----------------------------------------------------------------- hotel identity: find and repair checks that counted the hotel under the wrong name
+    def _identity_row(run, s):
+        import identity_fix
+        rep = s.get_report(run["id"])
+        if not rep:
+            return {"run_id": run["id"], "status": "unreadable"}
+        _new, d = identity_fix.reprocess(rep)
+        out = {"run_id": run["id"], "hotel": run["hotel"], "city": run["city"], "run_at": str(run["run_at"])[:16], "status": d.get("status"), "affected": bool(d.get("affected"))}
+        if d.get("status") == "ok":
+            out.update(typed=d["typed"], canonical=d["canonical"], name_changed=d["name_changed"], before=d["before"], after=d["after"], own_spellings_among_rivals=d["own_spellings_among_rivals"],
+                       merged_rivals=d["merged_rivals"], related=[r["name"] + " (" + r["why"] + ")" for r in d["related"]][:8], withdrawn=len(d["withdrawn"]))
+        return out
+
+    @app.get("/admin/identity/scan.json")
+    def admin_identity_scan():
+        """Read-only: for saved checks, would recalculating the AI visibility under the hotel's real identity change anything? scope=latest (each hotel's newest check) or all; offset/limit page through."""
+        g = guard()
+        if g:
+            return g
+        s, msg = store_or_msg()
+        if s is None:
+            abort(503)
+        scope = request.args.get("scope") or "latest"
+        offset = max(0, int(request.args.get("offset") or 0))
+        limit = min(25, max(1, int(request.args.get("limit") or 12)))
+        runs = [r for r in s.list_runs(limit=5000) if r.get("ai_status") == "ok"]
+        if scope == "latest":
+            seen, latest = set(), []
+            for r in runs:
+                if r["hotel_key"] not in seen:
+                    seen.add(r["hotel_key"])
+                    latest.append(r)
+            runs = latest
+        page = runs[offset: offset + limit]
+        rows = []
+        for r in page:
+            try:
+                rows.append(_identity_row(r, s))
+            except Exception as e:  # noqa: BLE001 - one unreadable report must not stop the scan
+                rows.append({"run_id": r["id"], "hotel": r["hotel"], "status": f"error: {type(e).__name__}: {str(e)[:120]}"})
+        return Response(json.dumps({"scope": scope, "total": len(runs), "offset": offset, "next": offset + limit if offset + limit < len(runs) else None, "rows": rows,
+                                    "affected": [x["run_id"] for x in rows if x.get("affected")]}, indent=1, default=str), mimetype="application/json")
+
+    @app.post("/admin/identity/apply")
+    def admin_identity_apply():
+        """Recalculate the AI visibility of the named saved checks under the hotel's real identity, and save them (their run ids and dates stay). No assistant is asked."""
+        g = guard()
+        if g:
+            return g
+        if not hmac.compare_digest(request.form.get("csrf", ""), session.get("csrf", "")):
+            abort(400)
+        s, msg = store_or_msg()
+        if s is None:
+            abort(503)
+        import identity_fix
+        done = []
+        for rid in [int(x) for x in re.findall(r"\d+", request.form.get("run_ids") or "")][:25]:
+            rep = s.get_report(rid)
+            if not rep:
+                continue
+            new, d = identity_fix.reprocess(rep)
+            if new is None or not d.get("affected"):
+                done.append({"run_id": rid, "result": "unchanged" if new is not None else d.get("status")})
+                continue
+            s.update_run(rid, new)
+            try:
+                import backend
+                s.save_identity(backend.hotel_key(new), new.get("identity"))
+            except Exception:  # noqa: BLE001
+                pass
+            done.append({"run_id": rid, "result": "recalculated", "before": d["before"], "after": d["after"], "canonical": d["canonical"], "withdrawn": len(d["withdrawn"])})
+        return Response(json.dumps({"done": done}, indent=1, default=str), mimetype="application/json")
+
     @app.post("/admin/run/<int:run_id>/delete")
     def admin_delete(run_id):
         g = guard()

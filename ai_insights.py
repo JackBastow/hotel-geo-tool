@@ -276,7 +276,7 @@ def brand_ranking(lbs, hotel, top=5):
             continue
         asked += lb["questions"]
         for r in lb["rows"]:
-            k = canon(r["name"])
+            k = r.get("key") or canon(r["name"])
             a = rows.setdefault(k, {"name": r["name"], "is_target": r["is_target"], "mentions": 0, "ranks": [], "sent": []})
             a["mentions"] += r["mentions"]
             a["is_target"] = a["is_target"] or r["is_target"]
@@ -353,68 +353,72 @@ def own_site_reliance(items, pages):
     return {"answers": len(asked), "own_cited": len(own), "instead": [{"domain": d, "cited": n} for d, n in sorted(other.items(), key=lambda kv: (-kv[1], kv[0]))[:5]]}
 
 
-def question_rows(items, extracted):
+def question_rows(items, extracted, resolver=None):
     """One row per QUESTION (repeats merged): whether the hotel was named and in how many of the answers, the best position, and the hotels named."""
     out = []
     for g in ai_sample.by_question(items):
         names, seen = [], set()
         for a in g["answers"]:
             for h in (extracted["answers"].get(a["id"]) or []):
-                if canon(h["name"]) not in seen:
-                    seen.add(canon(h["name"]))
-                    names.append(h["name"])
+                k = resolver.key(h["name"]) if resolver else canon(h["name"])
+                if k not in seen:
+                    seen.add(k)
+                    names.append(resolver.display(h["name"]) if resolver else h["name"])
         out.append({"id": g["qid"], "kind": g["kind"], "question": g["text"], "angle": g["angle"], "why": g["why"], "named": g["named"], "of": g["of"],
                     "hotel_named": g["named"] > 0, "position": g["best_position"], "hotels_named": names[:6], "answer_ids": [a["id"] for a in g["answers"]]})
     return out
 
 
-def leaderboard(extracted, items, hotel, kinds=("generic",)):
-    """Who is named most across the GENERIC questions (or the niche ones), with the hotel in the same table (a row of zeros if it is never named)."""
+def _resolver_for(hotel, extracted, resolver=None, city=""):
+    import hotel_identity
+    return resolver or hotel_identity.resolver_for(hotel, city, (extracted or {}).get("answers"))
+
+
+def leaderboard(extracted, items, hotel, kinds=("generic",), resolver=None):
+    """
+    Who is named most across the GENERIC questions (or the niche ones), with the hotel in the same table (a row of zeros if it is never named).
+    Every name goes through ONE resolver (hotel_identity.py): the hotel under any verified spelling is one row, the same rival written two ways is one row, and a name that merely looks
+    alike (a self-catering block, a villa, 'Terminal 5') is its own row. An answer that names a hotel under two spellings counts once.
+    """
+    res = _resolver_for(hotel, extracted, resolver)
     failed = set(extracted.get("failed_ids") or [])
     gen_ids = [i["id"] for i in items if i["kind"] in kinds and i.get("answer") and i["id"] not in failed]     # an answer the analysis could not read is not an answer that named nobody
     rows, total = {}, 0
     for qid in gen_ids:
+        counted, best = set(), {}
         for h in (extracted["answers"].get(qid) or []):
-            k = canon(h["name"])
-            r = rows.setdefault(k, {"name": h["name"], "key": k, "mentions": 0, "ranks": [], "questions": [], "reasons": [], "ratings": [], "sent": []})
-            r["mentions"] += 1
-            r["sent"].append(h.get("sentiment") or "neutral")
-            total += 1
+            k = res.key(h["name"])
+            r = rows.setdefault(k, {"name": res.display(h["name"]), "key": k, "mentions": 0, "ranks": [], "questions": [], "reasons": [], "ratings": [], "sent": [], "spellings": {}})
+            r["spellings"][h["name"]] = r["spellings"].get(h["name"], 0) + 1
+            if k not in counted:
+                counted.add(k)
+                r["mentions"] += 1
+                total += 1
+                r["sent"].append(h.get("sentiment") or "neutral")
+                r["questions"].append(qid)
             if h["rank"]:
-                r["ranks"].append(h["rank"])
-            r["questions"].append(qid)
+                best[k] = min(best.get(k, 99), h["rank"])
             if h["reason"] and h["reason"] not in r["reasons"]:
                 r["reasons"].append(h["reason"])
             if h["rating"] and h["rating"] not in r["ratings"]:
                 r["ratings"].append(h["rating"])
-    # one hotel written two ways ('Park Inn by Radisson' / 'Park Inn by Radisson Luxembourg City'): fold the shorter into the longer
-    for short in sorted(rows, key=lambda k: -len(k)):
-        st = short.split()
-        host = next((k for k in rows if k != short and len(st) >= 2 and k.split()[:len(st)] == st), None)
-        if host and short in rows:
-            a, b = rows[host], rows.pop(short)
-            a["mentions"] += b["mentions"]
-            a["ranks"] += b["ranks"]
-            a["questions"] += b["questions"]
-            a["reasons"] += [x for x in b["reasons"] if x not in a["reasons"]]
-            a["ratings"] += [x for x in b["ratings"] if x not in a["ratings"]]
-            a["sent"] += b["sent"]
-    me = canon(hotel)
+        for k, rk in best.items():
+            rows[k]["ranks"].append(rk)
     out = []
     for r in rows.values():
-        out.append({"name": r["name"], "is_target": (ai_sample.mentioned(r["name"], hotel) and not _sibling(r["name"], hotel)) or r["key"] == me, "mentions": r["mentions"], "of": len(gen_ids),
+        out.append({"name": r["name"], "key": r["key"], "is_target": r["key"] == res.SELF, "mentions": r["mentions"], "of": len(gen_ids),
                     "share": round(100 * r["mentions"] / total) if total else 0, "best_rank": min(r["ranks"]) if r["ranks"] else None,
                     "avg_rank": round(sum(r["ranks"]) / len(r["ranks"]), 1) if r["ranks"] else None, "questions": r["questions"],
                     "reasons": r["reasons"][:2], "ratings": r["ratings"][:2], "coverage_pct": round(100 * len(set(r["questions"])) / len(gen_ids)) if gen_ids else 0,
-                    **sentiment_of(r["sent"])})
+                    "spellings": sorted(r["spellings"], key=lambda n: (-r["spellings"][n], n))[:8], **sentiment_of(r["sent"])})
     out.sort(key=lambda r: (-r["mentions"], r["avg_rank"] or 99, r["name"]))
     if not any(r["is_target"] for r in out):
-        out.append({"name": hotel, "is_target": True, "mentions": 0, "of": len(gen_ids), "share": 0, "best_rank": None, "avg_rank": None, "questions": [],
-                    "reasons": [], "ratings": [], "coverage_pct": 0, **sentiment_of([])})
+        out.append({"name": (res.ident or {}).get("canonical") or hotel, "key": res.SELF, "is_target": True, "mentions": 0, "of": len(gen_ids), "share": 0, "best_rank": None, "avg_rank": None,
+                    "questions": [], "reasons": [], "ratings": [], "coverage_pct": 0, "spellings": [], **sentiment_of([])})
     return {"rows": out, "questions": len(gen_ids), "total_mentions": total}
 
 
-def reconcile(ai, extracted, hotel):
+def reconcile(ai, extracted, hotel, resolver=None):
     """
     One answer to 'did this answer name the hotel?' for the whole report. The quick text match (ai_sample.mentioned) and the reading of each answer (the hotels it lists) can disagree, for example
     on 'The Nici' for 'THE NICI Newquay'; then one page said 9 of 24 and another 6 of 24. An answer counts as naming the hotel when either finds the hotel itself (never a sister property of
@@ -423,13 +427,14 @@ def reconcile(ai, extracted, hotel):
     import ai_sample
     if not ai or ai.get("status") != "ok" or not extracted:
         return 0
+    res = _resolver_for(hotel, extracted, resolver)
     answers = extracted.get("answers") or {}
     n = 0
     for it in ai.get("items") or []:
         if it.get("mentioned") or it.get("kind") == "direct":
             continue
         for h in answers.get(it["id"]) or []:
-            if ai_sample.mentioned(h.get("name", ""), hotel) and not _sibling(h.get("name", ""), hotel):
+            if res.is_target(h.get("name", "")):
                 it["mentioned"] = True
                 it["position"] = it.get("position") or h.get("rank")
                 if it.get("position"):
@@ -442,9 +447,10 @@ def reconcile(ai, extracted, hotel):
     return n
 
 
-def alternatives(extracted, hotel):
+def alternatives(extracted, hotel, resolver=None):
     """The set the assistant offers when asked what is similar - its view of the competitive set."""
-    return [h for h in (extracted["answers"].get("similar") or []) if not ai_sample.mentioned(h["name"], hotel)]
+    res = _resolver_for(hotel, extracted, resolver)
+    return [h for h in (extracted["answers"].get("similar") or []) if not res.is_target(h["name"])]
 
 
 # ------------------------------------------------- is what it says correct?
@@ -638,6 +644,43 @@ def known_facts(guest, entities):
     return k
 
 
+def _observed_names(answers):
+    """{name: how many times the assistant used it} across every answer."""
+    out = {}
+    for hs in (answers or {}).values():
+        for h in hs:
+            if h.get("name"):
+                out[h["name"]] = out.get(h["name"], 0) + 1
+    return out
+
+
+def derive(out, ai, extracted, items, hotel, city, own_domain, resolver):
+    """
+    Everything that depends on WHICH NAMES are the hotel, worked out from the hotels each answer was read as listing, with no further question put to an assistant: the leaderboards, the
+    brand ranking, the question table, the scoreboard, the pages and the hotel's own-site reliance. Used by run() and to recalculate a stored report (identity_fix.py).
+    """
+    lb = leaderboard(extracted, items, hotel, resolver=resolver)
+    out.update(leaderboard=lb, alternatives=alternatives(extracted, hotel, resolver), matrix=question_rows(items, extracted, resolver))
+    niche_rows = [m for m in out["matrix"] if m["kind"] == "niche"]
+    lbn = leaderboard(extracted, items, hotel, kinds=("niche",), resolver=resolver) if niche_rows else None
+    out["niche"] = {"questions": niche_rows, "leaderboard": lbn} if niche_rows else None
+    me = next((r for r in lb["rows"] if r["is_target"]), None)
+    out["scoreboard"] = {"questions": lb["questions"], "named": me["mentions"] if me else 0, "avg_rank": me["avg_rank"] if me else None, "repeats": ai.get("summary", {}).get("repeats", 1),
+                         "share": me["share"] if me else 0, "rank_in_table": (lb["rows"].index(me) + 1) if me else None, "table_size": len(lb["rows"]),
+                         "top_competitor": next((r["name"] for r in lb["rows"] if not r["is_target"]), None)}
+    me_n = next((r for r in lbn["rows"] if r["is_target"]), None) if lbn else None
+    asked = lb["questions"] + (lbn["questions"] if lbn else 0)
+    missed = (lb["questions"] - (me["mentions"] if me else 0)) + ((lbn["questions"] - (me_n["mentions"] if me_n else 0)) if lbn else 0)
+    out["scoreboard"].update(niche_asked=lbn["questions"] if lbn else 0, niche_named=(me_n["mentions"] if me_n else 0) if lbn else 0)
+    out["brand_ranking"] = br = brand_ranking([lb, lbn], hotel)
+    me_b = next((r for r in br["rows"] if r["is_target"]), None)
+    out["scoreboard"].update(coverage_pct=me_b["coverage_pct"] if me_b else 0, sentiment=me_b["sentiment"] if me_b else None, place=me_b["place"] if me_b else None,
+                             positive=me_b["positive"] if me_b else 0, negative=me_b["negative"] if me_b else 0, asked_all=br["asked"])
+    out["pages"] = page_table(items, hotel, [r["name"] for r in br["rows"] if not r["is_target"]], own_domain)
+    out["own_site"] = own_site_reliance(items, out["pages"])
+    return {"lb": lb, "lbn": lbn, "niche_rows": niche_rows, "asked": asked, "missed": missed, "br": br}
+
+
 def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_head_to_head=True):
     """
     ai: the ai_sample envelope. ctx: {"hotel","city","guest","entities","footprint","snapshot","strong_intents","own_domain","brand_domains"}.
@@ -676,30 +719,19 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
         out["unanalysed"] = len(extracted["failed_ids"])
         out["reason"] = (out.get("reason") or "") + (f" {len(extracted['failed_ids'])} answer(s) could not be broken down into hotels even after a second try; they are left out of the "
                                                      "rival and ranking figures rather than counted as naming nobody.")
-    lb = leaderboard(extracted, items, hotel)
-    out.update(leaderboard=lb, alternatives=alternatives(extracted, hotel), matrix=question_rows(items, extracted))
-    niche_rows = [m for m in out["matrix"] if m["kind"] == "niche"]
-    lbn = leaderboard(extracted, items, hotel, kinds=("niche",)) if niche_rows else None
-    out["niche"] = {"questions": niche_rows, "leaderboard": lbn} if niche_rows else None
+    import hotel_identity
+    _ents = [n for e in (ctx.get("entities") or []) if e.get("found") for n in [e.get("label") or (e.get("facts") or {}).get("name")] if n]
+    _obs = _observed_names(extracted["answers"])
+    ident = (hotel_identity.refine(ctx["identity"], observed=_obs, entity_names=_ents, city=city) if ctx.get("identity")
+             else hotel_identity.build(hotel, city, ctx.get("website") or ctx.get("own_domain") or "", brand_site=bool(ctx.get("brand_domains")), observed=_obs, entity_names=_ents))
+    res = hotel_identity.Resolver(ident, hotel_identity.by_answer_of(extracted["answers"]), city)
     about = extracted["about"]
     out["about"] = about
     out["perception"] = perception(about, ctx.get("strong_intents"))
     out["accuracy"] = accuracy(about.get("claims"), known_facts(ctx.get("guest"), ctx.get("entities")))
-    me = next((r for r in lb["rows"] if r["is_target"]), None)
-    out["scoreboard"] = {"questions": lb["questions"], "named": me["mentions"] if me else 0, "avg_rank": me["avg_rank"] if me else None, "repeats": ai.get("summary", {}).get("repeats", 1),
-                         "share": me["share"] if me else 0, "rank_in_table": (lb["rows"].index(me) + 1) if me else None, "table_size": len(lb["rows"]),
-                         "top_competitor": next((r["name"] for r in lb["rows"] if not r["is_target"]), None)}
-
-    me_n = next((r for r in lbn["rows"] if r["is_target"]), None) if lbn else None
-    asked = lb["questions"] + (lbn["questions"] if lbn else 0)
-    missed = (lb["questions"] - (me["mentions"] if me else 0)) + ((lbn["questions"] - (me_n["mentions"] if me_n else 0)) if lbn else 0)
-    out["scoreboard"].update(niche_asked=lbn["questions"] if lbn else 0, niche_named=(me_n["mentions"] if me_n else 0) if lbn else 0)
-    out["brand_ranking"] = br = brand_ranking([lb, lbn], hotel)
-    me_b = next((r for r in br["rows"] if r["is_target"]), None)
-    out["scoreboard"].update(coverage_pct=me_b["coverage_pct"] if me_b else 0, sentiment=me_b["sentiment"] if me_b else None, place=me_b["place"] if me_b else None,
-                             positive=me_b["positive"] if me_b else 0, negative=me_b["negative"] if me_b else 0, asked_all=br["asked"])
-    out["pages"] = page_table(items, hotel, [r["name"] for r in br["rows"] if not r["is_target"]], ctx.get("own_domain", ""))
-    out["own_site"] = own_site_reliance(items, out["pages"])
+    d = derive(out, ai, extracted, items, hotel, city, ctx.get("own_domain", ""), res)
+    lb, lbn, niche_rows, asked, missed, br = d["lb"], d["lbn"], d["niche_rows"], d["asked"], d["missed"], d["br"]
+    out["identity"] = ident
     if asked and missed > 0 and cost < budget_usd:
         try:
             ledger = build_ledger(lb, sources, out["perception"], about, ctx.get("snapshot"), ai, ctx.get("footprint"), ctx.get("entities"), ctx.get("strong_intents"),

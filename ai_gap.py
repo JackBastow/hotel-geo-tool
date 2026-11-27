@@ -95,18 +95,11 @@ FACILITY_KEYS = ("spa", "pool", "restaurant", "meeting_rooms", "weddings", "airp
 
 # ------------------------------------------------------------------ 1. the gap
 
-def _resolver(items, extracted, hotel, city):
-    """One decision, for the whole audit, about which names are one hotel: name -> (group key, display name, other names, uncertain). See rivals.resolve."""
-    by_answer = []
-    for it in items:
-        if it.get("kind") == "direct" or it["id"] not in extracted:
-            continue
-        by_answer.append((it["id"], [h["name"] for h in extracted[it["id"]] if not ai_sample.mentioned(h["name"], hotel)]))
-    out = {}
-    for g in rivals.resolve(by_answer, city):
-        for n in g["names"]:
-            out[n] = (g["key"], g["name"], [x for x in g["names"] if x != g["name"]], g["uncertain"])
-    return out
+def _resolver(items, extracted, hotel, city, identity=None):
+    """One decision, for the whole audit, about which names are the hotel and which are one rival written two ways: the same hotel_identity.Resolver every other part of the report uses."""
+    import hotel_identity
+    by_answer = [(it["id"], [h["name"] for h in extracted[it["id"]] if h.get("name")]) for it in items if it["id"] in extracted]
+    return hotel_identity.Resolver(identity or hotel_identity.build(hotel, city, ""), by_answer, city)
 
 
 def market_rivals(answer_ids, extracted, hotel, resolver=None, city="", hotel_tier=None):
@@ -118,9 +111,9 @@ def market_rivals(answer_ids, extracted, hotel, resolver=None, city="", hotel_ti
     rows = {}
     for aid in answer_ids:
         for h in extracted.get(aid) or []:
-            if ai_sample.mentioned(h["name"], hotel):
+            if resolver.is_target(h["name"]):
                 continue
-            key, display, aliases, unc = resolver.get(h["name"], (ains.canon(h["name"]), h["name"], [], False))
+            key, display, aliases, unc = resolver.key(h["name"]), resolver.display(h["name"]), resolver.aliases(h["name"]), resolver.uncertain(h["name"])
             r = rows.setdefault(key, {"name": display, "aliases": aliases, "uncertain": unc, "answers": set(), "ranks": [], "reasons": [], "ratings": [], "sent": [], "themes": {}, "stars": [], "towns": []})
             r["answers"].add(aid)
             r["sent"].append(h.get("sentiment") or "neutral")
@@ -148,12 +141,12 @@ def market_rivals(answer_ids, extracted, hotel, resolver=None, city="", hotel_ti
     return out
 
 
-def markets(items, extracted, hotel, city="", hotel_tier=None):
+def markets(items, extracted, hotel, city="", hotel_tier=None, identity=None):
     """
     One record per question put to the assistant (never the 'about the hotel' ones): whether the hotel was named, and who was named. `rivals` are the COMPARABLE hotels (same category, one step either way,
     or category not known); `other_category` are hotels in a higher or lower category, which are shown but never make a gap.
     """
-    resolver = _resolver(items, extracted, hotel, city)
+    resolver = _resolver(items, extracted, hotel, city, identity)
     out = []
     for g in ai_sample.by_question([i for i in items if i.get("kind") != "direct"]):
         ids = [a["id"] for a in g["answers"] if a.get("answer")]
@@ -558,7 +551,7 @@ def run(ai, ins, ctx, *, api_key=None, model=None, client=None, reader=None, fet
     if not extracted:
         return env("unavailable", "The answers could not be broken down into the hotels they name, so who was named instead cannot be shown.")
     hotel, city = ctx["hotel"], ctx.get("city", "")
-    ms = markets(ai["items"], extracted, hotel, city, ctx.get("hotel_tier"))
+    ms = markets(ai["items"], extracted, hotel, city, ctx.get("hotel_tier"), identity=ctx.get("identity"))
     try:
         if ctx.get("location"):
             import netguard

@@ -16,6 +16,7 @@ import re
 
 import ai_niche
 import evidence
+import hotel_identity
 
 LADDER = {"budget": 1, "midscale": 2, "upscale": 3, "luxury": 4, "palace": 5}
 LADDER_LABEL = {"budget": "budget", "midscale": "mid-range", "upscale": "upscale (4-star)", "luxury": "luxury (5-star)", "palace": "palace / ultra-luxury"}
@@ -28,10 +29,21 @@ _PARTICLES = {"de", "du", "des", "la", "le", "les", "the", "by", "and", "&", "at
               "grand", "palace", "boutique", "lodge", "apartments", "by", "autograph", "curio", "tapestry", "a", "an", "el", "il", "der", "die", "das", "von"}
 
 
+# words that make two names DIFFERENT properties when one has them and the other does not ('Hilton London Heathrow' and 'Hilton London Heathrow Terminal 5'; a hotel and its villas)
+DISTINGUISH = frozenset(hotel_identity.UNIT_WORDS - {"city", "centre", "center", "garden", "gardens", "beach"})
+
+
 def tokens(name, city=""):
-    """The distinctive words of a hotel name: accents folded, generic and town words dropped ('Hôtel de Crillon, Paris' -> {'crillon'})."""
+    """The distinctive words of a hotel name: accents folded, generic and town words dropped ('Hôtel de Crillon, Paris' -> {'crillon'}); a bracketed note or ', place' tail is not part of the
+    name ('Watersmeet Hotel, Woolacombe' is 'Watersmeet Hotel')."""
     place = {t for t in re.split(r"[^a-z0-9]+", evidence.fold((city or "").split(",")[0])) if t}
-    return [t for t in re.split(r"[^a-z0-9]+", evidence.fold(name)) if t and t not in _PARTICLES and t not in place]
+    return [t for t in re.split(r"[^a-z0-9]+", evidence.fold(hotel_identity.base_name(name))) if t and t not in _PARTICLES and t not in place]
+
+
+def _different_property(sa, sb):
+    """Do two token sets differ by a word that marks another property (a unit kind, a number: 'Terminal 5')?"""
+    d = {t for t in (sa ^ sb) if not t.startswith("#")}
+    return any(t in DISTINGUISH or t.isdigit() for t in d)
 
 
 def resolve(by_answer, city=""):
@@ -88,6 +100,8 @@ def resolve(by_answer, city=""):
                 if any((x, y) in together for x in groups[a]["members"] for y in groups[b]["members"]):
                     continue
                 sa, sb = {t for t in a if not t.startswith("#")}, {t for t in b if not t.startswith("#")}
+                if _different_property(sa, sb):
+                    continue                          # another kind of property or unit, not the same hotel written two ways
                 inside = sb <= sa and (len(sb) >= 2 or (len(sb) == 1 and len(next(iter(sb))) >= 5))
                 shared_one = len(sa & sb) == 1 and len(sa) <= 2 and len(sb) <= 2 and len(next(iter(sa & sb))) >= 5 and not inside
                 if inside or shared_one:

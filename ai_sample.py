@@ -411,6 +411,22 @@ def ask_all(hotel, city, questions, *, client, model, own_domain="", budget_usd=
     return items, state["spent"], state["why"]
 
 
+def remark(items, hotel, city=""):
+    """Mark every answered item again against the hotel's name (mentioned, recommended, position): used when the hotel's real name is found after the answers were collected.
+    -> how many marks changed. An item the assistant never answered (mentioned is None) is left alone."""
+    n = 0
+    for it in items or []:
+        a = it.get("answer")
+        if not a or it.get("mentioned") is None:
+            continue
+        m, rec, pos = mentioned(a, hotel, city), recommended(a, hotel, city), list_position(a, hotel)
+        if (m, rec, pos) != (it.get("mentioned"), it.get("recommended"), it.get("position")):
+            n += 1
+        it["mentioned"], it["recommended"], it["position"] = m, rec, pos
+        it.pop("reconciled", None)
+    return n
+
+
 def summarise(items):
     """The headline counts. Generic = 'where to stay in the town'; niche = the markets this hotel is positioned for; direct = about the hotel itself."""
     generic = [i for i in items if i["kind"] == "generic" and i["mentioned"] is not None]

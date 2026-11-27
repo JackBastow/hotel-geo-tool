@@ -287,6 +287,7 @@ class Store(portal_db.PortalMixin):
                                                 for c in RUN_COLS})
             self._run(conn, "CREATE TABLE IF NOT EXISTS usage_counters (service TEXT, month TEXT, calls INTEGER, audits INTEGER, updated TEXT, PRIMARY KEY (service, month))")
             self._run(conn, "CREATE TABLE IF NOT EXISTS benchmark (hotel_key TEXT PRIMARY KEY, created TEXT, prompts_json TEXT)")
+            self._run(conn, "CREATE TABLE IF NOT EXISTS hotel_identity (hotel_key TEXT PRIMARY KEY, canonical TEXT, identity_json TEXT, updated TEXT)")
             self._run(conn, f"CREATE TABLE IF NOT EXISTS feedback (id {pk}, created TEXT, run_id INTEGER, ref TEXT, verdict TEXT, note TEXT, label TEXT, source TEXT, title TEXT)")
             self._init_portal(conn, pk)
             self._ensure_columns(conn, "runs", {"access_token": "TEXT"})
@@ -563,15 +564,57 @@ class Store(portal_db.PortalMixin):
                         "niche_named": last["ai_niche_named"], "niche_asked": last["ai_niche_asked"], "d_score": d("headline_score"), "d_share": d("ai_share")})
         return out
 
+    # the hotel's identity (hotel_identity.py): its canonical name and the names verified as the same hotel, kept from check to check
+    def get_identity(self, key):
+        """-> the stored identity dict for this hotel, or None."""
+        try:
+            rows = self._rows("SELECT identity_json FROM hotel_identity WHERE hotel_key = ?", (key,))
+            return json.loads(rows[0]["identity_json"]) if rows and rows[0]["identity_json"] else None
+        except Exception:  # noqa: BLE001 - an identity that cannot be read is simply rebuilt
+            return None
+
+    def save_identity(self, key, ident):
+        """Keep the identity; the verified aliases already stored are never lost. Portable upsert (delete, insert)."""
+        if not key or not isinstance(ident, dict) or not ident.get("canonical"):
+            return
+        old = self.get_identity(key) or {}
+        seen = {}
+        for a in (ident.get("aliases") or []) + (old.get("aliases") or []):
+            k = re.sub(r"[^a-z0-9]", "", str(a.get("name") or "").lower())
+            if k and k not in seen:
+                seen[k] = a
+        merged = {**ident, "aliases": list(seen.values())[:80]}
+        conn = self._connect()
+        try:
+            self._run(conn, "DELETE FROM hotel_identity WHERE hotel_key = ?", (key,))
+            self._run(conn, "INSERT INTO hotel_identity (hotel_key, canonical, identity_json, updated) VALUES (?, ?, ?, ?)",
+                      (key, merged["canonical"][:200], json.dumps(merged, default=str), dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")))
+            conn.commit()
+        finally:
+            conn.close()
+
     def competitors(self, city=None, kind="generic", limit=30):
         """Who the assistant names most across every hotel audited (optionally in one city) - the market view."""
         where, args = ["c.is_target = 0", "c.kind = ?"], [kind]
         if city:
             where.append("LOWER(r.city) = ?")
             args.append(city.lower())
-        return self._rows(
+        rows = self._rows(
             "SELECT c.competitor AS competitor, SUM(c.mentions) AS mentions, COUNT(DISTINCT c.run_id) AS runs, ROUND(CAST(AVG(c.avg_rank) AS NUMERIC), 1) AS avg_rank "
-            "FROM ai_competitors c JOIN runs r ON r.id = c.run_id WHERE " + " AND ".join(where) + " GROUP BY c.competitor ORDER BY SUM(c.mentions) DESC, c.competitor LIMIT ?", args + [int(limit)])
+            "FROM ai_competitors c JOIN runs r ON r.id = c.run_id WHERE " + " AND ".join(where) + " GROUP BY c.competitor ORDER BY SUM(c.mentions) DESC, c.competitor LIMIT ?", args + [int(limit) * 4])
+        import hotel_identity
+        merged = {}
+        for r in rows:
+            k = hotel_identity.normal_key(r["competitor"], city or "")
+            m = merged.setdefault(k, {"competitor": r["competitor"], "mentions": 0, "runs": 0, "avg_rank": r["avg_rank"], "_best": r["mentions"] or 0})
+            m["mentions"] += r["mentions"] or 0
+            m["runs"] = max(m["runs"], r["runs"] or 0)
+            if (r["mentions"] or 0) > m["_best"]:
+                m["competitor"], m["_best"] = r["competitor"], r["mentions"] or 0
+        out = sorted(merged.values(), key=lambda m: (-m["mentions"], m["competitor"]))[:int(limit)]
+        for m in out:
+            m.pop("_best", None)
+        return out
 
     def sources(self, city=None, limit=30):
         where, args = ["1=1"], []
@@ -594,10 +637,19 @@ class Store(portal_db.PortalMixin):
         data = self._rows("SELECT c.run_id AS run_id, c.competitor AS name, c.is_target AS is_target, c.mentions AS mentions, c.coverage_pct AS coverage_pct, c.sentiment AS sentiment, "
                           "c.avg_rank AS avg_rank, c.asked AS asked FROM ai_competitors c JOIN runs r ON r.id = c.run_id WHERE r.hotel_key = ? AND c.kind = 'all'", (key,))
         by = {}
+        town = ((self._rows("SELECT city FROM runs WHERE hotel_key = ? ORDER BY run_at DESC LIMIT 1", (key,)) or [{}])[0].get("city")) or ""
+        import hotel_identity
+        names = {}
         for d in data:
-            by.setdefault(d["name"], {"name": d["name"], "is_target": bool(d["is_target"]), "total": 0, "at": {}})
-            by[d["name"]]["total"] += d["mentions"] or 0
-            by[d["name"]]["at"][d["run_id"]] = d
+            nk = d["name"] if d["is_target"] else "rival:" + hotel_identity.normal_key(d["name"], town)       # the same rival under two names (in one check or across checks) is one line
+            v = by.setdefault(nk, {"name": d["name"], "is_target": bool(d["is_target"]), "total": 0, "at": {}})
+            names.setdefault(nk, {})[d["name"]] = names.get(nk, {}).get(d["name"], 0) + (d["mentions"] or 0)
+            prev = v["at"].get(d["run_id"])
+            if prev is None or (d["mentions"] or 0) > (prev["mentions"] or 0):
+                v["at"][d["run_id"]] = d
+        for nk, v in by.items():
+            v["total"] = sum((x["mentions"] or 0) for x in v["at"].values())
+            v["name"] = max(names[nk], key=lambda n: (names[nk][n], -len(n)))
         me = [v for v in by.values() if v["is_target"]]
         if len(me) > 1:              # runs saved before the spellings were merged: the hotel under several names is one line (per run, the strongest row; counts are not added)
             hn = self._rows("SELECT hotel FROM runs WHERE hotel_key = ? ORDER BY run_at DESC LIMIT 1", (key,))

@@ -78,6 +78,11 @@ class Reports:
             if db:
                 self.ids[token] = db.save_run(report, token=token)
                 progress.on_run_saved(db, report, self.ids[token])          # a registered hotel's action list is brought up to date from every audit of its website
+                try:
+                    import backend
+                    db.save_identity(backend.hotel_key(report), report.get("identity"))      # its canonical name and verified aliases, for the next check (hotel_identity.py)
+                except Exception:  # noqa: BLE001
+                    pass
                 bm = report.get("benchmark") or {}
                 if bm.get("prompts") and bm.get("retired"):
                     import backend

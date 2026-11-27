@@ -615,7 +615,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
                    gemini_model=None, ai_visibility_limit=6,
                    gemini_reader_key=None, gemini_reader_model=None,
                    youtube_api_key=None, wider=True, pagespeed_api_key=None, anthropic_api_key=None, anthropic_model=None,
-                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None, ai_depth="standard", firecrawl_api_key=None, places_nearby_key=None, tripadvisor_api_key=None, profile=None, reading_mode="adaptive"):
+                   anthropic_repeats=None, market_hint=None, custom_prompts=None, benchmark=None, ai_depth="standard", firecrawl_api_key=None, places_nearby_key=None, tripadvisor_api_key=None, profile=None, reading_mode="adaptive", known_names=None):
     """
     The one button. Every optional integration below is genuinely optional:
     omit its key and that category reports "not assessed" rather than
@@ -665,6 +665,19 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         slug_guess = urlscope.name_from_url(base, site["meta"]["scope"])
         hotel = slug_guess["name"]
     name_from_address = bool(hotel) and not hotel_given and bool(slug_guess["name"])
+    # The hotel's identity (hotel_identity.py): one canonical name, with the names verified as the same hotel. A name typed as the website address run together ('sauntonsands hotel') is the
+    # spelling on the hotel's own pages ('Saunton Sands Hotel'): that is the name every question asks about and every answer is matched against.
+    import hotel_identity
+    try:
+        _site_titles = [p.get("title") for p in (site.get("pages") or []) if p.get("title")] + [h for p in (site.get("pages") or []) for h in (p.get("h1") or [])[:1]]
+        _site_names = [n for n in (infer_hotel_name(site), (site.get("lodging_node") or {}).get("name")) if n]
+        ident = hotel_identity.build(hotel, city, website, site_titles=_site_titles, site_names=_site_names, known=known_names, brand_site=bool(site["meta"].get("scope")))
+        if ident["changed"] and ident["canonical"]:
+            hotel, name_respelled = ident["canonical"], True
+    except Exception as _ie:  # noqa: BLE001 - the name as given still works; the identity is an improvement, never a requirement
+        steps.failed("Working out the hotel's identity", _ie)
+        ident = {"canonical": hotel, "entered": hotel, "town": city, "aliases": [{"name": hotel, "basis": "canonical name"}], "related": [], "own_units": [], "own_words": [], "towns": [],
+                 "domain_key": "", "brand_site": False, "website": website, "changed": False, "basis": "the name as entered", "needs_review": "", "site_titles": [], "site_names": []}
 
     say("Finding linked profiles...")
     topic_pages = [v["urls"][0] for v in (site.get("topic_coverage") or {}).values()
@@ -1391,7 +1404,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             host = host[4:] if host.startswith("www.") else host
             ai_insight_result = ai_insights.run(
                 ai_result, {"hotel": hotel, "city": city, "guest": guest, "entities": ext["entities"], "footprint": footprint, "snapshot": review_result,
-                            "strong_intents": strong, "own_domain": host, "brand_domains": (host,) if site["meta"].get("scope") else ()},
+                            "strong_intents": strong, "own_domain": host, "brand_domains": (host,) if site["meta"].get("scope") else (), "identity": ident, "website": website},
                 api_key=anthropic_api_key, model=anthropic_model)
         except Exception as e:  # noqa: BLE001 - an extra; the sample itself still shows
             steps.failed('Analysing what the assistant said / strong', e)
@@ -1400,7 +1413,9 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     # one count for the whole report: an answer the reading shows naming the hotel is marked as naming it, and the sample's figures are recounted from those marks
     if isinstance(ai_insight_result, dict) and ai_insight_result.get("extracted_answers"):
         try:
-            ai_insights.reconcile(ai_result, ai_insight_result["extracted_answers"], hotel)
+            ident = ai_insight_result.get("identity") or ident          # refined with the names the assistants used and the names open map data gives
+            ai_insights.reconcile(ai_result, ai_insight_result["extracted_answers"], hotel,
+                                  hotel_identity.Resolver(ident, hotel_identity.by_answer_of(ai_insight_result["extracted_answers"]), city))
             import report_model
             report_model.apply({"ai_sample": ai_result, "ai_insights": ai_insight_result})      # the scoreboard and ranking line for the hotel carry the one count from here on
         except Exception as _step_e:  # noqa: BLE001
@@ -1429,7 +1444,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
             _octx = (_o.get("items") or [None])[0] if _o.get("status") == "ok" else None
             _h = urllib.parse.urlparse(base).netloc.lower()
             _h = _h[4:] if _h.startswith("www.") else _h
-            ai_gap_result = ai_gap.run(ai_result, ai_insight_result, {"hotel": hotel, "city": city, "own_domain": _h, "brand_domains": (_h,) if site["meta"].get("scope") else (), "own_pages": own_pages,
+            ai_gap_result = ai_gap.run(ai_result, ai_insight_result, {"hotel": hotel, "city": city, "identity": ident, "own_domain": _h, "brand_domains": (_h,) if site["meta"].get("scope") else (), "own_pages": own_pages,
                                                                       "base": base, "osm_ctx": _octx, "location": location, "hotel_tier": ((market_profile or {}).get("tier") or {}).get("key")}, api_key=anthropic_api_key, model=anthropic_model, fetch=_fc_other)
         except Exception as e:  # noqa: BLE001 - an extra; the sample and its analysis still show
             steps.failed('Looking at who the assistant recommended instead, and the pages it cited / _o', e)
@@ -1485,6 +1500,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
     result = {
         "meta": {
             "hotel": hotel,
+            "hotel_entered": ident.get("entered") if ident.get("changed") else None,        # the name as typed, when it was replaced by the hotel's own spelling
             "city": city,
             "ai_depth": ai_depth,                 # how thorough the AI test was (deep: a hotel's baseline; standard: the weekly checks)
             "profile": (__import__("hotel_profile").for_report(profile) if profile else None),        # the profile the hotel confirmed, as this check used it
@@ -1518,6 +1534,7 @@ def run_full_audit(website, hotel="", city="", progress=None, max_pages=12,
         "blocked_sources": ext["blocked_sources"],
         "reputation": ext["reputation"],
         "guest_questions": guest,
+        "identity": ident,
         "fact_profile": fact_prof,
         "own_facts_source": own_facts_source,
         "intel": intel_result,

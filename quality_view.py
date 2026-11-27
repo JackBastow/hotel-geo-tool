@@ -45,6 +45,19 @@ def review_items(rep, hotel=None):
         out = setup_problems(hotel.get("name"), hotel.get("city"), hotel.get("website") or "") + out
     if g.get("error"):
         out.append(f"The report's own checks stopped part-way ({g['error'][:120]}): some checks did not run. A bug to look at.")
+    ident = (rep or {}).get("identity") or {}
+    if ident.get("changed") and ident.get("entered"):
+        out.append(f"The hotel is registered as “{ident['entered']}”, but its real name is “{ident['canonical']}” ({ident.get('basis', '')}). Every question and match used the real name. "
+                   "Change the name under 'Manage this hotel' so the dashboard shows it too.")
+    elif ident.get("needs_review"):
+        out.append(ident["needs_review"])
+    rc = ((rep or {}).get("meta") or {}).get("identity_recalculated")
+    if rc:
+        out.append("This report's AI visibility was recalculated from the answers already collected, under the hotel's real name"
+                   + (f"; {len(rc.get('withdrawn') or [])} finding(s) written from the earlier figures were withdrawn and are rebuilt at the next check." if rc.get("withdrawn") else "."))
+    rel = ident.get("related") or []
+    if rel:
+        out.append("Kept separate from the hotel, as other properties: " + "; ".join(f"{r['name']} ({r['why']})" for r in rel[:5]) + ".")
     seen, uniq = set(), []
     for x in out:
         if x not in seen:

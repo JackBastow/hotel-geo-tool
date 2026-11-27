@@ -95,13 +95,18 @@ def run(params, cfg, progress=None):
     use_firecrawl = cfg.firecrawl if (cfg.firecrawl and _within_quota("firecrawl", __import__("reading").LIMIT + 2)) else None          # a brand's website is read through Firecrawl first: up to reading.LIMIT pages and the site map
     use_places = cfg.google_places if (cfg.google_places and _within_quota("google_places", 3)) else None
     use_anthropic = cfg.anthropic if (cfg.anthropic and _within_quota("claude", max(CLAUDE_MILLIDOLLARS_PER_AUDIT, _depth.limits(depth_name)["reserve_millidollars"]))) else None
-    benchmark = []
+    benchmark, known_names = [], []
     if cfg.database_url:
         try:
             import backend
             import urlscope
             db = backend.open_store(cfg.database_url)
             _key = backend.hotel_key({"meta": {"base": urlscope.normalise(params["website"], params.get("hotel", ""), params.get("city", ""))[0]}})
+            try:
+                _id = db.get_identity(_key) or {}
+                known_names = ([_id["canonical"]] if _id.get("canonical") else []) + [a["name"] for a in (_id.get("aliases") or []) if a.get("name")]        # names verified as this hotel in earlier checks
+            except Exception:  # noqa: BLE001
+                known_names = []
             _conf = db.confirmed_prompts_for_key(_key) if db else []
             benchmark = ([dict(b, confirmed=True) for b in _conf] if _conf else db.get_benchmark(_key)) if db else []      # the prompts the hotel confirmed come first; otherwise the ones frozen at its first audit
             import placenames
@@ -117,7 +122,7 @@ def run(params, cfg, progress=None):
         gemini_reader_key=use_gemini_reader, youtube_api_key=cfg.youtube, wider=bool(params.get("wider", True)), pagespeed_api_key=cfg.pagespeed,
         anthropic_api_key=use_anthropic, anthropic_model=cfg.anthropic_model, anthropic_repeats=cfg.repeats, custom_prompts=params.get("prompts") or None, benchmark=benchmark or None, ai_depth=depth_name, firecrawl_api_key=use_firecrawl, places_nearby_key=use_places, tripadvisor_api_key=use_tripadvisor,
         market_hint={"tier": TIERS.get(params.get("tier")), "audiences": [a for a in params.get("audiences") or [] if a in valid_aud]}, profile=params.get("profile"),
-        reading_mode=params.get("reading") if params.get("reading") in ("adaptive", "standard") else "adaptive")
+        reading_mode=params.get("reading") if params.get("reading") in ("adaptive", "standard") else "adaptive", known_names=known_names or None)
     if params.get("review_rows"):
         fa_res = _with_review_export(fa_res, params["review_rows"], params.get("review_mapping") or {})
     # usage against the shared monthly allowances
