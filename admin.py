@@ -336,6 +336,25 @@ def register(app, cfg):
         return Response(json.dumps({"total": len(runs), "offset": offset, "next": offset + limit if offset + limit < len(runs) else None, "counts": counts, "rows": rows}, indent=1, default=str),
                         mimetype="application/json")
 
+    @app.get("/admin/run/<int:run_id>/prompt-audit.json")
+    def admin_prompt_audit(run_id):
+        """Read-only: for a saved check, what each prompt assumes and whether the hotel's verified facts support it (prompt_audit.py), the same answers grouped by scope, kind and segment, and the audiences placed
+        as verified / operator-confirmed / contradicted. Asks no assistant, changes nothing."""
+        g = guard()
+        if g:
+            return g
+        s, msg = store_or_msg()
+        if s is None:
+            abort(503)
+        import prompt_audit
+        rep = s.get_report(run_id)
+        if not rep:
+            abort(404)
+        a = prompt_audit.audit(rep, limit=120)
+        rows = [{k: v for k, v in r.items() if k not in ("why_asked",)} for r in a["prompts"]]
+        return Response(json.dumps({"run_id": run_id, "hotel": (rep.get("meta") or {}).get("hotel"), "summary": a["summary"], "breakdown": prompt_audit.breakdown(rep),
+                                    "audiences": prompt_audit.audience_status(rep), "prompts": rows}, indent=1, default=str), mimetype="application/json")
+
     @app.post("/admin/run/<int:run_id>/extraction/probe")
     def admin_extraction_probe(run_id):
         """Why were answers of this saved check not read? Asks the extraction model ONE call, on one group of the check's STORED answers (no web search, no new answers), and returns how that reply
