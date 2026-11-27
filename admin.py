@@ -336,6 +336,46 @@ def register(app, cfg):
         return Response(json.dumps({"total": len(runs), "offset": offset, "next": offset + limit if offset + limit < len(runs) else None, "counts": counts, "rows": rows}, indent=1, default=str),
                         mimetype="application/json")
 
+    @app.post("/admin/run/<int:run_id>/extraction/probe")
+    def admin_extraction_probe(run_id):
+        """Why were answers of this saved check not read? Asks the extraction model ONE call, on one group of the check's STORED answers (no web search, no new answers), and returns how that reply
+        went: stop reason, tokens, blocks, how it parsed, the start and end of the reply. Nothing is saved or changed. `batch` = which group (default: the first that was lost)."""
+        g = guard()
+        if g:
+            return g
+        if not hmac.compare_digest(request.form.get("csrf", ""), session.get("csrf", "")):
+            abort(400)
+        s, msg = store_or_msg()
+        if s is None:
+            abort(503)
+        if not cfg.anthropic:
+            return Response(json.dumps({"error": "no Anthropic key on this host"}), mimetype="application/json", status=503)
+        import ai_insights
+        import ai_sample
+        rep = s.get_report(run_id)
+        if not rep:
+            abort(404)
+        its = [i for i in (rep.get("ai_sample") or {}).get("items") or [] if i.get("answer")]
+        ordered = sorted(its, key=lambda i: i["kind"] != "direct")
+        batches = [ordered[k:k + ai_insights.BATCH] for k in range(0, len(ordered), ai_insights.BATCH)]
+        read = (rep.get("ai_insights") or {}).get("extracted_answers") or {}
+        lost = [k for k, b in enumerate(batches) if not any(i["id"] in read for i in b)]
+        k = int(request.form.get("batch") or (lost[0] if lost else 0))
+        if not 0 <= k < len(batches):
+            abort(400)
+        size = int(request.form.get("size") or 0)
+        batch = batches[k][:size] if size else batches[k]
+        meta = rep.get("meta") or {}
+        diag = {}
+        try:
+            client = ai_sample._make_client(cfg.anthropic, timeout=120.0)
+            d, (tin, tout) = ai_insights._extract_batch(client, request.form.get("model") or ai_sample.MODEL_DEFAULT, batch, meta.get("hotel") or "", meta.get("city") or "", diag)
+            result = {"answers_in_reply": len((d or {}).get("answers") or []), "asked": len(batch)}
+        except Exception as e:  # noqa: BLE001
+            result = {"error": f"{type(e).__name__}: {str(e)[:300]}"}
+        return Response(json.dumps({"run_id": run_id, "batch": k, "lost_batches": lost, "size": len(batch), "answer_chars": sum(min(1800, len(i["answer"])) for i in batch), **result, "diag": diag,
+                                    "max_tokens": ai_insights.MAX_TOKENS}, indent=1, default=str), mimetype="application/json")
+
     @app.post("/admin/release/assess")
     def admin_release_assess():
         """Work out and SAVE the release state of the named saved checks (checks made before release states existed have none). No assistant is asked."""

@@ -275,7 +275,9 @@ def ai_section(ai, ins=None):
                         + (", with pages from other sites cited instead: " + ", ".join(f"{x['domain']} ({x['cited']})" for x in osr["instead"][:4]) if osr["instead"] else "")
                         + ". If an answer is not on the hotel's site in plain language, the assistant finds it elsewhere and cites elsewhere.", "tiny"))
     br = (ins or {}).get("brand_ranking")
-    if br and br.get("rows"):
+    if br and br.get("withheld"):
+        out.append(para(br["withheld"], "tiny"))
+    elif br and br.get("rows"):
         sb0 = ins.get("scoreboard") or {}
         out.append(para("Brand ranking: the hotel and the hotels the assistant named most. Coverage is the share of answers that named the hotel; sentiment is the net of "
                         "positive minus negative mentions (-100 to +100), an AI's reading. It describes this one sample, not the market."

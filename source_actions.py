@@ -89,9 +89,11 @@ def build(rep, limit=6):
         d = p.get("domain") or ""
         if not d or p.get("own_site") or (own_dom and (d == own_dom or d.endswith("." + own_dom))):
             continue
-        r = by.setdefault(d, {"domain": d, "cited": 0, "hotel": False, "rivals": set(), "urls": [], "route": "", "affiliate": False, "sponsored": False, "engines": set()})
-        r["cited"] += p.get("cited") or p.get("answers") or 0
-        r["engines"].add("Claude")
+        r = by.setdefault(d, {"domain": d, "cited": 0, "retrieved": 0, "hotel": False, "rivals": set(), "urls": [], "route": "", "affiliate": False, "sponsored": False, "engines": set()})
+        r["cited"] += int(p.get("cited") or 0)            # citations only: a page the assistant merely retrieved or searched (cited 0) is not a citation, however many answers it turned up in
+        r["retrieved"] += int(p.get("questions") or 0)     # kept apart, so what was retrieved is never read as what was cited
+        if p.get("cited"):
+            r["engines"].add("Claude")                     # 'cited by' means it cited it: a page it only retrieved is not credited to it
         r["hotel"] = r["hotel"] or bool(p.get("names_hotel"))
         if p.get("names_competitor"):
             r["rivals"].add(p["names_competitor"])
@@ -106,8 +108,11 @@ def build(rep, limit=6):
                 d = re.sub(r"^www\.", "", re.sub(r"^https?://", "", p.get("url") or "").split("/")[0].lower())
                 if not d or (own_dom and (d == own_dom or d.endswith("." + own_dom))):
                     continue
-                r = by.setdefault(d, {"domain": d, "cited": 0, "hotel": False, "rivals": set(), "urls": [], "route": "", "affiliate": False, "sponsored": False, "engines": set()})
-                r["cited"] += 1
+                r = by.setdefault(d, {"domain": d, "cited": 0, "retrieved": 0, "hotel": False, "rivals": set(), "urls": [], "route": "", "affiliate": False, "sponsored": False, "engines": set()})
+                if p.get("cited") is False:
+                    r["retrieved"] += 1                       # another assistant's search result that its answer did not cite
+                else:
+                    r["cited"] += 1
                 r["engines"].add(names.get(e, e))
                 if p.get("url") and len(r["urls"]) < 4:
                     r["urls"].append(p["url"])
@@ -116,7 +121,7 @@ def build(rep, limit=6):
         if not d or d not in by:
             if not d or (own_dom and d == own_dom):
                 continue
-            by.setdefault(d, {"domain": d, "cited": a.get("cited") or 0, "hotel": False, "rivals": set(), "urls": [a["url"]], "route": "", "affiliate": False, "sponsored": False, "engines": {"Claude"}})
+            by.setdefault(d, {"domain": d, "cited": a.get("cited") or 0, "retrieved": 0, "hotel": False, "rivals": set(), "urls": [a["url"]], "route": "", "affiliate": False, "sponsored": False, "engines": {"Claude"}})
         r = by[d]
         r["hotel"] = r["hotel"] or a.get("hotel_in") is True
         r["rivals"] |= set(a.get("rivals_in") or [])
@@ -143,7 +148,7 @@ def build(rep, limit=6):
         route = ("a contact page was found: " + r["route"]) if r["route"] else ("commission or affiliate site: placement is commercial, not editorial" if r["affiliate"] else ("sponsored content: a paid placement, check before approaching" if r["sponsored"] else "no submission route was found"))
         action = ("The hotel appears here: verify what is published is accurate and complete. " + ACTION[t]) if (r["hotel"] and t in ("review", "comparison")) else ACTION[t]
         listing = strategy_actions.is_listing_site(r["domain"], t)
-        out.append({"domain": r["domain"], "type": t, "type_label": LABEL[t], "cited": r["cited"], "hotel_appears": r["hotel"], "listing_site": listing, "listing_status": status, "listing_url": lurl, "rivals": sorted(r["rivals"])[:3], "route": route, "action": action,
+        out.append({"domain": r["domain"], "type": t, "type_label": LABEL[t], "cited": r["cited"], "retrieved": r.get("retrieved", 0), "hotel_appears": r["hotel"], "listing_site": listing, "listing_status": status, "listing_url": lurl, "rivals": sorted(r["rivals"])[:3], "route": route, "action": action,
                     "cited_by": [n for n in ("Claude", "ChatGPT", "Gemini", "Perplexity") if n in r.get("engines", set())],
                     "why_now": (f"The hotel states {reason['label'].lower()}, which could justify inclusion." if reason else "No distinctive reason has been identified yet: do not approach until there is one."),
                     "evidence": r["urls"][:2]})

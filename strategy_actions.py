@@ -160,7 +160,7 @@ def _from_seen(rep, profile, hotel, own, rivals):
             title, finding = f"Get featured on {d}", f"The AI assistant read this page for questions about your market: it features {who or 'other hotels'} and does not mention you."
             steps = _outreach_steps("editorial", d, url, contact, "", hotel, profile, page_title=(art.get("title") or "")[:80])
         else:
-            title, finding = f"Check whether you are featured on {d}", f"The AI assistant used {d} ({s['type_label'].lower()}) in your latest check" + (f"; it features {who}." if who else ".")
+            title, finding = f"Check whether you are featured on {d}", (f"The AI assistant cited {d} ({s['type_label'].lower()}) in your latest check" if s.get("cited") else f"{d} ({s['type_label'].lower()}) turned up in the AI assistant's searches in your latest check, though no answer cited it") + (f"; it features {who}." if who else ".")
             steps = [{"title": f"Search {d} for your hotel's name", "link": {"url": _search(f'site:{d} "{hotel}"'), "label": f"Search {d}"}, "detail": "If you are already there, check the facts are right; if not, carry on."}] \
                 + _outreach_steps({"tourism": "tourism_board", "conference": "venue_directory", "attraction": "attraction"}.get(s["type"], "editorial"), d, url, contact, "", hotel, profile)
         by_ = s.get("cited_by") or []
@@ -170,7 +170,7 @@ def _from_seen(rep, profile, hotel, own, rivals):
             finding += f" Used by {by_[0]}."
         agreed = len(by_) >= 2
         out.append(_act(f"strat-{d}", title, finding, steps, kind_label=s["type_label"], priority=("low" if NOT_TRAVEL.search(d) else "high" if ((art and who) or agreed) else "medium"), confidence="Seen in the latest check", tag=d,
-                        evidence_=[{"url": u, "snippet": "Cited by the assistant"} for u in (s.get("evidence") or [])[:2]]))
+                        evidence_=[{"url": u, "snippet": "Cited by the assistant" if s.get("cited") else "Turned up in the assistant's searches (not cited in an answer)"} for u in (s.get("evidence") or [])[:2]]))
     return out, listings
 
 

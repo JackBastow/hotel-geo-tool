@@ -97,7 +97,7 @@ _calls = {"n": 0}
 _orig = ai_insights._extract_batch
 
 
-def _fake_batch(client, model, batch, hotel, city):
+def _fake_batch(client, model, batch, hotel, city, diag=None):
     _calls["n"] += 1
     if any(i["id"] == "g0" for i in batch):
         return None, (10, 10)
@@ -111,8 +111,8 @@ try:
 finally:
     ai_insights._extract_batch = _orig
 _me = next(r for r in _lb["rows"] if r["is_target"])
-check("a batch that could not be read is tried again once", _calls["n"] == 3, _calls["n"])
-check("its answers are left out of the totals, not counted as naming nobody (4 of 4, not 4 of 12)", (_me["mentions"], _me["of"]) == (4, 4) and len(_ex["failed_ids"]) == 8, (_me["mentions"], _me["of"]))
+check("a batch that could not be read is asked again in smaller groups, so one bad answer costs only itself", _ex["failed_ids"] == ["g0"] and _calls["n"] > 3, (_ex["failed_ids"], _calls["n"]))
+check("that answer is left out of the totals, not counted as naming nobody (11 of 11, not 11 of 12)", (_me["mentions"], _me["of"]) == (11, 11), (_me["mentions"], _me["of"]))
 
 print("FAILURES: " + (", ".join(fails) if fails else "none"))
 sys.exit(1 if fails else 0)

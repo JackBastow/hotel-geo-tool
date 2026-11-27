@@ -37,6 +37,62 @@ def ai_counts(rep):
             "basis": "every answer whose question did not name the hotel, each counted once"}
 
 
+RANKINGS_MIN_ANALYSED = 0.7           # the share of the answers that must have been read for the hotels they name before the rival tables are shown as a market view
+
+
+def rankings_state(rep):
+    """
+    Is the competitor ranking built on enough of the answers to be shown as a view of the market? -> {reliable, analysed, eligible, share, note}.
+    Every rival figure comes from the answers whose hotels could be read out. With 4 of 28 read (Brooks Guesthouse), the table says who happened to appear in those 4, not who the assistants recommend,
+    so it is not presented as a ranking. The hotel's own count is not affected: it also rests on the text match over every answer.
+    """
+    rep = rep or {}
+    eligible = [i for i in (rep.get("ai_sample") or {}).get("items") or [] if i.get("answer") and i.get("kind") != "direct" and not i.get("names_hotel")]
+    ins = rep.get("ai_insights")
+    if isinstance(ins, dict) and "extracted_answers" not in ins and (ins.get("brand_ranking") or ins.get("leaderboard")):
+        return {"reliable": True, "analysed": None, "eligible": len(eligible), "share": None, "note": "", "unknown": True}      # a check saved before the analysed answers were kept: its rankings stand as they were
+    read = (ins or {}).get("extracted_answers") or {}
+    analysed = sum(1 for i in eligible if i.get("id") in read)
+    n = len(eligible)
+    share = analysed / n if n else 0.0
+    ok = n > 0 and share >= RANKINGS_MIN_ANALYSED
+    if ok:
+        note = ""
+    elif not n or not analysed:
+        note = "No answer could be analysed for the hotels it names, so there is no competitor ranking."
+    else:
+        note = (f"Only {analysed} of {n} answers could be analysed for the hotels they name, so the competitor table is not shown as a ranking: "
+                "it would only describe those few answers, not what the assistants recommend.")
+    return {"reliable": ok, "analysed": analysed, "eligible": n, "share": round(share, 2), "note": note}
+
+
+def withhold_rankings(rep):
+    """
+    When too few answers were read for the hotels they name (rankings_state), take the rival rows out of every ranking the report carries, so no screen or PDF shows them as a view of the market, and say why.
+    The rows are kept under `withheld_rows` (nothing is lost; a later re-reading of the answers can restore them). Safe to call again. -> the note, or None when the rankings stand.
+    """
+    st = rankings_state(rep)
+    ins = (rep or {}).get("ai_insights")
+    if st["reliable"] or not isinstance(ins, dict) or not (ins.get("brand_ranking") or ins.get("leaderboard")):
+        return None
+    lbs = [ins.get("leaderboard"), (ins.get("niche") or {}).get("leaderboard")]
+    for key in ("rows", "all"):
+        for box in [ins.get("brand_ranking")] + lbs:
+            if isinstance(box, dict) and isinstance(box.get(key), list):
+                rivals = [r for r in box[key] if isinstance(r, dict) and not r.get("is_target")]
+                if rivals:
+                    box.setdefault("withheld_rows", {})[key] = rivals
+                    box[key] = [r for r in box[key] if not (isinstance(r, dict) and not r.get("is_target"))]
+    for box in [ins.get("brand_ranking")] + lbs:
+        if isinstance(box, dict):
+            box["withheld"] = st["note"]
+    sb = ins.get("scoreboard")
+    if isinstance(sb, dict):
+        sb.update(top_competitor=None, rank_in_table=None, table_size=None, place=None)
+    ins["rankings_withheld"] = st["note"]
+    return st["note"]
+
+
 def tracked_counts(rep):
     """-> {named, asked, fp} for the hotel's tracked prompts only (the ones asked every week, so weeks can be compared), or None. `fp` identifies the set of prompts asked."""
     ai = (rep or {}).get("ai_sample") or {}
@@ -236,7 +292,15 @@ def apply(rep):
         engines = engine_counts(rep)
     except Exception:  # noqa: BLE001
         engines = []
-    rep["model"] = {"version": MODEL_VERSION, "ai": ai, "tracked": tracked, "top_priorities": top, "score_basis": score_basis(rep), "engines": engines}
+    try:
+        rankings = rankings_state(rep)
+    except Exception:  # noqa: BLE001
+        rankings = None
+    rep["model"] = {"version": MODEL_VERSION, "ai": ai, "tracked": tracked, "top_priorities": top, "score_basis": score_basis(rep), "engines": engines, "rankings": rankings}
+    try:
+        withhold_rankings(rep)
+    except Exception:  # noqa: BLE001 - a report that cannot be checked is shown as it was
+        pass
     if not ai:
         return rep
     ins = rep.get("ai_insights") if isinstance(rep.get("ai_insights"), dict) else None

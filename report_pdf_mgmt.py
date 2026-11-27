@@ -345,6 +345,8 @@ def _competitor_block(rep):
     ins = rep.get("ai_insights") or {}
     br = ins.get("brand_ranking") or {}
     rows = br.get("all") or br.get("rows") or []
+    if br.get("withheld"):
+        return [para(br["withheld"], "base")]
     if not rows:
         return [para("No ranking of the hotels the assistant names could be made in this audit (the AI sample was not run, or it named no hotels).", "base")]
     rows = sorted(rows, key=lambda r: (-(r.get("mentions") or 0), r.get("avg_rank") or 99))

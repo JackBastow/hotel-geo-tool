@@ -15,6 +15,7 @@ know that model's reasoning, and nothing is scored. Rules that keep it honest:
   * Every LLM step is optional: if it fails, the arithmetic sections still show and the failure is stated.
 """
 
+import json
 import re
 
 import ai_sample
@@ -24,6 +25,7 @@ import review_replies
 SOURCE = "AI answer insights"
 MAX_TOKENS = 6000
 BATCH = 8                                  # answers per extraction call, so a long set (repeats) never overruns the output cap
+RETRY_CALLS = 24                           # extra calls a whole check may spend on splitting groups that could not be read: bounded, so a bad day cannot run up the bill
 SENTIMENTS = ("positive", "neutral", "negative")
 
 # ------------------------------------------------------------------- sources
@@ -145,15 +147,58 @@ def _blocks(items):
     return "\n\n".join(f"[{i['id']}] ({i['kind']}) Question: {i['text']}\nAnswer: {(i.get('answer') or '')[:1800]}" for i in items if i.get("answer"))
 
 
-def _extract_batch(client, model, batch, hotel, city):
-    """One call for up to BATCH answers -> (parsed dict | None, (tin, tout))."""
+def _salvage(text):
+    """The complete answers of a reply that was cut off or damaged part-way: {"answers": [...complete answer objects...], "about": {}, "salvaged": True}, or None when there are none.
+    The answers come first in the reply, so a cut-off reply still holds the ones written before the cut."""
+    text = text or ""
+    i = text.find('"answers"')
+    j = text.find("[", i) if i >= 0 else -1
+    if j < 0:
+        return None
+    dec, k, out = json.JSONDecoder(), j + 1, []
+    while True:
+        while k < len(text) and text[k] in " \r\n\t,":
+            k += 1
+        if k >= len(text) or text[k] != "{":
+            break
+        try:
+            obj, k = dec.raw_decode(text, k)
+        except ValueError:
+            break
+        if isinstance(obj, dict) and obj.get("id"):
+            out.append(obj)
+    return {"answers": out, "about": {}, "salvaged": True} if out else None
+
+
+def _extract_batch(client, model, batch, hotel, city, diag=None):
+    """One call for up to BATCH answers -> (parsed dict | None, (tin, tout)). `diag` (a dict), when given, is filled with why the reply was or was not usable: the stop reason, the tokens,
+    the kinds of block it held, and how it parsed (ok / salvaged / unreadable / empty)."""
     about_ids = [i["id"] for i in batch if i["kind"] == "direct"]
     extra = {"output_config": {"effort": "low"}} if model in ai_sample.EFFORT_MODELS else {}
     resp = client.messages.create(model=model, max_tokens=MAX_TOKENS, system=EXTRACT_SYSTEM, messages=[{"role": "user", "content": EXTRACT_PROMPT.format(
         hotel=hotel, city=city, about_ids=", ".join(about_ids) or "none", blocks=_blocks(batch), themes=THEMES_TEXT)}], **extra)
     text, _d, _s, tin, tout = ai_sample.parse_response(resp)
     data = review_replies.parse_json(text)
+    state = "ok" if isinstance(data, dict) else ("empty" if not text else "unreadable")
+    if state != "ok":
+        data = _salvage(text)
+        if data:
+            state = "salvaged"
+    if diag is not None:
+        diag.update(stop_reason=str(ai_sample._get(resp, "stop_reason") or ""), in_tokens=tin, out_tokens=tout, reply_chars=len(text or ""), parse=state,
+                    blocks=[str(ai_sample._get(b, "type") or "") for b in (ai_sample._get(resp, "content", []) or [])][:6], tail=(text or "")[-120:] if state != "ok" else "", head=(text or "")[:200] if state != "ok" else "")
     return (data if isinstance(data, dict) else None), (tin, tout)
+
+
+def _why_failed(diag):
+    """A plain reason an answer could not be read, from the last call that tried it."""
+    if diag.get("error"):
+        return "the request failed (" + diag["error"][:80] + ")"
+    if diag.get("stop_reason") == "max_tokens":
+        return "the reply was cut off at the output limit"
+    if diag.get("parse") in ("unreadable", "empty"):
+        return "the reply was not valid JSON"
+    return "the assistant left it out of its reply"
 
 
 _WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
@@ -177,29 +222,75 @@ def _star_near(answer, name, stars):
     return False
 
 
-def extract(client, model, items, hotel, city):
-    """-> (validated dict | None, usage). Names are kept only if they appear in that answer's own text. The answers about the hotel go first, in one batch."""
+def extract(client, model, items, hotel, city, retry_calls=RETRY_CALLS, log=None):
+    """
+    -> (validated dict | None, usage). Names are kept only if they appear in that answer's own text. The answers about the hotel go first, in one batch.
+    A group of answers whose reply could not be read is split in half and asked again (at most `retry_calls` extra calls in all), so one bad answer costs itself and not its seven neighbours, and
+    a reply that was cut off still gives the answers written before the cut. What happened is recorded in `log` (and in the result's "extraction"): calls, why each failed, what was recovered.
+    """
     by_id = {i["id"]: i for i in items if i.get("answer")}
     if not by_id:
         return None, (0, 0)
     ordered = sorted(by_id.values(), key=lambda i: i["kind"] != "direct")
-    batches = [ordered[k:k + BATCH] for k in range(0, len(ordered), BATCH)]
-    answers_raw, data_about, tin, tout, ok = [], {}, 0, 0, 0
-    failed_ids = []
-    for n, batch in enumerate(batches):
-        d, (a, b) = _extract_batch(client, model, batch, hotel, city)
+    pending = [(ordered[k:k + BATCH], False) for k in range(0, len(ordered), BATCH)]
+    got, failed, calls_log, data_about, tin, tout = {}, {}, [], {}, 0, 0
+    spent = good_calls = 0
+    while pending:
+        batch, is_retry = pending.pop(0)
+        ids = [i["id"] for i in batch]
+        if is_retry:
+            if spent >= retry_calls:
+                for i in ids:
+                    failed.setdefault(i, "the limit on repeat attempts was reached")
+                calls_log.append({"n": len(batch), "retry": True, "parse": "not_asked", "recovered": 0, "missing": len(ids)})
+                continue
+            spent += 1
+        diag = {"n": len(batch), "retry": is_retry}
+        try:
+            d, (a, b) = _extract_batch(client, model, batch, hotel, city, diag)
+        except Exception as e:  # noqa: BLE001
+            if not good_calls and not got:
+                raise                                       # nothing has worked yet: the caller states the cause (a bad key, no credit)
+            d, (a, b) = None, (0, 0)
+            diag.update(parse="error", error=f"{type(e).__name__}: {str(e)[:100]}", stop_reason="")
         tin, tout = tin + a, tout + b
-        if d is None:
-            d, (a, b) = _extract_batch(client, model, batch, hotel, city)         # once more: a reply that could not be read is usually a one-off
-            tin, tout = tin + a, tout + b
-        if d is None:
-            failed_ids += [i["id"] for i in batch]                               # left out of every total below, never counted as 'nobody named'
+        want = set(ids)
+        rows = [x for x in ((d or {}).get("answers") or []) if isinstance(x, dict) and x.get("id") in want]
+        for x in rows:
+            got.setdefault(x["id"], x)
+        if d is not None:
+            good_calls += 1
+            if isinstance(d.get("about"), dict) and d["about"] and not data_about:
+                data_about = d["about"]
+        missing = [i for i in batch if i["id"] not in got and not (i["kind"] == "direct" and data_about)]      # the hotel's own description is returned as `about`, so it need not also be listed as an answer
+        diag.update(recovered=len({x["id"] for x in rows}), missing=len(missing))
+        calls_log.append(diag)
+        need_about = [i for i in batch if i["kind"] == "direct" and not data_about and i["id"] in got]
+        if need_about and not is_retry:
+            pending.insert(0, (need_about, True))           # the description of the hotel comes last in a reply, so a cut-off reply loses it: ask for it again
+        if not missing:
             continue
-        ok += 1
-        answers_raw += [x for x in (d.get("answers") or []) if isinstance(x, dict)]
-        if n == 0 and isinstance(d.get("about"), dict):
-            data_about = d["about"]
-    if not ok:
+        if len(batch) == 1:
+            failed[ids[0]] = _why_failed(diag)
+        elif rows:
+            pending.insert(0, (missing, True))             # part of the reply was good: ask only for what is missing, together
+        else:
+            h = (len(missing) + 1) // 2                    # nothing usable came back: halve the group, so a single bad answer is found and the rest are read
+            pending[0:0] = [(missing[:h], True), (missing[h:], True)]
+    answers_raw = list(got.values())
+    failed_ids = list(failed)
+    reasons = {}
+    for r in failed.values():
+        reasons[r] = reasons.get(r, 0) + 1
+    summary = {"eligible": len(by_id), "analysed": len(got), "unprocessed": len(failed_ids), "unprocessed_ids": failed_ids[:60], "reasons": reasons, "calls": len(calls_log), "retry_calls": spent,
+               "retry_limit": retry_calls, "salvaged_replies": sum(1 for c in calls_log if c.get("parse") == "salvaged"), "cut_off_replies": sum(1 for c in calls_log if c.get("stop_reason") == "max_tokens"),
+               "unreadable_replies": sum(1 for c in calls_log if c.get("parse") in ("unreadable", "empty")), "batch_size": BATCH, "max_tokens": MAX_TOKENS,
+               "recovered_on_retry": sum(c.get("recovered", 0) for c in calls_log if c.get("retry")),
+               "calls_detail": [{k: v for k, v in c.items() if k not in ("tail", "head")} for c in calls_log][:40],
+               "failure_samples": [{"head": c.get("head", ""), "tail": c["tail"], "stop_reason": c.get("stop_reason"), "out_tokens": c.get("out_tokens")} for c in calls_log if c.get("tail") or c.get("head")][:3]}
+    if log is not None:
+        log.update(summary)
+    if not got:
         return None, (tin, tout)
     data = {"answers": answers_raw, "about": data_about}
     answers = {}
@@ -236,7 +327,7 @@ def extract(client, model, items, hotel, city):
             claims.append({"type": c["type"], "value": str(c["value"])[:120], "answer_id": str(c.get("answer_id") or "")[:20]})
     about = {"tone": ab.get("tone") if ab.get("tone") in ("positive", "mixed", "negative", "unclear") else "unclear",
              "strengths": clean(ab.get("strengths")), "weaknesses": clean(ab.get("weaknesses")), "claims": claims}
-    return {"answers": answers, "about": about, "failed_ids": failed_ids}, (tin, tout)
+    return {"answers": answers, "about": about, "failed_ids": failed_ids, "failed": failed, "extraction": summary}, (tin, tout)
 
 
 # ------------------------------------------------------------ arithmetic
@@ -712,7 +803,9 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
 
     cost = 0.0
     try:
-        extracted, (tin, tout) = extract(client, model, items, hotel, city)
+        _xlog = {}
+        extracted, (tin, tout) = extract(client, model, items, hotel, city, log=_xlog)
+        out["extraction"] = _xlog
         cost += ai_sample.cost_usd(model, tin, tout, 0)
     except Exception as e:  # noqa: BLE001
         return {**out, "status": "partial", "reason": ai_sample._reason_for(e), "cost_usd": round(cost, 5)}
@@ -722,7 +815,7 @@ def run(ai, ctx, *, api_key=None, model=None, client=None, budget_usd=0.25, do_h
     out["extracted_answers"] = extracted["answers"]           # the hotels each answer named, kept so ai_gap can say who was named instead, question by question
     if extracted.get("failed_ids"):
         out["unanalysed"] = len(extracted["failed_ids"])
-        out["reason"] = (out.get("reason") or "") + (f" {len(extracted['failed_ids'])} answer(s) could not be broken down into hotels even after a second try; they are left out of the "
+        out["reason"] = (out.get("reason") or "") + (f" {len(extracted['failed_ids'])} answer(s) could not be broken down into hotels even after being asked again in smaller groups; they are left out of the "
                                                      "rival and ranking figures rather than counted as naming nobody.")
     import hotel_identity
     _ents = [n for e in (ctx.get("entities") or []) if e.get("found") for n in [e.get("label") or (e.get("facts") or {}).get("name")] if n]

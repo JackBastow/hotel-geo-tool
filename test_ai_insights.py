@@ -81,7 +81,7 @@ names = [h["name"] for h in ex["answers"]["best"]]
 check("a hotel the answer never mentioned is dropped ('The Invented Palace'), real ones kept", "The Invented Palace" not in names and len(names) == 3, names)
 check("an answer id that was never asked is ignored", "ghost" not in ex["answers"])
 check("only known claim types are kept, with the tone validated", [c["type"] for c in ex["about"]["claims"]] == ["parking", "check_in", "phone", "star_rating"] and ex["about"]["tone"] == "mixed")
-check("prose instead of JSON gives None, never a guess", ins.extract(Fake([resp("sorry"), resp("sorry")]), "claude-haiku-5-5", ITEMS, HOTEL, CITY)[0] is None)          # tried twice (a one-off unreadable reply is asked again)
+check("prose instead of JSON gives None, never a guess", ins.extract(Fake([resp("sorry")] * 60), "claude-haiku-5-5", ITEMS, HOTEL, CITY)[0] is None)          # asked again in smaller groups, within the repeat limit, then given up
 
 print("3. the leaderboard (plain arithmetic)")
 import hotel_identity as _hid
@@ -218,8 +218,9 @@ check("net sentiment = % positive minus % negative: 2 positive of 2 -> +100; one
       royal["sentiment"] == 100 and next(r for r in lbs["rows"] if r["name"].startswith("Park Inn"))["sentiment"] == -100 and next(r for r in lbs["rows"] if r["is_target"])["sentiment"] is None)
 check("coverage % is the share of answers that named the hotel", royal["coverage_pct"] == 100 and next(r for r in lbs["rows"] if r["is_target"])["coverage_pct"] == 0)
 many = [{**ITEMS[0], "id": f"q{k}", "kind": "generic"} for k in range(10)] + [ITEMS[2]]
-fk = Fake([resp(json.dumps({"answers": [], "about": {"tone": "positive", "strengths": [], "weaknesses": [], "claims": []}})), resp(json.dumps({"answers": [], "about": {}})),
-           resp(json.dumps({"answers": [], "about": {}}))])
+_none = lambda ids: [{"id": i, "hotels": []} for i in ids]          # every answer is accounted for (an answer missing from a reply is asked for again)
+fk = Fake([resp(json.dumps({"answers": _none([f"q{k}" for k in range(7)]), "about": {"tone": "positive", "strengths": [], "weaknesses": [], "claims": []}})),
+           resp(json.dumps({"answers": _none([f"q{k}" for k in range(7, 10)]), "about": {}})), resp(json.dumps({"answers": [], "about": {}}))])
 ins.extract(fk, "claude-haiku-5-5", many, HOTEL, CITY)
 check("11 answers go in 2 calls of at most 8, the answers about the hotel first so its description is read once", len(fk.calls) == 2 and "[about]" in fk.calls[0]["messages"][0]["content"]
       and "[about]" not in fk.calls[1]["messages"][0]["content"])

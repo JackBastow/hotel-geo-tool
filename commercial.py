@@ -110,10 +110,10 @@ def source_plays(gap, rec_fn, conf):
         cited = int(a.get("cited") or 0)
         if not qs or not (len(qs) >= 2 or cited >= 3):
             continue
-        found.append((len(qs), cited, a, qs))
+        found.append((len(qs), cited, a, qs, st))
     found.sort(key=lambda t: (-t[0], -t[1], t[2].get("domain") or ""))
     out, seen = [], set()
-    for n_q, cited, a, qs in found:
+    for n_q, cited, a, qs, st in found:                 # `st` is THIS page's site type, kept with it: re-using the loop variable above gave every page the type of the last one examined
         if a.get("domain") in seen or len(out) >= MAX_SOURCE:
             continue
         seen.add(a.get("domain"))

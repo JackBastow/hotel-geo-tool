@@ -209,6 +209,8 @@ def at_a_glance(rep):
     else:
         own = (f'<b>{me["coverage_pct"]:g}%</b> of the sampled answers named the hotel.' if me and me.get("coverage_pct") is not None else "The hotel was not named in the sampled answers.")
     inst = ("<ul>" + "".join(f'<li>{esc(r["name"])} <span class="hk-muted">{r["coverage_pct"]:g}%</span></li>' for r in others) + "</ul>") if others else '<p class="hk-muted">No rival was named often enough to list.</p>'
+    if br.get("withheld"):
+        inst = f'<p class="hk-muted">{esc(br["withheld"])}</p>'
     src = ("<ul>" + "".join(f"<li>{esc(d)}</li>" for d in doms[:4]) + "</ul>") if doms else '<p class="hk-muted">No sources were recorded.</p>'
     return ('<div class="glance"><section class="panel"><h4>Is the hotel named?</h4><p>' + own + ' One assistant, one day: a sample, not a ranking.</p></section>'
             '<section class="panel"><h4>Named instead of you</h4>' + inst + '</section><section class="panel"><h4>Sites the answers drew on</h4>' + src + '</section></div>')
@@ -284,7 +286,7 @@ def _overview_rest(rep, prev, parts, cons, h, sc, ins, sb, br, counts, qs):
                 {"label": "Not found", "value": counts["not_found"], "colour": BAD}, {"label": "Couldn't check", "value": counts["couldnt_check"], "colour": GREY}],
                top=f"{counts['answered']}/{len(qs)}", bottom="answered") if qs else '<p class="caption">The guest questions were not checked.</p>'
     ai_rows = [{"label": r["name"], "value": r["coverage_pct"], "hot": r["is_target"], "note": None} for r in (br.get("rows") or [])]
-    ai_panel = (bars(ai_rows, suffix="%") + '<p class="caption">Share of the sampled answers that named each hotel. One model on one day: a sample, not a ranking.</p>') if ai_rows else '<p class="caption">No AI answers were sampled for this audit.</p>'
+    ai_panel = (bars(ai_rows, suffix="%") + '<p class="caption">' + (esc(br["withheld"]) if br.get("withheld") else "Share of the sampled answers that named each hotel. One model on one day: a sample, not a ranking.") + '</p>') if ai_rows else '<p class="caption">No AI answers were sampled for this audit.</p>'
     parts.append('<div class="ov-grid"><section class="panel"><h4>Score by area</h4>' + left + '</section><div class="ov-col"><section class="panel"><h4>Guest questions on your website</h4>' + qd
                  + '</section><section class="panel"><h4>Who the AI assistant names</h4>' + ai_panel + '</section></div></div>')
 

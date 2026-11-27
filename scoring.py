@@ -959,6 +959,18 @@ def score_social(discovery, tavily_result=None):
 
 # ------------------------------------------------------------------ assembly
 
+def _own_reader_read_homepage(site, guest):
+    """
+    True when this tool's own reader read the hotel's homepage although Firecrawl was chosen as the primary reader of the page text. The site-level findings (robots.txt, the sitemap, structured data)
+    come from our own fetch, so they are real then and the site is scored like any other. Where our reader was refused (HTTP 403 on the homepage: THE NICI) they are not, and the cautious score stays;
+    so does a fallback read after our reader was refused on pages (`own_reader_refused`). What the other reader returned does not change this: its markup does not repair our own failed fetch.
+    """
+    if (guest or {}).get("read_via") != "firecrawl_primary" or (guest or {}).get("own_reader_refused"):
+        return False
+    pages = (site or {}).get("pages") or []
+    return bool(pages and pages[0].get("ok") and pages[0].get("status") in (None, 200))
+
+
 def build_scorecard(site, entities, consistency, location, discovery,
                     ai_visibility=None, tavily_result=None,
                     places_result=None, amadeus_result=None, guest_result=None, web=None, social_found=None):
@@ -990,7 +1002,7 @@ def build_scorecard(site, entities, consistency, location, discovery,
             "'best hotels in [city]' and see whether this hotel comes up."))
 
     # A site that could not be read cannot be scored: 0 or 40 from nothing would read as a verdict on the hotel.
-    if guest_result is not None and guest_result.get("read_via"):
+    if guest_result is not None and guest_result.get("read_via") and not _own_reader_read_homepage(site, guest_result):
         why = ("The site refused this tool's own reader, so its pages were read through a fallback page reader (Firecrawl or Anthropic's) as plain text. Markup, headings, images "
                "and the profiles linked from the page cannot be inspected that way, so this was not scored.")
         for i, c in enumerate(cats):
